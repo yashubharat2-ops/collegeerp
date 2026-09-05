@@ -33,7 +33,12 @@ class User extends Authenticatable
     public function hasPermission(string $permission, ?int $collegeId = null): bool
     {
         if (! $this->is_active) return false;
-        if ($this->isSuperAdmin()) return true;
+        if ($this->isSuperAdmin()) {
+            return Permission::query()
+                ->where('slug', $permission)
+                ->where('is_active', true)
+                ->exists();
+        }
         $collegeId ??= app(\App\Support\Tenancy\TenantContext::class)->id();
         if (! $collegeId || ! $this->colleges()->whereKey($collegeId)->exists()) return false;
         return $this->roles()->where('roles.is_active', true)
