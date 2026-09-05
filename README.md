@@ -7,6 +7,12 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## College ERP platform foundation
+
+This repository contains the Phase 0 platform foundation for a commercial, multi-college College Management ERP. It is a modular monolith with request-scoped tenant context, database-driven RBAC, native session authentication, immutable audit records, private file storage, and a versioned API foundation.
+
+See [`docs/architecture.md`](docs/architecture.md) for architecture, tenancy, RBAC, security, database conventions, and development workflow. Business domains such as Students, Admissions, Fees, Attendance, Examinations, Library, Hostel, Transport, HR, Placement, Alumni, NAAC, and IQAC are intentionally not implemented in Phase 0.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
