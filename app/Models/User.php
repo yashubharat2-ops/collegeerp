@@ -22,7 +22,7 @@ class User extends Authenticatable
 
     public function colleges(): BelongsToMany
     {
-        return $this->belongsToMany(College::class)->withPivot('is_default')->withTimestamps();
+        return $this->belongsToMany(College::class, 'user_college')->withPivot('is_default')->withTimestamps();
     }
 
     public function roles(): BelongsToMany

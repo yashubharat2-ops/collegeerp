@@ -16,7 +16,7 @@ class College extends Model
 
     public function campuses(): HasMany { return $this->hasMany(Campus::class); }
     public function academicYears(): HasMany { return $this->hasMany(AcademicYear::class); }
-    public function users(): BelongsToMany { return $this->belongsToMany(User::class)->withTimestamps()->withPivot('is_default'); }
+    public function users(): BelongsToMany { return $this->belongsToMany(User::class, 'user_college')->withTimestamps()->withPivot('is_default'); }
     public function roles(): HasMany { return $this->hasMany(Role::class); }
     public function settings(): HasMany { return $this->hasMany(InstitutionalSetting::class); }
 }
