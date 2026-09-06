@@ -14,7 +14,10 @@ class ResolveTenant
     {
         $context = app(TenantContext::class);
         if (! $request->user()) return $next($request);
-        $selected = $request->session()->get('active_college_id');
+        // Session-aware resolution: stateful (web / stateful-API) requests carry the
+        // explicitly selected college. Stateless requests simply have no selection and
+        // fall back to the user's default college below — tenant resolution still runs.
+        $selected = $request->hasSession() ? $request->session()->get('active_college_id') : null;
         $college = $selected ? $request->user()->colleges()->whereKey($selected)->first() : $request->user()->colleges()->wherePivot('is_default', true)->first();
         if (! $college && $request->user()->isSuperAdmin() && $selected) $college = College::find($selected);
         if (! $college && ! $request->user()->isSuperAdmin()) abort(403, 'No college access has been assigned.');
