@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\ResolveTenant;
 use App\Models\College;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -24,6 +25,18 @@ class CollegeSwitchController
         }
 
         $request->session()->put('active_college_id', $college->getKey());
+
+        // Record the authorization decision for colleges the user is not a member of,
+        // so ResolveTenant can honour the elevated selection on subsequent requests
+        // without re-deriving (or implicitly assuming) the privilege.
+        if ($user->colleges()->whereKey($college->getKey())->exists()) {
+            $request->session()->forget(ResolveTenant::GRANT_KEY);
+        } else {
+            $request->session()->put(ResolveTenant::GRANT_KEY, [
+                'user_id' => $user->getKey(),
+                'college_id' => $college->getKey(),
+            ]);
+        }
 
         return back()->with('success', 'College context switched.');
     }
