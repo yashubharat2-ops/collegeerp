@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\CampusController;
 use App\Http\Controllers\CollegeSwitchController;
+use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InstitutionalSettingController;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +30,13 @@ Route::middleware('auth')->group(function () {
     Route::middleware(['tenant', 'tenant.access'])->group(function () {
         Route::get('/campuses', [CampusController::class, 'index'])->name('campuses.index');
         Route::post('/campuses', [CampusController::class, 'store'])->name('campuses.store');
+        Route::get('/departments', [DepartmentController::class, 'index'])->name('departments.index');
+        Route::get('/departments/create', [DepartmentController::class, 'create'])->name('departments.create');
+        Route::post('/departments', [DepartmentController::class, 'store'])->name('departments.store');
+        Route::get('/departments/{department}/edit', [DepartmentController::class, 'edit'])->name('departments.edit');
+        Route::put('/departments/{department}', [DepartmentController::class, 'update'])->name('departments.update');
+        Route::patch('/departments/{department}/status', [DepartmentController::class, 'updateStatus'])->name('departments.status');
+        Route::delete('/departments/{department}', [DepartmentController::class, 'destroy'])->name('departments.destroy');
         Route::get('/academic-years', [AcademicYearController::class, 'index'])->name('academic-years.index');
         Route::post('/academic-years', [AcademicYearController::class, 'store'])->name('academic-years.store');
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
