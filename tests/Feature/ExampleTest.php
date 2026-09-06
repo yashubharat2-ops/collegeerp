@@ -7,13 +7,14 @@ use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
-    /**
-     * A basic test example.
-     */
-    public function test_the_application_returns_a_successful_response(): void
+    public function test_the_application_redirects_guests_to_login(): void
     {
-        $response = $this->get('/');
+        $this->get('/')
+            ->assertStatus(302)
+            ->assertRedirect(route('dashboard'));
 
-        $response->assertStatus(200);
+        $this->get(route('dashboard'))
+            ->assertStatus(302)
+            ->assertRedirect(route('login'));
     }
 }
