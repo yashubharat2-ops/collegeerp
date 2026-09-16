@@ -62,6 +62,7 @@
                 <option value="approved" @selected(old('status', $application->status ?? '') === 'approved')>Approved</option>
                 <option value="rejected" @selected(old('status', $application->status ?? '') === 'rejected')>Rejected</option>
                 <option value="cancelled" @selected(old('status', $application->status ?? '') === 'cancelled')>Cancelled</option>
+                <option value="admitted" @selected(old('status', $application->status ?? '') === 'admitted')>Admitted</option>
             </select>
             <p class="mt-1 text-xs text-rose-600">@error('status'){{ $message }}@enderror</p>
         </div>

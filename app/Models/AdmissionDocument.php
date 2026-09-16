@@ -1,0 +1,99 @@
+<?php
+
+namespace App\Models;
+
+use App\Domain\Foundation\Traits\BelongsToCollege;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+/**
+ * AdmissionDocument — uploaded file for an applicant/application, with verification workflow.
+ *
+ * Security: file_path is server-generated, never original name. Access via private disk.
+ * Tenant isolation via BelongsToCollege + CollegeScope.
+ */
+class AdmissionDocument extends Model
+{
+    use HasFactory, SoftDeletes, BelongsToCollege;
+
+    protected $fillable = [
+        'college_id',
+        'applicant_id',
+        'application_id',
+        'document_type_id',
+        'file_path',
+        'original_filename',
+        'mime_type',
+        'file_size',
+        'verification_status',
+        'verified_by',
+        'verified_at',
+        'rejection_remarks',
+        'uploaded_by',
+        'remarks',
+        'created_by',
+        'updated_by',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'file_size' => 'integer',
+            'verified_at' => 'datetime',
+        ];
+    }
+
+    public const VERIFICATION_STATUSES = ['pending', 'verified', 'rejected'];
+
+    public function applicant(): BelongsTo
+    {
+        return $this->belongsTo(AdmissionApplicant::class, 'applicant_id');
+    }
+
+    public function application(): BelongsTo
+    {
+        return $this->belongsTo(AdmissionApplication::class, 'application_id');
+    }
+
+    public function documentType(): BelongsTo
+    {
+        return $this->belongsTo(AdmissionDocumentType::class, 'document_type_id');
+    }
+
+    public function verifiedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verified_by');
+    }
+
+    public function uploadedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function updater(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function isPending(): bool
+    {
+        return $this->verification_status === 'pending';
+    }
+
+    public function isVerified(): bool
+    {
+        return $this->verification_status === 'verified';
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->verification_status === 'rejected';
+    }
+}
