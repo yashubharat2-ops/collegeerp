@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\AcademicYearController;
+use App\Http\Controllers\AdmissionApplicantController;
+use App\Http\Controllers\AdmissionEnquiryController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
@@ -41,6 +43,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/academic-years', [AcademicYearController::class, 'index'])->name('academic-years.index');
         Route::post('/academic-years', [AcademicYearController::class, 'store'])->name('academic-years.store');
         Route::resource('programs', ProgramController::class)->except('show');
+        Route::resource('admission-applicants', AdmissionApplicantController::class)->except('show');
+        Route::get('admission-enquiries/duplicate-check', [AdmissionEnquiryController::class, 'duplicateCheck'])->name('admission-enquiries.duplicate-check');
+        Route::resource('admission-enquiries', AdmissionEnquiryController::class)->except('show');
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
     });
