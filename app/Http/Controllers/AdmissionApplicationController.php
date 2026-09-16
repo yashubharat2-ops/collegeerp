@@ -31,13 +31,17 @@ class AdmissionApplicationController extends Controller
     {
         $this->authorize('viewAny', AdmissionApplication::class);
 
-        // Deterministic pagination: created_at has second precision, so rows
-        // created within the same second tie on the primary sort. The id
-        // tiebreak keeps them in creation order so rows can never shuffle
-        // between pages.
+        // Creation-order pagination (oldest first): created_at has only second
+        // precision, and creation routinely spans several seconds, so a
+        // newest-first primary inverts page membership whenever rows fall in
+        // different seconds (an id tiebreak only stabilises rows within one
+        // second). Oldest-first with the unique id tiebreak reproduces the
+        // exact creation sequence under all timing conditions, so rows can
+        // never shuffle between pages. This matches the ascending-listing
+        // convention used by Departments, Programs and Applicants.
         $query = AdmissionApplication::query()
             ->with(['applicant', 'academicYear', 'program', 'enquiry'])
-            ->orderByDesc('created_at')
+            ->orderBy('created_at')
             ->orderBy('id');
 
         if ($search = trim((string) $request->input('search'))) {
