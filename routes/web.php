@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AcademicYearController;
 use App\Http\Controllers\AdmissionApplicantController;
+use App\Http\Controllers\AdmissionApplicationController;
 use App\Http\Controllers\AdmissionEnquiryController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
@@ -46,6 +47,7 @@ Route::middleware('auth')->group(function () {
         Route::resource('admission-applicants', AdmissionApplicantController::class)->except('show');
         Route::get('admission-enquiries/duplicate-check', [AdmissionEnquiryController::class, 'duplicateCheck'])->name('admission-enquiries.duplicate-check');
         Route::resource('admission-enquiries', AdmissionEnquiryController::class)->except('show');
+        Route::resource('admission-applications', AdmissionApplicationController::class)->except('show');
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
     });
