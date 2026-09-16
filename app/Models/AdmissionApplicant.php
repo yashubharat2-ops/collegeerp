@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -63,5 +64,15 @@ class AdmissionApplicant extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(AdmissionDocument::class, 'applicant_id');
+    }
+
+    public function admissions(): HasMany
+    {
+        return $this->hasMany(Admission::class, 'applicant_id');
     }
 }

@@ -18,7 +18,7 @@ class AdmissionApplicantController extends Controller
     {
         $this->authorize('viewAny', AdmissionApplicant::class);
 
-        $query = AdmissionApplicant::query()->orderBy('first_name')->orderBy('last_name');
+        $query = AdmissionApplicant::query()->orderBy('first_name')->orderBy('last_name')->orderBy('id');
 
         if ($search = trim((string) $request->input('search'))) {
             $query->where(function ($q) use ($search): void {

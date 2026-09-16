@@ -6,6 +6,8 @@ use App\Domain\Foundation\Traits\BelongsToCollege;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -69,5 +71,20 @@ class AdmissionApplication extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(AdmissionDocument::class, 'application_id');
+    }
+
+    public function meritEntries(): HasMany
+    {
+        return $this->hasMany(AdmissionMeritEntry::class, 'application_id');
+    }
+
+    public function admission(): HasOne
+    {
+        return $this->hasOne(Admission::class, 'application_id');
     }
 }

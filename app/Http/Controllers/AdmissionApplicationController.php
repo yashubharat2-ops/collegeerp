@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Admission\Actions\CreateApplication;
+use App\Domain\Admission\Services\AdmissionApplicationWorkflow;
 use App\Http\Requests\AdmissionApplication\StoreAdmissionApplicationRequest;
 use App\Http\Requests\AdmissionApplication\UpdateAdmissionApplicationRequest;
 use App\Models\AcademicYear;
@@ -20,12 +21,7 @@ class AdmissionApplicationController extends Controller
 {
     private const AUDITED = ['id', 'application_number', 'applicant_id', 'academic_year_id', 'program_id', 'enquiry_id', 'status', 'submitted_at', 'remarks'];
 
-    /**
-     * Controlled status set for this stage. Deliberately small; future
-     * Document Verification, Merit/Selection and Admission Confirmation
-     * modules extend it without changing this controller's shape.
-     */
-    private const STATUSES = ['draft', 'submitted', 'under_review', 'approved', 'rejected', 'cancelled'];
+    private const STATUSES = ['draft', 'submitted', 'under_review', 'approved', 'rejected', 'cancelled', 'admitted'];
 
     public function index(Request $request): View
     {
@@ -131,10 +127,16 @@ class AdmissionApplicationController extends Controller
 
         $data = $request->validated();
 
+        // Enforce configurable workflow transitions
+        $newStatus = $data['status'] ?? $model->status;
+        if (! AdmissionApplicationWorkflow::canTransition($model->status, $newStatus)) {
+            return back()->withErrors(['status' => 'Invalid status transition from '.$model->status.' to '.$newStatus.'. Allowed: '.implode(', ', AdmissionApplicationWorkflow::allowedFrom($model->status))])->withInput();
+        }
+
         // Server-side submission stamping: the first transition out of draft
         // records when the application was submitted. The timestamp is never
         // accepted from the browser, and history is preserved (never cleared).
-        if (($data['status'] ?? $model->status) !== 'draft' && $model->submitted_at === null) {
+        if ($newStatus !== 'draft' && $model->submitted_at === null) {
             $data['submitted_at'] = now();
         }
 

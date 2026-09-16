@@ -22,6 +22,7 @@
             <option value="approved" @selected($status === 'approved')>Approved</option>
             <option value="rejected" @selected($status === 'rejected')>Rejected</option>
             <option value="cancelled" @selected($status === 'cancelled')>Cancelled</option>
+            <option value="admitted" @selected($status === 'admitted')>Admitted</option>
         </select>
         <select class="input" name="academic_year_id">
             <option value="">All years</option>
