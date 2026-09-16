@@ -31,9 +31,14 @@ class AdmissionApplicationController extends Controller
     {
         $this->authorize('viewAny', AdmissionApplication::class);
 
+        // Deterministic pagination: created_at has second precision, so rows
+        // created within the same second tie on the primary sort. The id
+        // tiebreak keeps them in creation order so rows can never shuffle
+        // between pages.
         $query = AdmissionApplication::query()
             ->with(['applicant', 'academicYear', 'program', 'enquiry'])
-            ->orderByDesc('created_at');
+            ->orderByDesc('created_at')
+            ->orderBy('id');
 
         if ($search = trim((string) $request->input('search'))) {
             $query->where(function ($q) use ($search): void {
