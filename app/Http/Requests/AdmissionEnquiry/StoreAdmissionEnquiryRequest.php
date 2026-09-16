@@ -31,7 +31,8 @@ class StoreAdmissionEnquiryRequest extends FormRequest
             'applicant_id' => ['nullable', 'integer', Rule::exists('admission_applicants', 'id')->where('college_id', $collegeId)],
 
             // New applicant fields (required when applicant_id is null)
-            'applicant_first_name' => ['required_if:applicant_id,null', 'nullable', 'string', 'max:255'],
+            // Use required_without instead of required_if with null — required_if:applicant_id,null does not trigger when applicant_id is missing (not present), while required_without correctly requires first_name when applicant_id is not supplied.
+            'applicant_first_name' => ['required_without:applicant_id', 'nullable', 'string', 'max:255'],
             'applicant_middle_name' => ['nullable', 'string', 'max:255'],
             'applicant_last_name' => ['nullable', 'string', 'max:255'],
             'applicant_email' => ['nullable', 'email', 'max:255'],
