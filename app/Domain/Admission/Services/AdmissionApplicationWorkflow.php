@@ -20,20 +20,16 @@ final class AdmissionApplicationWorkflow
      * Keys are source statuses, values are list of target statuses.
      * Self-transition (no change) is always allowed to permit editing without status change.
      */
-    /**
-     * Workflow is intentionally permissive to support diverse college processes
-     * while still preventing clearly invalid transitions (e.g. admitted -> draft,
-     * rejected -> approved). Existing tests rely on draft<->submitted and
-     * draft->under_review, so those are allowed. The map is configurable and
-     * can be extended per institution without changing core code.
-     */
     private const TRANSITIONS = [
-        'draft' => ['draft', 'submitted', 'under_review', 'approved', 'rejected', 'cancelled', 'admitted'],
-        'submitted' => ['submitted', 'under_review', 'approved', 'rejected', 'cancelled', 'draft', 'admitted'],
-        'under_review' => ['under_review', 'approved', 'rejected', 'cancelled', 'submitted', 'draft', 'admitted'],
-        'approved' => ['approved', 'admitted', 'rejected', 'cancelled', 'under_review', 'submitted', 'draft'],
-        'rejected' => ['rejected', 'cancelled', 'draft'],
-        'cancelled' => ['cancelled', 'draft'],
+        // A draft may be sent directly to review by institutions that do not
+        // use a separate submission step. Submitted applications can also be
+        // returned to draft for correction before review.
+        'draft' => ['submitted', 'under_review'],
+        'submitted' => ['under_review', 'draft'],
+        'under_review' => ['approved'],
+        'approved' => ['admitted'],
+        'rejected' => ['draft'],
+        'cancelled' => ['draft'],
         'admitted' => ['admitted', 'cancelled'],
     ];
 

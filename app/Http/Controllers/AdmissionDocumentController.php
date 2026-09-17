@@ -142,24 +142,25 @@ class AdmissionDocumentController extends Controller
         $model = $this->findScoped($admission_document);
         $this->authorize('view', $model);
 
-        // Security: prevent path traversal - file_path is server-generated, but double-check
-        if (str_contains($model->file_path, '..') || str_starts_with($model->file_path, '/')) {
+        // Reject unsafe persisted paths before any filesystem adapter sees them.
+        $filePath = $model->rawFilePath();
+        if (! AdmissionDocument::isSafeFilePath($filePath)) {
             abort(403, 'Invalid file path');
         }
 
         // Ensure file exists in private disk
         $disk = \Illuminate\Support\Facades\Storage::disk('private');
-        if (! $disk->exists($model->file_path)) {
+        if (! $disk->exists($filePath)) {
             abort(404, 'File not found');
         }
 
         // Audit download (without sensitive file content)
         app(AuditLogService::class)->record('admission_document.downloaded', $model, [], [
             'id' => $model->id,
-            'file_path' => $model->file_path,
+            'file_path' => $filePath,
         ]);
 
-        return $fileService->download($model->file_path);
+        return $fileService->download($filePath);
     }
 
     public function verify(VerifyAdmissionDocumentRequest $request, string $admission_document, AdmissionDocumentService $service): RedirectResponse

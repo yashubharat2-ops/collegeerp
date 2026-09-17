@@ -22,8 +22,8 @@ class AdmissionMeritEntryController extends Controller
 
         $query = AdmissionMeritEntry::query()
             ->with(['meritList','application.applicant','applicant'])
-            ->orderByDesc('created_at')
-            ->orderByDesc('id');
+            ->orderBy('created_at')
+            ->orderBy('id');
 
         if ($meritListId = $request->input('merit_list_id')) {
             $query->where('merit_list_id', $meritListId);

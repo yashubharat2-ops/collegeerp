@@ -23,8 +23,8 @@ class AdmissionMeritListController extends Controller
 
         $query = AdmissionMeritList::query()
             ->with(['academicYear','program'])
-            ->orderByDesc('created_at')
-            ->orderByDesc('id');
+            ->orderBy('created_at')
+            ->orderBy('id');
 
         if ($search = trim((string) $request->input('search'))) {
             $query->where(function ($q) use ($search): void {

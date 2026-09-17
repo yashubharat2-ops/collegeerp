@@ -19,7 +19,12 @@ class AdmissionDocumentPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasPermission('admission_documents.create');
+        // Uploading a replacement document is an update operation, but the
+        // resource store endpoint is also used by document managers to add
+        // the first file. Keep both document-management permissions scoped to
+        // this capability without allowing users who only have view access.
+        return $user->hasPermission('admission_documents.create')
+            || $user->hasPermission('admission_documents.update');
     }
 
     public function update(User $user, AdmissionDocument $document): bool

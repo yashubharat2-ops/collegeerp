@@ -104,8 +104,8 @@ class AdmissionReportController extends Controller
 
         $admissions = (clone $admissionQuery)
             ->with(['applicant','program','academicYear','application'])
-            ->orderByDesc('admission_date')
-            ->orderByDesc('id')
+            ->orderBy('created_at')
+            ->orderBy('id')
             ->paginate(20, ['*'], 'admissions_page')
             ->withQueryString();
 
