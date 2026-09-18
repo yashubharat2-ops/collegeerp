@@ -21,10 +21,12 @@ class AdmissionMeritListController extends Controller
     {
         $this->authorize('viewAny', AdmissionMeritList::class);
 
+        // Deterministic creation-order pagination (oldest first) with id tiebreak,
+        // so rows never shuffle between pages under equal-second timestamps.
         $query = AdmissionMeritList::query()
             ->with(['academicYear','program'])
-            ->orderByDesc('created_at')
-            ->orderByDesc('id');
+            ->orderBy('created_at')
+            ->orderBy('id');
 
         if ($search = trim((string) $request->input('search'))) {
             $query->where(function ($q) use ($search): void {

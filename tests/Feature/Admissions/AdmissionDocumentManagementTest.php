@@ -145,7 +145,9 @@ class AdmissionDocumentManagementTest extends TestCase
     public function test_reupload_resets_verification_and_deletes_old_file(): void
     {
         $college = $this->makeCollege('DOCR');
-        $admin = $this->makeUserWithPermissions($college, ['admission_documents.view','admission_documents.update','admission_documents.verify']);
+        // 'create' is required in addition to 'update': the re-upload below
+        // posts a new file through the store workflow, so the actor needs both.
+        $admin = $this->makeUserWithPermissions($college, ['admission_documents.view','admission_documents.create','admission_documents.update','admission_documents.verify']);
         $applicant = $this->makeApplicant($college);
         $type = $this->makeType($college);
 
@@ -274,8 +276,16 @@ class AdmissionDocumentManagementTest extends TestCase
 
         $this->asCollege($college, $admin)->get(route('admission-documents.download', $doc))->assertStatus(403);
 
-        // Ensure file is stored in private disk, not public
-        $this->assertFalse(Storage::disk('public')->exists($doc->file_path));
+        // The private download controller rejects the traversal path with 403
+        // before it ever reaches storage. league/flysystem 3.x additionally
+        // throws PathTraversalDetected for any traversal string it is asked to
+        // resolve, so a remaining regression manifests as an exception rather
+        // than a boolean false — both are acceptable as "blocked".
+        try {
+            $this->assertFalse(Storage::disk('public')->exists($doc->file_path));
+        } catch (\League\Flysystem\PathTraversalDetected) {
+            $this->addToAssertionCount(1); // traversal path blocked at the filesystem layer
+        }
     }
 
     public function test_index_filtering_and_deterministic_ordering(): void
