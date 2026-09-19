@@ -21,6 +21,8 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InstitutionalSettingController;
 use App\Http\Controllers\ProgramController;
+use App\Http\Controllers\StudentController;
+use App\Http\Controllers\StudentEnrollmentController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('dashboard'))->name('home');
@@ -66,6 +68,9 @@ Route::middleware('auth')->group(function () {
         Route::resource('admission-merit-entries', AdmissionMeritEntryController::class)->except('show');
         Route::post('admissions/{admission}/cancel', [AdmissionController::class, 'cancel'])->name('admissions.cancel');
         Route::resource('admissions', AdmissionController::class)->except('show');
+        Route::post('students/convert/{admission_application}', [StudentController::class, 'convert'])->name('students.convert');
+        Route::resource('students', StudentController::class);
+        Route::resource('student-enrollments', StudentEnrollmentController::class);
         Route::get('admission-reports', [AdmissionReportController::class, 'index'])->name('admission-reports.index');
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');

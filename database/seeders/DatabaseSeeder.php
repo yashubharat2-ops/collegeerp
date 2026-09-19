@@ -26,6 +26,8 @@ class DatabaseSeeder extends Seeder
             'admission_document_types.view', 'admission_document_types.create', 'admission_document_types.update', 'admission_document_types.delete',
             'admission_merit.view', 'admission_merit.create', 'admission_merit.update', 'admission_merit.delete', 'admission_merit.publish',
             'admissions.view', 'admissions.create', 'admissions.update', 'admissions.delete',
+            'students.view', 'students.create', 'students.update', 'students.delete',
+            'student_enrollments.view', 'student_enrollments.create', 'student_enrollments.update', 'student_enrollments.delete',
             'admission_reports.view',
             'settings.view', 'settings.update',
             'roles.view', 'roles.update',

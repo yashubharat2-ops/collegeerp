@@ -25,7 +25,9 @@ class AdmissionEnquiryController extends Controller
     {
         $this->authorize('viewAny', AdmissionEnquiry::class);
 
-        $query = AdmissionEnquiry::query()->with(['applicant', 'academicYear', 'program'])->orderByDesc('created_at')->orderByDesc('id');
+        // Deterministic creation-order pagination (oldest first) with id tiebreak,
+        // so rows never shuffle between pages under equal-second timestamps.
+        $query = AdmissionEnquiry::query()->with(['applicant', 'academicYear', 'program'])->orderBy('created_at')->orderBy('id');
 
         if ($search = trim((string) $request->input('search'))) {
             $query->where(function ($q) use ($search): void {

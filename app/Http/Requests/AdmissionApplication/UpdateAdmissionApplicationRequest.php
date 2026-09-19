@@ -30,8 +30,8 @@ class UpdateAdmissionApplicationRequest extends FormRequest
         $collegeId = app(TenantContext::class)->id();
 
         return [
-            'academic_year_id' => ['required', 'integer', Rule::exists('academic_years', 'id')->where('college_id', $collegeId)],
-            'program_id' => ['required', 'integer', Rule::exists('programs', 'id')->where('college_id', $collegeId)],
+            'academic_year_id' => ['nullable', 'integer', Rule::exists('academic_years', 'id')->where('college_id', $collegeId)],
+            'program_id' => ['nullable', 'integer', Rule::exists('programs', 'id')->where('college_id', $collegeId)],
             'enquiry_id' => ['nullable', 'integer', Rule::exists('admission_enquiries', 'id')->where('college_id', $collegeId)],
             'status' => ['required', 'in:draft,submitted,under_review,approved,rejected,cancelled,admitted'],
             'remarks' => ['nullable', 'string', 'max:2000'],

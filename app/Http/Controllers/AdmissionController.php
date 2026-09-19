@@ -22,11 +22,14 @@ class AdmissionController extends Controller
     {
         $this->authorize('viewAny', Admission::class);
 
+        // Deterministic creation-order pagination (oldest first) with id tiebreak,
+        // so rows never shuffle between pages under equal-second timestamps.
+        // (admission_date is not a stable global sort: many records share a date,
+        // which caused page-membership to flip under newest-first ordering.)
         $query = Admission::query()
             ->with(['applicant','application','academicYear','program'])
-            ->orderByDesc('admission_date')
-            ->orderByDesc('created_at')
-            ->orderByDesc('id');
+            ->orderBy('created_at')
+            ->orderBy('id');
 
         if ($search = trim((string) $request->input('search'))) {
             $query->where(function ($q) use ($search): void {
