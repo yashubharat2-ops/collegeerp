@@ -27,7 +27,13 @@ use App\Http\Controllers\ProgramController;
 use App\Http\Controllers\SectionController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\StudentController;
+use App\Http\Controllers\StudentAcademicRecordController;
+use App\Http\Controllers\StudentDocumentController;
 use App\Http\Controllers\StudentEnrollmentController;
+use App\Http\Controllers\StudentHistoryController;
+use App\Http\Controllers\StudentIdCardController;
+use App\Http\Controllers\StudentPromotionController;
+use App\Http\Controllers\StudentTransferController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('dashboard'))->name('home');
@@ -79,8 +85,39 @@ Route::middleware('auth')->group(function () {
         Route::post('admissions/{admission}/cancel', [AdmissionController::class, 'cancel'])->name('admissions.cancel');
         Route::resource('admissions', AdmissionController::class)->except('show');
         Route::post('students/convert/{admission_application}', [StudentController::class, 'convert'])->name('students.convert');
+        Route::get('students/{student}/photo', [StudentController::class, 'photo'])->name('students.photo');
         Route::resource('students', StudentController::class);
         Route::resource('student-enrollments', StudentEnrollmentController::class);
+
+        // Students — Academic Records (progression ledger; references Platform
+        // academic master data, never duplicates it).
+        Route::resource('student-academic-records', StudentAcademicRecordController::class)->except('show');
+
+        // Students — Documents (private disk, tenant-safe, authorized streaming).
+        Route::get('student-documents/{student_document}/download', [StudentDocumentController::class, 'download'])->name('student-documents.download');
+        Route::post('student-documents/{student_document}/verify', [StudentDocumentController::class, 'verify'])->name('student-documents.verify');
+        Route::resource('student-documents', StudentDocumentController::class)->except('show');
+
+        // Students — ID Cards (generated from Student + Enrollment; no records).
+        Route::get('student-id-cards', [StudentIdCardController::class, 'index'])->name('student-id-cards.index');
+        Route::get('student-id-cards/{student}', [StudentIdCardController::class, 'show'])->name('student-id-cards.show');
+
+        // Students — Promotion (request → approve; additive, never destructive).
+        Route::post('student-promotions/{student_promotion}/approve', [StudentPromotionController::class, 'approve'])->name('student-promotions.approve');
+        Route::post('student-promotions/{student_promotion}/cancel', [StudentPromotionController::class, 'cancel'])->name('student-promotions.cancel');
+        Route::resource('student-promotions', StudentPromotionController::class)->only(['index', 'create', 'store']);
+
+        // Students — Transfer / TC (statuses only; history is never deleted).
+        Route::post('student-transfers/{student_transfer}/approve', [StudentTransferController::class, 'approve'])->name('student-transfers.approve');
+        Route::post('student-transfers/{student_transfer}/reject', [StudentTransferController::class, 'reject'])->name('student-transfers.reject');
+        Route::post('student-transfers/{student_transfer}/issue', [StudentTransferController::class, 'issue'])->name('student-transfers.issue');
+        Route::post('student-transfers/{student_transfer}/cancel', [StudentTransferController::class, 'cancel'])->name('student-transfers.cancel');
+        Route::get('student-transfers/{student_transfer}/download', [StudentTransferController::class, 'download'])->name('student-transfers.download');
+        Route::resource('student-transfers', StudentTransferController::class)->except('show');
+
+        // Students — History (derived timeline; read-only).
+        Route::get('student-history', [StudentHistoryController::class, 'index'])->name('student-history.index');
+        Route::get('student-history/{student}', [StudentHistoryController::class, 'show'])->name('student-history.show');
         Route::get('admission-reports', [AdmissionReportController::class, 'index'])->name('admission-reports.index');
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');

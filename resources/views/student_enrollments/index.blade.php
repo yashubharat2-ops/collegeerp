@@ -47,6 +47,7 @@
                     <th>Student</th>
                     <th>Academic year</th>
                     <th>Program</th>
+                    <th>Section</th>
                     <th>Date</th>
                     <th>Status</th>
                     <th class="text-right">Actions</th>
@@ -59,6 +60,7 @@
                         <td>{{ $enrollment->student?->student_number }} — {{ $enrollment->student?->first_name }} {{ $enrollment->student?->last_name }}</td>
                         <td>{{ $enrollment->academicYear?->name ?? '—' }}</td>
                         <td>{{ $enrollment->program?->name ?? '—' }}</td>
+                        <td>{{ $enrollment->section?->name ?? '—' }}</td>
                         <td>{{ $enrollment->enrollment_date?->format('d M Y') ?? '—' }}</td>
                         <td>
                             <span class="rounded-full px-2 py-0.5 text-xs font-semibold {{ $enrollment->status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600' }}">
@@ -81,7 +83,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-6 text-slate-500" colspan="7">No enrollments found.</td></tr>
+                    <tr><td class="py-6 text-slate-500" colspan="8">No enrollments found.</td></tr>
                 @endforelse
             </tbody>
         </table>

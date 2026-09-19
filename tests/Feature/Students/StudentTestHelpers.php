@@ -2,15 +2,21 @@
 
 namespace Tests\Feature\Students;
 
+use App\Models\AcademicTerm;
 use App\Models\AcademicYear;
 use App\Models\AdmissionApplicant;
 use App\Models\AdmissionApplication;
+use App\Models\AdmissionDocumentType;
+use App\Models\Campus;
 use App\Models\College;
 use App\Models\Permission;
 use App\Models\Program;
 use App\Models\Role;
+use App\Models\Section;
 use App\Models\Student;
+use App\Models\StudentAcademicRecord;
 use App\Models\StudentEnrollment;
+use App\Models\StudentTransfer;
 use App\Models\User;
 use Illuminate\Support\Str;
 
@@ -51,16 +57,101 @@ trait StudentTestHelpers
         return $this->actingAs($user)->withSession(['active_college_id' => $college->id]);
     }
 
-    private function makeYear(College $college, string $code = '2026'): AcademicYear
+    private function makeYear(College $college, string $code = '2026', string $name = '2026-27', string $startsOn = '2026-06-01', string $endsOn = '2027-05-31'): AcademicYear
     {
         return AcademicYear::withoutGlobalScopes()->create([
             'college_id' => $college->id,
-            'name' => '2026-27',
+            'name' => $name,
             'code' => $code,
-            'starts_on' => '2026-06-01',
-            'ends_on' => '2027-05-31',
+            'starts_on' => $startsOn,
+            'ends_on' => $endsOn,
             'status' => 'active',
         ]);
+    }
+
+    /**
+     * A following academic year, for promotion target assertions.
+     */
+    private function makeNextYear(College $college, string $code = '2027'): AcademicYear
+    {
+        return $this->makeYear($college, $code, '2027-28', '2027-06-01', '2028-05-31');
+    }
+
+    private function makeAcademicTerm(College $college, AcademicYear $year, string $code = 'SEM1', string $name = 'Semester 1', int $sequence = 1): AcademicTerm
+    {
+        return AcademicTerm::withoutGlobalScopes()->create([
+            'college_id' => $college->id,
+            'academic_year_id' => $year->id,
+            'name' => $name,
+            'code' => $code,
+            'type' => 'semester',
+            'sequence' => $sequence,
+            'status' => 'active',
+        ]);
+    }
+
+    private function makeSection(College $college, AcademicYear $year, Program $program, string $code = 'A', ?Campus $campus = null): Section
+    {
+        return Section::withoutGlobalScopes()->create([
+            'college_id' => $college->id,
+            'academic_year_id' => $year->id,
+            'program_id' => $program->id,
+            'campus_id' => $campus?->id,
+            'name' => 'Section '.$code,
+            'code' => $code,
+            'status' => 'active',
+        ]);
+    }
+
+    private function makeCampus(College $college, string $code = 'MAIN'): Campus
+    {
+        return Campus::withoutGlobalScopes()->create([
+            'college_id' => $college->id,
+            'name' => $code.' Campus',
+            'code' => $code,
+            'status' => 'active',
+        ]);
+    }
+
+    /**
+     * Document types are the Admissions module's master data, reused by student
+     * documents — the helper makes that reuse explicit in tests.
+     */
+    private function makeDocumentType(College $college, string $code = 'MARKSHEET', int $maxSizeKb = 5120, ?string $extensions = 'pdf,jpg,jpeg,png'): AdmissionDocumentType
+    {
+        return AdmissionDocumentType::withoutGlobalScopes()->create([
+            'college_id' => $college->id,
+            'code' => $code,
+            'name' => ucfirst(strtolower($code)),
+            'is_required' => false,
+            'allowed_extensions' => $extensions,
+            'max_size_kb' => $maxSizeKb,
+            'status' => 'active',
+        ]);
+    }
+
+    private function makeAcademicRecord(College $college, Student $student, AcademicYear $year, array $overrides = []): StudentAcademicRecord
+    {
+        return StudentAcademicRecord::withoutGlobalScopes()->create(array_merge([
+            'college_id' => $college->id,
+            'student_id' => $student->id,
+            'academic_year_id' => $year->id,
+            'academic_status' => 'enrolled',
+            'promotion_status' => 'not_applicable',
+            'completion_status' => 'pending',
+        ], $overrides));
+    }
+
+    private function makeTransfer(College $college, Student $student, array $overrides = []): StudentTransfer
+    {
+        return StudentTransfer::withoutGlobalScopes()->create(array_merge([
+            'college_id' => $college->id,
+            'student_id' => $student->id,
+            'transfer_date' => now()->toDateString(),
+            'reason' => 'Relocation of family',
+            'status' => 'pending',
+            'tc_status' => 'pending',
+        ], $overrides));
     }
 
     private function makeProgram(College $college, string $code = 'BSC'): Program
