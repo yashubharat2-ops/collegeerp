@@ -6,6 +6,7 @@ use App\Domain\Foundation\Traits\BelongsToCollege;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -33,4 +34,8 @@ class Program extends Model
     protected $fillable = ['college_id', 'department_id', 'name', 'code', 'short_name', 'description', 'status'];
 
     public function department(): BelongsTo { return $this->belongsTo(Department::class); }
+
+    public function sections(): HasMany { return $this->hasMany(Section::class); }
+
+    public function facultySubjectAssignments(): HasMany { return $this->hasMany(FacultySubjectAssignment::class); }
 }

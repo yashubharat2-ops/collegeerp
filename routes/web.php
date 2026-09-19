@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AcademicTermController;
 use App\Http\Controllers\AcademicYearController;
 use App\Http\Controllers\AdmissionApplicantController;
 use App\Http\Controllers\AdmissionApplicationController;
@@ -19,8 +20,12 @@ use App\Http\Controllers\CampusController;
 use App\Http\Controllers\CollegeSwitchController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FacultyController;
+use App\Http\Controllers\FacultySubjectAssignmentController;
 use App\Http\Controllers\InstitutionalSettingController;
 use App\Http\Controllers\ProgramController;
+use App\Http\Controllers\SectionController;
+use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\StudentEnrollmentController;
 use Illuminate\Support\Facades\Route;
@@ -52,7 +57,12 @@ Route::middleware('auth')->group(function () {
         Route::delete('/departments/{department}', [DepartmentController::class, 'destroy'])->name('departments.destroy');
         Route::get('/academic-years', [AcademicYearController::class, 'index'])->name('academic-years.index');
         Route::post('/academic-years', [AcademicYearController::class, 'store'])->name('academic-years.store');
+        Route::resource('academic-terms', AcademicTermController::class)->except('show');
         Route::resource('programs', ProgramController::class)->except('show');
+        Route::resource('sections', SectionController::class)->except('show');
+        Route::resource('subjects', SubjectController::class)->except('show');
+        Route::resource('faculties', FacultyController::class)->except('show');
+        Route::resource('faculty-subject-assignments', FacultySubjectAssignmentController::class)->except('show');
         Route::get('admission/dashboard', AdmissionDashboardController::class)->name('admission.dashboard');
         Route::resource('admission-applicants', AdmissionApplicantController::class)->except('show');
         Route::get('admission-enquiries/duplicate-check', [AdmissionEnquiryController::class, 'duplicateCheck'])->name('admission-enquiries.duplicate-check');
