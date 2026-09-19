@@ -22,7 +22,7 @@ class StudentService
 {
     public const AUDITED = ['id', 'student_number', 'admission_application_id', 'first_name', 'middle_name', 'last_name', 'email', 'phone', 'alternate_phone', 'gender', 'date_of_birth', 'admission_date', 'address_line_1', 'address_line_2', 'city', 'state', 'postal_code', 'country', 'status'];
 
-    public const AUDITED_ENROLLMENT = ['id', 'enrollment_number', 'student_id', 'academic_year_id', 'program_id', 'enrollment_date', 'status', 'remarks'];
+    public const AUDITED_ENROLLMENT = ['id', 'enrollment_number', 'student_id', 'academic_year_id', 'program_id', 'section_id', 'enrollment_date', 'status', 'remarks'];
 
     public function __construct(
         private readonly GenerateStudentNumber $studentNumbers,
@@ -110,7 +110,35 @@ class StudentService
                 abort(404, 'Program not found in this college context.');
             }
 
+            // Optional Section / Batch: resolved tenant-scoped (a foreign
+            // college's section resolves to null) and additionally checked for
+            // contextual validity — a Section belongs to exactly one academic
+            // year + program pair, so it must match this enrollment's own.
+            $sectionId = $data['section_id'] ?? null;
+            if ($sectionId) {
+                $section = \App\Models\Section::query()->find($sectionId);
+
+                if (! $section) {
+                    abort(404, 'Section not found in this college context.');
+                }
+
+                if ((int) $section->academic_year_id !== (int) $yearId) {
+                    throw ValidationException::withMessages([
+                        'section_id' => 'The selected section does not belong to the selected academic year.',
+                    ]);
+                }
+
+                if ($programId && (int) $section->program_id !== (int) $programId) {
+                    throw ValidationException::withMessages([
+                        'section_id' => 'The selected section does not belong to the selected program.',
+                    ]);
+                }
+            }
+
             // No duplicate ACTIVE enrollment for the same student/year/program.
+            // Note: the section is an attribute of the enrollment and takes no
+            // part in this key — being in two sections of the same year/program
+            // is still one duplicate enrollment.
             $duplicate = StudentEnrollment::withoutGlobalScopes()
                 ->where('college_id', $collegeId)
                 ->where('student_id', $studentId)
@@ -130,6 +158,7 @@ class StudentService
                 'student_id' => $studentId,
                 'academic_year_id' => $yearId,
                 'program_id' => $programId,
+                'section_id' => $sectionId,
                 'enrollment_number' => $this->enrollmentNumbers->execute($collegeId, $academicYearCode ?? $year->code),
                 'enrollment_date' => $data['enrollment_date'] ?? now()->toDateString(),
                 'status' => $data['status'] ?? 'active',
@@ -164,6 +193,35 @@ class StudentService
                 $program = \App\Models\Program::query()->find($enrollment->program_id);
                 if (! $program) {
                     abort(404, 'Program not found in this college context.');
+                }
+            }
+
+            // A section change within the same academic year/program is a
+            // legitimate, audited correction. The section is re-resolved
+            // tenant-scoped and must match the enrollment's own (immutable)
+            // year/program, so an enrollment can never be re-pointed at
+            // another college's or another year's section.
+            if (array_key_exists('section_id', $data)) {
+                $sectionId = $data['section_id'];
+
+                if ($sectionId) {
+                    $section = \App\Models\Section::query()->find($sectionId);
+
+                    if (! $section) {
+                        abort(404, 'Section not found in this college context.');
+                    }
+
+                    if ((int) $section->academic_year_id !== (int) $enrollment->academic_year_id) {
+                        throw ValidationException::withMessages([
+                            'section_id' => 'The selected section does not belong to this enrollment\'s academic year.',
+                        ]);
+                    }
+
+                    if ($enrollment->program_id && (int) $section->program_id !== (int) $enrollment->program_id) {
+                        throw ValidationException::withMessages([
+                            'section_id' => 'The selected section does not belong to this enrollment\'s program.',
+                        ]);
+                    }
                 }
             }
 

@@ -7,6 +7,7 @@ use App\Http\Requests\StudentEnrollment\StoreStudentEnrollmentRequest;
 use App\Http\Requests\StudentEnrollment\UpdateStudentEnrollmentRequest;
 use App\Models\AcademicYear;
 use App\Models\Program;
+use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Support\Tenancy\TenantContext;
@@ -22,7 +23,7 @@ class StudentEnrollmentController extends Controller
 
         // Deterministic creation-order pagination (oldest first) with id tiebreak.
         $query = StudentEnrollment::query()
-            ->with(['student', 'academicYear', 'program'])
+            ->with(['student', 'academicYear', 'program', 'section'])
             ->orderBy('created_at')
             ->orderBy('id');
 
@@ -48,6 +49,20 @@ class StudentEnrollmentController extends Controller
         ]);
     }
 
+    /**
+     * Section options with their year/program context. Sections are Platform
+     * master data and are referenced, never duplicated; the Form Request and
+     * StudentService both re-validate that a chosen section belongs to the
+     * enrollment's academic year and program in this college.
+     */
+    private function sectionOptions()
+    {
+        return Section::query()
+            ->with(['academicYear:id,name', 'program:id,name'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'academic_year_id', 'program_id']);
+    }
+
     public function create(Request $request): View
     {
         $this->authorize('create', StudentEnrollment::class);
@@ -56,6 +71,7 @@ class StudentEnrollmentController extends Controller
             'students' => Student::query()->orderBy('first_name')->orderBy('last_name')->get(['id', 'student_number', 'first_name', 'last_name']),
             'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(['id', 'name', 'code']),
             'programs' => Program::query()->orderBy('name')->get(['id', 'name', 'code']),
+            'sections' => $this->sectionOptions(),
             'selectedStudentId' => $request->input('student_id'),
         ]);
     }
@@ -74,7 +90,10 @@ class StudentEnrollmentController extends Controller
         $model = $this->findScoped($student_enrollment);
         $this->authorize('update', $model);
 
-        return view('student_enrollments.edit', ['enrollment' => $model->load(['student', 'academicYear', 'program'])]);
+        return view('student_enrollments.edit', [
+            'enrollment' => $model->load(['student', 'academicYear', 'program', 'section']),
+            'sections' => $this->sectionOptions(),
+        ]);
     }
 
     public function update(UpdateStudentEnrollmentRequest $request, string $student_enrollment, StudentService $service): RedirectResponse

@@ -23,3 +23,17 @@
     .alert-success { @apply mb-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-700; }
     .alert-error { @apply mb-5 rounded-xl bg-rose-50 p-4 text-sm text-rose-700; }
 }
+
+/*
+ * Print support for generated documents (e.g. the Student ID card).
+ *
+ * Only chrome is hidden: `.no-print` marks the navigation sidebar and the
+ * application topbar, and the printable region is reset to a clean white page.
+ */
+@media print {
+    .no-print { display: none !important; }
+    body { background: #fff !important; }
+    main { padding: 0 !important; }
+    .print-area { max-width: none !important; margin: 0 !important; }
+    .print-area * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

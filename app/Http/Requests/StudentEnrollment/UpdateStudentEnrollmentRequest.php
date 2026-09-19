@@ -29,7 +29,22 @@ class UpdateStudentEnrollmentRequest extends FormRequest
     {
         $collegeId = app(TenantContext::class)->id();
 
+        // A section move within the same enrollment is allowed (and audited);
+        // the section must belong to this enrollment's own (immutable) academic
+        // year and program, so it can never be re-pointed elsewhere.
+        $enrollment = StudentEnrollment::query()->find((int) $this->route('student_enrollment'));
+
+        $sectionRule = Rule::exists('sections', 'id')
+            ->where('college_id', $collegeId)
+            ->where('academic_year_id', (int) $enrollment?->academic_year_id)
+            ->whereNull('deleted_at');
+
+        if ($enrollment?->program_id) {
+            $sectionRule->where('program_id', (int) $enrollment->program_id);
+        }
+
         return [
+            'section_id' => ['nullable', 'integer', $sectionRule],
             'enrollment_date' => ['nullable', 'date'],
             'status' => ['required', Rule::in(StudentEnrollment::STATUSES)],
             'remarks' => ['nullable', 'string', 'max:2000'],

@@ -82,6 +82,26 @@ class Student extends Model
         return $this->hasMany(StudentEnrollment::class, 'student_id');
     }
 
+    public function academicRecords(): HasMany
+    {
+        return $this->hasMany(StudentAcademicRecord::class, 'student_id');
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(StudentDocument::class, 'student_id');
+    }
+
+    public function promotions(): HasMany
+    {
+        return $this->hasMany(StudentPromotion::class, 'student_id');
+    }
+
+    public function transfers(): HasMany
+    {
+        return $this->hasMany(StudentTransfer::class, 'student_id');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -90,5 +110,35 @@ class Student extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    /**
+     * Full display name from the snapshot person data.
+     */
+    public function fullName(): string
+    {
+        return trim(implode(' ', array_filter([
+            $this->first_name,
+            $this->middle_name,
+            $this->last_name,
+        ]))) ?: $this->student_number;
+    }
+
+    /**
+     * The student's current (active) enrollment, if any.
+     *
+     * Deterministic: the oldest-created active enrollment wins, with the id as
+     * a tiebreak, so the "current enrollment" never flips between requests.
+     */
+    public function currentEnrollment(): ?StudentEnrollment
+    {
+        return $this->enrollments
+            ->filter(fn (StudentEnrollment $enrollment) => $enrollment->status === 'active')
+            ->sortBy(fn (StudentEnrollment $enrollment) => sprintf(
+                '%011d%011d',
+                $enrollment->created_at?->timestamp ?? 0,
+                $enrollment->id
+            ))
+            ->first();
     }
 }

@@ -3,14 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Student\Actions\ConvertApplicationToStudent;
+use App\Domain\Student\Services\StudentHistoryService;
 use App\Domain\Student\Services\StudentService;
 use App\Http\Requests\Student\StoreStudentRequest;
 use App\Http\Requests\Student\UpdateStudentRequest;
 use App\Models\Student;
+use App\Services\Files\SecureFileService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StudentController extends Controller
 {
@@ -68,14 +72,70 @@ class StudentController extends Controller
         return redirect()->route('students.show', $student)->with('success', 'Student '.$student->student_number.' created.');
     }
 
-    public function show(string $student): View
+    /**
+     * The student's 360° profile.
+     *
+     * This is the Students module's detail page, not a separate "Student
+     * Profile" master: every tab is the same data the module pages show,
+     * filtered to this student, so there is exactly one entry point.
+     */
+    public function show(Request $request, string $student, StudentHistoryService $history): View
     {
         $model = $this->findScoped($student);
         $this->authorize('view', $model);
 
-        return view('students.show', [
-            'student' => $model->load(['admissionApplication.applicant', 'enrollments.academicYear', 'enrollments.program']),
+        $model->load([
+            'admissionApplication.applicant',
+            'admissionApplication.admission',
+            'enrollments.academicYear',
+            'enrollments.program',
+            'enrollments.section',
+            'academicRecords.academicYear',
+            'academicRecords.academicTerm',
+            'academicRecords.program',
+            'academicRecords.section',
+            'documents.documentType',
+            'documents.verifiedBy',
+            'promotions.targetAcademicYear',
+            'promotions.sourceAcademicYear',
+            'promotions.targetSection',
+            'transfers.enrollment',
         ]);
+
+        return view('students.show', [
+            'student' => $model,
+            'tab' => $request->input('tab', 'profile'),
+            // Derived, chronological lifecycle timeline (see StudentHistoryService).
+            'historyEvents' => $history->forStudent($model),
+        ]);
+    }
+
+    /**
+     * Stream the student's photo from the private disk.
+     *
+     * The path is stored server-side and re-checked here; a cross-college
+     * student 404s through CollegeScope before any file is touched.
+     */
+    public function photo(string $student, SecureFileService $files): StreamedResponse
+    {
+        $model = $this->findScoped($student);
+        $this->authorize('view', $model);
+
+        $path = (string) $model->photo_path;
+
+        if ($path === ''
+            || str_contains($path, '..')
+            || str_starts_with($path, '/')
+            || str_contains($path, "\0")
+        ) {
+            abort(404, 'No photo is available for this student.');
+        }
+
+        if (! Storage::disk('private')->exists($path)) {
+            abort(404, 'No photo is available for this student.');
+        }
+
+        return $files->download($path);
     }
 
     public function edit(string $student): View
