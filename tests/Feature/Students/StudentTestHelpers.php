@@ -51,6 +51,16 @@ trait StudentTestHelpers
         return $this->actingAs($user)->withSession(['active_college_id' => $college->id]);
     }
 
+    private function superAdminUser(): User
+    {
+        return User::create([
+            'name' => 'Platform Super',
+            'email' => 'super-'.Str::lower(Str::random(6)).'@example.test',
+            'password' => 'password',
+            'is_active' => true,
+        ]);
+    }
+
     private function makeYear(College $college, string $code = '2026'): AcademicYear
     {
         return AcademicYear::withoutGlobalScopes()->create([

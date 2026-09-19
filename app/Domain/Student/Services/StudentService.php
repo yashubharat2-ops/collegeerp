@@ -111,13 +111,22 @@ class StudentService
             }
 
             // No duplicate ACTIVE enrollment for the same student/year/program.
-            $duplicate = StudentEnrollment::withoutGlobalScopes()
+            // Soft-deleted historical rows must not block re-enrollment, so we
+            // scope to whereNull(deleted_at). program_id is nullable and handled
+            // explicitly to avoid relying on where(col, null) magic.
+            $duplicateQuery = StudentEnrollment::withoutGlobalScopes()
                 ->where('college_id', $collegeId)
                 ->where('student_id', $studentId)
                 ->where('academic_year_id', $yearId)
-                ->where('program_id', $programId)
-                ->whereNull('deleted_at')
-                ->exists();
+                ->whereNull('deleted_at');
+
+            if ($programId === null) {
+                $duplicateQuery->whereNull('program_id');
+            } else {
+                $duplicateQuery->where('program_id', $programId);
+            }
+
+            $duplicate = $duplicateQuery->exists();
 
             if ($duplicate) {
                 throw ValidationException::withMessages([
@@ -167,20 +176,26 @@ class StudentService
                 }
             }
 
-            // Reject a status reactivation that would collide with another live
-            // enrollment of the same student/year/program.
+            // Reject a status reactivation (or any update that would leave the
+            // enrollment active) that would collide with another live enrollment
+            // of the same student/year/program. Self is excluded so updating the
+            // existing enrollment does not falsely trigger duplicate validation.
             $newStatus = $data['status'] ?? $enrollment->status;
-            if ($newStatus === 'active' && $enrollment->status !== 'active') {
-                $duplicate = StudentEnrollment::withoutGlobalScopes()
+            if ($newStatus === 'active') {
+                $duplicateQuery = StudentEnrollment::withoutGlobalScopes()
                     ->where('college_id', $collegeId)
                     ->where('student_id', $enrollment->student_id)
                     ->where('academic_year_id', $enrollment->academic_year_id)
-                    ->where('program_id', $enrollment->program_id)
                     ->whereNull('deleted_at')
-                    ->whereKeyNot($enrollment->id)
-                    ->exists();
+                    ->whereKeyNot($enrollment->id);
 
-                if ($duplicate) {
+                if ($enrollment->program_id === null) {
+                    $duplicateQuery->whereNull('program_id');
+                } else {
+                    $duplicateQuery->where('program_id', $enrollment->program_id);
+                }
+
+                if ($duplicateQuery->exists()) {
                     throw ValidationException::withMessages([
                         'status' => 'Another active enrollment already exists for this student, academic year and program.',
                     ]);
