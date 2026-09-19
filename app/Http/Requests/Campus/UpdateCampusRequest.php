@@ -7,25 +7,28 @@ use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class StoreCampusRequest extends FormRequest
+class UpdateCampusRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('create', Campus::class) ?? false;
+        // Resolve through the tenant-scoped query: foreign-college rows are 404
+        // (never a distinguishable 403), then the policy enforces the permission.
+        $model = Campus::query()->find((int) $this->route('campus'));
+        if (! $model) {
+            abort(404);
+        }
+
+        return $this->user()?->can('update', $model) ?? false;
     }
 
-    /**
-     * college_id is never taken from the browser: the tenant is the server-side
-     * context (filled by ResolveTenant) and is attached by BelongsToCollege.
-     * code and name are unique within a college to avoid ambiguous campus references.
-     */
     public function rules(): array
     {
         $collegeId = app(TenantContext::class)->id();
+        $ignoreId = (int) $this->route('campus');
 
         return [
-            'name' => ['required', 'string', 'max:255', Rule::unique('campuses', 'name')->where('college_id', $collegeId)->whereNull('deleted_at')],
-            'code' => ['required', 'string', 'max:50', Rule::unique('campuses', 'code')->where('college_id', $collegeId)->whereNull('deleted_at')],
+            'name' => ['required', 'string', 'max:255', Rule::unique('campuses', 'name')->where('college_id', $collegeId)->whereNull('deleted_at')->ignore($ignoreId)],
+            'code' => ['required', 'string', 'max:50', Rule::unique('campuses', 'code')->where('college_id', $collegeId)->whereNull('deleted_at')->ignore($ignoreId)],
             'short_name' => ['nullable', 'string', 'max:50'],
             'address' => ['nullable', 'string', 'max:1000'],
             'city' => ['nullable', 'string', 'max:100'],

@@ -41,8 +41,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', DashboardController::class)->middleware('tenant')->name('dashboard');
     Route::post('/college-context', CollegeSwitchController::class)->name('college-context.switch');
     Route::middleware(['tenant', 'tenant.access'])->group(function () {
-        Route::get('/campuses', [CampusController::class, 'index'])->name('campuses.index');
-        Route::post('/campuses', [CampusController::class, 'store'])->name('campuses.store');
+        Route::resource('campuses', CampusController::class)->except('show');
         Route::get('/departments', [DepartmentController::class, 'index'])->name('departments.index');
         Route::get('/departments/create', [DepartmentController::class, 'create'])->name('departments.create');
         Route::post('/departments', [DepartmentController::class, 'store'])->name('departments.store');
