@@ -21,7 +21,9 @@ use App\Http\Controllers\CampusController;
 use App\Http\Controllers\CollegeSwitchController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ExamAttendanceController;
 use App\Http\Controllers\ExaminationController;
+use App\Http\Controllers\ExamMarkController;
 use App\Http\Controllers\ExamScheduleController;
 use App\Http\Controllers\FacultyController;
 use App\Http\Controllers\FacultySubjectAssignmentController;
@@ -148,6 +150,12 @@ Route::middleware('auth')->group(function () {
         // Examinations (Phase 1)
         Route::resource('examinations', ExaminationController::class)->except('show');
         Route::resource('exam-schedules', ExamScheduleController::class)->except('show');
+
+        // Examinations (Phase 2) — Exam Attendance and Marks Entry.
+        Route::post('exam-attendance/bulk', [ExamAttendanceController::class, 'bulk'])->name('exam-attendance.bulk');
+        Route::resource('exam-attendance', ExamAttendanceController::class)->except('show');
+        Route::post('exam-marks/bulk', [ExamMarkController::class, 'bulk'])->name('exam-marks.bulk');
+        Route::resource('exam-marks', ExamMarkController::class)->except('show');
 
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
