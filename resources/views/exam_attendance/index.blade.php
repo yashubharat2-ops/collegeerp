@@ -102,7 +102,13 @@
             </div>
         @endif
 
-        @php($canMark = auth()->user()->can('create', App\Models\ExamAttendance::class) && ! $locked)
+        {{-- Deliberate block form: a single-line inline raw-PHP assignment
+             here would be swallowed by Blade's raw-block scanner (it looks
+             ahead for the next closing raw-PHP tag, which belongs to the
+             status badge block further down) and corrupt the compiled view. --}}
+        @php
+            $canMark = auth()->user()->can('create', App\Models\ExamAttendance::class) && ! $locked;
+        @endphp
 
         @if($canMark)
             <form method="POST" action="{{ route('exam-attendance.bulk') }}">
@@ -134,7 +140,9 @@
                 </thead>
                 <tbody>
                     @forelse($enrollments as $index => $enrollment)
-                        @php($existing = $existingByEnrollment->get($enrollment->id))
+                        @php
+                            $existing = $existingByEnrollment->get($enrollment->id);
+                        @endphp
                         <tr class="border-b">
                             <td class="py-3 font-medium">{{ $enrollment->enrollment_number }}</td>
                             <td>
