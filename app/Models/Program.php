@@ -38,4 +38,6 @@ class Program extends Model
     public function sections(): HasMany { return $this->hasMany(Section::class); }
 
     public function facultySubjectAssignments(): HasMany { return $this->hasMany(FacultySubjectAssignment::class); }
+
+    public function examSchedules(): HasMany { return $this->hasMany(ExamSchedule::class); }
 }

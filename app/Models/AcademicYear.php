@@ -32,6 +32,16 @@ class AcademicYear extends Model
         return $this->hasMany(FacultySubjectAssignment::class);
     }
 
+    public function examinations(): HasMany
+    {
+        return $this->hasMany(Examination::class);
+    }
+
+    public function examSchedules(): HasMany
+    {
+        return $this->hasMany(ExamSchedule::class);
+    }
+
     protected static function booted(): void
     {
         static::saving(function (self $model): void {

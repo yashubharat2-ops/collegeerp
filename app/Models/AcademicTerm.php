@@ -55,4 +55,14 @@ class AcademicTerm extends Model
     {
         return $this->hasMany(FacultySubjectAssignment::class, 'academic_term_id');
     }
+
+    public function examinations(): HasMany
+    {
+        return $this->hasMany(Examination::class);
+    }
+
+    public function examSchedules(): HasMany
+    {
+        return $this->hasMany(ExamSchedule::class);
+    }
 }

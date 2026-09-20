@@ -47,6 +47,8 @@ class DatabaseSeeder extends Seeder
             'academic_attendance.view','academic_attendance.create','academic_attendance.update',
             'academic_calendar.view','academic_calendar.create','academic_calendar.update','academic_calendar.delete',
             'academic_workload.view',
+            'examinations.view', 'examinations.create', 'examinations.update', 'examinations.delete',
+            'exam_schedules.view', 'exam_schedules.create', 'exam_schedules.update', 'exam_schedules.delete',
             'roles.view', 'roles.update',
             'permissions.view',
         ])->mapWithKeys(fn ($slug) => [$slug => Permission::firstOrCreate(['slug' => $slug], ['name' => Str::headline($slug), 'module' => Str::before($slug, '.'), 'action' => Str::after($slug, '.')])]);
