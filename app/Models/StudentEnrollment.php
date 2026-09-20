@@ -88,6 +88,22 @@ class StudentEnrollment extends Model
 
     public function subjectEnrollments(): HasMany { return $this->hasMany(AcademicSubjectEnrollment::class, 'student_enrollment_id'); }
 
+    /**
+     * Exam attendance records for this enrollment (Examinations Phase 2).
+     */
+    public function examAttendances(): HasMany
+    {
+        return $this->hasMany(ExamAttendance::class);
+    }
+
+    /**
+     * Exam marks captured for this enrollment (Examinations Phase 2).
+     */
+    public function examMarks(): HasMany
+    {
+        return $this->hasMany(ExamMark::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

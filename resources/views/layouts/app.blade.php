@@ -33,13 +33,19 @@
 <a class="nav-link" href="{{ route('academic-attendance.index') }}">✓ <span>Attendance</span></a>
 <a class="nav-link" href="{{ route('academic-calendar.index') }}">📅 <span>Academic Calendar</span></a>
 <a class="nav-link" href="{{ route('academic-workload.index') }}">👨‍🏫 <span>Faculty Workload</span></a>
-@if(auth()->user()?->hasPermission('examinations.view') || auth()->user()?->hasPermission('exam_schedules.view'))
+@if(auth()->user()?->hasPermission('examinations.view') || auth()->user()?->hasPermission('exam_schedules.view') || auth()->user()?->hasPermission('exam_attendance.view') || auth()->user()?->hasPermission('exam_marks.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Examinations</div>
 @if(auth()->user()?->hasPermission('examinations.view'))
 <a class="nav-link" href="{{ route('examinations.index') }}">📝 <span>Examinations</span></a>
 @endif
 @if(auth()->user()?->hasPermission('exam_schedules.view'))
 <a class="nav-link" href="{{ route('exam-schedules.index') }}">🗓 <span>Exam Schedule</span></a>
+@endif
+@if(auth()->user()?->hasPermission('exam_attendance.view'))
+<a class="nav-link" href="{{ route('exam-attendance.index') }}">✅ <span>Exam Attendance</span></a>
+@endif
+@if(auth()->user()?->hasPermission('exam_marks.view'))
+<a class="nav-link" href="{{ route('exam-marks.index') }}">🔢 <span>Marks Entry</span></a>
 @endif
 @endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Platform</div>
