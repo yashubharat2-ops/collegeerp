@@ -7,6 +7,7 @@ use App\Domain\Student\Support\StudentHistoryEvent;
 use App\Models\AuditLog;
 use App\Models\StudentDocument;
 use App\Models\StudentPromotion;
+use App\Support\Tenancy\TenantContext;
 use Tests\TestCase;
 
 /**
@@ -90,6 +91,10 @@ class StudentHistoryTest extends TestCase
         ]);
         $this->stamp($document, '2026-06-01 09:00:00');
 
+        // The service loads relations through CollegeScope, so the tenant context
+        // that the HTTP middleware establishes must be set for a direct call.
+        app(TenantContext::class)->set($college);
+
         $events = app(StudentHistoryService::class)->forStudent($student->fresh());
 
         $this->assertSame([
@@ -132,6 +137,9 @@ class StudentHistoryTest extends TestCase
         $this->stamp($student, $same);
         $this->stamp($enrollment, $same);
         $this->stamp($this->makeAcademicRecord($college, $student, $year), $same);
+
+        // Same convention as StudentModelRelationshipTest / EnrollmentNumberGenerationTest.
+        app(TenantContext::class)->set($college);
 
         $events = app(StudentHistoryService::class)->forStudent($student->fresh());
 

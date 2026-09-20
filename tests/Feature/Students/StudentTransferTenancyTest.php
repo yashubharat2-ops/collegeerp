@@ -139,7 +139,9 @@ class StudentTransferTenancyTest extends TestCase
     public function test_uploaded_file_is_stored_under_the_active_tenant_path_only(): void
     {
         $collegeA = $this->makeCollege('TRFILE');
-        $admin = $this->makeUserWithPermissions($collegeA, ['student_transfers.create', 'student_transfers.approve']);
+        // Downloading the TC file is a view-level action in StudentTransferPolicy,
+        // so the actor needs student_transfers.view in addition to create/approve.
+        $admin = $this->makeUserWithPermissions($collegeA, ['student_transfers.view', 'student_transfers.create', 'student_transfers.approve']);
         $student = $this->makeStudent($collegeA, ['student_number' => 'STU-TR-FILE']);
 
         $this->asCollege($collegeA, $admin)

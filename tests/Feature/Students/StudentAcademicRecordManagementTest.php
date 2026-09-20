@@ -3,6 +3,7 @@
 namespace Tests\Feature\Students;
 
 use App\Models\StudentAcademicRecord;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -236,12 +237,22 @@ class StudentAcademicRecordManagementTest extends TestCase
         $this->makeAcademicRecord($college, $first, $year, ['academic_status' => 'passed']);
         $this->makeAcademicRecord($college, $second, $year, ['academic_status' => 'failed']);
 
-        $this->asCollege($college, $admin)
+        // The student filter dropdown always lists every student of the active
+        // college, so the filtered result set is asserted on the table body.
+        $byStudent = $this->asCollege($college, $admin)
             ->get(route('student-academic-records.index', ['student_id' => $first->id]))
-            ->assertSee('STU-FLT-A')->assertDontSee('STU-FLT-B');
+            ->assertOk();
 
-        $this->asCollege($college, $admin)
+        $rows = Str::between($byStudent->getContent(), '<tbody>', '</tbody>');
+        $this->assertStringContainsString('STU-FLT-A', $rows);
+        $this->assertStringNotContainsString('STU-FLT-B', $rows);
+
+        $byStatus = $this->asCollege($college, $admin)
             ->get(route('student-academic-records.index', ['academic_status' => 'failed']))
-            ->assertSee('STU-FLT-B')->assertDontSee('STU-FLT-A');
+            ->assertOk();
+
+        $rows = Str::between($byStatus->getContent(), '<tbody>', '</tbody>');
+        $this->assertStringContainsString('STU-FLT-B', $rows);
+        $this->assertStringNotContainsString('STU-FLT-A', $rows);
     }
 }

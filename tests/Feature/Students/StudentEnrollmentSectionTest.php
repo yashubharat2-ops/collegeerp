@@ -50,7 +50,9 @@ class StudentEnrollmentSectionTest extends TestCase
     public function test_a_contextually_valid_section_is_stored(): void
     {
         $college = $this->makeCollege('SECOK');
-        $creator = $this->makeUserWithPermissions($college, ['student_enrollments.view', 'student_enrollments.create']);
+        // The edit form is update-gated, so the actor who stores an enrollment
+        // must hold student_enrollments.update to open it.
+        $creator = $this->makeUserWithPermissions($college, ['student_enrollments.view', 'student_enrollments.create', 'student_enrollments.update']);
         $year = $this->makeYear($college);
         $program = $this->makeProgram($college);
         $section = $this->makeSection($college, $year, $program, 'B');
@@ -76,8 +78,10 @@ class StudentEnrollmentSectionTest extends TestCase
             ->assertOk()
             ->assertSee('name="section_id"', false);
 
+        // Laravel's @selected directive emits the bare `selected` attribute,
+        // not selected="selected", so the regex matches the attribute itself.
         $this->assertMatchesRegularExpression(
-            '/value="'.$section->id.'"[^>]*selected="selected"/',
+            '/value="'.$section->id.'"[^>]*\sselected[\s>]/',
             $edit->getContent(),
             'The stored section must be pre-selected in the edit form.'
         );
