@@ -65,4 +65,8 @@ class Section extends Model
     {
         return $this->hasMany(FacultySubjectAssignment::class, 'section_id');
     }
+
+    public function academicTimetables(): HasMany { return $this->hasMany(AcademicTimetable::class, 'section_id'); }
+    public function subjectEnrollments(): HasMany { return $this->hasMany(AcademicSubjectEnrollment::class, 'section_id'); }
+    public function attendances(): HasMany { return $this->hasMany(AcademicAttendance::class, 'section_id'); }
 }
