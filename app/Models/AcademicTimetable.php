@@ -1,0 +1,4 @@
+<?php
+namespace App\Models;
+use App\Domain\Foundation\Traits\BelongsToCollege; use Illuminate\Database\Eloquent\Model; use Illuminate\Database\Eloquent\SoftDeletes; use Illuminate\Database\Eloquent\Relations\BelongsTo;
+class AcademicTimetable extends Model { use BelongsToCollege, SoftDeletes; protected $table='academic_timetables'; protected $guarded=['id']; public function academicYear():BelongsTo{return $this->belongsTo(AcademicYear::class);} public function academicTerm():BelongsTo{return $this->belongsTo(AcademicTerm::class);} public function program():BelongsTo{return $this->belongsTo(Program::class);} public function section():BelongsTo{return $this->belongsTo(Section::class);} public function subject():BelongsTo{return $this->belongsTo(Subject::class);} public function faculty():BelongsTo{return $this->belongsTo(Faculty::class);} public function campus():BelongsTo{return $this->belongsTo(Campus::class);} }

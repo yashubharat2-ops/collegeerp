@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AcademicsController;
 use App\Http\Controllers\AcademicTermController;
 use App\Http\Controllers\AcademicYearController;
 use App\Http\Controllers\AdmissionApplicantController;
@@ -119,6 +120,28 @@ Route::middleware('auth')->group(function () {
         Route::get('student-history', [StudentHistoryController::class, 'index'])->name('student-history.index');
         Route::get('student-history/{student}', [StudentHistoryController::class, 'show'])->name('student-history.show');
         Route::get('admission-reports', [AdmissionReportController::class, 'index'])->name('admission-reports.index');
+        // Academics is operational only: all master data remains in Platform/Students.
+        Route::get('academics/subject-enrollments', [AcademicsController::class, 'subjectEnrollments'])->name('academic-subject-enrollments.index');
+        Route::get('academics/subject-enrollments/create', [AcademicsController::class, 'createSubjectEnrollment'])->name('academic-subject-enrollments.create');
+        Route::post('academics/subject-enrollments', [AcademicsController::class, 'storeSubjectEnrollment'])->name('academic-subject-enrollments.store');
+        Route::put('academics/subject-enrollments/{item}', [AcademicsController::class, 'updateSubjectEnrollment'])->name('academic-subject-enrollments.update');
+        Route::delete('academics/subject-enrollments/{item}', [AcademicsController::class, 'destroySubjectEnrollment'])->name('academic-subject-enrollments.destroy');
+        Route::get('academics/sections', [AcademicsController::class, 'sections'])->name('academic-sections.index');
+        Route::get('academics/sections/{section}', [AcademicsController::class, 'section'])->name('academic-sections.show');
+        Route::get('academics/timetables', [AcademicsController::class, 'timetables'])->name('academic-timetables.index');
+        Route::get('academics/timetables/create', [AcademicsController::class, 'createTimetable'])->name('academic-timetables.create');
+        Route::post('academics/timetables', [AcademicsController::class, 'storeTimetable'])->name('academic-timetables.store');
+        Route::put('academics/timetables/{item}', [AcademicsController::class, 'updateTimetable'])->name('academic-timetables.update');
+        Route::delete('academics/timetables/{item}', [AcademicsController::class, 'destroyTimetable'])->name('academic-timetables.destroy');
+        Route::get('academics/attendance', [AcademicsController::class, 'attendance'])->name('academic-attendance.index');
+        Route::post('academics/attendance', [AcademicsController::class, 'storeAttendance'])->name('academic-attendance.store');
+        Route::post('academics/attendance/bulk', [AcademicsController::class, 'bulkAttendance'])->name('academic-attendance.bulk');
+        Route::get('academics/calendar', [AcademicsController::class, 'calendar'])->name('academic-calendar.index');
+        Route::get('academics/calendar/create', [AcademicsController::class, 'createCalendar'])->name('academic-calendar.create');
+        Route::post('academics/calendar', [AcademicsController::class, 'storeCalendar'])->name('academic-calendar.store');
+        Route::put('academics/calendar/{item}', [AcademicsController::class, 'updateCalendar'])->name('academic-calendar.update');
+        Route::delete('academics/calendar/{item}', [AcademicsController::class, 'destroyCalendar'])->name('academic-calendar.destroy');
+        Route::get('academics/workload', [AcademicsController::class, 'workload'])->name('academic-workload.index');
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
     });

@@ -86,6 +86,8 @@ class StudentEnrollment extends Model
         return $this->hasMany(StudentAcademicRecord::class, 'enrollment_id');
     }
 
+    public function subjectEnrollments(): HasMany { return $this->hasMany(AcademicSubjectEnrollment::class, 'student_enrollment_id'); }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
