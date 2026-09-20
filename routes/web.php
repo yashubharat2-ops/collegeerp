@@ -21,6 +21,8 @@ use App\Http\Controllers\CampusController;
 use App\Http\Controllers\CollegeSwitchController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ExaminationController;
+use App\Http\Controllers\ExamScheduleController;
 use App\Http\Controllers\FacultyController;
 use App\Http\Controllers\FacultySubjectAssignmentController;
 use App\Http\Controllers\InstitutionalSettingController;
@@ -142,6 +144,11 @@ Route::middleware('auth')->group(function () {
         Route::put('academics/calendar/{item}', [AcademicsController::class, 'updateCalendar'])->name('academic-calendar.update');
         Route::delete('academics/calendar/{item}', [AcademicsController::class, 'destroyCalendar'])->name('academic-calendar.destroy');
         Route::get('academics/workload', [AcademicsController::class, 'workload'])->name('academic-workload.index');
+
+        // Examinations (Phase 1)
+        Route::resource('examinations', ExaminationController::class)->except('show');
+        Route::resource('exam-schedules', ExamScheduleController::class)->except('show');
+
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
     });
