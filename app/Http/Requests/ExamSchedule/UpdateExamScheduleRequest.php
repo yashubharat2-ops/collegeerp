@@ -10,6 +10,7 @@ use App\Models\Program;
 use App\Models\Section;
 use App\Models\Subject;
 use App\Support\Tenancy\TenantContext;
+use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -51,12 +52,13 @@ class UpdateExamScheduleRequest extends FormRequest
             }
         }
 
-        // Normalize time inputs to HH:MM format
+        // Normalize time inputs to HH:MM:SS format
         foreach (['start_time', 'end_time'] as $timeKey) {
             if ($this->filled($timeKey)) {
                 $val = trim((string) $this->input($timeKey));
-                if (preg_match('/^(\d{1,2}):(\d{2})(?::\d{2})?$/', $val, $matches)) {
-                    $this->merge([$timeKey => sprintf('%02d:%02d', (int) $matches[1], (int) $matches[2])]);
+                if (preg_match('/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', $val, $matches)) {
+                    $sec = isset($matches[3]) ? (int) $matches[3] : 0;
+                    $this->merge([$timeKey => sprintf('%02d:%02d:%02d', (int) $matches[1], (int) $matches[2], $sec)]);
                 }
             }
         }
@@ -129,8 +131,8 @@ class UpdateExamScheduleRequest extends FormRequest
                     ->whereNull('deleted_at'),
             ],
             'exam_date' => ['required', 'date'],
-            'start_time' => ['required', 'date_format:H:i'],
-            'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
+            'start_time' => ['required', 'date_format:H:i:s'],
+            'end_time' => ['required', 'date_format:H:i:s', 'after:start_time'],
             'room' => ['nullable', 'string', 'max:100'],
             'max_marks' => ['required', 'numeric', 'gt:0', 'max:10000'],
             'passing_marks' => ['required', 'numeric', 'min:0', 'lte:max_marks'],
@@ -157,9 +159,9 @@ class UpdateExamScheduleRequest extends FormRequest
             $facultyId = $this->input('faculty_id');
             $campusId = $this->input('campus_id');
             $room = trim((string) $this->input('room'));
-            $examDate = $this->input('exam_date');
-            $startTime = $this->input('start_time').':00';
-            $endTime = $this->input('end_time').':00';
+            $examDate = $this->input('exam_date') ? Carbon::parse($this->input('exam_date'))->format('Y-m-d') : null;
+            $startTime = $this->input('start_time');
+            $endTime = $this->input('end_time');
 
             // 1. Examination context checks
             $exam = Examination::withoutGlobalScopes()
@@ -213,7 +215,7 @@ class UpdateExamScheduleRequest extends FormRequest
                 ->where('examination_id', $examId)
                 ->where('section_id', $sectionId)
                 ->where('subject_id', $subjectId)
-                ->where('exam_date', $examDate)
+                ->whereDate('exam_date', $examDate)
                 ->where('start_time', $startTime)
                 ->exists();
 
@@ -228,7 +230,7 @@ class UpdateExamScheduleRequest extends FormRequest
                 ->where('college_id', $collegeId)
                 ->whereNull('deleted_at')
                 ->where('status', '!=', ExamSchedule::STATUS_CANCELLED)
-                ->where('exam_date', $examDate)
+                ->whereDate('exam_date', $examDate)
                 ->where('start_time', '<', $endTime)
                 ->where('end_time', '>', $startTime);
 
@@ -251,7 +253,7 @@ class UpdateExamScheduleRequest extends FormRequest
                     });
                 }
                 if ($roomOverlap->exists()) {
-                    $v->errors()->add('room', 'This room is already occupied by another exam during this time slot.');
+                    $v->errors()->add('room', 'This room is already allocated for another exam during this time slot.');
                 }
             }
         });

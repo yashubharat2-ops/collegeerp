@@ -672,8 +672,9 @@ class ExamScheduleManagementTest extends TestCase
                 'start_time' => '09:00',
                 'end_time' => '12:00',
                 'max_marks' => 100,
-                'passing_marks' => 40,
-                'status' => 'completed',
+                'passing_marks' => 45,
+                'status' => 'scheduled',
+                'remarks' => 'Passing marks updated',
             ], ['Referer' => route('exam-schedules.edit', $schedule)])
             ->assertSessionHasNoErrors();
 

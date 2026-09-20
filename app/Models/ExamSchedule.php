@@ -3,11 +3,11 @@
 namespace App\Models;
 
 use App\Domain\Foundation\Traits\BelongsToCollege;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Validation\ValidationException;
 
 class ExamSchedule extends Model
 {
@@ -48,10 +48,40 @@ class ExamSchedule extends Model
     protected function casts(): array
     {
         return [
-            'exam_date' => 'date',
+            'exam_date' => 'date:Y-m-d',
             'max_marks' => 'decimal:2',
             'passing_marks' => 'decimal:2',
         ];
+    }
+
+    public function setExamDateAttribute($value): void
+    {
+        $this->attributes['exam_date'] = $value ? Carbon::parse($value)->format('Y-m-d') : null;
+    }
+
+    public function setStartTimeAttribute($value): void
+    {
+        $this->attributes['start_time'] = $this->normalizeTime($value);
+    }
+
+    public function setEndTimeAttribute($value): void
+    {
+        $this->attributes['end_time'] = $this->normalizeTime($value);
+    }
+
+    private function normalizeTime($value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+
+        $val = trim((string) $value);
+        if (preg_match('/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', $val, $matches)) {
+            $seconds = isset($matches[3]) ? (int) $matches[3] : 0;
+            return sprintf('%02d:%02d:%02d', (int) $matches[1], (int) $matches[2], $seconds);
+        }
+
+        return $val;
     }
 
     public function examination(): BelongsTo
@@ -104,28 +134,13 @@ class ExamSchedule extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
-    protected static function booted(): void
+    public function createdBy(): BelongsTo
     {
-        static::saving(function (self $model): void {
-            if ($model->start_time && $model->end_time) {
-                if ($model->end_time <= $model->start_time) {
-                    throw ValidationException::withMessages([
-                        'end_time' => 'The end time must be after start time.',
-                    ]);
-                }
-            }
-            if ($model->max_marks !== null && (float) $model->max_marks <= 0) {
-                throw ValidationException::withMessages([
-                    'max_marks' => 'The maximum marks must be greater than 0.',
-                ]);
-            }
-            if ($model->max_marks !== null && $model->passing_marks !== null) {
-                if ((float) $model->passing_marks < 0 || (float) $model->passing_marks > (float) $model->max_marks) {
-                    throw ValidationException::withMessages([
-                        'passing_marks' => 'The passing marks must be between 0 and maximum marks.',
-                    ]);
-                }
-            }
-        });
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function updatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 }

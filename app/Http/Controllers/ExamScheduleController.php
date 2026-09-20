@@ -14,6 +14,7 @@ use App\Models\Program;
 use App\Models\Section;
 use App\Models\Subject;
 use App\Services\Audit\AuditLogService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -121,10 +122,16 @@ class ExamScheduleController extends Controller
 
     public function store(StoreExamScheduleRequest $request, AuditLogService $audit): RedirectResponse
     {
-        $schedule = ExamSchedule::create($request->validated() + [
-            'created_by' => auth()->id(),
-            'updated_by' => auth()->id(),
-        ]);
+        try {
+            $schedule = ExamSchedule::create($request->validated() + [
+                'created_by' => auth()->id(),
+                'updated_by' => auth()->id(),
+            ]);
+        } catch (QueryException $e) {
+            return back()->withInput()->withErrors([
+                'subject_id' => 'This schedule entry for section, subject, date, and start time already exists.',
+            ]);
+        }
 
         $audit->record('exam_schedule.created', $schedule, [], $schedule->only(self::AUDITED));
 
@@ -146,7 +153,14 @@ class ExamScheduleController extends Controller
         $model = $this->findScoped($exam_schedule);
         $old = $model->only(self::AUDITED);
 
-        $model->update($request->validated() + ['updated_by' => auth()->id()]);
+        try {
+            $model->update($request->validated() + ['updated_by' => auth()->id()]);
+        } catch (QueryException $e) {
+            return back()->withInput()->withErrors([
+                'subject_id' => 'This schedule entry for section, subject, date, and start time already exists.',
+            ]);
+        }
+
         $audit->record('exam_schedule.updated', $model, $old, $model->only(self::AUDITED));
 
         return redirect()->route('exam-schedules.index')->with('success', 'Exam schedule entry updated.');
