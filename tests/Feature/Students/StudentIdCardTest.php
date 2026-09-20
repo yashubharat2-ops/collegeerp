@@ -107,7 +107,7 @@ class StudentIdCardTest extends TestCase
         $collegeA = $this->makeCollege('IDCARDTA');
         $collegeB = $this->makeCollege('IDCARDTB');
         $foreign = $this->makeStudent($collegeB, ['student_number' => 'STU-CARD-FRG']);
-        $generatorA = $this->makeUserWithPermissions($collegeA, ['student_id_cards.generate', 'students.view']);
+        $generatorA = $this->makeUserWithPermissions($collegeA, ['student_id_cards.generate', 'student_id_cards.view', 'students.view']);
 
         $this->asCollege($collegeA, $generatorA)->get(route('student-id-cards.show', $foreign))->assertNotFound();
         $this->asCollege($collegeA, $generatorA)
