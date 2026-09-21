@@ -9,10 +9,11 @@ use Tests\TestCase;
  * Regression suite for the sidebar navigation.
  *
  * Guards that Phase 2 (Exam Attendance, Marks Entry), Phase 3 (Results,
- * Result Calculation, Grade / Pass-Fail, Result Publishing) and Phase 4A
- * (Marksheets) are rendered inside the single existing Examinations section,
- * gated on their respective .view permissions, without duplicating
- * Examinations / Exam Schedule and without introducing further Phase 4 items.
+ * Result Calculation, Grade / Pass-Fail, Result Publishing) and Phase 4
+ * (Marksheets, Grade Cards, Exam Reports, Student Result History) are rendered
+ * inside the single existing Examinations section, gated on their respective
+ * .view permissions, without duplicating Examinations / Exam Schedule and
+ * without introducing any other future items.
  */
 class ExaminationsNavigationTest extends TestCase
 {
@@ -29,9 +30,12 @@ class ExaminationsNavigationTest extends TestCase
         'grade_scales.view',
         'result_publishing.view',
         'marksheets.view',
+        'grade_cards.view',
+        'exam_reports.view',
+        'student_result_history.view',
     ];
 
-    /** The nine labels the single Examinations group must contain. */
+    /** The twelve labels the single Examinations group must contain. */
     private const EXPECTED_NAV_LINKS = [
         'examinations.index' => 'Examinations',
         'exam-schedules.index' => 'Exam Schedule',
@@ -42,6 +46,9 @@ class ExaminationsNavigationTest extends TestCase
         'grade-scales.index' => 'Grade / Pass-Fail',
         'result-publishing.index' => 'Result Publishing',
         'marksheets.index' => 'Marksheets',
+        'grade-cards.index' => 'Grade Cards',
+        'exam-reports.index' => 'Exam Reports',
+        'student-result-history.index' => 'Student Result History',
     ];
 
     /**
@@ -60,7 +67,7 @@ class ExaminationsNavigationTest extends TestCase
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
 
-    public function test_examinations_group_lists_all_nine_items_under_one_section(): void
+    public function test_examinations_group_lists_all_twelve_items_under_one_section(): void
     {
         $college = $this->makeCollege('EXNAV1');
         $user = $this->makeUserWithPermissions($college, self::ALL_EXAM_VIEW_PERMISSIONS);
@@ -74,8 +81,8 @@ class ExaminationsNavigationTest extends TestCase
             'There must be exactly one Examinations sidebar section.');
 
         $group = $this->examinationsNavGroup($html);
-        $this->assertSame(9, substr_count($group, 'class="nav-link"'),
-            'The Examinations group must contain exactly 9 entries.');
+        $this->assertSame(12, substr_count($group, 'class="nav-link"'),
+            'The Examinations group must contain exactly 12 entries.');
 
         foreach (self::EXPECTED_NAV_LINKS as $route => $label) {
             $url = route($route);
@@ -88,7 +95,7 @@ class ExaminationsNavigationTest extends TestCase
             $this->assertSame(1, substr_count($group, $label), "Duplicated sidebar entry: {$label}");
         }
 
-        foreach (['Grade Card', 'Certificates', 'Ranking', 'Merit List'] as $future) {
+        foreach (['Certificates', 'Ranking', 'Merit List'] as $future) {
             $this->assertStringNotContainsString($future, $group, "Phase 4 item must not appear: {$future}");
         }
     }
@@ -149,7 +156,7 @@ class ExaminationsNavigationTest extends TestCase
         $response = $this->asCollege($college, $super)->get(route('dashboard'))->assertOk();
         $group = $this->examinationsNavGroup($response->getContent());
 
-        $this->assertSame(9, substr_count($group, 'class="nav-link"'),
+        $this->assertSame(12, substr_count($group, 'class="nav-link"'),
             'Super Admin must see the complete Examinations group.');
 
         foreach (self::EXPECTED_NAV_LINKS as $route => $label) {

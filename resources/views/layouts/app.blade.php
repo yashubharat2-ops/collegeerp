@@ -33,7 +33,7 @@
 <a class="nav-link" href="{{ route('academic-attendance.index') }}">✓ <span>Attendance</span></a>
 <a class="nav-link" href="{{ route('academic-calendar.index') }}">📅 <span>Academic Calendar</span></a>
 <a class="nav-link" href="{{ route('academic-workload.index') }}">👨‍🏫 <span>Faculty Workload</span></a>
-@if(auth()->user()?->hasPermission('examinations.view') || auth()->user()?->hasPermission('exam_schedules.view') || auth()->user()?->hasPermission('exam_attendance.view') || auth()->user()?->hasPermission('exam_marks.view') || auth()->user()?->hasPermission('results.view') || auth()->user()?->hasPermission('result_calculation.view') || auth()->user()?->hasPermission('grade_scales.view') || auth()->user()?->hasPermission('result_publishing.view') || auth()->user()?->hasPermission('marksheets.view'))
+@if(auth()->user()?->hasPermission('examinations.view') || auth()->user()?->hasPermission('exam_schedules.view') || auth()->user()?->hasPermission('exam_attendance.view') || auth()->user()?->hasPermission('exam_marks.view') || auth()->user()?->hasPermission('results.view') || auth()->user()?->hasPermission('result_calculation.view') || auth()->user()?->hasPermission('grade_scales.view') || auth()->user()?->hasPermission('result_publishing.view') || auth()->user()?->hasPermission('marksheets.view') || auth()->user()?->hasPermission('grade_cards.view') || auth()->user()?->hasPermission('exam_reports.view') || auth()->user()?->hasPermission('student_result_history.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Examinations</div>
 @if(auth()->user()?->hasPermission('examinations.view'))
 <a class="nav-link" href="{{ route('examinations.index') }}">📝 <span>Examinations</span></a>
@@ -61,6 +61,15 @@
 @endif
 @if(auth()->user()?->hasPermission('marksheets.view'))
 <a class="nav-link" href="{{ route('marksheets.index') }}">🧾 <span>Marksheets</span></a>
+@endif
+@if(auth()->user()?->hasPermission('grade_cards.view'))
+<a class="nav-link" href="{{ route('grade-cards.index') }}">🎓 <span>Grade Cards</span></a>
+@endif
+@if(auth()->user()?->hasPermission('exam_reports.view'))
+<a class="nav-link" href="{{ route('exam-reports.index') }}">📊 <span>Exam Reports</span></a>
+@endif
+@if(auth()->user()?->hasPermission('student_result_history.view'))
+<a class="nav-link" href="{{ route('student-result-history.index') }}">🕘 <span>Student Result History</span></a>
 @endif
 @endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Platform</div>

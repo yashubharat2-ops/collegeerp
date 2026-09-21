@@ -9,16 +9,16 @@ use Tests\TestCase;
  *
  * Guards the invariants the phase depends on:
  *   - exactly ONE Examinations section (no second menu, no duplicate heading)
- *   - all nine entries (Phase 1–3 plus the Phase 4A Marksheets entry), each exactly once
+ *   - all twelve entries (Phase 1–3 plus the four Phase 4 entries), each exactly once
  *   - every Phase 3 entry gated on its own .view permission
- *   - no further Phase 4 item leaks into the group
+ *   - no other future item leaks into the group
  */
 class ResultNavigationTest extends TestCase
 {
     use ResultTestHelpers;
 
     /**
-     * The nine labels the single Examinations group must contain, in the order
+     * The twelve labels the single Examinations group must contain, in the order
      * they are rendered.
      */
     private const EXPECTED = [
@@ -31,11 +31,13 @@ class ResultNavigationTest extends TestCase
         'grade-scales.index' => 'Grade / Pass-Fail',
         'result-publishing.index' => 'Result Publishing',
         'marksheets.index' => 'Marksheets',
+        'grade-cards.index' => 'Grade Cards',
+        'exam-reports.index' => 'Exam Reports',
+        'student-result-history.index' => 'Student Result History',
     ];
 
     /** Phase 4+ modules that must NOT appear anywhere in the sidebar. */
     private const FUTURE_ITEMS = [
-        'Grade Card',
         'Certificates',
         'Ranking',
         'Merit List',
@@ -57,7 +59,7 @@ class ResultNavigationTest extends TestCase
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
 
-    public function test_exactly_one_examinations_section_holding_all_nine_items(): void
+    public function test_exactly_one_examinations_section_holding_all_twelve_items(): void
     {
         $college = $this->makeCollege('RNAV1');
         $user = $this->makeUserWithPermissions($college, [
@@ -70,6 +72,9 @@ class ResultNavigationTest extends TestCase
             'grade_scales.view',
             'result_publishing.view',
             'marksheets.view',
+            'grade_cards.view',
+            'exam_reports.view',
+            'student_result_history.view',
         ]);
 
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
@@ -79,8 +84,8 @@ class ResultNavigationTest extends TestCase
 
         $group = $this->examinationsNavGroup($html);
 
-        $this->assertSame(9, substr_count($group, 'class="nav-link"'),
-            'The Examinations group must contain exactly 9 entries.');
+        $this->assertSame(12, substr_count($group, 'class="nav-link"'),
+            'The Examinations group must contain exactly 12 entries.');
 
         foreach (self::EXPECTED as $route => $label) {
             $this->assertStringContainsString(route($route), $group, "Missing link {$route}.");
@@ -151,7 +156,7 @@ class ResultNavigationTest extends TestCase
 
         $group = $this->examinationsNavGroup($html);
 
-        $this->assertSame(9, substr_count($group, 'class="nav-link"'),
+        $this->assertSame(12, substr_count($group, 'class="nav-link"'),
             'Super Admin must see the complete Examinations group.');
 
         foreach (self::EXPECTED as $route => $label) {
