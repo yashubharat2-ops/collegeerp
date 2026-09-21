@@ -38,6 +38,9 @@ class FeeStructureItem extends Model
     protected $fillable = [
         'college_id',
         'fee_structure_id',
+        // Optional classification (Finance / Fees — Fee Categories). The free
+        // text name above stays the label printed on the structure.
+        'fee_category_id',
         'name',
         'amount',
         'description',
@@ -71,6 +74,12 @@ class FeeStructureItem extends Model
     public function feeStructure(): BelongsTo
     {
         return $this->belongsTo(FeeStructure::class);
+    }
+
+    /** Optional fee category classification. */
+    public function feeCategory(): BelongsTo
+    {
+        return $this->belongsTo(FeeCategory::class);
     }
 
     public function isActive(): bool

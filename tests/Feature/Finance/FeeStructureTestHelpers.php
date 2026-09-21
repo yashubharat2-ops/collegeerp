@@ -2,12 +2,21 @@
 
 namespace Tests\Feature\Finance;
 
+use App\Domain\Finance\Services\FeeCollectionService;
+use App\Domain\Finance\Services\StudentFeeAssignmentService;
+use App\Domain\Finance\Support\FeeLedger;
 use App\Models\AcademicTerm;
 use App\Models\AcademicYear;
 use App\Models\College;
+use App\Models\FeeCategory;
+use App\Models\FeePayment;
 use App\Models\FeeStructure;
 use App\Models\FeeStructureItem;
 use App\Models\Program;
+use App\Models\Student;
+use App\Models\StudentEnrollment;
+use App\Models\StudentFeeAssignment;
+use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Str;
 use Tests\Feature\ExamAttendance\ExamAttendanceTestHelpers;
@@ -157,4 +166,114 @@ trait FeeStructureTestHelpers
             $context->clear();
         }
     }
+
+    /**
+     * A fee category for one college.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeFeeCategory(College $college, array $overrides = []): FeeCategory
+    {
+        return FeeCategory::create(array_merge([
+            'college_id' => $college->id,
+            'name' => 'Tuition '.Str::upper(Str::random(4)),
+            'code' => 'FC-'.Str::upper(Str::random(6)),
+            'description' => 'Test fee category',
+            'status' => FeeCategory::STATUS_ACTIVE,
+        ], $overrides));
+    }
+
+    /**
+     * A student with an enrollment inside the finance fixture context.
+     *
+     * @param  array{year: AcademicYear, term: AcademicTerm, prog: Program}  $ctx
+     * @param  array<string, mixed>  $enrollmentOverrides
+     * @return array{student: Student, enrollment: StudentEnrollment}
+     */
+    private function makeFinanceEnrollment(College $college, array $ctx, string $suffix, array $enrollmentOverrides = []): array
+    {
+        $student = Student::create([
+            'college_id' => $college->id,
+            'student_number' => 'STU-'.$suffix.'-'.Str::upper(Str::random(4)),
+            'first_name' => 'Fin',
+            'last_name' => $suffix,
+            'status' => 'active',
+        ]);
+
+        $enrollment = StudentEnrollment::create(array_merge([
+            'college_id' => $college->id,
+            'student_id' => $student->id,
+            'academic_year_id' => $ctx['year']->id,
+            'program_id' => $ctx['prog']->id,
+            'enrollment_number' => 'ENR-'.$suffix.'-'.Str::upper(Str::random(4)),
+            'enrollment_date' => '2026-08-05',
+            'status' => StudentEnrollment::STATUS_ACTIVE,
+        ], $enrollmentOverrides));
+
+        return compact('student', 'enrollment');
+    }
+
+    /**
+     * Assign a fee structure through the real service (so the tests exercise the
+     * same server-side amount calculation and duplicate guard as the app).
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    private function assignFeeStructure(
+        College $college,
+        User $actor,
+        StudentEnrollment $enrollment,
+        FeeStructure $structure,
+        array $overrides = [],
+    ): StudentFeeAssignment {
+        return $this->withTenant($college, fn () => app(StudentFeeAssignmentService::class)->create($college, array_merge([
+            'student_enrollment_id' => $enrollment->id,
+            'fee_structure_id' => $structure->id,
+            'assigned_at' => '2026-08-10',
+            'status' => StudentFeeAssignment::STATUS_ACTIVE,
+            'remarks' => 'Test assignment',
+        ], $overrides), $actor));
+    }
+
+    /**
+     * Record a collection through the real service.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    private function collectFee(
+        College $college,
+        User $actor,
+        StudentFeeAssignment $assignment,
+        float $amount,
+        array $overrides = [],
+    ): FeePayment {
+        return $this->withTenant($college, fn () => app(FeeCollectionService::class)->collect($assignment, array_merge([
+            'payment_date' => '2026-08-15',
+            'payment_mode' => FeePayment::MODE_CASH,
+            'amount' => $amount,
+            'remarks' => 'Test collection',
+        ], $overrides), $actor));
+    }
+
+    /**
+     * The ledger summary of an assignment, read under the tenant context.
+     *
+     * @return array<string, mixed>
+     */
+    private function ledgerOf(College $college, StudentFeeAssignment $assignment): array
+    {
+        return $this->withTenant(
+            $college,
+            fn () => app(\App\Domain\Finance\Services\FeeDuesService::class)->summaryFor($assignment->fresh())
+        );
+    }
+
+    /**
+     * The single amount a fee structure's active components add up to.
+     */
+    private function structureTotal(FeeStructure $structure): float
+    {
+        return FeeLedger::assignedFromItems($structure->allItems()->get());
+    }
 }
+

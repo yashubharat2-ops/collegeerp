@@ -49,6 +49,8 @@ class FeeStructureService
     private const DUPLICATE_CODE_MESSAGE = 'A fee structure with this code already exists for the selected academic year and program.';
 
     private const ITEM_AUDITED = [
+        // Optional classification only — the fee head keeps its own name.
+        'fee_category_id',
         'name',
         'amount',
         'description',
@@ -199,6 +201,7 @@ class FeeStructureService
         foreach ($normalised as $index => $row) {
             $attributes = [
                 'college_id' => $collegeId,
+                'fee_category_id' => $row['fee_category_id'],
                 'name' => $row['name'],
                 'amount' => $row['amount'],
                 'description' => $row['description'],
@@ -238,7 +241,7 @@ class FeeStructureService
      * Normalise raw fee-head rows into a strictly typed, deterministic list.
      *
      * @param  array<int, array>  $items
-     * @return list<array{id: int|null, name: string, amount: float|null, description: string|null, sort_order: int|null, status: string}>
+     * @return list<array{id: int|null, fee_category_id: int|null, name: string, amount: float|null, description: string|null, sort_order: int|null, status: string}>
      */
     private function normaliseItems(array $items): array
     {
@@ -248,8 +251,11 @@ class FeeStructureService
             $amount = $row['amount'] ?? null;
             $sortOrder = $row['sort_order'] ?? null;
 
+            $categoryId = $row['fee_category_id'] ?? null;
+
             $normalised[] = [
                 'id' => isset($row['id']) && $row['id'] !== '' ? (int) $row['id'] : null,
+                'fee_category_id' => $categoryId === null || $categoryId === '' ? null : (int) $categoryId,
                 'name' => trim((string) ($row['name'] ?? '')),
                 'amount' => $amount === null || $amount === '' ? null : round((float) $amount, 2),
                 'description' => ($row['description'] ?? null) ?: null,

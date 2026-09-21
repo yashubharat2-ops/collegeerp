@@ -105,6 +105,15 @@ class UpdateFeeStructureRequest extends FormRequest
                 Rule::exists('fee_structure_items', 'id')
                     ->where('fee_structure_id', $structure?->getKey()),
             ],
+            // Optional fee category classification. Contextual FK: the category
+            // must belong to the active college.
+            'items.*.fee_category_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('fee_categories', 'id')
+                    ->where('college_id', $collegeId)
+                    ->whereNull('deleted_at'),
+            ],
             'items.*.name' => ['required_with:items', 'string', 'max:255'],
             'items.*.amount' => ['required_with:items', 'numeric', 'min:0', 'max:9999999999.99'],
             'items.*.description' => ['nullable', 'string', 'max:2000'],
@@ -119,6 +128,7 @@ class UpdateFeeStructureRequest extends FormRequest
             'academic_year_id' => 'academic year',
             'program_id' => 'program',
             'academic_term_id' => 'academic term',
+            'items.*.fee_category_id' => 'fee category',
             'items.*.name' => 'fee component name',
             'items.*.amount' => 'amount',
         ];

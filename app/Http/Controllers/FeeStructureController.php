@@ -7,6 +7,7 @@ use App\Http\Requests\FeeStructure\StoreFeeStructureRequest;
 use App\Http\Requests\FeeStructure\UpdateFeeStructureRequest;
 use App\Models\AcademicTerm;
 use App\Models\AcademicYear;
+use App\Models\FeeCategory;
 use App\Models\FeeStructure;
 use App\Models\FeeStructureItem;
 use App\Models\Program;
@@ -150,6 +151,9 @@ class FeeStructureController extends Controller
             'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(['id', 'name', 'code']),
             'programs' => Program::query()->orderBy('name')->get(['id', 'name', 'code']),
             'academicTerms' => AcademicTerm::query()->orderBy('sequence')->get(['id', 'name', 'code', 'academic_year_id']),
+            // Optional classification for a fee component (Finance / Fees —
+            // Fee Categories); reads through its own college scope.
+            'feeCategories' => FeeCategory::query()->orderBy('name')->get(['id', 'name', 'code']),
             'statuses' => FeeStructure::STATUSES,
             'itemStatuses' => FeeStructureItem::STATUSES,
         ];

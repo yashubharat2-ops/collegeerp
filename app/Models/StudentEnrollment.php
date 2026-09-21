@@ -104,6 +104,12 @@ class StudentEnrollment extends Model
         return $this->hasMany(ExamMark::class);
     }
 
+    /** Fee plans assigned to this enrollment (Finance / Fees). */
+    public function feeAssignments(): HasMany
+    {
+        return $this->hasMany(StudentFeeAssignment::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

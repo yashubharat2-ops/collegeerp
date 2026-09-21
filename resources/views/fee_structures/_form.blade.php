@@ -72,6 +72,7 @@
             <h3 class="text-sm font-semibold text-slate-900">Fee Components</h3>
             <p class="mt-1 text-xs text-slate-500">
                 One row per fee head. Amounts must be zero or positive; each fee head may appear only once per structure.
+                Linking a fee category is optional and only classifies the head for reporting.
             </p>
         </div>
         <button class="button !bg-slate-200 !text-slate-700" id="fee-structure-add-item" type="button">+ Add fee component</button>
@@ -80,12 +81,13 @@
     @php
         $rows = old('items', isset($structure) ? $structure->items->map(fn ($item) => [
             'id' => $item->id,
+            'fee_category_id' => $item->fee_category_id,
             'name' => $item->name,
             'amount' => $item->amount,
             'description' => $item->description,
             'sort_order' => $item->sort_order,
             'status' => $item->status,
-        ])->all() : [['name' => '', 'amount' => '', 'description' => '', 'sort_order' => 1, 'status' => 'active']]);
+        ])->all() : [['fee_category_id' => '', 'name' => '', 'amount' => '', 'description' => '', 'sort_order' => 1, 'status' => 'active']]);
     @endphp
 
     <div class="mt-3 overflow-x-auto">
@@ -108,8 +110,15 @@
                             <input class="input !w-20" type="number" name="items[{{ $index }}][sort_order]" min="0" max="100000" value="{{ $row['sort_order'] ?? $index + 1 }}">
                         </td>
                         <td class="py-2 pr-2">
+                            <select class="input mb-1" name="items[{{ $index }}][fee_category_id]">
+                                <option value="">No category</option>
+                                @foreach($feeCategories as $feeCategory)
+                                    <option value="{{ $feeCategory->id }}" @selected((int) ($row['fee_category_id'] ?? 0) === $feeCategory->id)>{{ $feeCategory->name }} ({{ $feeCategory->code }})</option>
+                                @endforeach
+                            </select>
                             <input class="input" type="text" name="items[{{ $index }}][name]" maxlength="255" required placeholder="e.g. Tuition Fee" value="{{ $row['name'] ?? '' }}">
                             <p class="mt-1 text-xs text-rose-600">@error("items.{$index}.name"){{ $message }}@enderror</p>
+                            <p class="mt-1 text-xs text-rose-600">@error("items.{$index}.fee_category_id"){{ $message }}@enderror</p>
                         </td>
                         <td class="py-2 pr-2">
                             <input class="input !w-36" type="number" step="0.01" min="0" name="items[{{ $index }}][amount]" required value="{{ $row['amount'] ?? '' }}">
@@ -142,6 +151,12 @@
             <input class="input !w-20" type="number" name="items[__INDEX__][sort_order]" min="0" max="100000" value="0">
         </td>
         <td class="py-2 pr-2">
+            <select class="input mb-1" name="items[__INDEX__][fee_category_id]">
+                <option value="">No category</option>
+                @foreach($feeCategories as $feeCategory)
+                    <option value="{{ $feeCategory->id }}">{{ $feeCategory->name }} ({{ $feeCategory->code }})</option>
+                @endforeach
+            </select>
             <input class="input" type="text" name="items[__INDEX__][name]" maxlength="255" required placeholder="e.g. Tuition Fee">
         </td>
         <td class="py-2 pr-2">

@@ -93,6 +93,12 @@ class FeeStructure extends Model
             ->where('status', FeeStructureItem::STATUS_ACTIVE);
     }
 
+    /** Assignments of this plan to students (Finance / Fees). */
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(StudentFeeAssignment::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

@@ -28,7 +28,15 @@ use App\Http\Controllers\ExamScheduleController;
 use App\Http\Controllers\ExamReportController;
 use App\Http\Controllers\FacultyController;
 use App\Http\Controllers\FacultySubjectAssignmentController;
+use App\Http\Controllers\FeeCategoryController;
+use App\Http\Controllers\FeeConcessionController;
+use App\Http\Controllers\FeeDueController;
+use App\Http\Controllers\FeePaymentController;
+use App\Http\Controllers\FeeReceiptController;
+use App\Http\Controllers\FeeRefundController;
+use App\Http\Controllers\FeeReportController;
 use App\Http\Controllers\FeeStructureController;
+use App\Http\Controllers\StudentFeeAssignmentController;
 use App\Http\Controllers\GradeCardController;
 use App\Http\Controllers\GradeScaleController;
 use App\Http\Controllers\InstitutionalSettingController;
@@ -201,10 +209,42 @@ Route::middleware('auth')->group(function () {
         Route::get('student-result-history', [StudentResultHistoryController::class, 'index'])->name('student-result-history.index');
         Route::get('student-result-history/{student}', [StudentResultHistoryController::class, 'show'])->name('student-result-history.show');
 
-        // Finance / Fees — Fee Structure foundation. Structure definitions only:
-        // fee collection, receipts, discounts, refunds and reports are explicitly
-        // deferred to later phases.
+        // Finance / Fees — Fee Structure foundation (structure definitions only;
+        // no money moves here).
         Route::resource('fee-structures', FeeStructureController::class)->except('show');
+
+        // Finance / Fees — Fee Categories: the classification of fee heads.
+        Route::resource('fee-categories', FeeCategoryController::class)->except('show');
+
+        // Finance / Fees — Student Fee Assignment: an existing fee structure
+        // assigned to an existing student enrollment.
+        Route::resource('student-fee-assignments', StudentFeeAssignmentController::class)->except('show');
+
+        // Finance / Fees — Fee Collection: the only screen that moves money in.
+        Route::post('fee-collections/{fee_collection}/cancel', [FeePaymentController::class, 'cancel'])->name('fee-collections.cancel');
+        Route::resource('fee-collections', FeePaymentController::class)->except('show');
+
+        // Finance / Fees — Receipts: derived from successful collections, so
+        // read-only (no create/update/delete routes exist).
+        Route::get('receipts', [FeeReceiptController::class, 'index'])->name('receipts.index');
+        Route::get('receipts/{fee_payment}/print', [FeeReceiptController::class, 'print'])->name('receipts.print');
+        Route::get('receipts/{fee_payment}', [FeeReceiptController::class, 'show'])->name('receipts.show');
+
+        // Finance / Fees — Due / Outstanding Fees: derived ledger, read-only.
+        Route::get('fee-dues', [FeeDueController::class, 'index'])->name('fee-dues.index');
+
+        // Finance / Fees — Fee Discounts / Concessions.
+        Route::post('fee-concessions/{fee_concession}/approve', [FeeConcessionController::class, 'approve'])->name('fee-concessions.approve');
+        Route::resource('fee-concessions', FeeConcessionController::class)->except('show');
+
+        // Finance / Fees — Refunds against actual collections. No delete route:
+        // refund records are never removed.
+        Route::post('refunds/{refund}/approve', [FeeRefundController::class, 'approve'])->name('refunds.approve');
+        Route::post('refunds/{refund}/process', [FeeRefundController::class, 'process'])->name('refunds.process');
+        Route::resource('refunds', FeeRefundController::class)->except(['show', 'destroy']);
+
+        // Finance / Fees — Fee Reports: read-only aggregation of the records above.
+        Route::get('fee-reports', [FeeReportController::class, 'index'])->name('fee-reports.index');
 
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');

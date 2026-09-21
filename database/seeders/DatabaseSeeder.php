@@ -58,6 +58,22 @@ class DatabaseSeeder extends Seeder
             'result_publishing.view', 'result_publishing.publish', 'result_publishing.unpublish',
             // Finance / Fees — Fee Structure foundation.
             'fee_structures.view', 'fee_structures.create', 'fee_structures.update', 'fee_structures.delete',
+            // Finance / Fees — Fee Categories.
+            'fee_categories.view', 'fee_categories.create', 'fee_categories.update', 'fee_categories.delete',
+            // Finance / Fees — Student Fee Assignment.
+            'student_fee_assignments.view', 'student_fee_assignments.create', 'student_fee_assignments.update', 'student_fee_assignments.delete',
+            // Finance / Fees — Fee Collection.
+            'fee_collections.view', 'fee_collections.create', 'fee_collections.update', 'fee_collections.delete',
+            // Finance / Fees — Receipts (derived printable documents; read-only).
+            'receipts.view', 'receipts.print',
+            // Finance / Fees — Due / Outstanding Fees (derived ledger; read-only).
+            'fee_dues.view',
+            // Finance / Fees — Fee Discounts / Concessions.
+            'fee_concessions.view', 'fee_concessions.create', 'fee_concessions.update', 'fee_concessions.delete', 'fee_concessions.approve',
+            // Finance / Fees — Refunds.
+            'refunds.view', 'refunds.create', 'refunds.update', 'refunds.approve',
+            // Finance / Fees — Fee Reports (read-only).
+            'fee_reports.view',
             // Examinations Phase 4A — Marksheets (derived printable documents; read-only).
             'marksheets.view',
             // Examinations Phase 4 — Grade Cards, Exam Reports, Student Result History (read-only).

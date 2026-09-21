@@ -18,7 +18,7 @@ use Tests\TestCase;
  * and the sidebar drops the entry, with no error anywhere. These tests pin the
  * contract so that regression can only happen loudly:
  *
- *  - every fee_structures.* slug exists exactly once after `db:seed`;
+ *  - every finance slug exists exactly once after `db:seed`;
  *  - previously seeded module permissions were not lost;
  *  - `db:seed` stays idempotent;
  *  - both system roles hold the slugs;
@@ -31,10 +31,44 @@ class FinanceModuleSeederTest extends TestCase
     use FeeStructureTestHelpers;
 
     private const FEE_SLUGS = [
+        // Fee Structure foundation.
         'fee_structures.view',
         'fee_structures.create',
         'fee_structures.update',
         'fee_structures.delete',
+        // Fee Categories.
+        'fee_categories.view',
+        'fee_categories.create',
+        'fee_categories.update',
+        'fee_categories.delete',
+        // Student Fee Assignment.
+        'student_fee_assignments.view',
+        'student_fee_assignments.create',
+        'student_fee_assignments.update',
+        'student_fee_assignments.delete',
+        // Fee Collection.
+        'fee_collections.view',
+        'fee_collections.create',
+        'fee_collections.update',
+        'fee_collections.delete',
+        // Receipts (derived documents).
+        'receipts.view',
+        'receipts.print',
+        // Due / Outstanding (derived ledger).
+        'fee_dues.view',
+        // Fee Discounts / Concessions.
+        'fee_concessions.view',
+        'fee_concessions.create',
+        'fee_concessions.update',
+        'fee_concessions.delete',
+        'fee_concessions.approve',
+        // Refunds.
+        'refunds.view',
+        'refunds.create',
+        'refunds.update',
+        'refunds.approve',
+        // Fee Reports.
+        'fee_reports.view',
     ];
 
     private const EARLIER_MODULE_SLUGS = [
@@ -45,7 +79,7 @@ class FinanceModuleSeederTest extends TestCase
         'admissions.view',
     ];
 
-    public function test_every_fee_structure_permission_is_seeded_once(): void
+    public function test_every_finance_permission_is_seeded_once(): void
     {
         foreach (self::FEE_SLUGS as $slug) {
             $this->assertSame(
@@ -77,7 +111,7 @@ class FinanceModuleSeederTest extends TestCase
         $this->assertSame($before, $this->counts(), 'Running db:seed again must not duplicate any row.');
     }
 
-    public function test_seeded_roles_hold_every_fee_structure_permission(): void
+    public function test_seeded_roles_hold_every_finance_permission(): void
     {
         $college = College::query()->where('code', 'DEMO')->firstOrFail();
         $super = Role::query()->whereNull('college_id')->where('slug', 'super-admin')->firstOrFail();
@@ -92,7 +126,7 @@ class FinanceModuleSeederTest extends TestCase
         }
     }
 
-    public function test_a_seeded_college_admin_can_open_every_fee_structure_screen(): void
+    public function test_a_seeded_college_admin_can_open_every_finance_screen(): void
     {
         $college = College::query()->where('code', 'DEMO')->firstOrFail();
         $role = Role::query()->where('college_id', $college->id)->where('slug', 'college-admin')->firstOrFail();
@@ -102,6 +136,19 @@ class FinanceModuleSeederTest extends TestCase
         foreach ([
             'fee-structures.index',
             'fee-structures.create',
+            'fee-categories.index',
+            'fee-categories.create',
+            'student-fee-assignments.index',
+            'student-fee-assignments.create',
+            'fee-collections.index',
+            'fee-collections.create',
+            'receipts.index',
+            'fee-dues.index',
+            'fee-concessions.index',
+            'fee-concessions.create',
+            'refunds.index',
+            'refunds.create',
+            'fee-reports.index',
         ] as $route) {
             $this->asCollege($college, $user)->get(route($route))->assertOk();
         }
@@ -114,12 +161,23 @@ class FinanceModuleSeederTest extends TestCase
 
         $user = $this->seededAdmin($college, $role, 'seeded-finance-nav-admin@example.test');
 
-        $this->asCollege($college, $user)
-            ->get(route('dashboard'))
-            ->assertOk()
-            ->assertSee('Finance / Fees')
-            ->assertSee(route('fee-structures.index'), false)
-            ->assertSee('Fee Structures');
+        $response = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk();
+
+        $response->assertSee('Finance / Fees');
+
+        foreach ([
+            'fee-structures.index',
+            'fee-categories.index',
+            'student-fee-assignments.index',
+            'fee-collections.index',
+            'receipts.index',
+            'fee-dues.index',
+            'fee-concessions.index',
+            'refunds.index',
+            'fee-reports.index',
+        ] as $route) {
+            $response->assertSee(route($route), false);
+        }
     }
 
     /**

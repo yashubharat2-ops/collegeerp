@@ -83,6 +83,15 @@ class StoreFeeStructureRequest extends FormRequest
             'status' => ['required', Rule::in(FeeStructure::STATUSES)],
             'description' => ['nullable', 'string', 'max:2000'],
             'items' => ['required', 'array', 'min:1'],
+            // Optional fee category classification. Contextual FK: the category
+            // must belong to the active college.
+            'items.*.fee_category_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('fee_categories', 'id')
+                    ->where('college_id', $collegeId)
+                    ->whereNull('deleted_at'),
+            ],
             'items.*.name' => ['required', 'string', 'max:255'],
             'items.*.amount' => ['required', 'numeric', 'min:0', 'max:9999999999.99'],
             'items.*.description' => ['nullable', 'string', 'max:2000'],
@@ -94,6 +103,7 @@ class StoreFeeStructureRequest extends FormRequest
     public function attributes(): array
     {
         return [
+            'items.*.fee_category_id' => 'fee category',
             'academic_year_id' => 'academic year',
             'program_id' => 'program',
             'academic_term_id' => 'academic term',
