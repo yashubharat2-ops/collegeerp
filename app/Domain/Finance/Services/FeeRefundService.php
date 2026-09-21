@@ -261,10 +261,13 @@ class FeeRefundService
         }
     }
 
-    private function assertTenant(FeeRefund $refund): void
+    /**
+     * Guards both the payment (create path) and the refund itself.
+     */
+    private function assertTenant(FeeRefund|FeePayment $record): void
     {
         $collegeId = app(TenantContext::class)->id();
 
-        abort_unless($collegeId !== null && (int) $refund->college_id === (int) $collegeId, 403);
+        abort_unless($collegeId !== null && (int) $record->college_id === (int) $collegeId, 403);
     }
 }

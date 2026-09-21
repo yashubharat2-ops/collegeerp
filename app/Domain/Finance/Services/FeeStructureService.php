@@ -186,7 +186,9 @@ class FeeStructureService
      *
      * Rows carrying an id that belongs to this structure are updated in place;
      * everything else is created, and rows dropped from the submission are
-     * removed — each change is audited.
+     * removed — each change is audited. Removals are applied before the new set
+     * is written, because fee-head names are unique inside a structure and a
+     * re-used name must not collide with the row that is on its way out.
      *
      * @param  array<int, array>  $items
      */
@@ -196,7 +198,36 @@ class FeeStructureService
 
         $this->assertItemRules($normalised);
 
-        $keptIds = [];
+        // Resolve the submitted rows against the fee heads that really belong
+        // to this structure *before* writing: heads dropped from the submission
+        // are removed first, because a re-used name would otherwise collide with
+        // the (fee_structure_id, name) unique index while the old row is still
+        // present.
+        $existing = $structure->allItems()->get()->keyBy(fn (FeeStructureItem $item): int => (int) $item->getKey());
+
+        $targets = [];
+
+        foreach ($normalised as $index => $row) {
+            $targets[$index] = $row['id'] !== null ? $existing->get((int) $row['id']) : null;
+        }
+
+        $keptIds = array_values(array_filter(
+            array_map(fn (?FeeStructureItem $item): ?int => $item?->getKey(), $targets),
+            fn (?int $id): bool => $id !== null,
+        ));
+
+        // Fee heads removed from the submitted set no longer belong to the
+        // structure; the removal itself is audit-logged.
+        foreach ($existing as $item) {
+            if (in_array((int) $item->getKey(), $keptIds, true)) {
+                continue;
+            }
+
+            $snapshot = $item->only(self::ITEM_AUDITED);
+            $item->delete();
+
+            $this->audit->record('fee_structure_items.deleted', $item, $snapshot, []);
+        }
 
         foreach ($normalised as $index => $row) {
             $attributes = [
@@ -211,9 +242,7 @@ class FeeStructureService
                 'status' => $row['status'],
             ];
 
-            $item = $row['id'] !== null
-                ? $structure->allItems()->whereKey($row['id'])->first()
-                : null;
+            $item = $targets[$index] ?? null;
 
             if ($item) {
                 $old = $item->only(self::ITEM_AUDITED);
@@ -223,17 +252,6 @@ class FeeStructureService
                 $item = $structure->allItems()->create($attributes);
                 $this->audit->record('fee_structure_items.created', $item, [], $item->only(self::ITEM_AUDITED));
             }
-
-            $keptIds[] = $item->getKey();
-        }
-
-        // Fee heads removed from the submitted set no longer belong to the
-        // structure; the removal itself is audit-logged.
-        foreach ($structure->allItems()->whereNotIn('id', $keptIds)->get() as $removed) {
-            $snapshot = $removed->only(self::ITEM_AUDITED);
-            $removed->delete();
-
-            $this->audit->record('fee_structure_items.deleted', $removed, $snapshot, []);
         }
     }
 

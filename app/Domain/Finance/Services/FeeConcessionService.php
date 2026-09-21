@@ -263,10 +263,13 @@ class FeeConcessionService
         }
     }
 
-    private function assertTenant(FeeConcession $concession): void
+    /**
+     * Guards both the assignment (create path) and the concession itself.
+     */
+    private function assertTenant(FeeConcession|StudentFeeAssignment $record): void
     {
         $collegeId = app(TenantContext::class)->id();
 
-        abort_unless($collegeId !== null && (int) $concession->college_id === (int) $collegeId, 403);
+        abort_unless($collegeId !== null && (int) $record->college_id === (int) $collegeId, 403);
     }
 }

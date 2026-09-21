@@ -291,10 +291,15 @@ class FeeCollectionService
         }
     }
 
-    private function assertTenant(FeePayment $payment): void
+    /**
+     * The guard states its own college explicitly, so it also works when the
+     * service is called outside an HTTP request. Both the assignment (create
+     * path) and the payment itself (read/mutate paths) are guarded.
+     */
+    private function assertTenant(FeePayment|StudentFeeAssignment $record): void
     {
         $collegeId = app(TenantContext::class)->id();
 
-        abort_unless($collegeId !== null && (int) $payment->college_id === (int) $collegeId, 403);
+        abort_unless($collegeId !== null && (int) $record->college_id === (int) $collegeId, 403);
     }
 }

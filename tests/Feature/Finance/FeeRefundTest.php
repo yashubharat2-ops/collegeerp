@@ -160,16 +160,18 @@ class FeeRefundTest extends TestCase
 
         $this->assertSame(0, $this->withTenant($college, fn () => FeeRefund::query()->count()));
 
-        // …and a refund raised before the reversal cannot be approved afterwards.
+        // …and the guard cannot be side-stepped by reversing a payment that
+        // already carries a refund: that reversal is refused outright, so an
+        // approved refund can never end up pointing at reversed money.
         $assignment = $this->withTenant($college, fn () => StudentFeeAssignment::query()->firstOrFail());
         $paymentTwo = $this->collectFee($college, $user, $assignment, 1000, ['payment_date' => '2026-08-16']);
-        $refund = $this->withTenant($college, fn () => app(\App\Domain\Finance\Services\FeeRefundService::class)->create($paymentTwo, [
+        $this->withTenant($college, fn () => app(\App\Domain\Finance\Services\FeeRefundService::class)->create($paymentTwo, [
             'refund_date' => '2026-08-17',
             'amount' => 100,
         ], $user));
 
-        $this->asCollege($college, $user)->post(route('fee-collections.cancel', $paymentTwo))->assertRedirect();
-        $this->asCollege($college, $user)->post(route('refunds.approve', $refund))->assertSessionHasErrors('fee_payment_id');
+        $this->asCollege($college, $user)->post(route('fee-collections.cancel', $paymentTwo))->assertSessionHasErrors('status');
+        $this->assertSame(FeePayment::STATUS_COMPLETED, $paymentTwo->fresh()->status);
     }
 
     public function test_only_an_approved_refund_can_be_processed(): void

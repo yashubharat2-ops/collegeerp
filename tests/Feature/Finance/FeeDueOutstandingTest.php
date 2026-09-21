@@ -4,10 +4,12 @@ namespace Tests\Feature\Finance;
 
 use App\Domain\Finance\Services\FeeDuesService;
 use App\Domain\Finance\Support\FeeLedger;
+use App\Models\College;
 use App\Models\FeeConcession;
 use App\Models\FeePayment;
 use App\Models\FeeRefund;
 use App\Models\StudentFeeAssignment;
+use App\Models\User;
 use Tests\TestCase;
 
 /**
@@ -26,6 +28,28 @@ class FeeDueOutstandingTest extends TestCase
     /**
      * @return array{0: \App\Models\College, 1: \App\Models\User, 2: StudentFeeAssignment}
      */
+    /**
+     * Render the Due / Outstanding screen and return the results table markup.
+     *
+     * The filter form lists every enrolment/programme of the college as a select
+     * option, so "does this row appear?" assertions must not scan the whole page.
+     *
+     * @param  array<string, mixed>  $filters
+     */
+    private function duesTable(College $college, User $user, array $filters = []): string
+    {
+        $response = $this->asCollege($college, $user)->get(route('fee-dues.index', $filters));
+
+        $response->assertOk();
+
+        $html = (string) $response->getContent();
+        $start = strpos($html, '<table');
+
+        $this->assertNotFalse($start, 'The dues screen must render a results table.');
+
+        return substr($html, (int) $start);
+    }
+
     private function duesFixture(string $code): array
     {
         $college = $this->makeCollege($code);
@@ -198,23 +222,23 @@ class FeeDueOutstandingTest extends TestCase
         $fixture = $this->makeFinanceEnrollment($college, $ctx, 'FDUE8B');
         $other = $this->assignFeeStructure($college, $user, $fixture['enrollment'], $structure);
 
-        $this->asCollege($college, $user)
-            ->get(route('fee-dues.index', ['fee_structure_id' => $structure->id]))
-            ->assertOk()
-            ->assertSee($other->studentEnrollment->enrollment_number)
-            ->assertDontSee($assignment->studentEnrollment->enrollment_number);
+        // The filter form offers every enrolment of the college as an option, so
+        // the assertions below look at the results table instead of the whole
+        // response (the option cannot be mistaken for a listed row).
+        $byStructure = $this->duesTable($college, $user, ['fee_structure_id' => $structure->id]);
+        $this->assertStringContainsString($other->studentEnrollment->enrollment_number, $byStructure);
+        $this->assertStringNotContainsString($assignment->studentEnrollment->enrollment_number, $byStructure);
 
-        $this->asCollege($college, $user)
-            ->get(route('fee-dues.index', ['student_id' => $assignment->studentEnrollment->student_id]))
-            ->assertOk()
-            ->assertSee($assignment->studentEnrollment->enrollment_number)
-            ->assertDontSee($other->studentEnrollment->enrollment_number);
+        $byStudent = $this->duesTable($college, $user, ['student_id' => $assignment->studentEnrollment->student_id]);
+        $this->assertStringContainsString($assignment->studentEnrollment->enrollment_number, $byStudent);
+        $this->assertStringNotContainsString($other->studentEnrollment->enrollment_number, $byStudent);
 
-        $this->asCollege($college, $user)
-            ->get(route('fee-dues.index', ['academic_year_id' => $ctx['year']->id, 'program_id' => $ctx['prog']->id]))
-            ->assertOk()
-            ->assertSee($other->studentEnrollment->enrollment_number)
-            ->assertDontSee($assignment->studentEnrollment->enrollment_number);
+        $byContext = $this->duesTable($college, $user, [
+            'academic_year_id' => $ctx['year']->id,
+            'program_id' => $ctx['prog']->id,
+        ]);
+        $this->assertStringContainsString($other->studentEnrollment->enrollment_number, $byContext);
+        $this->assertStringNotContainsString($assignment->studentEnrollment->enrollment_number, $byContext);
     }
 
     public function test_pagination_is_deterministic(): void
@@ -260,11 +284,10 @@ class FeeDueOutstandingTest extends TestCase
         $otherFixture = $this->makeFinanceEnrollment($other, $otherCtx, 'FDUE10X');
         $foreign = $this->assignFeeStructure($other, $user, $otherFixture['enrollment'], $otherStructure);
 
-        $this->asCollege($college, $user)
-            ->get(route('fee-dues.index'))
-            ->assertOk()
-            ->assertSee($assignment->studentEnrollment->enrollment_number)
-            ->assertDontSee($foreign->studentEnrollment->enrollment_number);
+        $html = $this->duesTable($college, $user);
+
+        $this->assertStringContainsString($assignment->studentEnrollment->enrollment_number, $html);
+        $this->assertStringNotContainsString($otherFixture['enrollment']->enrollment_number, $html);
 
         // The service callable with a colleague's tenant context stays in college too.
         $summaries = $this->withTenant($college, fn () => app(FeeDuesService::class)->ledgerFor([$foreign]));
