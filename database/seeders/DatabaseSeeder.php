@@ -51,11 +51,8 @@ class DatabaseSeeder extends Seeder
             'exam_schedules.view', 'exam_schedules.create', 'exam_schedules.update', 'exam_schedules.delete',
             'exam_attendance.view', 'exam_attendance.create', 'exam_attendance.update', 'exam_attendance.delete',
             'exam_marks.view', 'exam_marks.create', 'exam_marks.update', 'exam_marks.delete',
-            // Examinations Phase 3 — Results, Calculation, Grade / Pass-Fail, Publishing.
-            'results.view', 'results.view_unpublished',
-            'result_calculation.view', 'result_calculation.calculate', 'result_calculation.recalculate',
+            // Examinations Phase 3A — Grade / Pass-Fail.
             'grade_scales.view', 'grade_scales.create', 'grade_scales.update', 'grade_scales.delete',
-            'result_publishing.view', 'result_publishing.publish', 'result_publishing.unpublish',
             'roles.view', 'roles.update',
             'permissions.view',
         ])->mapWithKeys(fn ($slug) => [$slug => Permission::firstOrCreate(['slug' => $slug], ['name' => Str::headline($slug), 'module' => Str::before($slug, '.'), 'action' => Str::after($slug, '.')])]);

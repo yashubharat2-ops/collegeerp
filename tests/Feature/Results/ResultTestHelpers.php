@@ -3,9 +3,7 @@
 namespace Tests\Feature\Results;
 
 use App\Models\College;
-use App\Models\Examination;
 use App\Models\ExamMark;
-use App\Models\ExamResult;
 use App\Models\ExamSchedule;
 use App\Models\GradeScale;
 use App\Models\GradeScaleItem;
@@ -15,11 +13,11 @@ use Illuminate\Support\Str;
 use Tests\Feature\ExamAttendance\ExamAttendanceTestHelpers;
 
 /**
- * Shared fixtures for the Examinations Phase 3 tests.
+ * Shared fixtures for the Examinations Phase 3A tests — Grade / Pass-Fail only.
  *
  * Reuses the Phase 2 Examinations fixtures (college, users, enrollments, exam
- * context) instead of duplicating platform masters, and adds only what Phase 3
- * owns: grade scales, marks and calculated results.
+ * context) instead of duplicating platform masters, and adds only what Phase 3A
+ * owns: grade scales and marks. No ExamResult / calculation helpers.
  */
 trait ResultTestHelpers
 {
@@ -165,13 +163,5 @@ trait ResultTestHelpers
         } finally {
             $context->clear();
         }
-    }
-
-    private function resultFor(Examination $examination, StudentEnrollment $enrollment): ?ExamResult
-    {
-        return ExamResult::query()
-            ->where('examination_id', $examination->id)
-            ->where('student_enrollment_id', $enrollment->id)
-            ->first();
     }
 }
