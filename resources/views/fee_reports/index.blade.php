@@ -14,7 +14,7 @@
         </div>
     </div>
 
-    <form class="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-6" method="GET" action="{{ route('fee-reports.index') }}">
+    <form class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7" method="GET" action="{{ route('fee-reports.index') }}">
         <div>
             <label class="label" for="report">Report</label>
             <select class="input" id="report" name="report">
@@ -59,14 +59,22 @@
                 @endforeach
             </select>
         </div>
-        <div>
+        {{--
+            Date range — two native date controls are the widest pair in the
+            filter bar. They live in a two-column grid of `minmax(0, 1fr)` tracks
+            (Tailwind's `grid-cols-2`) and each control carries `min-w-0`, so a
+            control shrinks with its track instead of pushing past the card; the
+            cell spans two tracks of the filter grid so both dates stay readable
+            and the row wraps at every breakpoint.
+        --}}
+        <div class="sm:col-span-2">
             <label class="label" for="from">Date from / to</label>
-            <div class="flex gap-2">
-                <input class="input" id="from" name="from" type="date" value="{{ $selected['from'] }}">
-                <input class="input" id="to" name="to" type="date" value="{{ $selected['to'] }}">
+            <div class="grid grid-cols-2 gap-2">
+                <input class="input min-w-0" id="from" name="from" type="date" aria-label="Date from" value="{{ $selected['from'] }}">
+                <input class="input min-w-0" id="to" name="to" type="date" aria-label="Date to" value="{{ $selected['to'] }}">
             </div>
         </div>
-        <div class="sm:col-span-3 lg:col-span-6 flex flex-wrap items-end gap-2">
+        <div class="sm:col-span-2 lg:col-span-4 xl:col-span-7 flex flex-wrap items-end gap-2">
             @if(in_array($report, ['dues', 'student'], true))
                 <div>
                     <label class="label" for="status">Due Status</label>
