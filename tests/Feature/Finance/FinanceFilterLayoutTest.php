@@ -123,12 +123,12 @@ class FinanceFilterLayoutTest extends TestCase
             // min-w-0 is the piece that removes the native date widget's intrinsic
             // minimum width — without it the pair overflows its track again.
             $this->assertMatchesRegularExpression(
-                '/<input class="input min-w-0" id="from" name="from" type="date"[^>]*value="\{\{ \$selected\[\'from\'\] \}\}">/',
+                '/<input class="input min-w-0" id="from" name="from" type="date" aria-label="Date from" value="[^"]*">/',
                 $form,
                 "The {$route} \"Date from\" control must be able to shrink."
             );
             $this->assertMatchesRegularExpression(
-                '/<input class="input min-w-0" id="to" name="to" type="date"[^>]*value="\{\{ \$selected\[\'to\'\] \}\}">/',
+                '/<input class="input min-w-0" id="to" name="to" type="date" aria-label="Date to" value="[^"]*">/',
                 $form,
                 "The {$route} \"Date to\" control must be able to shrink."
             );
