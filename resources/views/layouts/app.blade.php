@@ -33,7 +33,7 @@
 <a class="nav-link" href="{{ route('academic-attendance.index') }}">✓ <span>Attendance</span></a>
 <a class="nav-link" href="{{ route('academic-calendar.index') }}">📅 <span>Academic Calendar</span></a>
 <a class="nav-link" href="{{ route('academic-workload.index') }}">👨‍🏫 <span>Faculty Workload</span></a>
-@if(auth()->user()?->hasPermission('examinations.view') || auth()->user()?->hasPermission('exam_schedules.view') || auth()->user()?->hasPermission('exam_attendance.view') || auth()->user()?->hasPermission('exam_marks.view'))
+@if(auth()->user()?->hasPermission('examinations.view') || auth()->user()?->hasPermission('exam_schedules.view') || auth()->user()?->hasPermission('exam_attendance.view') || auth()->user()?->hasPermission('exam_marks.view') || auth()->user()?->hasPermission('results.view') || auth()->user()?->hasPermission('result_calculation.view') || auth()->user()?->hasPermission('grade_scales.view') || auth()->user()?->hasPermission('result_publishing.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Examinations</div>
 @if(auth()->user()?->hasPermission('examinations.view'))
 <a class="nav-link" href="{{ route('examinations.index') }}">📝 <span>Examinations</span></a>
@@ -46,6 +46,18 @@
 @endif
 @if(auth()->user()?->hasPermission('exam_marks.view'))
 <a class="nav-link" href="{{ route('exam-marks.index') }}">🔢 <span>Marks Entry</span></a>
+@endif
+@if(auth()->user()?->hasPermission('results.view'))
+<a class="nav-link" href="{{ route('results.index') }}">📈 <span>Results</span></a>
+@endif
+@if(auth()->user()?->hasPermission('result_calculation.view'))
+<a class="nav-link" href="{{ route('result-calculation.index') }}">🧮 <span>Result Calculation</span></a>
+@endif
+@if(auth()->user()?->hasPermission('grade_scales.view'))
+<a class="nav-link" href="{{ route('grade-scales.index') }}">📏 <span>Grade / Pass-Fail</span></a>
+@endif
+@if(auth()->user()?->hasPermission('result_publishing.view'))
+<a class="nav-link" href="{{ route('result-publishing.index') }}">📢 <span>Result Publishing</span></a>
 @endif
 @endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Platform</div>

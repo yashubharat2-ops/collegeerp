@@ -8,20 +8,38 @@ use Tests\TestCase;
 /**
  * Regression suite for the sidebar navigation.
  *
- * Guards that Exam Attendance and Marks Entry (Examinations Phase 2) are
- * rendered inside the single existing Examinations section, gated on their
- * respective .view permissions, without duplicating Examinations / Exam
- * Schedule or introducing Phase 3 items.
+ * Guards that Phase 2 (Exam Attendance, Marks Entry) and Phase 3 (Results,
+ * Result Calculation, Grade / Pass-Fail, Result Publishing) are rendered
+ * inside the single existing Examinations section, gated on their respective
+ * .view permissions, without duplicating Examinations / Exam Schedule and
+ * without introducing Phase 4 items.
  */
 class ExaminationsNavigationTest extends TestCase
 {
     use ExamAttendanceTestHelpers;
 
+    /** Every .view permission that unlocks an Examinations sidebar entry. */
     private const ALL_EXAM_VIEW_PERMISSIONS = [
         'examinations.view',
         'exam_schedules.view',
         'exam_attendance.view',
         'exam_marks.view',
+        'results.view',
+        'result_calculation.view',
+        'grade_scales.view',
+        'result_publishing.view',
+    ];
+
+    /** The eight labels the single Examinations group must contain. */
+    private const EXPECTED_NAV_LINKS = [
+        'examinations.index' => 'Examinations',
+        'exam-schedules.index' => 'Exam Schedule',
+        'exam-attendance.index' => 'Exam Attendance',
+        'exam-marks.index' => 'Marks Entry',
+        'results.index' => 'Results',
+        'result-calculation.index' => 'Result Calculation',
+        'grade-scales.index' => 'Grade / Pass-Fail',
+        'result-publishing.index' => 'Result Publishing',
     ];
 
     /**
@@ -40,7 +58,7 @@ class ExaminationsNavigationTest extends TestCase
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
 
-    public function test_examinations_group_lists_all_four_items_under_one_section(): void
+    public function test_examinations_group_lists_all_eight_items_under_one_section(): void
     {
         $college = $this->makeCollege('EXNAV1');
         $user = $this->makeUserWithPermissions($college, self::ALL_EXAM_VIEW_PERMISSIONS);
@@ -54,25 +72,23 @@ class ExaminationsNavigationTest extends TestCase
             'There must be exactly one Examinations sidebar section.');
 
         $group = $this->examinationsNavGroup($html);
-        $this->assertSame(4, substr_count($group, 'class="nav-link"'),
-            'The Examinations group must contain exactly 4 entries.');
+        $this->assertSame(8, substr_count($group, 'class="nav-link"'),
+            'The Examinations group must contain exactly 8 entries.');
 
-        foreach ([
-            route('examinations.index') => 'Examinations',
-            route('exam-schedules.index') => 'Exam Schedule',
-            route('exam-attendance.index') => 'Exam Attendance',
-            route('exam-marks.index') => 'Marks Entry',
-        ] as $url => $label) {
+        foreach (self::EXPECTED_NAV_LINKS as $route => $label) {
+            $url = route($route);
             $this->assertStringContainsString($url, $group, "Missing link to {$url}.");
             $this->assertStringContainsString($label, $group, "Missing label {$label}.");
         }
 
-        // No duplicated entries and no Phase 3 items.
-        $this->assertSame(1, substr_count($group, 'Exam Schedule'));
-        $this->assertSame(1, substr_count($group, 'Exam Attendance'));
-        $this->assertSame(1, substr_count($group, 'Marks Entry'));
-        $this->assertStringNotContainsString('Results', $group);
-        $this->assertStringNotContainsString('Marksheet', $group);
+        // No duplicated entries and no Phase 4 items.
+        foreach (self::EXPECTED_NAV_LINKS as $label) {
+            $this->assertSame(1, substr_count($group, $label), "Duplicated sidebar entry: {$label}");
+        }
+
+        foreach (['Marksheet', 'Grade Card', 'Certificates', 'Ranking', 'Merit List'] as $future) {
+            $this->assertStringNotContainsString($future, $group, "Phase 4 item must not appear: {$future}");
+        }
     }
 
     public function test_phase_two_links_respect_rbac_permissions(): void
@@ -87,6 +103,10 @@ class ExaminationsNavigationTest extends TestCase
             ->assertSee('Exam Attendance')
             ->assertDontSee(route('exam-marks.index'), false)
             ->assertDontSee('Marks Entry')
+            ->assertDontSee(route('results.index'), false)
+            ->assertDontSee(route('result-calculation.index'), false)
+            ->assertDontSee(route('grade-scales.index'), false)
+            ->assertDontSee(route('result-publishing.index'), false)
             ->assertDontSee(route('exam-schedules.index'), false)
             ->assertDontSee(route('examinations.index'), false);
 
@@ -98,6 +118,10 @@ class ExaminationsNavigationTest extends TestCase
             ->assertSee('Marks Entry')
             ->assertDontSee(route('exam-attendance.index'), false)
             ->assertDontSee('Exam Attendance')
+            ->assertDontSee(route('results.index'), false)
+            ->assertDontSee(route('result-calculation.index'), false)
+            ->assertDontSee(route('grade-scales.index'), false)
+            ->assertDontSee(route('result-publishing.index'), false)
             ->assertDontSee(route('exam-schedules.index'), false)
             ->assertDontSee(route('examinations.index'), false);
     }
@@ -123,9 +147,12 @@ class ExaminationsNavigationTest extends TestCase
         $response = $this->asCollege($college, $super)->get(route('dashboard'))->assertOk();
         $group = $this->examinationsNavGroup($response->getContent());
 
-        $this->assertSame(4, substr_count($group, 'class="nav-link"'),
+        $this->assertSame(8, substr_count($group, 'class="nav-link"'),
             'Super Admin must see the complete Examinations group.');
-        $this->assertStringContainsString(route('exam-attendance.index'), $group);
-        $this->assertStringContainsString(route('exam-marks.index'), $group);
+
+        foreach (self::EXPECTED_NAV_LINKS as $route => $label) {
+            $this->assertStringContainsString(route($route), $group);
+            $this->assertStringContainsString($label, $group);
+        }
     }
 }
