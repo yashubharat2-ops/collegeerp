@@ -69,6 +69,11 @@ from the browser:
   saving. The payment number (`PAY-YYYY-NNNN`), `collected_by`, `collected_at`
   and the academic context are all stamped server-side. The assignment row lock
   serialises number generation per college together with the balance check.
+  A resubmitted form is refused too: the form carries a random
+  `submission_token` (unique per college), so a double click or a refresh cannot
+  record the same collection twice, while a genuinely repeated instalment starts
+  from a fresh form and is unaffected. A repeated bank reference with the same
+  amount, mode and date is rejected as well.
 * **Concession:** `type ∈ {fixed, percentage}`; `value` is money for `fixed`
   (≥ 0) and 0–100 for `percentage`; `amount` is computed from the snapshot
   (`round(assigned × value ÷ 100, 2)` for a percentage) and ignored if posted;

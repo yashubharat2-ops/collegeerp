@@ -43,6 +43,9 @@
 
     <form method="POST" action="{{ route('fee-collections.store') }}" class="mt-6 grid gap-4 sm:grid-cols-2">
         @csrf
+        {{-- Idempotency token: a resubmitted form (double click, refresh) is
+             refused server-side instead of recording the collection twice. --}}
+        <input type="hidden" name="submission_token" value="{{ old('submission_token', \Illuminate\Support\Str::uuid()->toString()) }}">
         @include('fee_collections._form', [
             'ledger' => isset($assignment) && $assignment
                 ? app(App\Domain\Finance\Services\FeeDuesService::class)->summaryFor($assignment)

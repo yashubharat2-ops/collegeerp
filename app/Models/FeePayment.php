@@ -66,6 +66,8 @@ class FeePayment extends Model
         'payment_mode',
         'amount',
         'reference_number',
+        // Idempotency token: the form's double-submission guard (per college).
+        'submission_token',
         'status',
         'remarks',
         'collected_by',

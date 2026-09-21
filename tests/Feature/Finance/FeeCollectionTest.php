@@ -2,9 +2,11 @@
 
 namespace Tests\Feature\Finance;
 
+use App\Domain\Finance\Services\FeeCollectionService;
 use App\Domain\Finance\Support\FeeLedger;
 use App\Models\FeePayment;
 use App\Models\StudentFeeAssignment;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -219,6 +221,70 @@ class FeeCollectionTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertSame(2, $this->withTenant($college, fn () => FeePayment::query()->count()));
+    }
+
+    public function test_a_resubmitted_form_cannot_record_the_same_collection_twice(): void
+    {
+        [$college, $user, $assignment] = $this->assignmentFixture('FCOL12');
+
+        // Cash carries no bank reference, so the form's idempotency token is
+        // what protects the counter against a double click or a refresh.
+        $payload = [
+            'student_fee_assignment_id' => $assignment->id,
+            'payment_date' => '2026-08-15',
+            'payment_mode' => FeePayment::MODE_CASH,
+            'amount' => 5000,
+            'submission_token' => (string) Str::uuid(),
+        ];
+
+        $this->asCollege($college, $user)
+            ->post(route('fee-collections.store'), $payload)
+            ->assertRedirect(route('fee-collections.index'));
+
+        // The same form again is refused…
+        $this->asCollege($college, $user)
+            ->post(route('fee-collections.store'), $payload)
+            ->assertSessionHasErrors('amount');
+
+        $this->assertSame(1, $this->withTenant($college, fn () => FeePayment::query()->count()));
+
+        // …while a genuinely repeated instalment (a fresh form, a fresh token) is fine.
+        $this->asCollege($college, $user)
+            ->post(route('fee-collections.store'), array_merge($payload, ['submission_token' => (string) Str::uuid()]))
+            ->assertRedirect(route('fee-collections.index'));
+
+        $this->assertSame(2, $this->withTenant($college, fn () => FeePayment::query()->count()));
+    }
+
+    public function test_the_submission_token_is_only_unique_inside_a_college(): void
+    {
+        [$college, $user, $assignment] = $this->assignmentFixture('FCOL13');
+        $token = (string) Str::uuid();
+
+        $this->asCollege($college, $user)->post(route('fee-collections.store'), [
+            'student_fee_assignment_id' => $assignment->id,
+            'payment_date' => '2026-08-15',
+            'payment_mode' => FeePayment::MODE_CASH,
+            'amount' => 1000,
+            'submission_token' => $token,
+        ])->assertRedirect(route('fee-collections.index'));
+
+        $other = $this->makeCollege('FCOL13X');
+        $otherCtx = $this->makeFinanceContext($other, 'FCOL13X');
+        $otherStructure = $this->makeFeeStructure($other, $otherCtx);
+        $otherFixture = $this->makeFinanceEnrollment($other, $otherCtx, 'FCOL13X');
+        $otherAssignment = $this->assignFeeStructure($other, $user, $otherFixture['enrollment'], $otherStructure);
+
+        // The same token in another college is a different collection.
+        $payment = $this->withTenant($other, fn () => app(FeeCollectionService::class)->collect($otherAssignment, [
+            'payment_date' => '2026-08-15',
+            'payment_mode' => FeePayment::MODE_CASH,
+            'amount' => 1000,
+            'submission_token' => $token,
+        ], $user));
+
+        $this->assertSame($token, $payment->submission_token);
+        $this->assertSame(1, $this->withTenant($other, fn () => FeePayment::query()->count()));
     }
 
     public function test_a_cancelled_payment_stops_counting_towards_the_collected_amount(): void

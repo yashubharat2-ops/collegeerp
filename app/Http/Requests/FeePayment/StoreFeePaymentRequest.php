@@ -49,6 +49,9 @@ class StoreFeePaymentRequest extends FormRequest
             'payment_mode' => ['required', 'string', 'max:30'],
             'amount' => ['required', 'numeric', 'gt:0', 'max:9999999999.99'],
             'reference_number' => ['nullable', 'string', 'max:100'],
+            // The form's idempotency token: a resubmitted form is refused by the
+            // unique index instead of recording the collection twice.
+            'submission_token' => ['nullable', 'string', 'max:64'],
             'remarks' => ['nullable', 'string', 'max:2000'],
         ];
     }

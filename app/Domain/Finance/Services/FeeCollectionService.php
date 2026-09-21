@@ -10,6 +10,7 @@ use App\Models\StudentFeeAssignment;
 use App\Models\User;
 use App\Services\Audit\AuditLogService;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -59,7 +60,7 @@ class FeeCollectionService
     /**
      * Record a collection against an assignment.
      *
-     * @param  array{payment_date: string, payment_mode: string, amount: mixed, reference_number?: string|null, remarks?: string|null}  $data
+     * @param  array{payment_date: string, payment_mode: string, amount: mixed, reference_number?: string|null, submission_token?: string|null, remarks?: string|null}  $data
      */
     public function collect(StudentFeeAssignment $assignment, array $data, User $actor): FeePayment
     {
@@ -99,23 +100,39 @@ class FeeCollectionService
 
             $this->assertNoDuplicateReference($locked, $data, $amount);
 
-            $payment = FeePayment::create([
-                'college_id' => $locked->college_id,
-                'student_fee_assignment_id' => $locked->getKey(),
-                'student_enrollment_id' => $locked->student_enrollment_id,
-                'fee_structure_id' => $locked->fee_structure_id,
-                'payment_number' => $this->numbers->execute((int) $locked->college_id),
-                'payment_date' => $data['payment_date'],
-                'payment_mode' => $data['payment_mode'],
-                'amount' => $amount,
-                'reference_number' => ($data['reference_number'] ?? null) ?: null,
-                'status' => FeePayment::STATUS_COMPLETED,
-                'remarks' => ($data['remarks'] ?? null) ?: null,
-                'collected_by' => $actor->getKey(),
-                'collected_at' => now(),
-                'created_by' => $actor->getKey(),
-                'updated_by' => $actor->getKey(),
-            ]);
+            $token = trim((string) ($data['submission_token'] ?? ''));
+
+            try {
+                $payment = FeePayment::create([
+                    'college_id' => $locked->college_id,
+                    'student_fee_assignment_id' => $locked->getKey(),
+                    'student_enrollment_id' => $locked->student_enrollment_id,
+                    'fee_structure_id' => $locked->fee_structure_id,
+                    'payment_number' => $this->numbers->execute((int) $locked->college_id),
+                    'payment_date' => $data['payment_date'],
+                    'payment_mode' => $data['payment_mode'],
+                    'amount' => $amount,
+                    'reference_number' => ($data['reference_number'] ?? null) ?: null,
+                    'submission_token' => $token !== '' ? $token : null,
+                    'status' => FeePayment::STATUS_COMPLETED,
+                    'remarks' => ($data['remarks'] ?? null) ?: null,
+                    'collected_by' => $actor->getKey(),
+                    'collected_at' => now(),
+                    'created_by' => $actor->getKey(),
+                    'updated_by' => $actor->getKey(),
+                ]);
+            } catch (UniqueConstraintViolationException $exception) {
+                // Only the double-submission guard is translated: a payment-number
+                // collision (which cannot happen, the number is generated under
+                // the same lock) keeps bubbling up.
+                if ($token === '' || ! str_contains($exception->getMessage(), 'submission')) {
+                    throw $exception;
+                }
+
+                throw ValidationException::withMessages([
+                    'amount' => 'This collection was already recorded — the form appears to have been submitted twice.',
+                ]);
+            }
 
             $this->audit->record('fee_payments.collected', $payment, [], $payment->only(self::AUDITED));
 
