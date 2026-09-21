@@ -180,7 +180,10 @@ class FeeDueOutstandingTest extends TestCase
             'reason' => 'Requested',
         ], $user));
 
-        $this->assertSame(13000.0, (float) $this->ledgerOf($college, $assignment)['outstanding']);
+        // 26,500 assigned − 10,000 paid + 3,000 given back = 19,500 still owed,
+        // and the net collected drops to 7,000.
+        $this->assertSame(19500.0, (float) $this->ledgerOf($college, $assignment)['outstanding']);
+        $this->assertSame(7000.0, (float) $this->ledgerOf($college, $assignment)['net_collected']);
 
         $this->withTenant($college, fn () => app(\App\Domain\Finance\Services\FeeRefundService::class)->update($refund, [
             'status' => FeeRefund::STATUS_CANCELLED,

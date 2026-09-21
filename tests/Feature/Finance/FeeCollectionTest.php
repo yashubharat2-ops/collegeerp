@@ -336,14 +336,19 @@ class FeeCollectionTest extends TestCase
         $otherFixture = $this->makeFinanceEnrollment($other, $otherCtx, 'FCOL11X');
         $otherAssignment = $this->assignFeeStructure($other, $user, $otherFixture['enrollment'], $otherStructure);
         $foreignPayment = $this->collectFee($other, $user, $otherAssignment, 500);
+        // A second foreign collection: payment numbers are per college, so the
+        // first one of each college is PAY-…-0001 and proves nothing.
+        $foreignSecond = $this->collectFee($other, $user, $otherAssignment, 600);
 
         $ownPayment = $this->collectFee($college, $user, $assignment, 1000);
+
+        $this->assertNotSame($ownPayment->payment_number, $foreignSecond->payment_number);
 
         $this->asCollege($college, $user)
             ->get(route('fee-collections.index'))
             ->assertOk()
             ->assertSee($ownPayment->payment_number)
-            ->assertDontSee($foreignPayment->payment_number);
+            ->assertDontSee($foreignSecond->payment_number);
 
         $this->asCollege($college, $user)->get(route('fee-collections.edit', $foreignPayment))->assertNotFound();
         $this->asCollege($college, $user)

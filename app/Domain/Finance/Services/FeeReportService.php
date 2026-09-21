@@ -6,6 +6,7 @@ use App\Domain\Finance\Support\FeeLedger;
 use App\Models\FeePayment;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -40,9 +41,11 @@ class FeeReportService
      */
     public function collectionSummary(array $filters): array
     {
+        // toBase() (not getQuery()) so the college scope and the soft-delete
+        // scope stay part of the aggregate: getQuery() drops global scopes.
         $rows = $this->paymentsQuery($filters)
             ->reorder()
-            ->getQuery()
+            ->toBase()
             ->select(
                 DB::raw('fee_payments.payment_mode as payment_mode'),
                 DB::raw('COUNT(*) as payments'),
@@ -132,23 +135,25 @@ class FeeReportService
      */
     public function dateWiseCollection(array $filters): array
     {
+        // toBase() keeps the global scopes (see collectionSummary()); DATE() is
+        // supported by SQLite, MySQL and MariaDB and yields one row per day.
         $rows = $this->paymentsQuery($filters)
             ->reorder()
-            ->getQuery()
+            ->toBase()
             ->select(
-                DB::raw('fee_payments.payment_date as payment_date'),
+                DB::raw('DATE(fee_payments.payment_date) as payment_date'),
                 DB::raw('COUNT(*) as payments'),
                 DB::raw('COALESCE(SUM(fee_payments.amount), 0) as total'),
             )
-            ->groupBy('fee_payments.payment_date')
-            ->orderByDesc('fee_payments.payment_date')
+            ->groupByRaw('DATE(fee_payments.payment_date)')
+            ->orderByRaw('DATE(fee_payments.payment_date) DESC')
             ->get();
 
         $dates = [];
 
         foreach ($rows as $row) {
             $dates[] = [
-                'date' => (string) $row->payment_date,
+                'date' => Carbon::parse((string) $row->payment_date)->toDateString(),
                 'payments' => (int) $row->payments,
                 'total' => FeeLedger::money($row->total),
             ];

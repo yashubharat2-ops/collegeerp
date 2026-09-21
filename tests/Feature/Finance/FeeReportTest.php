@@ -168,9 +168,21 @@ class FeeReportTest extends TestCase
         $this->assertSame($page->getCollection()->pluck('id')->all(), $again->getCollection()->pluck('id')->all());
         $this->assertSame(10, $page->count());
 
+        // The report is ordered newest-first, so the fixture's oldest assignment
+        // (the one carrying the 10,000 + 5,000 collections) is on the second page.
+        \Illuminate\Pagination\Paginator::currentPageResolver(fn () => 2);
+
+        try {
+            $secondPage = $this->withTenant($college, fn () => app(FeeReportService::class)->studentFeeReport([], 10));
+        } finally {
+            \Illuminate\Pagination\Paginator::currentPageResolver(fn () => 1);
+        }
+
+        $this->assertSame(8, $secondPage->count());
+
         // The rows carry their ledger summary.
-        $row = $page->getCollection()->firstWhere('id', $assignments[0]->id);
-        $this->assertNotNull($row);
+        $row = $secondPage->getCollection()->firstWhere('id', $assignments[0]->id);
+        $this->assertNotNull($row, 'The oldest assignment is on the second page.');
         $this->assertSame(15000.0, (float) $row->ledger['net_collected']);
     }
 

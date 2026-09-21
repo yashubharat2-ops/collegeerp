@@ -86,6 +86,12 @@ from the browser:
   `processed_at`) is written only by the dedicated approve/process actions, and
   every one of them is audit-logged.
 
+SQL comparisons on money are written as **numeric literals**, never as bound
+floats: a float bound as a parameter reaches SQLite as TEXT, and SQLite sorts
+every text value above every number, which would silently exclude rows from the
+derived-status filter. Aggregates are read through `toBase()` (not `getQuery()`)
+so the college scope and soft-delete scope stay part of the query.
+
 ## Tenancy
 
 All five new tables carry `college_id` + soft deletes and their models use

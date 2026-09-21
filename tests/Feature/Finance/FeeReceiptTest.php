@@ -109,6 +109,10 @@ class FeeReceiptTest extends TestCase
 
         $this->asCollege($college, $user)->post(route('fee-collections.cancel', $payment))->assertRedirect();
 
+        // The "Payment … cancelled." flash echoes the number; clear it so the
+        // assertion is about the receipt list itself.
+        $this->flushSession();
+
         $this->asCollege($college, $user)->get(route('receipts.index'))->assertOk()->assertDontSee($payment->payment_number);
     }
 
@@ -121,6 +125,10 @@ class FeeReceiptTest extends TestCase
         $otherFixture = $this->makeFinanceEnrollment($other, $otherCtx, 'FREC7X');
         $otherAssignment = $this->assignFeeStructure($other, $user, $otherFixture['enrollment'], $otherStructure);
         $foreignPayment = $this->collectFee($other, $user, $otherAssignment, 700);
+        // Receipt numbers are the (per-college) payment numbers, so the first
+        // collection of each college shares a number: the second foreign one is
+        // the only fair "must not appear" needle.
+        $foreignSecond = $this->collectFee($other, $user, $otherAssignment, 300);
 
         $this->asCollege($college, $user)->get(route('receipts.show', $foreignPayment))->assertNotFound();
         $this->asCollege($college, $user)->get(route('receipts.print', $foreignPayment))->assertNotFound();
@@ -129,7 +137,7 @@ class FeeReceiptTest extends TestCase
             ->get(route('receipts.index'))
             ->assertOk()
             ->assertSee($payment->payment_number)
-            ->assertDontSee($foreignPayment->payment_number);
+            ->assertDontSee($foreignSecond->payment_number);
     }
 
     public function test_the_module_requires_its_permissions(): void

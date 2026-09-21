@@ -128,9 +128,11 @@ class FeeDuesService
      */
     public function totals(array $filters): array
     {
+        // toBase() (not getQuery()) so the model's global scopes — the college
+        // scope and soft deletes — are part of the aggregate.
         $row = $this->query($filters)
             ->reorder()
-            ->getQuery()
+            ->toBase()
             ->select(
                 DB::raw('COUNT(student_fee_assignments.id) as assignments'),
                 DB::raw('COALESCE(SUM(student_fee_assignments.assigned_amount), 0) as assigned'),
@@ -187,7 +189,7 @@ class FeeDuesService
     {
         $rows = $this->query($filters)
             ->reorder()
-            ->getQuery()
+            ->toBase()
             ->join('student_enrollments', 'student_enrollments.id', '=', 'student_fee_assignments.student_enrollment_id')
             ->leftJoin('programs', 'programs.id', '=', 'student_enrollments.program_id')
             ->select(
@@ -322,14 +324,17 @@ class FeeDuesService
             return $query;
         }
 
-        $tolerance = FeeLedger::TOLERANCE;
+        // The tolerance is written into the SQL as a numeric literal: a float
+        // bound as a parameter arrives in SQLite as TEXT, and SQLite sorts every
+        // text value above every number, which would silently exclude all rows.
+        $tolerance = number_format(FeeLedger::TOLERANCE, 4, '.', '');
         $outstanding = $this->outstandingExpression();
         $collected = '(COALESCE(ledger_payments.total, 0) - COALESCE(ledger_refunds.total, 0))';
 
         return match ($status) {
-            FeeLedger::STATUS_PAID => $query->whereRaw("$outstanding <= ?", [$tolerance]),
-            FeeLedger::STATUS_PARTIAL => $query->whereRaw("$outstanding > ?", [$tolerance])->whereRaw("$collected > ?", [$tolerance]),
-            FeeLedger::STATUS_DUE => $query->whereRaw("$outstanding > ?", [$tolerance])->whereRaw("$collected <= ?", [$tolerance]),
+            FeeLedger::STATUS_PAID => $query->whereRaw("$outstanding <= $tolerance"),
+            FeeLedger::STATUS_PARTIAL => $query->whereRaw("$outstanding > $tolerance")->whereRaw("$collected > $tolerance"),
+            FeeLedger::STATUS_DUE => $query->whereRaw("$outstanding > $tolerance")->whereRaw("$collected <= $tolerance"),
         };
     }
 

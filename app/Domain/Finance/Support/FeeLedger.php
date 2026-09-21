@@ -69,8 +69,11 @@ final class FeeLedger
     /**
      * The money value of one concession, always computed server-side.
      *
-     * A percentage is applied to the assigned amount and rounded to 2 decimals,
-     * and can never exceed the assigned amount itself.
+     * A percentage is applied to the assigned amount and rounded to 2 decimals
+     * (0–100% of the assigned amount can never exceed it). A fixed value is
+     * taken as submitted — it is deliberately NOT capped, because a concession
+     * larger than the applicable fee is a data-entry error that the service
+     * rejects with a message instead of quietly storing a different amount.
      */
     public static function concessionAmount(string $type, mixed $value, float $assigned): float
     {
@@ -82,7 +85,7 @@ final class FeeLedger
             return self::money(min($amount, $assigned));
         }
 
-        return self::money(min((float) $value, $assigned));
+        return self::money((float) $value);
     }
 
     /**
