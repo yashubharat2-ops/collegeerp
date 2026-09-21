@@ -27,8 +27,12 @@ use App\Http\Controllers\ExamMarkController;
 use App\Http\Controllers\ExamScheduleController;
 use App\Http\Controllers\FacultyController;
 use App\Http\Controllers\FacultySubjectAssignmentController;
+use App\Http\Controllers\GradeScaleController;
 use App\Http\Controllers\InstitutionalSettingController;
 use App\Http\Controllers\ProgramController;
+use App\Http\Controllers\ResultCalculationController;
+use App\Http\Controllers\ResultController;
+use App\Http\Controllers\ResultPublishingController;
 use App\Http\Controllers\SectionController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\StudentController;
@@ -156,6 +160,22 @@ Route::middleware('auth')->group(function () {
         Route::resource('exam-attendance', ExamAttendanceController::class)->except('show');
         Route::post('exam-marks/bulk', [ExamMarkController::class, 'bulk'])->name('exam-marks.bulk');
         Route::resource('exam-marks', ExamMarkController::class)->except('show');
+
+        // Examinations (Phase 3) — Results, Result Calculation, Grade / Pass-Fail, Result Publishing.
+        Route::get('results', [ResultController::class, 'index'])->name('results.index');
+        Route::get('results/{result}', [ResultController::class, 'show'])->name('results.show');
+
+        Route::get('result-calculation', [ResultCalculationController::class, 'index'])->name('result-calculation.index');
+        Route::post('result-calculation/calculate', [ResultCalculationController::class, 'calculate'])->name('result-calculation.calculate');
+        Route::post('result-calculation/recalculate', [ResultCalculationController::class, 'recalculate'])->name('result-calculation.recalculate');
+
+        Route::resource('grade-scales', GradeScaleController::class)->except('show');
+
+        Route::get('result-publishing', [ResultPublishingController::class, 'index'])->name('result-publishing.index');
+        Route::post('result-publishing/bulk', [ResultPublishingController::class, 'publishBulk'])->name('result-publishing.bulk');
+        Route::post('result-publishing/examination/{examination}', [ResultPublishingController::class, 'publishExamination'])->name('result-publishing.examination');
+        Route::post('result-publishing/{result}/publish', [ResultPublishingController::class, 'publish'])->name('result-publishing.publish');
+        Route::post('result-publishing/{result}/unpublish', [ResultPublishingController::class, 'unpublish'])->name('result-publishing.unpublish');
 
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
