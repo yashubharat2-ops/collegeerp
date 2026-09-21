@@ -25,10 +25,13 @@ use App\Http\Controllers\ExamAttendanceController;
 use App\Http\Controllers\ExaminationController;
 use App\Http\Controllers\ExamMarkController;
 use App\Http\Controllers\ExamScheduleController;
+use App\Http\Controllers\ExamReportController;
 use App\Http\Controllers\FacultyController;
 use App\Http\Controllers\FacultySubjectAssignmentController;
+use App\Http\Controllers\GradeCardController;
 use App\Http\Controllers\GradeScaleController;
 use App\Http\Controllers\InstitutionalSettingController;
+use App\Http\Controllers\MarksheetController;
 use App\Http\Controllers\ProgramController;
 use App\Http\Controllers\ResultCalculationController;
 use App\Http\Controllers\ResultController;
@@ -42,6 +45,7 @@ use App\Http\Controllers\StudentEnrollmentController;
 use App\Http\Controllers\StudentHistoryController;
 use App\Http\Controllers\StudentIdCardController;
 use App\Http\Controllers\StudentPromotionController;
+use App\Http\Controllers\StudentResultHistoryController;
 use App\Http\Controllers\StudentTransferController;
 use Illuminate\Support\Facades\Route;
 
@@ -176,6 +180,25 @@ Route::middleware('auth')->group(function () {
         Route::post('result-publishing/examination/{examination}', [ResultPublishingController::class, 'publishExamination'])->name('result-publishing.examination');
         Route::post('result-publishing/{result}/publish', [ResultPublishingController::class, 'publish'])->name('result-publishing.publish');
         Route::post('result-publishing/{result}/unpublish', [ResultPublishingController::class, 'unpublish'])->name('result-publishing.unpublish');
+
+        // Examinations (Phase 4A) — Marksheets. Derived printable documents,
+        // read-only: no create/update/delete routes.
+        Route::get('marksheets', [MarksheetController::class, 'index'])->name('marksheets.index');
+        Route::get('marksheets/{result}', [MarksheetController::class, 'show'])->name('marksheets.show');
+
+        // Examinations (Phase 4) — Grade Cards. Derived printable documents,
+        // read-only: no create/update/delete routes.
+        Route::get('grade-cards', [GradeCardController::class, 'index'])->name('grade-cards.index');
+        Route::get('grade-cards/{result}', [GradeCardController::class, 'show'])->name('grade-cards.show');
+
+        // Examinations (Phase 4) — Exam Reports. Aggregated published-result
+        // summaries, read-only.
+        Route::get('exam-reports', [ExamReportController::class, 'index'])->name('exam-reports.index');
+
+        // Examinations (Phase 4) — Student Result History. A student's
+        // published examination timeline, read-only.
+        Route::get('student-result-history', [StudentResultHistoryController::class, 'index'])->name('student-result-history.index');
+        Route::get('student-result-history/{student}', [StudentResultHistoryController::class, 'show'])->name('student-result-history.show');
 
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
