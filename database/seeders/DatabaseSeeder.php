@@ -56,6 +56,8 @@ class DatabaseSeeder extends Seeder
             'result_calculation.view', 'result_calculation.calculate', 'result_calculation.recalculate',
             'grade_scales.view', 'grade_scales.create', 'grade_scales.update', 'grade_scales.delete',
             'result_publishing.view', 'result_publishing.publish', 'result_publishing.unpublish',
+            // Examinations Phase 4A — Marksheets (derived printable documents; read-only).
+            'marksheets.view',
             'roles.view', 'roles.update',
             'permissions.view',
         ])->mapWithKeys(fn ($slug) => [$slug => Permission::firstOrCreate(['slug' => $slug], ['name' => Str::headline($slug), 'module' => Str::before($slug, '.'), 'action' => Str::after($slug, '.')])]);

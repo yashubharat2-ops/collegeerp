@@ -33,7 +33,7 @@
 <a class="nav-link" href="{{ route('academic-attendance.index') }}">✓ <span>Attendance</span></a>
 <a class="nav-link" href="{{ route('academic-calendar.index') }}">📅 <span>Academic Calendar</span></a>
 <a class="nav-link" href="{{ route('academic-workload.index') }}">👨‍🏫 <span>Faculty Workload</span></a>
-@if(auth()->user()?->hasPermission('examinations.view') || auth()->user()?->hasPermission('exam_schedules.view') || auth()->user()?->hasPermission('exam_attendance.view') || auth()->user()?->hasPermission('exam_marks.view') || auth()->user()?->hasPermission('results.view') || auth()->user()?->hasPermission('result_calculation.view') || auth()->user()?->hasPermission('grade_scales.view') || auth()->user()?->hasPermission('result_publishing.view'))
+@if(auth()->user()?->hasPermission('examinations.view') || auth()->user()?->hasPermission('exam_schedules.view') || auth()->user()?->hasPermission('exam_attendance.view') || auth()->user()?->hasPermission('exam_marks.view') || auth()->user()?->hasPermission('results.view') || auth()->user()?->hasPermission('result_calculation.view') || auth()->user()?->hasPermission('grade_scales.view') || auth()->user()?->hasPermission('result_publishing.view') || auth()->user()?->hasPermission('marksheets.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Examinations</div>
 @if(auth()->user()?->hasPermission('examinations.view'))
 <a class="nav-link" href="{{ route('examinations.index') }}">📝 <span>Examinations</span></a>
@@ -58,6 +58,9 @@
 @endif
 @if(auth()->user()?->hasPermission('result_publishing.view'))
 <a class="nav-link" href="{{ route('result-publishing.index') }}">📢 <span>Result Publishing</span></a>
+@endif
+@if(auth()->user()?->hasPermission('marksheets.view'))
+<a class="nav-link" href="{{ route('marksheets.index') }}">🧾 <span>Marksheets</span></a>
 @endif
 @endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Platform</div>

@@ -29,6 +29,7 @@ use App\Http\Controllers\FacultyController;
 use App\Http\Controllers\FacultySubjectAssignmentController;
 use App\Http\Controllers\GradeScaleController;
 use App\Http\Controllers\InstitutionalSettingController;
+use App\Http\Controllers\MarksheetController;
 use App\Http\Controllers\ProgramController;
 use App\Http\Controllers\ResultCalculationController;
 use App\Http\Controllers\ResultController;
@@ -176,6 +177,11 @@ Route::middleware('auth')->group(function () {
         Route::post('result-publishing/examination/{examination}', [ResultPublishingController::class, 'publishExamination'])->name('result-publishing.examination');
         Route::post('result-publishing/{result}/publish', [ResultPublishingController::class, 'publish'])->name('result-publishing.publish');
         Route::post('result-publishing/{result}/unpublish', [ResultPublishingController::class, 'unpublish'])->name('result-publishing.unpublish');
+
+        // Examinations (Phase 4A) — Marksheets. Derived printable documents,
+        // read-only: no create/update/delete routes.
+        Route::get('marksheets', [MarksheetController::class, 'index'])->name('marksheets.index');
+        Route::get('marksheets/{result}', [MarksheetController::class, 'show'])->name('marksheets.show');
 
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
