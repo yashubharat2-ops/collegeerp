@@ -247,7 +247,9 @@ class FeeStructureManagementTest extends TestCase
             ]))
             ->assertRedirect(route('fee-structures.index'));
 
-        $this->assertSame(3, DB::table('fee_structures')->where('code', 'FS-SHARED')->count());
+        // One row per (college, program, year) combination: the original row,
+        // the second program, the second year — plus the other college's row.
+        $this->assertSame(4, DB::table('fee_structures')->where('code', 'FS-SHARED')->count());
     }
 
     public function test_code_can_be_reused_after_a_structure_is_deleted(): void
@@ -481,10 +483,14 @@ class FeeStructureManagementTest extends TestCase
         $this->assertSame(0, DB::table('fee_structure_items')->where('fee_structure_id', $structure->id)->count());
         $this->assertSame(0, DB::table('fee_structures')->where('code', 'FS-DEL')->whereNull('deleted_at')->count());
 
+        // Drop the "…deleted." flash so the listing itself is asserted.
+        $this->flushSession();
+
         $this->asCollege($college, $user)
             ->get(route('fee-structures.index'))
             ->assertOk()
-            ->assertDontSee('Doomed Plan');
+            ->assertDontSee('Doomed Plan')
+            ->assertSee('No fee structures configured yet for this college.');
     }
 
     // ---------------------------------------------------------------- audit

@@ -39,7 +39,7 @@ class FinanceModuleSeederTest extends TestCase
 
     private const EARLIER_MODULE_SLUGS = [
         'students.view',
-        'academic_years.view',
+        'academic-years.view',
         'grade_scales.view',
         'marksheets.view',
         'admissions.view',
