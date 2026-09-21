@@ -2,7 +2,17 @@
 
 **Scope of this milestone:** the fee *definition* layer only — `fee_structures`
 and `fee_structure_items`. Fee Collection, Receipts, Discounts, Fines, Refunds
-and Reports are deliberately **not** implemented; their tables are not created.
+and Reports are deliberately **not** implemented in this milestone; their tables
+are not created *here*.
+
+> **Status update:** the remaining Finance / Fees modules (Fee Categories,
+> Student Fee Assignment, Fee Collection, Receipts, Due / Outstanding,
+> Discounts / Concessions, Refunds, Fee Reports) were implemented in the
+> follow-up milestone documented in
+> [`finance_fee_module.md`](finance_fee_module.md). This document describes the
+> Fee Structure foundation as it was delivered and stays accurate for that
+> layer; the one change the follow-up made to it is an **optional, nullable**
+> `fee_structure_items.fee_category_id` — existing rows are untouched.
 
 ## What was added
 
@@ -87,9 +97,11 @@ existing row. Verify with:
 php artisan tinker --execute="\App\Models\Permission::where('slug','like','fee_structures.%')->pluck('slug')->implode(', ');"
 ```
 
-## Explicitly deferred
+## Follow-up status
 
-Fee Collection, Receipts, Discounts / Concessions, Fines, Refunds, fee
-schedules by instalment, and fee reports. The foundation is shaped so they can
-reference `fee_structures.id` / `fee_structure_items.id` without schema changes
-to the above.
+Fee Collection, Receipts, Discounts / Concessions and Refunds are now
+implemented on top of this foundation without changing any column described
+above (see [`finance_fee_module.md`](finance_fee_module.md)). Still out of
+scope for the Finance / Fees module: fee schedules by instalment, fines
+(hostel/library/transport), scholarships, payroll, taxation and bank
+reconciliation.

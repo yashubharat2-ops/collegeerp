@@ -97,9 +97,10 @@ class FeeCategoryService
     }
 
     /**
-     * Soft delete. Fee components that referenced the category keep working:
-     * their fee_category_id is nulled by the foreign key, and the category row
-     * itself stays in the database for the audit trail.
+     * Soft delete. Fee components that referenced the category keep working: the
+     * classification simply stops being offerable (the row stays in the database
+     * for the audit trail and is excluded by CollegeScope + SoftDeletes), while a
+     * genuine hard delete would null the reference through the foreign key.
      */
     public function delete(FeeCategory $category, User $actor): void
     {

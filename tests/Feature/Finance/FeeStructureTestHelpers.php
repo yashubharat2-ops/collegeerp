@@ -94,6 +94,8 @@ trait FeeStructureTestHelpers
         foreach ($items ?? $this->defaultFeeItems() as $index => $item) {
             $structure->allItems()->create([
                 'college_id' => $college->id,
+                // Optional classification, exactly like the fee structure form.
+                'fee_category_id' => $item['fee_category_id'] ?? null,
                 'name' => $item['name'],
                 'amount' => $item['amount'],
                 'description' => $item['description'] ?? null,
@@ -207,7 +209,7 @@ trait FeeStructureTestHelpers
             'program_id' => $ctx['prog']->id,
             'enrollment_number' => 'ENR-'.$suffix.'-'.Str::upper(Str::random(4)),
             'enrollment_date' => '2026-08-05',
-            'status' => StudentEnrollment::STATUS_ACTIVE,
+            'status' => 'active',
         ], $enrollmentOverrides));
 
         return compact('student', 'enrollment');

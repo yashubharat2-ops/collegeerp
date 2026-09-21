@@ -214,8 +214,8 @@ class StudentFeeAssignmentTest extends TestCase
         $user = $this->makeUserWithPermissions($college, ['student_fee_assignments.view', 'student_fee_assignments.create']);
         $ctx = $this->makeFinanceContext($college, 'FAST8');
         $structure = $this->makeFeeStructure($college, $ctx);
-        $cancelled = $this->makeFinanceEnrollment($college, $ctx, 'FAST8A', ['status' => StudentEnrollment::STATUS_CANCELLED]);
-        $withdrawn = $this->makeFinanceEnrollment($college, $ctx, 'FAST8B', ['status' => StudentEnrollment::STATUS_WITHDRAWN]);
+        $cancelled = $this->makeFinanceEnrollment($college, $ctx, 'FAST8A', ['status' => 'cancelled']);
+        $withdrawn = $this->makeFinanceEnrollment($college, $ctx, 'FAST8B', ['status' => 'withdrawn']);
 
         foreach ([$cancelled, $withdrawn] as $fixture) {
             $this->asCollege($college, $user)
