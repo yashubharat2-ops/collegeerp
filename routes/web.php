@@ -28,6 +28,7 @@ use App\Http\Controllers\ExamScheduleController;
 use App\Http\Controllers\ExamReportController;
 use App\Http\Controllers\FacultyController;
 use App\Http\Controllers\FacultySubjectAssignmentController;
+use App\Http\Controllers\FeeStructureController;
 use App\Http\Controllers\GradeCardController;
 use App\Http\Controllers\GradeScaleController;
 use App\Http\Controllers\InstitutionalSettingController;
@@ -199,6 +200,11 @@ Route::middleware('auth')->group(function () {
         // published examination timeline, read-only.
         Route::get('student-result-history', [StudentResultHistoryController::class, 'index'])->name('student-result-history.index');
         Route::get('student-result-history/{student}', [StudentResultHistoryController::class, 'show'])->name('student-result-history.show');
+
+        // Finance / Fees — Fee Structure foundation. Structure definitions only:
+        // fee collection, receipts, discounts, refunds and reports are explicitly
+        // deferred to later phases.
+        Route::resource('fee-structures', FeeStructureController::class)->except('show');
 
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');

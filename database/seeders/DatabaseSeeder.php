@@ -56,6 +56,8 @@ class DatabaseSeeder extends Seeder
             'result_calculation.view', 'result_calculation.calculate', 'result_calculation.recalculate',
             'grade_scales.view', 'grade_scales.create', 'grade_scales.update', 'grade_scales.delete',
             'result_publishing.view', 'result_publishing.publish', 'result_publishing.unpublish',
+            // Finance / Fees — Fee Structure foundation.
+            'fee_structures.view', 'fee_structures.create', 'fee_structures.update', 'fee_structures.delete',
             // Examinations Phase 4A — Marksheets (derived printable documents; read-only).
             'marksheets.view',
             // Examinations Phase 4 — Grade Cards, Exam Reports, Student Result History (read-only).
