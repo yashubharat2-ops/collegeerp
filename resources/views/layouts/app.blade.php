@@ -72,5 +72,35 @@
 <a class="nav-link" href="{{ route('student-result-history.index') }}">🕘 <span>Student Result History</span></a>
 @endif
 @endif
+@if(auth()->user()?->hasPermission('fee_structures.view') || auth()->user()?->hasPermission('fee_categories.view') || auth()->user()?->hasPermission('student_fee_assignments.view') || auth()->user()?->hasPermission('fee_collections.view') || auth()->user()?->hasPermission('receipts.view') || auth()->user()?->hasPermission('fee_dues.view') || auth()->user()?->hasPermission('fee_concessions.view') || auth()->user()?->hasPermission('refunds.view') || auth()->user()?->hasPermission('fee_reports.view'))
+<div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Finance / Fees</div>
+@if(auth()->user()?->hasPermission('fee_structures.view'))
+<a class="nav-link" href="{{ route('fee-structures.index') }}">💰 <span>Fee Structures</span></a>
+@endif
+@if(auth()->user()?->hasPermission('fee_categories.view'))
+<a class="nav-link" href="{{ route('fee-categories.index') }}">🏷 <span>Fee Categories</span></a>
+@endif
+@if(auth()->user()?->hasPermission('student_fee_assignments.view'))
+<a class="nav-link" href="{{ route('student-fee-assignments.index') }}">🧾 <span>Student Fee Assignment</span></a>
+@endif
+@if(auth()->user()?->hasPermission('fee_collections.view'))
+<a class="nav-link" href="{{ route('fee-collections.index') }}">💵 <span>Fee Collection</span></a>
+@endif
+@if(auth()->user()?->hasPermission('receipts.view'))
+<a class="nav-link" href="{{ route('receipts.index') }}">🧻 <span>Receipts</span></a>
+@endif
+@if(auth()->user()?->hasPermission('fee_dues.view'))
+<a class="nav-link" href="{{ route('fee-dues.index') }}">⏳ <span>Due / Outstanding Fees</span></a>
+@endif
+@if(auth()->user()?->hasPermission('fee_concessions.view'))
+<a class="nav-link" href="{{ route('fee-concessions.index') }}">🎁 <span>Fee Discounts / Concessions</span></a>
+@endif
+@if(auth()->user()?->hasPermission('refunds.view'))
+<a class="nav-link" href="{{ route('refunds.index') }}">↩ <span>Refunds</span></a>
+@endif
+@if(auth()->user()?->hasPermission('fee_reports.view'))
+<a class="nav-link" href="{{ route('fee-reports.index') }}">📊 <span>Fee Reports</span></a>
+@endif
+@endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Platform</div>
 <a class="nav-link" href="{{ route('settings.index') }}">⚙ <span>Settings</span></a></nav></aside><section class="min-w-0 flex-1"><header class="no-print flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4"><div><div class="flex items-center gap-3"><p class="text-sm text-slate-500">{{ app(\App\Support\Tenancy\TenantContext::class)->college()?->name ?? 'Platform' }}</p>@isset($colleges) @if($colleges->count() > 1)<form method="POST" action="{{ route('college-context.switch') }}">@csrf<select class="rounded-lg border-slate-300 text-xs" name="college_id" onchange="this.form.submit()">@foreach($colleges as $college)<option value="{{ $college->id }}" @selected(app(\App\Support\Tenancy\TenantContext::class)->id() === $college->id)>{{ $college->name }}</option>@endforeach</select></form>@endif @endisset</div><h1 class="text-xl font-semibold">@yield('title', 'Dashboard')</h1></div><div class="flex items-center gap-4"><button class="relative text-slate-500" aria-label="Notifications">♢<span class="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-indigo-500"></span></button><div class="flex items-center gap-3"><div class="grid h-9 w-9 place-items-center rounded-full bg-indigo-100 font-bold text-indigo-700">{{ strtoupper(substr(auth()->user()->name, 0, 1)) }}</div><div class="hidden text-sm sm:block"><p class="font-semibold">{{ auth()->user()->name }}</p><p class="text-slate-500">{{ auth()->user()->email }}</p></div><form method="POST" action="{{ route('logout') }}">@csrf<button class="text-sm text-slate-500 hover:text-rose-600" type="submit">Logout</button></form></div></div></header><main class="p-6">@if(session('success'))<div class="alert-success">{{ session('success') }}</div>@endif @if($errors->any())<div class="alert-error">{{ $errors->first() }}</div>@endif @yield('content')</main></section></div>@stack('scripts')</body></html>
