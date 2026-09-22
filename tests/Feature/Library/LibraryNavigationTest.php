@@ -12,7 +12,7 @@ use Tests\TestCase;
  *
  * Guards the invariants the module depends on:
  *   - a single "Library Management" section, rendered exactly once;
- *   - it lists exactly the eight Library entries (dashboard, books, categories,
+ *   - it lists exactly the ten Library entries (dashboard, books, categories,
  *     authors / publishers, copies, members, issue / return, renewals), each
  *     gated on its view permission;
  *   - the section disappears entirely when the user holds none of those
@@ -38,6 +38,8 @@ class LibraryNavigationTest extends TestCase
         'Library Members' => ['library_members.view', 'library-members.index'],
         'Issue / Return' => ['library_transactions.view', 'library-transactions.index'],
         'Renewals' => ['library_renewals.view', 'library-renewals.index'],
+        'Fines / Penalties' => ['library_fines.view', 'library-fines.index'],
+        'Library Reports' => ['library_reports.view', 'library-reports.index'],
     ];
 
     /**
@@ -75,17 +77,13 @@ class LibraryNavigationTest extends TestCase
 
         $group = $this->libraryNavGroup($html);
 
-        $this->assertSame(8, substr_count($group, 'class="nav-link"'), 'The Library Management group must list exactly the eight library entries.');
+        $this->assertSame(10, substr_count($group, 'class="nav-link"'), 'The Library Management group must list exactly the eight library entries.');
 
         foreach (self::ENTRIES as $label => [$permission, $route]) {
             $this->assertStringContainsString(route($route), $group, "Missing library entry route: {$label}");
             $this->assertStringContainsString($label, $group, "Missing library entry label: {$label}");
         }
 
-        // Phase 3 screens must not be advertised anywhere in the sidebar.
-        foreach (['Fines', 'Library Reports', 'Reservations'] as $absent) {
-            $this->assertStringNotContainsString($absent, $html);
-        }
     }
 
     public function test_each_entry_is_gated_on_its_own_view_permission(): void
@@ -140,6 +138,21 @@ class LibraryNavigationTest extends TestCase
         $this->assertStringNotContainsString(route('books.index'), $group);
     }
 
+    public function test_phase_three_entries_are_individually_permission_gated(): void
+    {
+        $college = $this->makeCollege('LNAV7');
+
+        $finesOnly = $this->makeUserWithPermissions($college, ['library_fines.view']);
+        $finesGroup = $this->libraryNavGroup($this->asCollege($college, $finesOnly)->get(route('dashboard'))->assertOk()->getContent());
+        $this->assertStringContainsString('Fines / Penalties', $finesGroup);
+        $this->assertStringNotContainsString('Library Reports', $finesGroup);
+
+        $reportsOnly = $this->makeUserWithPermissions($college, ['library_reports.view']);
+        $reportsGroup = $this->libraryNavGroup($this->asCollege($college, $reportsOnly)->get(route('dashboard'))->assertOk()->getContent());
+        $this->assertStringNotContainsString('Fines / Penalties', $reportsGroup);
+        $this->assertStringContainsString('Library Reports', $reportsGroup);
+    }
+
     public function test_the_section_is_hidden_without_any_library_permission(): void
     {
         $college = $this->makeCollege('LNAV4');
@@ -176,7 +189,7 @@ class LibraryNavigationTest extends TestCase
         // …the Library Management section sits after it, fully populated…
         $libraryStart = (int) strpos($html, '>Library Management</div>');
         $this->assertGreaterThan($start, $libraryStart);
-        $this->assertSame(8, substr_count($this->libraryNavGroup($html), 'class="nav-link"'));
+        $this->assertSame(10, substr_count($this->libraryNavGroup($html), 'class="nav-link"'));
 
         // …and Platform / Settings still closes the sidebar after it.
         $this->assertGreaterThan($libraryStart, (int) strrpos($html, '>Platform</div>'));
