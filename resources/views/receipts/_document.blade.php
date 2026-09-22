@@ -48,7 +48,10 @@
             </div>
             <div class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1.5">
                 <span class="text-slate-500">Fee Structure</span>
-                <span class="text-right font-medium">{{ $payment->feeStructure?->name ?? '—' }}</span>
+                {{-- One receipt projection for every collection: tuition shows its
+                     fee structure, transport shows the transport fee structure it
+                     was charged under (never a second receipt format). --}}
+                <span class="text-right font-medium">{{ $payment->feeStructure?->name ?? ($payment->transportFeeAssignment ? 'Transport Fee — '.($payment->transportFeeAssignment->transportFeeStructure?->name ?? 'Standard') : '—') }}</span>
             </div>
             <div class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1.5">
                 <span class="text-slate-500">Payment Date</span>

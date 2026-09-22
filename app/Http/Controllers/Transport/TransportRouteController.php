@@ -7,6 +7,6 @@ use App\Models\TransportRoute;
 class TransportRouteController extends TransportMasterController
 {
     public string $model = TransportRoute::class;
-    public string $title = 'Routes / Stops';
+    public string $title = 'Routes';
     public string $routeName = 'transport-routes';
 }

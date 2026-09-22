@@ -331,6 +331,27 @@ Route::middleware('auth')->group(function () {
             'destroy' => 'transport-stops.destroy',
         ]);
 
+        // Transport Phase 2 — flat cross-route stop listing for the "Stops"
+        // navigation entry (per-route stop management stays nested above).
+        Route::get('transport-stops', [\App\Http\Controllers\Transport\TransportStopController::class, 'indexAll'])->name('transport-stops.list');
+
+        // Transport Phase 2 — Vehicle Documents (secure private files).
+        Route::get('vehicle-documents/{vehicle_document}/download', [\App\Http\Controllers\Transport\VehicleDocumentController::class, 'download'])->name('vehicle-documents.download');
+        Route::resource('vehicle-documents', \App\Http\Controllers\Transport\VehicleDocumentController::class)->except('show')->parameters(['vehicle-documents' => 'vehicle_document']);
+
+        // Transport Phase 2 — Student Transport Assignment (existing enrollments
+        // onto existing routes/stops; no duplicate masters).
+        Route::resource('transport-assignments', \App\Http\Controllers\Transport\StudentTransportAssignmentController::class)->except('show')->parameters(['transport-assignments' => 'transport_assignment']);
+
+        // Transport Phase 2 — Transport Fees. Collections reuse the existing
+        // Finance fee_payments rows (see FeeCollectionService::collectTransportFee).
+        Route::post('transport-fees/{transport_fee}/collect', [\App\Http\Controllers\Transport\TransportFeeController::class, 'collect'])->name('transport-fees.collect');
+        Route::resource('transport-fees', \App\Http\Controllers\Transport\TransportFeeController::class)->except('show')->parameters(['transport-fees' => 'transport_fee']);
+        Route::resource('transport-fee-structures', \App\Http\Controllers\Transport\TransportFeeStructureController::class)->except('show')->parameters(['transport-fee-structures' => 'transport_fee_structure']);
+
+        // Transport Phase 2 — Transport Reports (read-only).
+        Route::get('transport-reports', [\App\Http\Controllers\Transport\TransportReportController::class, 'index'])->name('transport-reports.index');
+
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
     });

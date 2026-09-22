@@ -4,9 +4,11 @@ namespace App\Domain\Finance\Services;
 
 use App\Domain\Finance\Actions\GenerateFeePaymentNumber;
 use App\Domain\Finance\Support\FeeLedger;
+use App\Domain\Transport\Services\TransportFeeService;
 use App\Models\FeePayment;
 use App\Models\FeeRefund;
 use App\Models\StudentFeeAssignment;
+use App\Models\StudentTransportFeeAssignment;
 use App\Models\User;
 use App\Services\Audit\AuditLogService;
 use App\Support\Tenancy\TenantContext;
@@ -16,6 +18,14 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * FeeCollectionService — records and reverses student fee collections.
+ *
+ * This is the ONLY place a collected amount is ever written: tuition fee
+ * collections (against a StudentFeeAssignment) and TRANSPORT fee collections
+ * (against a StudentTransportFeeAssignment) share these same payment rows, the
+ * same server-generated payment number series and the same receipt projection,
+ * so no second payment system exists. Exactly one of
+ * `student_fee_assignment_id` / `transport_fee_assignment_id` is ever set —
+ * stamped server-side here, never from the request.
  *
  * Every write happens inside a transaction on a LOCKED assignment row, so the
  * two monetary invariants cannot be broken by concurrency:
@@ -36,6 +46,7 @@ class FeeCollectionService
         'student_fee_assignment_id',
         'student_enrollment_id',
         'fee_structure_id',
+        'transport_fee_assignment_id',
         'payment_number',
         'payment_date',
         'payment_mode',
@@ -98,46 +109,136 @@ class FeeCollectionService
                 ]);
             }
 
-            $this->assertNoDuplicateReference($locked, $data, $amount);
+            $this->assertNoDuplicateReference($locked->college_id, 'student_fee_assignment_id', $locked->getKey(), $data, $amount);
 
             $token = trim((string) ($data['submission_token'] ?? ''));
 
-            try {
-                $payment = FeePayment::create([
-                    'college_id' => $locked->college_id,
-                    'student_fee_assignment_id' => $locked->getKey(),
-                    'student_enrollment_id' => $locked->student_enrollment_id,
-                    'fee_structure_id' => $locked->fee_structure_id,
-                    'payment_number' => $this->numbers->execute((int) $locked->college_id),
-                    'payment_date' => $data['payment_date'],
-                    'payment_mode' => $data['payment_mode'],
-                    'amount' => $amount,
-                    'reference_number' => ($data['reference_number'] ?? null) ?: null,
-                    'submission_token' => $token !== '' ? $token : null,
-                    'status' => FeePayment::STATUS_COMPLETED,
-                    'remarks' => ($data['remarks'] ?? null) ?: null,
-                    'collected_by' => $actor->getKey(),
-                    'collected_at' => now(),
-                    'created_by' => $actor->getKey(),
-                    'updated_by' => $actor->getKey(),
-                ]);
-            } catch (UniqueConstraintViolationException $exception) {
-                // Only the double-submission guard is translated: a payment-number
-                // collision (which cannot happen, the number is generated under
-                // the same lock) keeps bubbling up.
-                if ($token === '' || ! str_contains($exception->getMessage(), 'submission')) {
-                    throw $exception;
-                }
-
-                throw ValidationException::withMessages([
-                    'amount' => 'This collection was already recorded — the form appears to have been submitted twice.',
-                ]);
-            }
+            $payment = $this->createPaymentRecord([
+                'college_id' => $locked->college_id,
+                'student_fee_assignment_id' => $locked->getKey(),
+                'student_enrollment_id' => $locked->student_enrollment_id,
+                'fee_structure_id' => $locked->fee_structure_id,
+                'transport_fee_assignment_id' => null,
+                'payment_number' => $this->numbers->execute((int) $locked->college_id),
+                'payment_date' => $data['payment_date'],
+                'payment_mode' => $data['payment_mode'],
+                'amount' => $amount,
+                'reference_number' => ($data['reference_number'] ?? null) ?: null,
+                'submission_token' => $token !== '' ? $token : null,
+                'status' => FeePayment::STATUS_COMPLETED,
+                'remarks' => ($data['remarks'] ?? null) ?: null,
+                'collected_by' => $actor->getKey(),
+                'collected_at' => now(),
+                'created_by' => $actor->getKey(),
+                'updated_by' => $actor->getKey(),
+            ], $token);
 
             $this->audit->record('fee_payments.collected', $payment, [], $payment->only(self::AUDITED));
 
             return $payment->refresh();
         });
+    }
+
+    /**
+     * Record a TRANSPORT fee collection against a student transport fee
+     * assignment.
+     *
+     * The same single payment row, payment number series, outstanding cap and
+     * receipt projection as a tuition collection — there is no second money
+     * path. Transport fees have no concessions, so their outstanding balance is
+     * `amount − valid payments + valid refunds`, derived with the shared
+     * FeeLedger arithmetic while the row lock is held.
+     *
+     * @param  array{payment_date: string, payment_mode: string, amount: mixed, reference_number?: string|null, submission_token?: string|null, remarks?: string|null}  $data
+     */
+    public function collectTransportFee(StudentTransportFeeAssignment $assignment, array $data, User $actor): FeePayment
+    {
+        $this->assertTenant($assignment);
+
+        return DB::transaction(function () use ($assignment, $data, $actor): FeePayment {
+            /** @var StudentTransportFeeAssignment $locked */
+            $locked = StudentTransportFeeAssignment::withoutGlobalScopes()
+                ->whereKey($assignment->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (! $locked->isPayable()) {
+                throw ValidationException::withMessages([
+                    'student_transport_fee_assignment_id' => 'This transport fee assignment is cancelled and cannot be collected against.',
+                ]);
+            }
+
+            $amount = FeeLedger::money($data['amount']);
+
+            if ($amount <= 0) {
+                throw ValidationException::withMessages(['amount' => 'The amount must be greater than zero.']);
+            }
+
+            if ($amount > FeePayment::MAX_AMOUNT) {
+                throw ValidationException::withMessages(['amount' => 'The amount exceeds the maximum supported value.']);
+            }
+
+            // Recomputed here, under the lock: never trusted from the browser.
+            $summary = app(TransportFeeService::class)->summaryFor($locked);
+
+            if ($amount > $summary['outstanding'] + FeeLedger::TOLERANCE) {
+                throw ValidationException::withMessages([
+                    'amount' => 'The amount exceeds the outstanding balance of '.number_format($summary['outstanding'], 2).'.',
+                ]);
+            }
+
+            $this->assertNoDuplicateReference((int) $locked->college_id, 'transport_fee_assignment_id', $locked->getKey(), $data, $amount);
+
+            $token = trim((string) ($data['submission_token'] ?? ''));
+
+            $payment = $this->createPaymentRecord([
+                'college_id' => $locked->college_id,
+                'student_fee_assignment_id' => null,
+                'student_enrollment_id' => $locked->studentTransportAssignment->student_enrollment_id,
+                'fee_structure_id' => null,
+                'transport_fee_assignment_id' => $locked->getKey(),
+                'payment_number' => $this->numbers->execute((int) $locked->college_id),
+                'payment_date' => $data['payment_date'],
+                'payment_mode' => $data['payment_mode'],
+                'amount' => $amount,
+                'reference_number' => ($data['reference_number'] ?? null) ?: null,
+                'submission_token' => $token !== '' ? $token : null,
+                'status' => FeePayment::STATUS_COMPLETED,
+                'remarks' => ($data['remarks'] ?? null) ?: null,
+                'collected_by' => $actor->getKey(),
+                'collected_at' => now(),
+                'created_by' => $actor->getKey(),
+                'updated_by' => $actor->getKey(),
+            ], $token);
+
+            $this->audit->record('fee_payments.collected', $payment, [], $payment->only(self::AUDITED));
+
+            return $payment->refresh();
+        });
+    }
+
+    /**
+     * Create the payment row (shared by every collection path) and translate a
+     * double-submission collision into a friendly validation error.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function createPaymentRecord(array $attributes, string $token): FeePayment
+    {
+        try {
+            return FeePayment::create($attributes);
+        } catch (UniqueConstraintViolationException $exception) {
+            // Only the double-submission guard is translated: a payment-number
+            // collision (which cannot happen, the number is generated under
+            // the same lock) keeps bubbling up.
+            if ($token === '' || ! str_contains($exception->getMessage(), 'submission')) {
+                throw $exception;
+            }
+
+            throw ValidationException::withMessages([
+                'amount' => 'This collection was already recorded — the form appears to have been submitted twice.',
+            ]);
+        }
     }
 
     /**
@@ -172,11 +273,18 @@ class FeeCollectionService
                     : $data[$field];
             }
 
-            $this->assertNoDuplicateReference($payment->assignment()->firstOrFail(), [
-                'payment_date' => $payment->payment_date?->format('Y-m-d'),
-                'payment_mode' => $payment->payment_mode,
-                'reference_number' => $payment->reference_number,
-            ], (float) $payment->amount, $payment->getKey());
+            $this->assertNoDuplicateReference(
+                (int) $payment->college_id,
+                $payment->student_fee_assignment_id !== null ? 'student_fee_assignment_id' : 'transport_fee_assignment_id',
+                (int) ($payment->student_fee_assignment_id ?? $payment->transport_fee_assignment_id),
+                [
+                    'payment_date' => $payment->payment_date?->format('Y-m-d'),
+                    'payment_mode' => $payment->payment_mode,
+                    'reference_number' => $payment->reference_number,
+                ],
+                (float) $payment->amount,
+                $payment->getKey(),
+            );
 
             $payment->updated_by = $actor->getKey();
             $payment->save();
@@ -271,14 +379,17 @@ class FeeCollectionService
      * collections on the same day are legitimate — those are only bounded by the
      * outstanding balance. A payment WITH a reference (cheque / UTR / gateway
      * reference) is a bank-side identifier, so the same reference, mode, amount
-     * and date against the same assignment is a re-submitted form, not a second
-     * payment. The check runs while the assignment row is locked, so two
-     * concurrent submissions cannot both pass it.
+     * and date against the same assignment (tuition OR transport) is a
+     * re-submitted form, not a second payment. The check runs while the
+     * assignment row is locked, so two concurrent submissions cannot both pass
+     * it.
      *
      * @param  array<string, mixed>  $data
      */
     private function assertNoDuplicateReference(
-        StudentFeeAssignment $assignment,
+        int $collegeId,
+        string $targetColumn,
+        int $targetId,
         array $data,
         float $amount,
         ?int $ignorePaymentId = null,
@@ -290,8 +401,8 @@ class FeeCollectionService
         }
 
         $duplicate = FeePayment::withoutGlobalScopes()
-            ->where('college_id', $assignment->college_id)
-            ->where('student_fee_assignment_id', $assignment->getKey())
+            ->where('college_id', $collegeId)
+            ->where($targetColumn, $targetId)
             ->where('status', FeePayment::STATUS_COMPLETED)
             ->whereNull('deleted_at')
             ->where('payment_mode', $data['payment_mode'] ?? null)
@@ -311,9 +422,10 @@ class FeeCollectionService
     /**
      * The guard states its own college explicitly, so it also works when the
      * service is called outside an HTTP request. Both the assignment (create
-     * path) and the payment itself (read/mutate paths) are guarded.
+     * path — tuition or transport) and the payment itself (read/mutate paths)
+     * are guarded.
      */
-    private function assertTenant(FeePayment|StudentFeeAssignment $record): void
+    private function assertTenant(FeePayment|StudentFeeAssignment|StudentTransportFeeAssignment $record): void
     {
         $collegeId = app(TenantContext::class)->id();
 

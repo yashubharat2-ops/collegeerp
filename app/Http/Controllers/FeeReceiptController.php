@@ -87,16 +87,19 @@ class FeeReceiptController extends Controller
     {
         return FeePayment::query()
             ->where('fee_payments.status', FeePayment::STATUS_COMPLETED)
+            // Filters run through the payment's OWN enrollment stamp so tuition
+            // AND transport collections filter identically (transport payments
+            // have no student_fee_assignment_id).
             ->when($request->input('academic_year_id'), fn (Builder $q, $value) => $q->whereHas(
-                'studentFeeAssignment.studentEnrollment',
+                'studentEnrollment',
                 fn (Builder $sub) => $sub->where('academic_year_id', $value)
             ))
             ->when($request->input('program_id'), fn (Builder $q, $value) => $q->whereHas(
-                'studentFeeAssignment.studentEnrollment',
+                'studentEnrollment',
                 fn (Builder $sub) => $sub->where('program_id', $value)
             ))
             ->when($request->input('student_id'), fn (Builder $q, $value) => $q->whereHas(
-                'studentFeeAssignment.studentEnrollment',
+                'studentEnrollment',
                 fn (Builder $sub) => $sub->where('student_id', $value)
             ))
             ->when($request->input('payment_mode'), fn (Builder $q, $value) => $q->where('payment_mode', $value))
@@ -117,17 +120,23 @@ class FeeReceiptController extends Controller
     private function receiptData(FeeReceipt $receipt): array
     {
         $payment = $receipt->payment;
-        $payment->load(['studentEnrollment.student', 'studentEnrollment.academicYear', 'studentEnrollment.program', 'feeStructure.items', 'collector', 'refunds']);
+        $payment->load(['studentEnrollment.student', 'studentEnrollment.academicYear', 'studentEnrollment.program', 'feeStructure.items', 'transportFeeAssignment.transportFeeStructure', 'collector', 'refunds']);
 
-        $assignment = $payment->studentFeeAssignment()->first();
+        $tuitionAssignment = $payment->studentFeeAssignment()->first();
+        $transportAssignment = $payment->transportFeeAssignment()->first();
 
         return [
             'college' => app(TenantContext::class)->college(),
             'receipt' => $receipt,
             'payment' => $payment,
-            // The balance position is computed server-side from the same ledger
-            // the Due / Outstanding screen uses — never from the browser.
-            'ledger' => $assignment ? $this->dues->summaryFor($assignment) : null,
+            // The balance position is computed server-side from the same shared
+            // ledger arithmetic the Due / Outstanding screen uses — for both
+            // tuition and transport assignments. Never from the browser.
+            'ledger' => match (true) {
+                $tuitionAssignment !== null => $this->dues->summaryFor($tuitionAssignment),
+                $transportAssignment !== null => app(\App\Domain\Transport\Services\TransportFeeService::class)->summaryFor($transportAssignment),
+                default => null,
+            },
         ];
     }
 
