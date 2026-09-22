@@ -56,6 +56,8 @@ use App\Http\Controllers\BookController;
 use App\Http\Controllers\BookCopyController;
 use App\Http\Controllers\LibraryDashboardController;
 use App\Http\Controllers\LibraryMemberController;
+use App\Http\Controllers\LibraryFineController;
+use App\Http\Controllers\LibraryReportController;
 use App\Http\Controllers\LibraryRenewalController;
 use App\Http\Controllers\LibraryTransactionController;
 use App\Http\Controllers\PublisherController;
@@ -310,6 +312,13 @@ Route::middleware('auth')->group(function () {
         Route::post('library-transactions/{library_transaction}/lost', [LibraryTransactionController::class, 'markLost'])->name('library-transactions.lost');
         Route::resource('library-transactions', LibraryTransactionController::class)->except('destroy');
         Route::resource('library-renewals', LibraryRenewalController::class)->only(['index', 'create', 'store', 'show']);
+
+        Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
+        Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
+    });
+});
+es.pay');
+        Route::get('library-reports', [LibraryReportController::class, 'index'])->name('library-reports.index');
 
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
