@@ -47,7 +47,9 @@ class LeaveRequestController extends Controller
 
     public function store(StoreLeaveRequestRequest $request, LeaveRequestService $service): RedirectResponse
     {
-        $service->create($request->validated(), $this->collegeId(), auth()->id());
+        $data = $request->validated();
+        $this->assertEmployeeRequesterMaySubmit((int) $data['faculty_id']);
+        $service->create($data, $this->collegeId(), auth()->id());
         return redirect()->route('leave-requests.index')->with('success', 'Leave request submitted for approval.');
     }
 
@@ -101,6 +103,22 @@ class LeaveRequestController extends Controller
     private function findScoped(string $id): LeaveRequest
     {
         return LeaveRequest::query()->findOrFail($id);
+    }
+
+    private function assertEmployeeRequesterMaySubmit(int $facultyId): void
+    {
+        $user = auth()->user();
+        if ($user->isSuperAdmin()
+            || $user->hasPermission('leave_requests.view')
+            || $user->hasPermission('leave_requests.update')
+            || $user->hasPermission('leave_requests.approve')) {
+            return;
+        }
+
+        $linkedEmployee = Faculty::query()->where('email', $user->email)->first();
+        if ($linkedEmployee && (int) $linkedEmployee->getKey() !== $facultyId) {
+            abort(403, 'Employees may submit leave only for their own staff record.');
+        }
     }
 
     private function employees()
