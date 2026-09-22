@@ -317,6 +317,20 @@ Route::middleware('auth')->group(function () {
         Route::post('library-fines/{library_fine}/pay', [LibraryFineController::class, 'pay'])->name('library-fines.pay');
         Route::get('library-reports', [LibraryReportController::class, 'index'])->name('library-reports.index');
 
+        // Transport Phase 1 — tenant-scoped masters only.
+        Route::get('transport/dashboard', \App\Http\Controllers\Transport\TransportDashboardController::class)->name('transport.dashboard');
+        Route::resource('vehicles', \App\Http\Controllers\Transport\VehicleController::class)->except('show')->parameters(['vehicles' => 'record']);
+        Route::resource('transport-drivers', \App\Http\Controllers\Transport\TransportDriverController::class)->except('show')->parameters(['transport-drivers' => 'record']);
+        Route::resource('transport-routes', \App\Http\Controllers\Transport\TransportRouteController::class)->except('show')->parameters(['transport-routes' => 'record']);
+        Route::resource('transport-routes.transport-stops', \App\Http\Controllers\Transport\TransportStopController::class)->except('show')->parameters(['transport-stops' => 'record'])->names([
+            'index' => 'transport-stops.index',
+            'create' => 'transport-stops.create',
+            'store' => 'transport-stops.store',
+            'edit' => 'transport-stops.edit',
+            'update' => 'transport-stops.update',
+            'destroy' => 'transport-stops.destroy',
+        ]);
+
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
     });
