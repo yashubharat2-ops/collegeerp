@@ -128,7 +128,7 @@
 <a class="nav-link" href="{{ route('fee-reports.index') }}">📊 <span>Fee Reports</span></a>
 @endif
 @endif
-@if(auth()->user()?->hasPermission('transport_dashboard.view') || auth()->user()?->hasPermission('vehicles.view') || auth()->user()?->hasPermission('transport_drivers.view') || auth()->user()?->hasPermission('transport_routes.view'))
+@if(auth()->user()?->hasPermission('transport_dashboard.view') || auth()->user()?->hasPermission('vehicles.view') || auth()->user()?->hasPermission('vehicle_documents.view') || auth()->user()?->hasPermission('transport_drivers.view') || auth()->user()?->hasPermission('transport_routes.view') || auth()->user()?->hasPermission('student_transport_assignments.view') || auth()->user()?->hasPermission('transport_fees.view') || auth()->user()?->hasPermission('transport_reports.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Transport Management</div>
 @if(auth()->user()?->hasPermission('transport_dashboard.view'))
 <a class="nav-link" href="{{ route('transport.dashboard') }}"><span>Transport Dashboard</span></a>
@@ -136,11 +136,26 @@
 @if(auth()->user()?->hasPermission('vehicles.view'))
 <a class="nav-link" href="{{ route('vehicles.index') }}"><span>Vehicles</span></a>
 @endif
+@if(auth()->user()?->hasPermission('vehicle_documents.view'))
+<a class="nav-link" href="{{ route('vehicle-documents.index') }}"><span>Vehicle Documents</span></a>
+@endif
 @if(auth()->user()?->hasPermission('transport_drivers.view'))
 <a class="nav-link" href="{{ route('transport-drivers.index') }}"><span>Drivers</span></a>
 @endif
 @if(auth()->user()?->hasPermission('transport_routes.view'))
-<a class="nav-link" href="{{ route('transport-routes.index') }}"><span>Routes / Stops</span></a>
+<a class="nav-link" href="{{ route('transport-routes.index') }}"><span>Routes</span></a>
+@endif
+@if(auth()->user()?->hasPermission('transport_routes.view'))
+<a class="nav-link" href="{{ route('transport-stops.list') }}"><span>Stops</span></a>
+@endif
+@if(auth()->user()?->hasPermission('student_transport_assignments.view'))
+<a class="nav-link" href="{{ route('transport-assignments.index') }}"><span>Student Transport Assignment</span></a>
+@endif
+@if(auth()->user()?->hasPermission('transport_fees.view'))
+<a class="nav-link" href="{{ route('transport-fees.index') }}"><span>Transport Fees</span></a>
+@endif
+@if(auth()->user()?->hasPermission('transport_reports.view'))
+<a class="nav-link" href="{{ route('transport-reports.index') }}"><span>Transport Reports</span></a>
 @endif
 @endif
 @if(auth()->user()?->hasPermission('library_dashboard.view') || auth()->user()?->hasPermission('books.view') || auth()->user()?->hasPermission('book_categories.view') || auth()->user()?->hasPermission('authors.view') || auth()->user()?->hasPermission('publishers.view') || auth()->user()?->hasPermission('book_copies.view') || auth()->user()?->hasPermission('library_members.view') || auth()->user()?->hasPermission('library_transactions.view') || auth()->user()?->hasPermission('library_renewals.view') || auth()->user()?->hasPermission('library_fines.view') || auth()->user()?->hasPermission('library_reports.view'))

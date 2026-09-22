@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Domain\Foundation\Traits\BelongsToCollege;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Vehicle extends Model
@@ -21,4 +22,9 @@ class Vehicle extends Model
         $this->attributes['registration_number'] = strtoupper(trim((string) $value));
     }
 
+    /** Secure documents attached to this vehicle (Transport Phase 2). */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(VehicleDocument::class, 'vehicle_id');
+    }
 }

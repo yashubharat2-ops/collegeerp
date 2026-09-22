@@ -139,16 +139,19 @@ class FeePaymentController extends Controller
             // Tenant isolation is belt-and-braces: the model already carries
             // CollegeScope; this pins the join-safe column explicitly.
             ->where('fee_payments.college_id', $collegeId)
+            // Filters run through the payment's OWN enrollment stamp so tuition
+            // AND transport collections (whose student_fee_assignment_id is
+            // null) filter identically.
             ->when($request->input('student_id'), fn (Builder $q, $value) => $q->whereHas(
-                'studentFeeAssignment.studentEnrollment',
+                'studentEnrollment',
                 fn (Builder $sub) => $sub->where('student_id', $value)
             ))
             ->when($request->input('academic_year_id'), fn (Builder $q, $value) => $q->whereHas(
-                'studentFeeAssignment.studentEnrollment',
+                'studentEnrollment',
                 fn (Builder $sub) => $sub->where('academic_year_id', $value)
             ))
             ->when($request->input('program_id'), fn (Builder $q, $value) => $q->whereHas(
-                'studentFeeAssignment.studentEnrollment',
+                'studentEnrollment',
                 fn (Builder $sub) => $sub->where('program_id', $value)
             ))
             ->when($request->input('student_enrollment_id'), fn (Builder $q, $value) => $q->where('student_enrollment_id', $value))
