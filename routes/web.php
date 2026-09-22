@@ -312,12 +312,9 @@ Route::middleware('auth')->group(function () {
         Route::post('library-transactions/{library_transaction}/lost', [LibraryTransactionController::class, 'markLost'])->name('library-transactions.lost');
         Route::resource('library-transactions', LibraryTransactionController::class)->except('destroy');
         Route::resource('library-renewals', LibraryRenewalController::class)->only(['index', 'create', 'store', 'show']);
-
-        Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
-        Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
-    });
-});
-es.pay');
+        Route::get('library-fines', [LibraryFineController::class, 'index'])->name('library-fines.index');
+        Route::post('library-fines', [LibraryFineController::class, 'store'])->name('library-fines.store');
+        Route::post('library-fines/{library_fine}/pay', [LibraryFineController::class, 'pay'])->name('library-fines.pay');
         Route::get('library-reports', [LibraryReportController::class, 'index'])->name('library-reports.index');
 
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
