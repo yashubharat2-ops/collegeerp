@@ -3,9 +3,11 @@
 namespace App\Domain\Library\Services;
 
 use App\Domain\Library\Support\Isbn;
+use App\Domain\Foundation\Scopes\CollegeScope;
 use App\Models\Author;
 use App\Models\Book;
 use App\Models\BookCategory;
+use App\Models\BookCopy;
 use App\Models\College;
 use App\Models\Publisher;
 use App\Models\User;
@@ -34,8 +36,9 @@ use Illuminate\Validation\ValidationException;
  * Tenant safety: college_id is always taken from the authenticated tenant
  * context; a browser-supplied college_id never reaches the database.
  *
- * Scope: the bibliographic master only. Physical copies, members, issue /
- * return, renewals, fines and reports belong to later phases.
+ * Scope: the bibliographic master. Physical copies, members, issue / return
+ * and renewals are separate records (Phase 2). A title that still has
+ * non-deleted copies cannot be deleted. Fines and reports are out of scope.
  */
 class BookService
 {
@@ -156,14 +159,27 @@ class BookService
 
     /**
      * Soft delete. The bibliographic record stays in the database for the
-     * audit trail (and for the Phase 2 copies that may reference it) but is
-     * excluded by CollegeScope + SoftDeletes. Author links are kept with it.
+     * audit trail but is excluded by CollegeScope + SoftDeletes. Author links
+     * are kept with it. A title that still has physical copies is refused —
+     * those copies are the things the library actually holds.
      */
     public function delete(Book $book, User $actor): void
     {
         $this->assertTenant($book);
 
         DB::transaction(function () use ($book): void {
+            $hasCopies = BookCopy::withoutGlobalScope(CollegeScope::class)
+                ->where('book_id', $book->getKey())
+                ->where('college_id', $book->college_id)
+                ->whereNull('deleted_at')
+                ->exists();
+
+            if ($hasCopies) {
+                throw ValidationException::withMessages([
+                    'book' => 'This title has physical copies and cannot be deleted. Delete or withdraw the copies first.',
+                ]);
+            }
+
             $authorIds = $book->authors()->pluck('authors.id')->map(fn ($id) => (int) $id)->all();
             $snapshot = $this->snapshot($book, $authorIds);
 

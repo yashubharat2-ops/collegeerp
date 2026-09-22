@@ -19,8 +19,8 @@ use Tests\TestCase;
  *
  * Verifies the Eloquent wiring between the Phase 1 masters (types and round
  * trips), the many-to-many author link, the tenant scope on every model, the
- * attribute normalisation (code / ISBN / name_normalized) and that the models
- * expose nothing about copies or circulation.
+ * attribute normalisation (code / ISBN / name_normalized). Circulation hangs
+ * off BookCopy, not off quantity columns on the book master.
  */
 class LibraryModelRelationshipTest extends TestCase
 {
@@ -172,14 +172,19 @@ class LibraryModelRelationshipTest extends TestCase
         });
     }
 
-    public function test_the_book_master_exposes_no_circulation_or_copy_concepts(): void
+    public function test_the_book_master_points_at_copies_without_duplicating_stock(): void
     {
-        foreach (['copies', 'issues', 'members', 'fines', 'renewals'] as $method) {
-            $this->assertFalse(method_exists(Book::class, $method), "Book::{$method}() belongs to a later phase.");
+        $this->assertTrue(method_exists(Book::class, 'copies'));
+        $this->assertInstanceOf(HasMany::class, (new Book())->copies());
+
+        foreach (['issues', 'members', 'fines', 'renewals'] as $method) {
+            $this->assertFalse(method_exists(Book::class, $method), "Book::{$method}() would duplicate circulation that hangs off copies.");
         }
 
-        $this->assertFalse(\Schema::hasTable('book_copies'));
-        $this->assertFalse(\Schema::hasTable('library_members'));
+        $this->assertTrue(\Schema::hasTable('book_copies'));
+        $this->assertTrue(\Schema::hasTable('library_members'));
+        $this->assertTrue(\Schema::hasTable('library_transactions'));
+        $this->assertTrue(\Schema::hasTable('library_renewals'));
         $this->assertFalse(\Schema::hasTable('book_issues'));
         $this->assertFalse(\Schema::hasColumn('books', 'quantity'));
         $this->assertFalse(\Schema::hasColumn('books', 'available_copies'));

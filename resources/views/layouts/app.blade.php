@@ -128,7 +128,7 @@
 <a class="nav-link" href="{{ route('fee-reports.index') }}">📊 <span>Fee Reports</span></a>
 @endif
 @endif
-@if(auth()->user()?->hasPermission('library_dashboard.view') || auth()->user()?->hasPermission('books.view') || auth()->user()?->hasPermission('book_categories.view') || auth()->user()?->hasPermission('authors.view') || auth()->user()?->hasPermission('publishers.view'))
+@if(auth()->user()?->hasPermission('library_dashboard.view') || auth()->user()?->hasPermission('books.view') || auth()->user()?->hasPermission('book_categories.view') || auth()->user()?->hasPermission('authors.view') || auth()->user()?->hasPermission('publishers.view') || auth()->user()?->hasPermission('book_copies.view') || auth()->user()?->hasPermission('library_members.view') || auth()->user()?->hasPermission('library_transactions.view') || auth()->user()?->hasPermission('library_renewals.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Library Management</div>
 @if(auth()->user()?->hasPermission('library_dashboard.view'))
 <a class="nav-link" href="{{ route('library.dashboard') }}">📚 <span>Library Dashboard</span></a>
@@ -143,6 +143,18 @@
 <a class="nav-link" href="{{ route('authors.index') }}">✍ <span>Authors / Publishers</span></a>
 @elseif(auth()->user()?->hasPermission('publishers.view'))
 <a class="nav-link" href="{{ route('publishers.index') }}">✍ <span>Authors / Publishers</span></a>
+@endif
+@if(auth()->user()?->hasPermission('book_copies.view'))
+<a class="nav-link" href="{{ route('book-copies.index') }}">📦 <span>Book Copies</span></a>
+@endif
+@if(auth()->user()?->hasPermission('library_members.view'))
+<a class="nav-link" href="{{ route('library-members.index') }}">🪪 <span>Library Members</span></a>
+@endif
+@if(auth()->user()?->hasPermission('library_transactions.view'))
+<a class="nav-link" href="{{ route('library-transactions.index') }}">🔁 <span>Issue / Return</span></a>
+@endif
+@if(auth()->user()?->hasPermission('library_renewals.view'))
+<a class="nav-link" href="{{ route('library-renewals.index') }}">↻ <span>Renewals</span></a>
 @endif
 @endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Platform</div>

@@ -82,8 +82,17 @@
         @endif
     </div>
 
-    <div class="mt-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
-        Physical copies, availability and circulation for this title arrive in Library Management Phase 2 and will reference this record.
-    </div>
+    @can('viewAny', App\Models\BookCopy::class)
+        <div class="mt-6 border-t border-slate-200 pt-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <h3 class="font-semibold">Physical copies</h3>
+                <a class="text-sm text-indigo-600 hover:underline" href="{{ route('book-copies.index', ['book_id' => $book->id]) }}">View copies</a>
+            </div>
+            <p class="mt-2 text-sm text-slate-600">{{ $book->copies_count }} {{ \Illuminate\Support\Str::plural('copy', $book->copies_count) }} on record for this title. Copies are separate from this bibliographic record.</p>
+            @can('create', App\Models\BookCopy::class)
+                <a class="button mt-3 inline-block" href="{{ route('book-copies.create', ['book_id' => $book->id]) }}">+ Add copy</a>
+            @endcan
+        </div>
+    @endcan
 </div>
 @endsection

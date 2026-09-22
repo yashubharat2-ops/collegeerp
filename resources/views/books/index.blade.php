@@ -7,7 +7,7 @@
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Books</h2>
-            <p class="panel-subtitle">The bibliographic master for the active college — one record per title. Physical copies, members and issue / return arrive in later phases.</p>
+            <p class="panel-subtitle">The bibliographic master for the active college — one record per title. Physical copies are recorded separately under Book Copies.</p>
         </div>
         @can('create', App\Models\Book::class)
             <a class="button" href="{{ route('books.create') }}">+ Add book</a>

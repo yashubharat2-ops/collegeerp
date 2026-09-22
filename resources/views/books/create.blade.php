@@ -7,7 +7,7 @@
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Add Book</h2>
-            <p class="panel-subtitle">Catalogue a title for this college. This describes the work itself — physical copies are recorded separately in a later phase.</p>
+            <p class="panel-subtitle">Catalogue a title for this college. This describes the work itself — physical copies are recorded separately under Book Copies.</p>
         </div>
         <a class="button !bg-slate-200 !text-slate-700" href="{{ route('books.index') }}">Back</a>
     </div>

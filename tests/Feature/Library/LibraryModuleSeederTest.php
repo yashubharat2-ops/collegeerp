@@ -9,10 +9,10 @@ use Tests\TestCase;
 /**
  * Library Management Phase 1 — RBAC seeding.
  *
- * The seventeen library permissions must exist exactly once, be granted to the
- * seeded super-admin and college-admin roles, and re-seeding must be a no-op
- * (idempotent firstOrCreate + sync). Permissions for out-of-scope screens
- * (copies, members, issues, fines, reports) must NOT be seeded yet.
+ * Library permissions (Phase 1 masters and Phase 2 circulation) must exist
+ * exactly once, be granted to the seeded super-admin and college-admin roles,
+ * and re-seeding must be a no-op. Fines, reports and reservations are not
+ * seeded.
  */
 class LibraryModuleSeederTest extends TestCase
 {
@@ -26,7 +26,7 @@ class LibraryModuleSeederTest extends TestCase
         $adminGranted = $admin->permissions()->pluck('slug')->all();
         $superGranted = $super->permissions()->pluck('slug')->all();
 
-        $this->assertCount(17, self::LIBRARY_PERMISSIONS);
+        $this->assertCount(31, self::LIBRARY_PERMISSIONS);
 
         foreach (self::LIBRARY_PERMISSIONS as $slug) {
             $this->assertSame(1, Permission::where('slug', $slug)->count(), "Permission {$slug} must be seeded exactly once.");
@@ -41,8 +41,8 @@ class LibraryModuleSeederTest extends TestCase
 
     public function test_out_of_scope_library_permissions_are_not_seeded(): void
     {
-        foreach (['book_copies.view', 'library_members.view', 'book_issues.view', 'book_returns.view', 'book_renewals.view', 'library_fines.view', 'library_reports.view'] as $slug) {
-            $this->assertSame(0, Permission::where('slug', $slug)->count(), "{$slug} belongs to a later phase.");
+        foreach (['book_issues.view', 'book_returns.view', 'book_renewals.view', 'library_fines.view', 'library_reports.view', 'library_reservations.view'] as $slug) {
+            $this->assertSame(0, Permission::where('slug', $slug)->count(), "{$slug} is not part of this phase.");
         }
     }
 

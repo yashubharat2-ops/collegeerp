@@ -60,7 +60,7 @@
     @if($totals['books'] === 0 && $totals['categories'] === 0 && $totals['authors'] === 0 && $totals['publishers'] === 0)
         <div class="panel">
             <h3 class="font-semibold">Getting started</h3>
-            <p class="mt-2 text-sm text-slate-600">The catalogue for this college is empty. A typical set-up order is: create <strong>Book Categories</strong>, record <strong>Authors / Publishers</strong>, then catalogue <strong>Books</strong>. Physical copies, members and issue / return follow in the next phase.</p>
+            <p class="mt-2 text-sm text-slate-600">The catalogue for this college is empty. A typical set-up order is: create <strong>Book Categories</strong>, record <strong>Authors / Publishers</strong>, then catalogue <strong>Books</strong>. Physical copies, members and issue / return are recorded on their own screens.</p>
         </div>
     @endif
 

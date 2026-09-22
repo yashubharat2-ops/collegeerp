@@ -106,7 +106,7 @@ class BookController extends Controller
         $this->authorize('view', $model);
 
         return view('books.show', [
-            'book' => $model->load(['category', 'publisher', 'authors', 'creator', 'updater']),
+            'book' => $model->load(['category', 'publisher', 'authors', 'creator', 'updater'])->loadCount('copies'),
         ]);
     }
 

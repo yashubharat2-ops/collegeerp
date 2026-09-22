@@ -1,5 +1,9 @@
 # Library Management — Phase 1 (Books, Categories, Authors / Publishers)
 
+Phase 2 (copies, members, issue / return, renewals) is documented in
+[`library_phase2.md`](library_phase2.md). This file describes Phase 1 as it
+was delivered.
+
 **Scope of this phase:** the library's *bibliographic masters* only —
 `book_categories`, `authors`, `publishers`, `books` and the `author_book`
 link — plus a read-only **Library Dashboard** over them. Book Copies, Library
