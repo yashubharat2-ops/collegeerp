@@ -50,6 +50,11 @@ use App\Http\Controllers\SalaryStructureController;
 use App\Http\Controllers\SalaryComponentController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\HrReportController;
+use App\Http\Controllers\AuthorController;
+use App\Http\Controllers\BookCategoryController;
+use App\Http\Controllers\BookController;
+use App\Http\Controllers\LibraryDashboardController;
+use App\Http\Controllers\PublisherController;
 use App\Http\Controllers\MarksheetController;
 use App\Http\Controllers\ProgramController;
 use App\Http\Controllers\ResultCalculationController;
@@ -278,6 +283,23 @@ Route::middleware('auth')->group(function () {
 
         // Finance / Fees — Fee Reports: read-only aggregation of the records above.
         Route::get('fee-reports', [FeeReportController::class, 'index'])->name('fee-reports.index');
+
+        // Library Management — Phase 1 (bibliographic masters only; no copies,
+        // members, issue/return, renewals, fines or reports yet).
+
+        // Library Management — Library Dashboard: read-only overview of the
+        // masters below, aggregated live (no dashboard tables).
+        Route::get('library/dashboard', LibraryDashboardController::class)->name('library.dashboard');
+
+        // Library Management — Books: the book master (a title, not a copy).
+        Route::resource('books', BookController::class);
+
+        // Library Management — Book Categories.
+        Route::resource('book-categories', BookCategoryController::class)->except('show');
+
+        // Library Management — Authors / Publishers: reusable references for books.
+        Route::resource('authors', AuthorController::class)->except('show');
+        Route::resource('publishers', PublisherController::class)->except('show');
 
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
