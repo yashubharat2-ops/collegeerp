@@ -27,6 +27,11 @@ class LeaveRequestController extends Controller
             'to' => ['nullable', 'date', 'after_or_equal:from'],
         ]);
         $query = LeaveRequest::query()->with(['employee', 'leaveType'])->orderByDesc('from_date')->orderByDesc('id');
+        if (! auth()->user()->hasPermission('leave_requests.view')
+            && ! auth()->user()->hasPermission('leave_requests.approve')
+            && ! auth()->user()->isSuperAdmin()) {
+            $query->where('requested_by', auth()->id());
+        }
         if ($filters['faculty_id'] ?? null) $query->where('faculty_id', $filters['faculty_id']);
         if ($filters['status'] ?? null) $query->where('status', $filters['status']);
         if ($filters['from'] ?? null) $query->whereDate('to_date', '>=', $filters['from']);

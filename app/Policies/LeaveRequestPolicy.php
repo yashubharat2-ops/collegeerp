@@ -9,7 +9,9 @@ class LeaveRequestPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasPermission('leave_requests.view') || $user->hasPermission('leave_requests.create');
+        return $user->hasPermission('leave_requests.view')
+            || $user->hasPermission('leave_requests.create')
+            || $user->hasPermission('leave_requests.approve');
     }
 
     public function view(User $user, LeaveRequest $request): bool
