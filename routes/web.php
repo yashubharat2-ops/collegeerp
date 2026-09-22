@@ -50,6 +50,15 @@ use App\Http\Controllers\SalaryStructureController;
 use App\Http\Controllers\SalaryComponentController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\HrReportController;
+use App\Http\Controllers\AuthorController;
+use App\Http\Controllers\BookCategoryController;
+use App\Http\Controllers\BookController;
+use App\Http\Controllers\BookCopyController;
+use App\Http\Controllers\LibraryDashboardController;
+use App\Http\Controllers\LibraryMemberController;
+use App\Http\Controllers\LibraryRenewalController;
+use App\Http\Controllers\LibraryTransactionController;
+use App\Http\Controllers\PublisherController;
 use App\Http\Controllers\MarksheetController;
 use App\Http\Controllers\ProgramController;
 use App\Http\Controllers\ResultCalculationController;
@@ -278,6 +287,29 @@ Route::middleware('auth')->group(function () {
 
         // Finance / Fees — Fee Reports: read-only aggregation of the records above.
         Route::get('fee-reports', [FeeReportController::class, 'index'])->name('fee-reports.index');
+
+        // Library Management — Library Dashboard: read-only overview of the
+        // Phase 1 masters, aggregated live (no dashboard tables).
+        Route::get('library/dashboard', LibraryDashboardController::class)->name('library.dashboard');
+
+        // Library Management — Books: the book master (a title, not a copy).
+        Route::resource('books', BookController::class);
+
+        // Library Management — Book Categories.
+        Route::resource('book-categories', BookCategoryController::class)->except('show');
+
+        // Library Management — Authors / Publishers: reusable references for books.
+        Route::resource('authors', AuthorController::class)->except('show');
+        Route::resource('publishers', PublisherController::class)->except('show');
+
+        // Library Management — Phase 2. Copies, members, issue/return and
+        // renewals. Circulation history has no delete route.
+        Route::resource('book-copies', BookCopyController::class);
+        Route::resource('library-members', LibraryMemberController::class);
+        Route::post('library-transactions/{library_transaction}/return', [LibraryTransactionController::class, 'returnCopy'])->name('library-transactions.return');
+        Route::post('library-transactions/{library_transaction}/lost', [LibraryTransactionController::class, 'markLost'])->name('library-transactions.lost');
+        Route::resource('library-transactions', LibraryTransactionController::class)->except('destroy');
+        Route::resource('library-renewals', LibraryRenewalController::class)->only(['index', 'create', 'store', 'show']);
 
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');

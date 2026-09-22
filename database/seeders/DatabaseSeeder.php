@@ -90,6 +90,23 @@ class DatabaseSeeder extends Seeder
             'grade_cards.view',
             'exam_reports.view',
             'student_result_history.view',
+            // Library Management Phase 1 — Library Dashboard (read-only overview).
+            'library_dashboard.view',
+            // Library Management Phase 1 — Books (bibliographic master; copies are Phase 2).
+            'books.view', 'books.create', 'books.update', 'books.delete',
+            // Library Management Phase 1 — Book Categories.
+            'book_categories.view', 'book_categories.create', 'book_categories.update', 'book_categories.delete',
+            // Library Management Phase 1 — Authors / Publishers (reusable references).
+            'authors.view', 'authors.create', 'authors.update', 'authors.delete',
+            'publishers.view', 'publishers.create', 'publishers.update', 'publishers.delete',
+            // Library Management Phase 2 — Book Copies (physical items of a book master).
+            'book_copies.view', 'book_copies.create', 'book_copies.update', 'book_copies.delete',
+            // Library Management Phase 2 — Library Members (membership of an existing enrollment).
+            'library_members.view', 'library_members.create', 'library_members.update', 'library_members.delete',
+            // Library Management Phase 2 — Issue / Return (circulation history; no delete).
+            'library_transactions.view', 'library_transactions.create', 'library_transactions.update', 'library_transactions.return',
+            // Library Management Phase 2 — Renewals (append-only due-date history).
+            'library_renewals.view', 'library_renewals.create',
             'roles.view', 'roles.update',
             'permissions.view',
         ])->mapWithKeys(fn ($slug) => [$slug => Permission::firstOrCreate(['slug' => $slug], ['name' => Str::headline($slug), 'module' => Str::before($slug, '.'), 'action' => Str::after($slug, '.')])]);
