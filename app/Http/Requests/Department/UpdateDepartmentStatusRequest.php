@@ -6,7 +6,7 @@ class UpdateDepartmentStatusRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        $model = Department::query()->find((int) $this->route('department'));
+        $model = Department::query()->find((int) ($this->route('department') ?? $this->route('staff_department')));
         if (! $model) {
             abort(404);
         }

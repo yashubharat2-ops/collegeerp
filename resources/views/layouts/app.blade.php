@@ -1,13 +1,39 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="{{ csrf_token() }}"><title>@yield('title', 'Dashboard') · {{ config('app.name', 'College ERP') }}</title>@vite(['resources/css/app.css','resources/js/app.js'])</head><body class="bg-slate-100 text-slate-900"><div class="min-h-screen lg:flex"><aside class="no-print w-full bg-slate-950 text-white lg:min-h-screen lg:w-72"><div class="flex items-center justify-between px-6 py-6"><div><p class="text-xs font-semibold uppercase tracking-widest text-indigo-300">College ERP</p><p class="mt-1 text-lg font-bold">Administration</p></div><button class="lg:hidden" aria-label="Open menu">☰</button></div><nav class="space-y-1 px-4 pb-6"><a class="nav-link" href="{{ route('dashboard') }}">▦ <span>Dashboard</span></a><div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Platform</div>
 <a class="nav-link" href="{{ route('campuses.index') }}">▣ <span>Campuses</span></a>
-<a class="nav-link" href="{{ route('departments.index') }}">▤ <span>Departments</span></a>
 <a class="nav-link" href="{{ route('programs.index') }}">▥ <span>Programs</span></a>
 <a class="nav-link" href="{{ route('academic-years.index') }}">◫ <span>Academic years</span></a>
 <a class="nav-link" href="{{ route('academic-terms.index') }}">🗓 <span>Academic Terms</span></a>
 <a class="nav-link" href="{{ route('sections.index') }}">👥 <span>Sections / Batches</span></a>
 <a class="nav-link" href="{{ route('subjects.index') }}">📚 <span>Subjects</span></a>
-<a class="nav-link" href="{{ route('faculties.index') }}">👨‍🏫 <span>Faculty / Staff</span></a>
-<a class="nav-link" href="{{ route('faculty-subject-assignments.index') }}">🔗 <span>Faculty–Subject Assignments</span></a><div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Admissions</div>
+<a class="nav-link" href="{{ route('faculty-subject-assignments.index') }}">🔗 <span>Faculty–Subject Assignments</span></a>
+@if(auth()->user()?->hasPermission('faculties.view') || auth()->user()?->hasPermission('departments.view') || auth()->user()?->hasPermission('designations.view') || auth()->user()?->hasPermission('employee_documents.view') || auth()->user()?->hasPermission('staff_attendance.view') || auth()->user()?->hasPermission('leave_types.view') || auth()->user()?->hasPermission('leave_requests.view') || auth()->user()?->hasPermission('salary_structures.view') || auth()->user()?->hasPermission('salary_components.view') || auth()->user()?->hasPermission('payrolls.view') || auth()->user()?->hasPermission('hr_reports.view'))
+<div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">HR / Staff Management</div>
+@if(auth()->user()?->hasPermission('faculties.view'))
+<a class="nav-link" href="{{ route('employees.index') }}">👥 <span>Staff / Employee</span></a>
+@endif
+@if(auth()->user()?->hasPermission('departments.view'))
+<a class="nav-link" href="{{ route('staff-departments.index') }}">▤ <span>Staff Departments</span></a>
+@endif
+@if(auth()->user()?->hasPermission('designations.view'))
+<a class="nav-link" href="{{ route('designations.index') }}">🏷 <span>Designations</span></a>
+@endif
+@if(auth()->user()?->hasPermission('employee_documents.view'))
+<a class="nav-link" href="{{ route('employee-documents.index') }}">📄 <span>Employee Documents</span></a>
+@endif
+@if(auth()->user()?->hasPermission('staff_attendance.view'))
+<a class="nav-link" href="{{ route('staff-attendance.index') }}">✓ <span>Staff Attendance</span></a>
+@endif
+@if(auth()->user()?->hasPermission('leave_requests.view') || auth()->user()?->hasPermission('leave_types.view'))
+<a class="nav-link" href="{{ auth()->user()?->hasPermission('leave_requests.view') ? route('leave-requests.index') : route('leave-types.index') }}">🗓 <span>Leave Management</span></a>
+@endif
+@if(auth()->user()?->hasPermission('salary_structures.view') || auth()->user()?->hasPermission('salary_components.view') || auth()->user()?->hasPermission('payrolls.view'))
+<a class="nav-link" href="{{ auth()->user()?->hasPermission('payrolls.view') ? route('payrolls.index') : (auth()->user()?->hasPermission('salary_structures.view') ? route('salary-structures.index') : route('salary-components.index')) }}">💰 <span>Staff Salary / Payroll</span></a>
+@endif
+@if(auth()->user()?->hasPermission('hr_reports.view'))
+<a class="nav-link" href="{{ route('hr-reports.index') }}">📈 <span>HR Reports</span></a>
+@endif
+@endif
+<div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Admissions</div>
 <a class="nav-link" href="{{ route('admission.dashboard') }}">📊 <span>Dashboard</span></a>
 <a class="nav-link" href="{{ route('admission-applicants.index') }}">👤 <span>Applicants</span></a>
 <a class="nav-link" href="{{ route('admission-enquiries.index') }}">❓ <span>Enquiries</span></a>

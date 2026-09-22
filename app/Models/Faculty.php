@@ -33,11 +33,27 @@ class Faculty extends Model
         'last_name',
         'email',
         'phone',
+        'alternate_phone',
+        'gender',
+        'date_of_birth',
+        // Kept for compatibility with the original Platform Faculty/Staff
+        // screen. HR writes the normalized designation_id as well.
         'designation',
+        'designation_id',
         'department_id',
         'employment_type',
         'status',
         'joining_date',
+        'address_line_1',
+        'address_line_2',
+        'city',
+        'state',
+        'postal_code',
+        'country',
+        'emergency_contact_name',
+        'emergency_contact_phone',
+        'employment_end_date',
+        'notes',
         'created_by',
         'updated_by',
     ];
@@ -46,7 +62,15 @@ class Faculty extends Model
     {
         return [
             'joining_date' => 'date',
+            'date_of_birth' => 'date',
+            'employment_end_date' => 'date',
         ];
+    }
+
+    public function setEmployeeCodeAttribute($value): void
+    {
+        // Codes are compared consistently across SQLite/MySQL collations.
+        $this->attributes['employee_code'] = strtoupper(trim((string) $value));
     }
 
     public function getFullNameAttribute(): string
@@ -59,6 +83,26 @@ class Faculty extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    /**
+     * Normalized HR designation. The legacy `designation` text attribute is
+     * intentionally retained so existing academic screens and records remain
+     * compatible; use displayDesignation() when a label is needed.
+     */
+    public function designationMaster(): BelongsTo
+    {
+        return $this->belongsTo(Designation::class, 'designation_id');
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(EmployeeDocument::class, 'faculty_id');
+    }
+
+    public function displayDesignation(): ?string
+    {
+        return $this->designationMaster?->name ?? $this->designation;
     }
 
     public function creator(): BelongsTo

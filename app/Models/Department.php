@@ -22,4 +22,7 @@ class Department extends Model
     public function subjects(): HasMany { return $this->hasMany(Subject::class); }
 
     public function faculties(): HasMany { return $this->hasMany(Faculty::class); }
+
+    /** HR vocabulary alias over the same Platform Faculty/Staff records. */
+    public function employees(): HasMany { return $this->hasMany(Faculty::class); }
 }
