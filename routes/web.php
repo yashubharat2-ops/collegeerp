@@ -20,6 +20,9 @@ use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\CampusController;
 use App\Http\Controllers\CollegeSwitchController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\DesignationController;
+use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\EmployeeDocumentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExamAttendanceController;
 use App\Http\Controllers\ExaminationController;
@@ -89,7 +92,16 @@ Route::middleware('auth')->group(function () {
         Route::resource('programs', ProgramController::class)->except('show');
         Route::resource('sections', SectionController::class)->except('show');
         Route::resource('subjects', SubjectController::class)->except('show');
+        // HR / Staff Management reuses the existing Platform Faculty/Staff and
+        // Department records. These aliases do not create duplicate masters.
+        Route::resource('employees', EmployeeController::class);
+        Route::resource('staff', EmployeeController::class);
         Route::resource('faculties', FacultyController::class)->except('show');
+        Route::get('faculties/{faculty}', [FacultyController::class, 'show'])->name('faculties.show');
+        Route::resource('staff-departments', DepartmentController::class)->except('show');
+        Route::resource('designations', DesignationController::class);
+        Route::get('employee-documents/{employee_document}/download', [EmployeeDocumentController::class, 'download'])->name('employee-documents.download');
+        Route::resource('employee-documents', EmployeeDocumentController::class);
         Route::resource('faculty-subject-assignments', FacultySubjectAssignmentController::class)->except('show');
         Route::get('admission/dashboard', AdmissionDashboardController::class)->name('admission.dashboard');
         Route::resource('admission-applicants', AdmissionApplicantController::class)->except('show');

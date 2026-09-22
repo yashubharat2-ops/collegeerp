@@ -22,6 +22,10 @@ class DatabaseSeeder extends Seeder
             'sections.view', 'sections.create', 'sections.update', 'sections.delete',
             'subjects.view', 'subjects.create', 'subjects.update', 'subjects.delete',
             'faculties.view', 'faculties.create', 'faculties.update', 'faculties.delete',
+            // HR / Staff Management reuses the Platform Faculty/Staff and Department records.
+            'employees.view', 'employees.create', 'employees.update', 'employees.delete',
+            'designations.view', 'designations.create', 'designations.update', 'designations.delete',
+            'employee_documents.view', 'employee_documents.create', 'employee_documents.update', 'employee_documents.delete',
             'faculty_subject_assignments.view', 'faculty_subject_assignments.create', 'faculty_subject_assignments.update', 'faculty_subject_assignments.delete',
             'admission_applicants.view', 'admission_applicants.create', 'admission_applicants.update', 'admission_applicants.delete',
             'admission_enquiries.view', 'admission_enquiries.create', 'admission_enquiries.update', 'admission_enquiries.delete',

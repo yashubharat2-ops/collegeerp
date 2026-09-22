@@ -10,7 +10,7 @@ class UpdateDepartmentRequest extends FormRequest
     {
         // Resolve through the tenant-scoped query: foreign-college rows are 404
         // (never a distinguishable 403), then the policy enforces the permission.
-        $model = Department::query()->find((int) $this->route('department'));
+        $model = Department::query()->find((int) $this->departmentRouteKey());
         if (! $model) {
             abort(404);
         }
@@ -21,7 +21,7 @@ class UpdateDepartmentRequest extends FormRequest
     public function rules(): array
     {
         $collegeId = app(TenantContext::class)->id();
-        $ignoreId = (int) $this->route('department');
+        $ignoreId = (int) $this->departmentRouteKey();
 
         return [
             'name' => ['required', 'string', 'max:255', Rule::unique('departments', 'name')->where('college_id', $collegeId)->ignore($ignoreId)],
@@ -35,5 +35,10 @@ class UpdateDepartmentRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->request->remove('college_id');
+    }
+
+    private function departmentRouteKey(): string
+    {
+        return (string) ($this->route('department') ?? $this->route('staff_department'));
     }
 }

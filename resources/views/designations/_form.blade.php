@@ -1,0 +1,8 @@
+@csrf
+<div class="mt-6 grid gap-5 md:grid-cols-2">
+    <div><label class="text-sm font-semibold" for="name">Name</label><input class="input mt-1" id="name" name="name" value="{{ old('name', $designation->name ?? '') }}" maxlength="255" required><p class="mt-1 text-xs text-rose-600">@error('name'){{ $message }}@enderror</p></div>
+    <div><label class="text-sm font-semibold" for="code">Code</label><input class="input mt-1" id="code" name="code" value="{{ old('code', $designation->code ?? '') }}" maxlength="50" required><p class="mt-1 text-xs text-rose-600">@error('code'){{ $message }}@enderror</p></div>
+    <div><label class="text-sm font-semibold" for="status">Status</label><select class="input mt-1" id="status" name="status" required><option value="active" @selected(old('status', $designation->status ?? 'active') === 'active')>Active</option><option value="inactive" @selected(old('status', $designation->status ?? 'active') === 'inactive')>Inactive</option></select><p class="mt-1 text-xs text-rose-600">@error('status'){{ $message }}@enderror</p></div>
+    <div class="md:col-span-2"><label class="text-sm font-semibold" for="description">Description (optional)</label><textarea class="input mt-1" id="description" name="description" rows="4" maxlength="2000">{{ old('description', $designation->description ?? '') }}</textarea><p class="mt-1 text-xs text-rose-600">@error('description'){{ $message }}@enderror</p></div>
+    <div class="md:col-span-2 flex gap-2"><button class="button" type="submit">{{ $submitLabel }}</button><a class="button !bg-slate-200 !text-slate-700" href="{{ route('designations.index') }}">Cancel</a></div>
+</div>

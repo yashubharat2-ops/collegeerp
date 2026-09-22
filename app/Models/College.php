@@ -15,6 +15,10 @@ class College extends Model
     protected $fillable = ['name', 'code', 'slug', 'email', 'phone', 'address', 'status'];
 
     public function campuses(): HasMany { return $this->hasMany(Campus::class); }
+    public function departments(): HasMany { return $this->hasMany(Department::class); }
+    public function faculties(): HasMany { return $this->hasMany(Faculty::class); }
+    public function designations(): HasMany { return $this->hasMany(Designation::class); }
+    public function employeeDocuments(): HasMany { return $this->hasMany(EmployeeDocument::class); }
     public function academicYears(): HasMany { return $this->hasMany(AcademicYear::class); }
     public function users(): BelongsToMany { return $this->belongsToMany(User::class, 'user_college')->withTimestamps()->withPivot('is_default'); }
     public function roles(): HasMany { return $this->hasMany(Role::class); }
