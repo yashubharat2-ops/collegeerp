@@ -14,8 +14,8 @@ use Illuminate\View\View;
 
 /**
  * Platform Faculty/Staff and HR Employee management share this controller and
- * the same `faculties` table. The `employees.*` and `faculties.*` routes are
- * two vocabulary-compatible entry points, not two sets of records.
+ * the same `faculties` table. The Staff / Employee routes are vocabulary
+ * compatible entry points, not two sets of records; RBAC remains faculties.*.
  */
 class FacultyController extends Controller
 {

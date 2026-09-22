@@ -21,7 +21,7 @@ class EmployeeDocumentTest extends TestCase
     {
         $college = $this->makeCollege('HRDOC');
         $admin = $this->makeUserWithPermissions($college, [
-            'employees.view', 'employee_documents.view', 'employee_documents.create',
+            'faculties.view', 'employee_documents.view', 'employee_documents.create',
             'employee_documents.update', 'employee_documents.delete',
         ]);
         $employee = Faculty::create([

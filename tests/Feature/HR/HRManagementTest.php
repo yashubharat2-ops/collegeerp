@@ -13,7 +13,7 @@ class HRManagementTest extends TestCase
     {
         $college = $this->makeCollege('HRCRUD');
         $admin = $this->makeUserWithPermissions($college, [
-            'employees.view', 'employees.create', 'employees.update', 'employees.delete',
+            'faculties.view', 'faculties.create', 'faculties.update', 'faculties.delete',
             'designations.view', 'designations.create', 'designations.update', 'designations.delete',
             'departments.view', 'departments.create', 'departments.update', 'departments.delete',
         ]);
@@ -33,7 +33,7 @@ class HRManagementTest extends TestCase
         $this->assertSame('SL', $designation->code);
 
         $this->asCollege($college, $admin)
-            ->post(route('employees.store'), [
+            ->post(route('faculties.store'), [
                 'employee_code' => ' emp-001 ',
                 'first_name' => 'Grace',
                 'last_name' => 'Hopper',
@@ -44,8 +44,8 @@ class HRManagementTest extends TestCase
                 'employment_type' => 'permanent',
                 'joining_date' => '2026-01-15',
                 'status' => 'active',
-            ], ['Referer' => route('employees.index')])
-            ->assertRedirect(route('employees.index'))
+            ], ['Referer' => route('faculties.index')])
+            ->assertRedirect(route('faculties.index'))
             ->assertSessionHasNoErrors();
 
         $employee = Faculty::withoutGlobalScopes()->where('college_id', $college->id)->firstOrFail();
@@ -55,21 +55,21 @@ class HRManagementTest extends TestCase
         $this->assertSame($department->id, $employee->department_id);
 
         $this->asCollege($college, $admin)
-            ->put(route('employees.update', $employee), [
+            ->put(route('faculties.update', $employee), [
                 'employee_code' => 'EMP-001',
                 'first_name' => 'Grace',
                 'last_name' => 'Hopper',
                 'status' => 'inactive',
                 'designation_id' => $designation->id,
-            ], ['Referer' => route('employees.edit', $employee)])
-            ->assertRedirect(route('employees.index'))
+            ], ['Referer' => route('faculties.edit', $employee)])
+            ->assertRedirect(route('faculties.index'))
             ->assertSessionHasNoErrors();
 
         $this->assertSame('inactive', $employee->fresh()->status);
 
         $this->asCollege($college, $admin)
-            ->delete(route('employees.destroy', $employee), [], ['Referer' => route('employees.index')])
-            ->assertRedirect(route('employees.index'));
+            ->delete(route('faculties.destroy', $employee), [], ['Referer' => route('faculties.index')])
+            ->assertRedirect(route('faculties.index'));
         $this->assertSoftDeleted('faculties', ['id' => $employee->id]);
     }
 
@@ -77,19 +77,19 @@ class HRManagementTest extends TestCase
     {
         $collegeA = $this->makeCollege('HRDUPA');
         $collegeB = $this->makeCollege('HRDUPB');
-        $adminA = $this->makeUserWithPermissions($collegeA, ['employees.view', 'employees.create', 'designations.view', 'designations.create']);
-        $adminB = $this->makeUserWithPermissions($collegeB, ['employees.view', 'employees.create', 'designations.view', 'designations.create']);
+        $adminA = $this->makeUserWithPermissions($collegeA, ['faculties.view', 'faculties.create', 'designations.view', 'designations.create']);
+        $adminB = $this->makeUserWithPermissions($collegeB, ['faculties.view', 'faculties.create', 'designations.view', 'designations.create']);
 
         $designation = Designation::create(['college_id' => $collegeA->id, 'name' => 'Manager', 'code' => 'MGR', 'status' => 'active']);
         Faculty::create(['college_id' => $collegeA->id, 'employee_code' => 'EMP-100', 'first_name' => 'Ada', 'last_name' => 'Lovelace', 'status' => 'active']);
 
-        $this->asCollege($collegeA, $adminA)->post(route('employees.store'), [
+        $this->asCollege($collegeA, $adminA)->post(route('faculties.store'), [
             'employee_code' => 'emp-100', 'first_name' => 'Duplicate', 'last_name' => 'Person', 'status' => 'active',
-        ], ['Referer' => route('employees.index')])->assertSessionHasErrors('employee_code');
+        ], ['Referer' => route('faculties.index')])->assertSessionHasErrors('employee_code');
 
-        $this->asCollege($collegeB, $adminB)->post(route('employees.store'), [
+        $this->asCollege($collegeB, $adminB)->post(route('faculties.store'), [
             'employee_code' => 'EMP-100', 'first_name' => 'Other', 'last_name' => 'College', 'status' => 'active',
-        ], ['Referer' => route('employees.index')])->assertSessionHasNoErrors();
+        ], ['Referer' => route('faculties.index')])->assertSessionHasNoErrors();
 
         $this->asCollege($collegeA, $adminA)->post(route('designations.store'), [
             'name' => 'Another Manager', 'code' => 'mgr', 'status' => 'active',
@@ -102,11 +102,11 @@ class HRManagementTest extends TestCase
         $this->assertSame($collegeA->id, $designation->college_id);
     }
 
-    public function test_hr_navigation_has_only_the_four_permission_gated_options(): void
+    public function test_hr_navigation_shows_only_the_granted_permission_gated_options(): void
     {
         $college = $this->makeCollege('HRNAV');
         $user = $this->makeUserWithPermissions($college, [
-            'employees.view', 'departments.view', 'designations.view', 'employee_documents.view',
+            'faculties.view', 'departments.view', 'designations.view', 'employee_documents.view',
         ]);
 
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
@@ -120,4 +120,25 @@ class HRManagementTest extends TestCase
             $this->assertStringContainsString($label, $group);
         }
     }
+
+    public function test_hr_navigation_exposes_all_eight_options_only_with_actual_view_permissions(): void
+    {
+        $college = $this->makeCollege('HREIGHT');
+        $user = $this->makeUserWithPermissions($college, [
+            'faculties.view', 'departments.view', 'designations.view', 'employee_documents.view',
+            'staff_attendance.view', 'leave_requests.view', 'salary_structures.view', 'hr_reports.view',
+        ]);
+
+        $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
+        $start = strpos($html, '>HR / Staff Management</div>');
+        $this->assertNotFalse($start);
+        $end = strpos($html, 'uppercase tracking-widest', $start + 1);
+        $group = substr($html, $start, $end === false ? null : $end - $start);
+        $this->assertSame(8, substr_count($group, 'class="nav-link"'));
+        foreach (['Staff / Employee', 'Staff Departments', 'Designations', 'Employee Documents', 'Staff Attendance', 'Leave Management', 'Staff Salary / Payroll', 'HR Reports'] as $label) {
+            $this->assertStringContainsString($label, $group);
+        }
+        $this->assertStringNotContainsString('employees.', $group);
+    }
+
 }

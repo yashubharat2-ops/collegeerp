@@ -43,6 +43,13 @@ use App\Http\Controllers\StudentFeeAssignmentController;
 use App\Http\Controllers\GradeCardController;
 use App\Http\Controllers\GradeScaleController;
 use App\Http\Controllers\InstitutionalSettingController;
+use App\Http\Controllers\StaffAttendanceController;
+use App\Http\Controllers\LeaveTypeController;
+use App\Http\Controllers\LeaveRequestController;
+use App\Http\Controllers\SalaryStructureController;
+use App\Http\Controllers\SalaryComponentController;
+use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\HrReportController;
 use App\Http\Controllers\MarksheetController;
 use App\Http\Controllers\ProgramController;
 use App\Http\Controllers\ResultCalculationController;
@@ -102,6 +109,20 @@ Route::middleware('auth')->group(function () {
         Route::resource('designations', DesignationController::class);
         Route::get('employee-documents/{employee_document}/download', [EmployeeDocumentController::class, 'download'])->name('employee-documents.download');
         Route::resource('employee-documents', EmployeeDocumentController::class);
+
+        // HR Phase 1 additions: tenant-scoped operational records and live reports.
+        Route::resource('staff-attendance', StaffAttendanceController::class)->except('show');
+        Route::resource('leave-types', LeaveTypeController::class)->except('show');
+        Route::post('leave-requests/{leave_request}/approve', [LeaveRequestController::class, 'approve'])->name('leave-requests.approve');
+        Route::post('leave-requests/{leave_request}/reject', [LeaveRequestController::class, 'reject'])->name('leave-requests.reject');
+        Route::post('leave-requests/{leave_request}/cancel', [LeaveRequestController::class, 'cancel'])->name('leave-requests.cancel');
+        Route::resource('leave-requests', LeaveRequestController::class)->except('show');
+        Route::resource('salary-structures', SalaryStructureController::class);
+        Route::resource('salary-components', SalaryComponentController::class)->except('show');
+        Route::post('payrolls/{payroll}/cancel', [PayrollController::class, 'cancel'])->name('payrolls.cancel');
+        Route::resource('payrolls', PayrollController::class)->only(['index', 'create', 'store', 'show']);
+        Route::get('hr-reports', [HrReportController::class, 'index'])->name('hr-reports.index');
+
         Route::resource('faculty-subject-assignments', FacultySubjectAssignmentController::class)->except('show');
         Route::get('admission/dashboard', AdmissionDashboardController::class)->name('admission.dashboard');
         Route::resource('admission-applicants', AdmissionApplicantController::class)->except('show');

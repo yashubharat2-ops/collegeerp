@@ -6,9 +6,9 @@
 <a class="nav-link" href="{{ route('sections.index') }}">👥 <span>Sections / Batches</span></a>
 <a class="nav-link" href="{{ route('subjects.index') }}">📚 <span>Subjects</span></a>
 <a class="nav-link" href="{{ route('faculty-subject-assignments.index') }}">🔗 <span>Faculty–Subject Assignments</span></a>
-@if(auth()->user()?->hasPermission('employees.view') || auth()->user()?->hasPermission('faculties.view') || auth()->user()?->hasPermission('departments.view') || auth()->user()?->hasPermission('designations.view') || auth()->user()?->hasPermission('employee_documents.view'))
+@if(auth()->user()?->hasPermission('faculties.view') || auth()->user()?->hasPermission('departments.view') || auth()->user()?->hasPermission('designations.view') || auth()->user()?->hasPermission('employee_documents.view') || auth()->user()?->hasPermission('staff_attendance.view') || auth()->user()?->hasPermission('leave_types.view') || auth()->user()?->hasPermission('leave_requests.view') || auth()->user()?->hasPermission('salary_structures.view') || auth()->user()?->hasPermission('salary_components.view') || auth()->user()?->hasPermission('payrolls.view') || auth()->user()?->hasPermission('hr_reports.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">HR / Staff Management</div>
-@if(auth()->user()?->hasPermission('employees.view') || auth()->user()?->hasPermission('faculties.view'))
+@if(auth()->user()?->hasPermission('faculties.view'))
 <a class="nav-link" href="{{ route('employees.index') }}">👥 <span>Staff / Employee</span></a>
 @endif
 @if(auth()->user()?->hasPermission('departments.view'))
@@ -19,6 +19,18 @@
 @endif
 @if(auth()->user()?->hasPermission('employee_documents.view'))
 <a class="nav-link" href="{{ route('employee-documents.index') }}">📄 <span>Employee Documents</span></a>
+@endif
+@if(auth()->user()?->hasPermission('staff_attendance.view'))
+<a class="nav-link" href="{{ route('staff-attendance.index') }}">✓ <span>Staff Attendance</span></a>
+@endif
+@if(auth()->user()?->hasPermission('leave_requests.view') || auth()->user()?->hasPermission('leave_types.view'))
+<a class="nav-link" href="{{ auth()->user()?->hasPermission('leave_requests.view') ? route('leave-requests.index') : route('leave-types.index') }}">🗓 <span>Leave Management</span></a>
+@endif
+@if(auth()->user()?->hasPermission('salary_structures.view') || auth()->user()?->hasPermission('salary_components.view') || auth()->user()?->hasPermission('payrolls.view'))
+<a class="nav-link" href="{{ auth()->user()?->hasPermission('payrolls.view') ? route('payrolls.index') : (auth()->user()?->hasPermission('salary_structures.view') ? route('salary-structures.index') : route('salary-components.index')) }}">💰 <span>Staff Salary / Payroll</span></a>
+@endif
+@if(auth()->user()?->hasPermission('hr_reports.view'))
+<a class="nav-link" href="{{ route('hr-reports.index') }}">📈 <span>HR Reports</span></a>
 @endif
 @endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Admissions</div>

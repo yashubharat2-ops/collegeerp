@@ -8,9 +8,8 @@ use App\Models\User;
 /**
  * Platform Faculty/Staff and HR Employee policy.
  *
- * HR routes use the same Faculty records, so both the pre-existing faculty
- * permissions and the HR employee permissions are accepted during the additive
- * transition. No second staff table or authorization boundary is introduced.
+ * HR routes use the same Faculty records and the canonical faculties.*
+ * permission family. No duplicate employees.* permission boundary is used.
  */
 class FacultyPolicy
 {
@@ -41,7 +40,6 @@ class FacultyPolicy
 
     private function allows(User $user, string $action, ?int $collegeId = null): bool
     {
-        return $user->hasPermission('faculties.'.$action, $collegeId)
-            || $user->hasPermission('employees.'.$action, $collegeId);
+        return $user->hasPermission('faculties.'.$action, $collegeId);
     }
 }
