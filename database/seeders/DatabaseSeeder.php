@@ -107,6 +107,7 @@ class DatabaseSeeder extends Seeder
             'library_transactions.view', 'library_transactions.create', 'library_transactions.update', 'library_transactions.return',
             // Library Management Phase 2 — Renewals (append-only due-date history).
             'library_renewals.view', 'library_renewals.create',
+            'library_fines.view', 'library_fines.create', 'library_fines.update', 'library_fines.pay', 'library_reports.view',
             'roles.view', 'roles.update',
             'permissions.view',
         ])->mapWithKeys(fn ($slug) => [$slug => Permission::firstOrCreate(['slug' => $slug], ['name' => Str::headline($slug), 'module' => Str::before($slug, '.'), 'action' => Str::after($slug, '.')])]);
