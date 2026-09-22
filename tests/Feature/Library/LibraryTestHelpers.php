@@ -40,6 +40,8 @@ trait LibraryTestHelpers
         'library_members.view', 'library_members.create', 'library_members.update', 'library_members.delete',
         'library_transactions.view', 'library_transactions.create', 'library_transactions.update', 'library_transactions.return',
         'library_renewals.view', 'library_renewals.create',
+        'library_fines.view', 'library_fines.create', 'library_fines.update', 'library_fines.pay',
+        'library_reports.view',
     ];
 
     /**
