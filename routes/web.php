@@ -352,6 +352,16 @@ Route::middleware('auth')->group(function () {
         // Transport Phase 2 — Transport Reports (read-only).
         Route::get('transport-reports', [\App\Http\Controllers\Transport\TransportReportController::class, 'index'])->name('transport-reports.index');
 
+        // Hostel Management — Phase 1: tenant-scoped masters only (Dashboard,
+        // Hostels, Buildings / Blocks, Rooms, Beds). Allocation, Fees,
+        // Attendance, Visitors and Reports are future phases. The dashboard is
+        // read-only and aggregated live (no dashboard tables).
+        Route::get('hostels/dashboard', \App\Http\Controllers\Hostel\HostelDashboardController::class)->name('hostels.dashboard');
+        Route::resource('hostels', \App\Http\Controllers\Hostel\HostelController::class)->except('show')->parameters(['hostels' => 'hostel']);
+        Route::resource('hostel-buildings', \App\Http\Controllers\Hostel\HostelBuildingController::class)->except('show')->parameters(['hostel-buildings' => 'building']);
+        Route::resource('hostel-rooms', \App\Http\Controllers\Hostel\HostelRoomController::class)->except('show')->parameters(['hostel-rooms' => 'room']);
+        Route::resource('hostel-beds', \App\Http\Controllers\Hostel\HostelBedController::class)->except('show')->parameters(['hostel-beds' => 'bed']);
+
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
     });
