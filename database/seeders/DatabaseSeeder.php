@@ -19,6 +19,8 @@ class DatabaseSeeder extends Seeder
             ...CommunicationPermissionSeeder::PERMISSIONS,
             // Communication Management Phase 2 (SMS / e-mail templates and logs, delivery / read tracking, reports).
             ...CommunicationPhase2PermissionSeeder::PERMISSIONS,
+            // Inventory / Asset Management Phase 1 (dashboard, item categories, items/assets, vendors).
+            ...InventoryPermissionSeeder::PERMISSIONS,
             'dashboard.view',
             'colleges.view', 'colleges.update',
             'campuses.view', 'campuses.create', 'campuses.update', 'campuses.delete',
