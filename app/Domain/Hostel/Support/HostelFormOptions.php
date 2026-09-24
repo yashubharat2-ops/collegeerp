@@ -3,6 +3,7 @@
 namespace App\Domain\Hostel\Support;
 
 use App\Models\Hostel;
+use App\Models\HostelBed;
 use App\Models\HostelBuilding;
 use App\Models\HostelRoom;
 
@@ -60,6 +61,23 @@ final class HostelFormOptions
     }
 
     /**
+     * Beds (with their room/building/hostel) for allocation filters.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, HostelBed>
+     */
+    public static function beds(): mixed
+    {
+        return HostelBed::query()
+            ->with(['room:id,room_number', 'building:id,name', 'hostel:id,name'])
+            ->orderBy('hostel_id')
+            ->orderBy('building_id')
+            ->orderBy('room_id')
+            ->orderBy('bed_number')
+            ->orderBy('id')
+            ->get(['id', 'hostel_id', 'building_id', 'room_id', 'bed_number', 'status']);
+    }
+
+    /**
      * A display label like "North Block (Boys Hostel)" for an option.
      */
     public static function buildingLabel(HostelBuilding $building): string
@@ -73,5 +91,13 @@ final class HostelFormOptions
     public static function roomLabel(HostelRoom $room): string
     {
         return $room->room_number.' — '.($room->building?->name ?? '—').' ('.($room->hostel?->name ?? '—').')';
+    }
+
+    /**
+     * A display label like "Bed 1 — 101 — North Block (Boys Hostel)" for an option.
+     */
+    public static function bedLabel(HostelBed $bed): string
+    {
+        return $bed->bed_number.' — '.($bed->room?->room_number ?? '—').' — '.($bed->building?->name ?? '—').' ('.($bed->hostel?->name ?? '—').')';
     }
 }

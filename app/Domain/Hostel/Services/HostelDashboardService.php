@@ -3,8 +3,10 @@
 namespace App\Domain\Hostel\Services;
 
 use App\Models\Hostel;
+use App\Models\HostelAllocation;
 use App\Models\HostelBed;
 use App\Models\HostelBuilding;
+use App\Models\HostelFeeAssignment;
 use App\Models\HostelRoom;
 use Illuminate\Support\Collection;
 
@@ -35,6 +37,10 @@ class HostelDashboardService
             'available_beds' => HostelBed::query()->where('status', HostelBed::STATUS_AVAILABLE)->count(),
             'occupied_beds' => HostelBed::query()->where('status', HostelBed::STATUS_OCCUPIED)->count(),
             'inactive_beds' => HostelBed::query()->where('status', HostelBed::STATUS_INACTIVE)->count(),
+            // Phase 2 — allocations and fee assignments (live counts, tenant-scoped).
+            'allocations' => class_exists(HostelAllocation::class) ? HostelAllocation::query()->count() : 0,
+            'active_allocations' => class_exists(HostelAllocation::class) ? HostelAllocation::query()->where('status', HostelAllocation::STATUS_ACTIVE)->count() : 0,
+            'fee_assignments' => class_exists(HostelFeeAssignment::class) ? HostelFeeAssignment::query()->count() : 0,
         ];
     }
 

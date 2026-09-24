@@ -4,9 +4,11 @@ namespace App\Domain\Finance\Services;
 
 use App\Domain\Finance\Actions\GenerateFeePaymentNumber;
 use App\Domain\Finance\Support\FeeLedger;
+use App\Domain\Hostel\Services\HostelFeeService;
 use App\Domain\Transport\Services\TransportFeeService;
 use App\Models\FeePayment;
 use App\Models\FeeRefund;
+use App\Models\HostelFeeAssignment;
 use App\Models\StudentFeeAssignment;
 use App\Models\StudentTransportFeeAssignment;
 use App\Models\User;
@@ -20,12 +22,13 @@ use Illuminate\Validation\ValidationException;
  * FeeCollectionService — records and reverses student fee collections.
  *
  * This is the ONLY place a collected amount is ever written: tuition fee
- * collections (against a StudentFeeAssignment) and TRANSPORT fee collections
- * (against a StudentTransportFeeAssignment) share these same payment rows, the
+ * collections (against a StudentFeeAssignment), TRANSPORT fee collections
+ * (against a StudentTransportFeeAssignment) and HOSTEL fee collections
+ * (against a HostelFeeAssignment) share these same payment rows, the
  * same server-generated payment number series and the same receipt projection,
  * so no second payment system exists. Exactly one of
- * `student_fee_assignment_id` / `transport_fee_assignment_id` is ever set —
- * stamped server-side here, never from the request.
+ * `student_fee_assignment_id` / `transport_fee_assignment_id` / `hostel_fee_assignment_id`
+ * is ever set — stamped server-side here, never from the request.
  *
  * Every write happens inside a transaction on a LOCKED assignment row, so the
  * two monetary invariants cannot be broken by concurrency:
@@ -47,6 +50,7 @@ class FeeCollectionService
         'student_enrollment_id',
         'fee_structure_id',
         'transport_fee_assignment_id',
+        'hostel_fee_assignment_id',
         'payment_number',
         'payment_date',
         'payment_mode',
@@ -119,6 +123,7 @@ class FeeCollectionService
                 'student_enrollment_id' => $locked->student_enrollment_id,
                 'fee_structure_id' => $locked->fee_structure_id,
                 'transport_fee_assignment_id' => null,
+                'hostel_fee_assignment_id' => null,
                 'payment_number' => $this->numbers->execute((int) $locked->college_id),
                 'payment_date' => $data['payment_date'],
                 'payment_mode' => $data['payment_mode'],
@@ -197,6 +202,85 @@ class FeeCollectionService
                 'student_enrollment_id' => $locked->studentTransportAssignment->student_enrollment_id,
                 'fee_structure_id' => null,
                 'transport_fee_assignment_id' => $locked->getKey(),
+                'hostel_fee_assignment_id' => null,
+                'payment_number' => $this->numbers->execute((int) $locked->college_id),
+                'payment_date' => $data['payment_date'],
+                'payment_mode' => $data['payment_mode'],
+                'amount' => $amount,
+                'reference_number' => ($data['reference_number'] ?? null) ?: null,
+                'submission_token' => $token !== '' ? $token : null,
+                'status' => FeePayment::STATUS_COMPLETED,
+                'remarks' => ($data['remarks'] ?? null) ?: null,
+                'collected_by' => $actor->getKey(),
+                'collected_at' => now(),
+                'created_by' => $actor->getKey(),
+                'updated_by' => $actor->getKey(),
+            ], $token);
+
+            $this->audit->record('fee_payments.collected', $payment, [], $payment->only(self::AUDITED));
+
+            return $payment->refresh();
+        });
+    }
+
+
+    /**
+     * Record a HOSTEL fee collection against a hostel fee assignment.
+     *
+     * Same single payment row, payment number series, outstanding cap and
+     * receipt projection as tuition/transport collections — no second money
+     * path. Hostel fees have no concessions, so outstanding is
+     * amount − valid payments + valid refunds, derived with shared FeeLedger
+     * arithmetic while row lock is held.
+     *
+     * @param  array{payment_date: string, payment_mode: string, amount: mixed, reference_number?: string|null, submission_token?: string|null, remarks?: string|null}  $data
+     */
+    public function collectHostelFee(HostelFeeAssignment $assignment, array $data, User $actor): FeePayment
+    {
+        $this->assertTenant($assignment);
+
+        return DB::transaction(function () use ($assignment, $data, $actor): FeePayment {
+            /** @var HostelFeeAssignment $locked */
+            $locked = HostelFeeAssignment::withoutGlobalScopes()
+                ->whereKey($assignment->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (! $locked->isPayable()) {
+                throw ValidationException::withMessages([
+                    'hostel_fee_assignment_id' => 'This hostel fee assignment is cancelled and cannot be collected against.',
+                ]);
+            }
+
+            $amount = FeeLedger::money($data['amount']);
+
+            if ($amount <= 0) {
+                throw ValidationException::withMessages(['amount' => 'The amount must be greater than zero.']);
+            }
+
+            if ($amount > FeePayment::MAX_AMOUNT) {
+                throw ValidationException::withMessages(['amount' => 'The amount exceeds the maximum supported value.']);
+            }
+
+            $summary = app(HostelFeeService::class)->summaryFor($locked);
+
+            if ($amount > $summary['outstanding'] + FeeLedger::TOLERANCE) {
+                throw ValidationException::withMessages([
+                    'amount' => 'The amount exceeds the outstanding balance of '.number_format($summary['outstanding'], 2).'.',
+                ]);
+            }
+
+            $this->assertNoDuplicateReference((int) $locked->college_id, 'hostel_fee_assignment_id', $locked->getKey(), $data, $amount);
+
+            $token = trim((string) ($data['submission_token'] ?? ''));
+
+            $payment = $this->createPaymentRecord([
+                'college_id' => $locked->college_id,
+                'student_fee_assignment_id' => null,
+                'student_enrollment_id' => $locked->hostelAllocation->student_enrollment_id,
+                'fee_structure_id' => null,
+                'transport_fee_assignment_id' => null,
+                'hostel_fee_assignment_id' => $locked->getKey(),
                 'payment_number' => $this->numbers->execute((int) $locked->college_id),
                 'payment_date' => $data['payment_date'],
                 'payment_mode' => $data['payment_mode'],
@@ -219,6 +303,7 @@ class FeeCollectionService
 
     /**
      * Create the payment row (shared by every collection path) and translate a
+
      * double-submission collision into a friendly validation error.
      *
      * @param  array<string, mixed>  $attributes
@@ -273,10 +358,12 @@ class FeeCollectionService
                     : $data[$field];
             }
 
+            $targetColumn = $payment->student_fee_assignment_id !== null ? 'student_fee_assignment_id' : ($payment->transport_fee_assignment_id !== null ? 'transport_fee_assignment_id' : 'hostel_fee_assignment_id');
+            $targetId = (int) ($payment->student_fee_assignment_id ?? $payment->transport_fee_assignment_id ?? $payment->hostel_fee_assignment_id);
             $this->assertNoDuplicateReference(
                 (int) $payment->college_id,
-                $payment->student_fee_assignment_id !== null ? 'student_fee_assignment_id' : 'transport_fee_assignment_id',
-                (int) ($payment->student_fee_assignment_id ?? $payment->transport_fee_assignment_id),
+                $targetColumn,
+                $targetId,
                 [
                     'payment_date' => $payment->payment_date?->format('Y-m-d'),
                     'payment_mode' => $payment->payment_mode,
@@ -425,7 +512,7 @@ class FeeCollectionService
      * path — tuition or transport) and the payment itself (read/mutate paths)
      * are guarded.
      */
-    private function assertTenant(FeePayment|StudentFeeAssignment|StudentTransportFeeAssignment $record): void
+    private function assertTenant(FeePayment|StudentFeeAssignment|StudentTransportFeeAssignment|HostelFeeAssignment $record): void
     {
         $collegeId = app(TenantContext::class)->id();
 

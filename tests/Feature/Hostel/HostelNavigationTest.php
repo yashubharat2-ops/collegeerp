@@ -8,23 +8,22 @@ use App\Models\User;
 use Tests\TestCase;
 
 /**
- * Sidebar navigation for the Hostel Management module.
+ * Sidebar navigation for the Hostel Management module — Phase 2.
  *
  * Guards the invariants the module depends on:
  *   - a single "Hostel Management" section, rendered exactly once;
- *   - it lists exactly the five Phase 1 entries
- *     (dashboard, hostels, buildings / blocks, rooms, beds);
+ *   - it lists exactly the seven Phase 2 entries
+ *     (dashboard, hostels, buildings / blocks, rooms, beds, allocation, fees);
  *   - every entry is individually gated on its own view permission;
  *   - the section is hidden entirely without any hostel permission;
- *   - Phase 2 / Phase 3 entries (allocation, fees, attendance, visitors and
- *     reports) are not yet rendered.
+ *   - Phase 3 entries (attendance, visitors and reports) are not rendered.
  */
 class HostelNavigationTest extends TestCase
 {
     use HostelTestHelpers;
 
     /**
-     * The five Phase 1 navigation entries, in order:
+     * The seven Phase 2 navigation entries, in order:
      * label => [permission, route].
      *
      * @var array<string, array{0: string, 1: string}>
@@ -35,6 +34,8 @@ class HostelNavigationTest extends TestCase
         'Buildings / Blocks' => ['hostel_buildings.view', 'hostel-buildings.index'],
         'Rooms' => ['hostel_rooms.view', 'hostel-rooms.index'],
         'Beds' => ['hostel_beds.view', 'hostel-beds.index'],
+        'Hostel Allocation' => ['hostel_allocations.view', 'hostel-allocations.index'],
+        'Hostel Fees' => ['hostel_fees.view', 'hostel-fees.index'],
     ];
 
     /**
@@ -72,16 +73,16 @@ class HostelNavigationTest extends TestCase
 
         $group = $this->hostelNavGroup($html);
 
-        $this->assertSame(5, substr_count($group, 'class="nav-link"'), 'The Hostel Management group must list exactly the five Phase 1 entries.');
+        $this->assertSame(7, substr_count($group, 'class="nav-link"'), 'The Hostel Management group must list exactly the seven Phase 2 entries.');
 
         foreach (self::ENTRIES as $label => [$permission, $route]) {
             $this->assertStringContainsString(route($route), $group, "Missing hostel entry route: {$label}");
             $this->assertStringContainsString($label, $group, "Missing hostel entry label: {$label}");
         }
 
-        // Phase 2 / Phase 3 entries are not rendered.
-        foreach (['Hostel Allocation', 'Hostel Fees', 'Hostel Attendance', 'Visitors', 'Hostel Reports'] as $future) {
-            $this->assertStringNotContainsString($future, $group, "{$future} must not be rendered in Phase 1.");
+        // Phase 3 entries are not rendered.
+        foreach (['Hostel Attendance', 'Visitors', 'Hostel Reports'] as $future) {
+            $this->assertStringNotContainsString($future, $group, "{$future} must not be rendered (Phase 3).");
         }
     }
 
@@ -137,7 +138,7 @@ class HostelNavigationTest extends TestCase
         // fully populated…
         $hostelStart = (int) strpos($html, '>Hostel Management</div>');
         $this->assertGreaterThan($libraryStart, $hostelStart);
-        $this->assertSame(5, substr_count($this->hostelNavGroup($html), 'class="nav-link"'));
+        $this->assertSame(7, substr_count($this->hostelNavGroup($html), 'class="nav-link"'));
 
         // …and Platform / Settings still closes the sidebar after it.
         $this->assertGreaterThan($hostelStart, (int) strrpos($html, '>Platform</div>'));
@@ -165,7 +166,7 @@ class HostelNavigationTest extends TestCase
             $response->assertSee(route($route), false)->assertSee($label);
         }
 
-        foreach (['hostels.dashboard', 'hostels.index', 'hostels.create', 'hostel-buildings.index', 'hostel-buildings.create', 'hostel-rooms.index', 'hostel-rooms.create', 'hostel-beds.index', 'hostel-beds.create'] as $route) {
+        foreach (['hostels.dashboard', 'hostels.index', 'hostels.create', 'hostel-buildings.index', 'hostel-buildings.create', 'hostel-rooms.index', 'hostel-rooms.create', 'hostel-beds.index', 'hostel-beds.create', 'hostel-allocations.index', 'hostel-allocations.create', 'hostel-fees.index', 'hostel-fees.create', 'hostel-fee-structures.index', 'hostel-fee-structures.create'] as $route) {
             $this->asCollege($college, $user)->get(route($route))->assertOk();
         }
     }

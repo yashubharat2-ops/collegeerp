@@ -72,6 +72,21 @@
                 <p class="mt-1 text-xs text-slate-500">share of beds currently marked occupied</p>
             </div>
         </div>
+
+        @if(isset($totals['allocations']))
+        <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div class="rounded-lg border border-slate-200 p-4">
+                <p class="text-xs text-slate-500">Active allocations</p>
+                <p class="text-xl font-bold">{{ $totals['active_allocations'] ?? 0 }}</p>
+                <p class="mt-1 text-xs text-slate-500">{{ $totals['allocations'] ?? 0 }} total allocations</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4">
+                <p class="text-xs text-slate-500">Hostel fee assignments</p>
+                <p class="text-xl font-bold">{{ $totals['fee_assignments'] ?? 0 }}</p>
+                <p class="mt-1 text-xs text-slate-500">live count</p>
+            </div>
+        </div>
+        @endif
     </div>
 
     @if($totalHostels === 0)

@@ -10,11 +10,12 @@ use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
- * Hostel Management RBAC seeding.
+ * Hostel Management RBAC seeding — Phase 2.
  *
  * Hostel permissions must exist exactly once, be granted to the seeded
- * super-admin and college-admin roles, and re-seeding must be a no-op. Phase 2
- * and Phase 3 permission slugs are deliberately not seeded yet.
+ * super-admin and college-admin roles, and re-seeding must be a no-op.
+ * Phase 3 permission slugs (attendance, visitors, reports, etc.) are
+ * deliberately not seeded yet.
  */
 class HostelModuleSeederTest extends TestCase
 {
@@ -28,7 +29,7 @@ class HostelModuleSeederTest extends TestCase
         $adminGranted = $admin->permissions()->pluck('slug')->all();
         $superGranted = $super->permissions()->pluck('slug')->all();
 
-        $this->assertCount(17, self::HOSTEL_PERMISSIONS);
+        $this->assertCount(26, self::HOSTEL_PERMISSIONS);
 
         foreach (self::HOSTEL_PERMISSIONS as $slug) {
             $this->assertSame(1, Permission::where('slug', $slug)->count(), "Permission {$slug} must be seeded exactly once.");
@@ -44,13 +45,14 @@ class HostelModuleSeederTest extends TestCase
     public function test_out_of_scope_hostel_permissions_are_not_seeded(): void
     {
         foreach ([
-            'hostel_allocations.view',
-            'hostel_fees.view',
             'hostel_attendance.view',
             'hostel_visitors.view',
             'hostel_reports.view',
+            'hostel_attendance.create',
+            'hostel_visitors.create',
+            'hostel_reports.create',
         ] as $slug) {
-            $this->assertSame(0, Permission::where('slug', $slug)->count(), "{$slug} is not part of this phase.");
+            $this->assertSame(0, Permission::where('slug', $slug)->count(), "{$slug} is not part of Phase 2.");
         }
     }
 

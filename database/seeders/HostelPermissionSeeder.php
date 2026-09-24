@@ -15,6 +15,9 @@ class HostelPermissionSeeder extends Seeder
         'hostel_buildings.view', 'hostel_buildings.create', 'hostel_buildings.update', 'hostel_buildings.delete',
         'hostel_rooms.view', 'hostel_rooms.create', 'hostel_rooms.update', 'hostel_rooms.delete',
         'hostel_beds.view', 'hostel_beds.create', 'hostel_beds.update', 'hostel_beds.delete',
+        // Hostel Management Phase 2 — Allocation and Fees.
+        'hostel_allocations.view', 'hostel_allocations.create', 'hostel_allocations.update', 'hostel_allocations.delete',
+        'hostel_fees.view', 'hostel_fees.create', 'hostel_fees.update', 'hostel_fees.delete', 'hostel_fees.collect',
     ];
 
     public function run(): void

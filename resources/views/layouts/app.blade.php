@@ -193,7 +193,7 @@
 <a class="nav-link" href="{{ route('library-reports.index') }}">📊 <span>Library Reports</span></a>
 @endif
 @endif
-@if(auth()->user()?->hasPermission('hostel_dashboard.view') || auth()->user()?->hasPermission('hostels.view') || auth()->user()?->hasPermission('hostel_buildings.view') || auth()->user()?->hasPermission('hostel_rooms.view') || auth()->user()?->hasPermission('hostel_beds.view'))
+@if(auth()->user()?->hasPermission('hostel_dashboard.view') || auth()->user()?->hasPermission('hostels.view') || auth()->user()?->hasPermission('hostel_buildings.view') || auth()->user()?->hasPermission('hostel_rooms.view') || auth()->user()?->hasPermission('hostel_beds.view') || auth()->user()?->hasPermission('hostel_allocations.view') || auth()->user()?->hasPermission('hostel_fees.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Hostel Management</div>
 @if(auth()->user()?->hasPermission('hostel_dashboard.view'))
 <a class="nav-link" href="{{ route('hostels.dashboard') }}">🏨 <span>Hostel Dashboard</span></a>
@@ -209,6 +209,12 @@
 @endif
 @if(auth()->user()?->hasPermission('hostel_beds.view'))
 <a class="nav-link" href="{{ route('hostel-beds.index') }}">🛏 <span>Beds</span></a>
+@endif
+@if(auth()->user()?->hasPermission('hostel_allocations.view'))
+<a class="nav-link" href="{{ route('hostel-allocations.index') }}">🛏 <span>Hostel Allocation</span></a>
+@endif
+@if(auth()->user()?->hasPermission('hostel_fees.view'))
+<a class="nav-link" href="{{ route('hostel-fees.index') }}">💰 <span>Hostel Fees</span></a>
 @endif
 @endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Platform</div>

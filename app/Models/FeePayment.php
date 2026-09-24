@@ -61,9 +61,10 @@ class FeePayment extends Model
         'student_fee_assignment_id',
         'student_enrollment_id',
         'fee_structure_id',
-        // Exactly one of student_fee_assignment_id / transport_fee_assignment_id
-        // is set (transport fee collections reuse this same payment row).
+        // Exactly one of student_fee_assignment_id / transport_fee_assignment_id / hostel_fee_assignment_id
+        // is set (transport and hostel fee collections reuse this same payment row).
         'transport_fee_assignment_id',
+        'hostel_fee_assignment_id',
         'payment_number',
         'payment_date',
         'payment_mode',
@@ -117,6 +118,12 @@ class FeePayment extends Model
     public function transportFeeAssignment(): BelongsTo
     {
         return $this->belongsTo(StudentTransportFeeAssignment::class, 'transport_fee_assignment_id');
+    }
+
+    /** The hostel fee assignment, for hostel fee collections. */
+    public function hostelFeeAssignment(): BelongsTo
+    {
+        return $this->belongsTo(HostelFeeAssignment::class, 'hostel_fee_assignment_id');
     }
 
     public function studentEnrollment(): BelongsTo
