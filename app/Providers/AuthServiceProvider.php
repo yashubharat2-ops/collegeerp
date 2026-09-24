@@ -6,6 +6,11 @@ use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvid
 class AuthServiceProvider extends ServiceProvider
 {
     protected $policies = [
+        // Communication Management — Phase 1 (dashboard, notices, circulars, internal notifications).
+        \App\Models\CommunicationDashboard::class => \App\Policies\CommunicationDashboardPolicy::class,
+        \App\Models\Notice::class => \App\Policies\NoticePolicy::class,
+        \App\Models\Circular::class => \App\Policies\CircularPolicy::class,
+        \App\Models\CommunicationNotification::class => \App\Policies\CommunicationNotificationPolicy::class,
         // Hostel Management — Phase 1 masters, Phase 2 allocations/fees, Phase 3 attendance/reports.
         \App\Models\HostelDashboard::class => \App\Policies\HostelDashboardPolicy::class,
         \App\Models\Hostel::class => \App\Policies\HostelPolicy::class,

@@ -15,6 +15,8 @@ class DatabaseSeeder extends Seeder
             ...TransportPermissionSeeder::PERMISSIONS,
             // Hostel Management permissions (masters, allocation, fees, attendance, reports).
             ...HostelPermissionSeeder::PERMISSIONS,
+            // Communication Management Phase 1 (dashboard, notices, circulars, internal notifications).
+            ...CommunicationPermissionSeeder::PERMISSIONS,
             'dashboard.view',
             'colleges.view', 'colleges.update',
             'campuses.view', 'campuses.create', 'campuses.update', 'campuses.delete',

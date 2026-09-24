@@ -379,6 +379,33 @@ Route::middleware('auth')->group(function () {
         // Hostel Management Phase 3 — Hostel Reports (read-only; GET only).
         Route::get('hostel-reports', [\App\Http\Controllers\Hostel\HostelReportController::class, 'index'])->name('hostel-reports.index');
 
+        // Communication Management — Phase 1 (internal only: no SMS / e-mail /
+        // WhatsApp gateways, templates, delivery logs or reports). The
+        // dashboard is read-only and aggregated live (no dashboard tables).
+        Route::get('communication', \App\Http\Controllers\Communication\CommunicationDashboardController::class)->name('communication.dashboard');
+
+        // Notices / Announcements — status only changes through the workflow
+        // actions (notices.publish); attachments stream from the private disk.
+        Route::post('notices/{notice}/publish', [\App\Http\Controllers\Communication\NoticeController::class, 'publish'])->name('notices.publish');
+        Route::post('notices/{notice}/unpublish', [\App\Http\Controllers\Communication\NoticeController::class, 'unpublish'])->name('notices.unpublish');
+        Route::post('notices/{notice}/archive', [\App\Http\Controllers\Communication\NoticeController::class, 'archive'])->name('notices.archive');
+        Route::get('notices/{notice}/attachment', [\App\Http\Controllers\Communication\NoticeController::class, 'attachment'])->name('notices.attachment');
+        Route::resource('notices', \App\Http\Controllers\Communication\NoticeController::class);
+
+        // Circulars — a separate module with its own numbering (circulars.publish).
+        Route::post('circulars/{circular}/publish', [\App\Http\Controllers\Communication\CircularController::class, 'publish'])->name('circulars.publish');
+        Route::post('circulars/{circular}/unpublish', [\App\Http\Controllers\Communication\CircularController::class, 'unpublish'])->name('circulars.unpublish');
+        Route::post('circulars/{circular}/archive', [\App\Http\Controllers\Communication\CircularController::class, 'archive'])->name('circulars.archive');
+        Route::get('circulars/{circular}/attachment', [\App\Http\Controllers\Communication\CircularController::class, 'attachment'])->name('circulars.attachment');
+        Route::resource('circulars', \App\Http\Controllers\Communication\CircularController::class);
+
+        // Internal (in-app) notifications. "read-all" is registered before the
+        // resource so it is never captured as a notification id.
+        Route::post('notifications/read-all', [\App\Http\Controllers\Communication\CommunicationNotificationController::class, 'markAllRead'])->name('notifications.read-all');
+        Route::post('notifications/{notification}/read', [\App\Http\Controllers\Communication\CommunicationNotificationController::class, 'markRead'])->name('notifications.read');
+        Route::post('notifications/{notification}/unread', [\App\Http\Controllers\Communication\CommunicationNotificationController::class, 'markUnread'])->name('notifications.unread');
+        Route::resource('notifications', \App\Http\Controllers\Communication\CommunicationNotificationController::class);
+
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
     });
