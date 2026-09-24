@@ -58,6 +58,16 @@ class CommunicationNotificationPolicy
             || ($notification->isAddressedTo($user) && $user->hasPermission('notifications.view', $collegeId));
     }
 
+    /**
+     * Record a delivery (Phase 2 tracking). Purely additive: it reuses the
+     * existing `notifications.update` permission and never affects the
+     * Phase 1 read / unread abilities above.
+     */
+    public function markDelivered(User $user, CommunicationNotification $notification): bool
+    {
+        return $this->allowed($user, $notification, 'update');
+    }
+
     private function allowed(User $user, CommunicationNotification $notification, string $action): bool
     {
         return $this->inActiveCollege($notification)

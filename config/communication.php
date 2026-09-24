@@ -10,9 +10,10 @@
 | notifications). Nothing here is specific to a college: every tenant shares
 | the same limits, and every record stays scoped to its college.
 |
-| Phase 1 is internal only. SMS / e-mail / WhatsApp gateways, templates,
-| delivery logs and external messaging APIs are deliberately NOT configured
-| here — they belong to later phases.
+| Phase 1 is internal only. Phase 2 adds reusable SMS / e-mail TEMPLATES,
+| communication LOGS, delivery / read tracking and read-only reports — still
+| without any external gateway: no SMS / e-mail / WhatsApp provider or
+| messaging API is configured here.
 |
 */
 
@@ -33,6 +34,10 @@ return [
 
     // How many recent records each Communication Dashboard panel shows.
     'dashboard_recent_limit' => 5,
+
+    // How many recent communication activity rows the Phase 2 Communication
+    // Reports screen lists per panel.
+    'reports_recent_limit' => 10,
 
     // Cap on recipient options rendered per recipient type in the
     // notification form (keeps the form light for large colleges).

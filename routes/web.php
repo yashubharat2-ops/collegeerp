@@ -406,6 +406,23 @@ Route::middleware('auth')->group(function () {
         Route::post('notifications/{notification}/unread', [\App\Http\Controllers\Communication\CommunicationNotificationController::class, 'markUnread'])->name('notifications.unread');
         Route::resource('notifications', \App\Http\Controllers\Communication\CommunicationNotificationController::class);
 
+        // Communication Management — Phase 2 (templates, logs, delivery /
+        // read tracking, reports). Still no external SMS / e-mail gateway:
+        // templates are reusable definitions and logs only record what
+        // happened to a message.
+        Route::resource('communication-templates', \App\Http\Controllers\Communication\CommunicationTemplateController::class);
+
+        // SMS / Email logs are immutable from the UI: read-only routes only.
+        Route::get('communication-logs', [\App\Http\Controllers\Communication\CommunicationLogController::class, 'index'])->name('communication-logs.index');
+        Route::get('communication-logs/{communicationLog}', [\App\Http\Controllers\Communication\CommunicationLogController::class, 'show'])->name('communication-logs.show');
+
+        // Delivery / read tracking of the existing notification flow.
+        Route::get('communication-tracking', [\App\Http\Controllers\Communication\CommunicationTrackingController::class, 'index'])->name('communication-tracking.index');
+        Route::post('communication-tracking/{notification}/delivered', [\App\Http\Controllers\Communication\CommunicationTrackingController::class, 'markDelivered'])->name('communication-tracking.delivered');
+
+        // Read-only Communication Reports (live aggregates, no report tables).
+        Route::get('communication-reports', [\App\Http\Controllers\Communication\CommunicationReportController::class, 'index'])->name('communication-reports.index');
+
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
     });

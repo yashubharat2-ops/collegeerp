@@ -8,12 +8,13 @@ use App\Models\User;
 use Tests\TestCase;
 
 /**
- * Sidebar navigation for Communication Management — Phase 1.
+ * Sidebar navigation for Communication Management — Phases 1 + 2.
  *
  *   - a single "Communication Management" group, rendered exactly once;
- *   - EXACTLY four entries: Communication Dashboard, Notices / Announcements,
- *     Circulars, Notifications — no future modules (SMS, e-mail, WhatsApp,
- *     templates, delivery logs, reports);
+ *   - EXACTLY eight entries: Communication Dashboard, Notices /
+ *     Announcements, Circulars, Notifications, SMS / Email Templates,
+ *     SMS / Email Logs, Delivery / Read Tracking, Communication Reports —
+ *     no other Communication module (WhatsApp or gateway screens);
  *   - the group appears only when the user holds at least one of the four
  *     view permissions; every entry is gated on its own permission;
  *   - Super Admin sees the entries through the centralized RBAC.
@@ -32,11 +33,26 @@ class CommunicationNavigationTest extends TestCase
         'Notices / Announcements' => ['notices.view', 'notices.index'],
         'Circulars' => ['circulars.view', 'circulars.index'],
         'Notifications' => ['notifications.view', 'notifications.index'],
+        'SMS / Email Templates' => ['communication_templates.view', 'communication-templates.index'],
+        'SMS / Email Logs' => ['communication_logs.view', 'communication-logs.index'],
+        'Delivery / Read Tracking' => ['communication_tracking.view', 'communication-tracking.index'],
+        'Communication Reports' => ['communication_reports.view', 'communication-reports.index'],
     ];
 
-    private const FUTURE = ['SMS', 'Email Gateway', 'E-mail', 'WhatsApp', 'Templates', 'Delivery Logs', 'Communication Reports'];
+    private const FUTURE = ['WhatsApp', 'Email Gateway', 'SMS Gateway', 'Push Notifications'];
 
     private const HEADING = '>Communication Management</div>';
+
+    /**
+     * The exact href attribute of a nav entry. Matching the full attribute
+     * (instead of the bare URL) keeps assertions precise now that some
+     * Communication URLs are prefixes of others (/communication vs
+     * /communication-templates).
+     */
+    private function href(string $routeName): string
+    {
+        return 'href="'.route($routeName).'"';
+    }
 
     private function communicationNavGroup(string $html): string
     {
@@ -49,7 +65,7 @@ class CommunicationNavigationTest extends TestCase
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
 
-    public function test_the_group_lists_exactly_the_four_phase_one_entries_in_order(): void
+    public function test_the_group_lists_exactly_the_eight_communication_entries_in_order(): void
     {
         $college = $this->makeCollege('CNAV1');
         $user = $this->makeUserWithPermissions($college, array_column(self::ENTRIES, 0));
@@ -60,11 +76,11 @@ class CommunicationNavigationTest extends TestCase
         $this->assertSame(1, substr_count($html, '<aside'), 'The layout keeps a single sidebar.');
 
         $group = $this->communicationNavGroup($html);
-        $this->assertSame(4, substr_count($group, 'class="nav-link"'), 'Exactly four Communication entries.');
+        $this->assertSame(8, substr_count($group, 'class="nav-link"'), 'Exactly eight Communication entries.');
 
         $cursor = -1;
         foreach (self::ENTRIES as $label => [$permission, $route]) {
-            $position = strpos($group, route($route));
+            $position = strpos($group, $this->href($route));
             $this->assertNotFalse($position, "Missing entry route: {$label}");
             $this->assertStringContainsString($label, $group);
             $this->assertGreaterThan($cursor, $position, "{$label} is out of order.");
@@ -81,14 +97,11 @@ class CommunicationNavigationTest extends TestCase
         $college = $this->makeCollege('CNAV2');
 
         $stranger = $this->makeUserWithPermissions($college, ['students.view', 'hostels.view']);
-        $this->asCollege($college, $stranger)
-            ->get(route('dashboard'))
-            ->assertOk()
-            ->assertDontSee(self::HEADING, false)
-            ->assertDontSee(route('communication.dashboard'), false)
-            ->assertDontSee(route('notices.index'), false)
-            ->assertDontSee(route('circulars.index'), false)
-            ->assertDontSee(route('notifications.index'), false);
+        $response = $this->asCollege($college, $stranger)->get(route('dashboard'))->assertOk()->assertDontSee(self::HEADING, false);
+
+        foreach (self::ENTRIES as $label => [$permission, $entryRoute]) {
+            $response->assertDontSee($this->href($entryRoute), false);
+        }
 
         // Write-only permissions open no screen, so they do not surface the group.
         $writer = $this->makeUserWithPermissions($college, ['notices.create', 'circulars.publish', 'notifications.create']);
@@ -111,11 +124,11 @@ class CommunicationNavigationTest extends TestCase
             $group = $this->communicationNavGroup($this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent());
 
             $this->assertSame(1, substr_count($group, 'class="nav-link"'), "Only the {$label} entry may render for {$permission}.");
-            $this->assertStringContainsString(route($route), $group);
+            $this->assertStringContainsString($this->href($route), $group);
 
             foreach (self::ENTRIES as $otherLabel => [$otherPermission, $otherRoute]) {
                 if ($otherRoute !== $route) {
-                    $this->assertStringNotContainsString(route($otherRoute), $group, "{$otherLabel} must be hidden without {$otherPermission}.");
+                    $this->assertStringNotContainsString($this->href($otherRoute), $group, "{$otherLabel} must be hidden without {$otherPermission}.");
                 }
             }
         }
@@ -129,9 +142,9 @@ class CommunicationNavigationTest extends TestCase
         $html = $this->asCollege($college, $super)->get(route('dashboard'))->assertOk()->getContent();
         $group = $this->communicationNavGroup($html);
 
-        $this->assertSame(4, substr_count($group, 'class="nav-link"'));
+        $this->assertSame(8, substr_count($group, 'class="nav-link"'));
         foreach (self::ENTRIES as $label => [$permission, $route]) {
-            $this->assertStringContainsString(route($route), $group);
+            $this->assertStringContainsString($this->href($route), $group);
         }
 
         // The group sits after Hostel Management and before the closing Platform / Settings section.
@@ -140,7 +153,12 @@ class CommunicationNavigationTest extends TestCase
         $this->assertGreaterThan($communication, (int) strrpos($html, '>Platform</div>'));
 
         // …and its screens open for the super admin.
-        foreach (['communication.dashboard', 'notices.index', 'notices.create', 'circulars.index', 'circulars.create', 'notifications.index', 'notifications.create'] as $route) {
+        foreach ([
+            'communication.dashboard', 'notices.index', 'notices.create', 'circulars.index', 'circulars.create',
+            'notifications.index', 'notifications.create', 'communication-templates.index',
+            'communication-templates.create', 'communication-logs.index', 'communication-tracking.index',
+            'communication-reports.index',
+        ] as $route) {
             $this->asCollege($college, $super)->get(route($route))->assertOk();
         }
     }
@@ -158,10 +176,15 @@ class CommunicationNavigationTest extends TestCase
 
         $response = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk();
         foreach (self::ENTRIES as $label => [$permission, $route]) {
-            $response->assertSee(route($route), false)->assertSee($label);
+            $response->assertSee($this->href($route), false)->assertSee($label);
         }
 
-        foreach (['communication.dashboard', 'notices.index', 'notices.create', 'circulars.index', 'circulars.create', 'notifications.index', 'notifications.create'] as $route) {
+        foreach ([
+            'communication.dashboard', 'notices.index', 'notices.create', 'circulars.index', 'circulars.create',
+            'notifications.index', 'notifications.create', 'communication-templates.index',
+            'communication-templates.create', 'communication-logs.index', 'communication-tracking.index',
+            'communication-reports.index',
+        ] as $route) {
             $this->asCollege($college, $user)->get(route($route))->assertOk();
         }
     }

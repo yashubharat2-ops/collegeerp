@@ -17,6 +17,8 @@ class DatabaseSeeder extends Seeder
             ...HostelPermissionSeeder::PERMISSIONS,
             // Communication Management Phase 1 (dashboard, notices, circulars, internal notifications).
             ...CommunicationPermissionSeeder::PERMISSIONS,
+            // Communication Management Phase 2 (SMS / e-mail templates and logs, delivery / read tracking, reports).
+            ...CommunicationPhase2PermissionSeeder::PERMISSIONS,
             'dashboard.view',
             'colleges.view', 'colleges.update',
             'campuses.view', 'campuses.create', 'campuses.update', 'campuses.delete',
