@@ -6,7 +6,7 @@ use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvid
 class AuthServiceProvider extends ServiceProvider
 {
     protected $policies = [
-        // Hostel Management — Phase 1 masters + Phase 2 allocations and fees.
+        // Hostel Management — Phase 1 masters, Phase 2 allocations/fees, Phase 3 attendance/reports.
         \App\Models\HostelDashboard::class => \App\Policies\HostelDashboardPolicy::class,
         \App\Models\Hostel::class => \App\Policies\HostelPolicy::class,
         \App\Models\HostelBuilding::class => \App\Policies\HostelBuildingPolicy::class,
@@ -15,6 +15,8 @@ class AuthServiceProvider extends ServiceProvider
         \App\Models\HostelAllocation::class => \App\Policies\HostelAllocationPolicy::class,
         \App\Models\HostelFeeStructure::class => \App\Policies\HostelFeeStructurePolicy::class,
         \App\Models\HostelFeeAssignment::class => \App\Policies\HostelFeeAssignmentPolicy::class,
+        \App\Models\HostelAttendance::class => \App\Policies\HostelAttendancePolicy::class,
+        \App\Models\HostelReport::class => \App\Policies\HostelReportPolicy::class,
         // Transport Phase 1.
         \App\Models\TransportDashboard::class => \App\Policies\TransportDashboardPolicy::class,
         \App\Models\Vehicle::class => \App\Policies\VehiclePolicy::class,

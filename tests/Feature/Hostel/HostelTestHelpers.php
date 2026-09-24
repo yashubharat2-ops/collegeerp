@@ -33,6 +33,9 @@ trait HostelTestHelpers
         // Phase 2
         'hostel_allocations.view', 'hostel_allocations.create', 'hostel_allocations.update', 'hostel_allocations.delete',
         'hostel_fees.view', 'hostel_fees.create', 'hostel_fees.update', 'hostel_fees.delete', 'hostel_fees.collect',
+        // Phase 3 — attendance and read-only reports. Visitors and later modules are not included.
+        'hostel_attendance.view', 'hostel_attendance.create', 'hostel_attendance.update', 'hostel_attendance.delete',
+        'hostel_reports.view',
     ];
 
     /** Phase 2 permissions only */
