@@ -223,7 +223,7 @@
 <a class="nav-link" href="{{ route('hostel-reports.index') }}">📊 <span>Hostel Reports</span></a>
 @endif
 @endif
-@if(auth()->user()?->hasPermission('communication_dashboard.view') || auth()->user()?->hasPermission('notices.view') || auth()->user()?->hasPermission('circulars.view') || auth()->user()?->hasPermission('notifications.view'))
+@if(auth()->user()?->hasPermission('communication_dashboard.view') || auth()->user()?->hasPermission('notices.view') || auth()->user()?->hasPermission('circulars.view') || auth()->user()?->hasPermission('notifications.view') || auth()->user()?->hasPermission('communication_templates.view') || auth()->user()?->hasPermission('communication_logs.view') || auth()->user()?->hasPermission('communication_tracking.view') || auth()->user()?->hasPermission('communication_reports.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Communication Management</div>
 @if(auth()->user()?->hasPermission('communication_dashboard.view'))
 <a class="nav-link" href="{{ route('communication.dashboard') }}">📡 <span>Communication Dashboard</span></a>
@@ -236,6 +236,18 @@
 @endif
 @if(auth()->user()?->hasPermission('notifications.view'))
 <a class="nav-link" href="{{ route('notifications.index') }}">🔔 <span>Notifications</span></a>
+@endif
+@if(auth()->user()?->hasPermission('communication_templates.view'))
+<a class="nav-link" href="{{ route('communication-templates.index') }}">🧩 <span>SMS / Email Templates</span></a>
+@endif
+@if(auth()->user()?->hasPermission('communication_logs.view'))
+<a class="nav-link" href="{{ route('communication-logs.index') }}">🗒 <span>SMS / Email Logs</span></a>
+@endif
+@if(auth()->user()?->hasPermission('communication_tracking.view'))
+<a class="nav-link" href="{{ route('communication-tracking.index') }}">📬 <span>Delivery / Read Tracking</span></a>
+@endif
+@if(auth()->user()?->hasPermission('communication_reports.view'))
+<a class="nav-link" href="{{ route('communication-reports.index') }}">📊 <span>Communication Reports</span></a>
 @endif
 @endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Platform</div>

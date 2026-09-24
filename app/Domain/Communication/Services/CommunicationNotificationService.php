@@ -37,6 +37,9 @@ class CommunicationNotificationService
 {
     public const AUDITED = ['recipient_type', 'recipient_id', 'title', 'message', 'notification_type', 'priority', 'read_at'];
 
+    /** Phase 2 delivery / read tracking columns of the same row. */
+    public const TRACKED = ['sent_at', 'delivered_at', 'read_at'];
+
     public function __construct(private readonly AuditLogService $audit) {}
 
     /**
@@ -69,6 +72,10 @@ class CommunicationNotificationService
             $notification->recipient_type = $type;
             $notification->recipient_id = $recipientId;
             $notification->read_at = null;
+            // Phase 2 tracking: an internal notification is "sent" the moment
+            // it is stored (same row — no duplicated record).
+            $notification->sent_at = now();
+            $notification->delivered_at = null;
             $notification->created_by = $actor?->getKey();
             $this->fillContent($notification, array_merge([
                 'notification_type' => 'general',
@@ -146,11 +153,22 @@ class CommunicationNotificationService
         abort_unless($active !== null && (int) $active === $collegeId, 403);
 
         return DB::transaction(function () use ($user, $collegeId): int {
+            $now = now();
+
+            // Phase 2 tracking: stamp delivery before the read state so an
+            // unread → read jump never loses the delivered moment.
+            CommunicationNotification::withoutGlobalScope(CollegeScope::class)
+                ->where('college_id', $collegeId)
+                ->forUser($user)
+                ->unread()
+                ->whereNull('delivered_at')
+                ->update(['delivered_at' => $now]);
+
             $count = CommunicationNotification::withoutGlobalScope(CollegeScope::class)
                 ->where('college_id', $collegeId)
                 ->forUser($user)
                 ->unread()
-                ->update(['read_at' => now()]);
+                ->update(['read_at' => $now]);
 
             if ($count > 0) {
                 $this->audit->record('notifications.read_all', null, [], [
@@ -175,11 +193,23 @@ class CommunicationNotificationService
                 return $fresh; // idempotent: nothing to change, nothing to audit
             }
 
-            $old = ['read_at' => $fresh->read_at];
-            $fresh->read_at = $read ? now() : null;
+            $old = ['read_at' => $fresh->read_at, 'delivered_at' => $fresh->delivered_at];
+            $now = now();
+            $fresh->read_at = $read ? $now : null;
+
+            // Phase 2 tracking: reading implies delivery (never un-stamped on
+            // "mark unread", so delivery history stays truthful).
+            if ($read) {
+                $fresh->sent_at ??= $fresh->created_at ?? $now;
+                $fresh->delivered_at ??= $now;
+            }
+
             $fresh->save();
 
-            $this->audit->record($read ? 'notifications.read' : 'notifications.unread', $fresh, $old, ['read_at' => $fresh->read_at]);
+            $this->audit->record($read ? 'notifications.read' : 'notifications.unread', $fresh, $old, [
+                'read_at' => $fresh->read_at,
+                'delivered_at' => $fresh->delivered_at,
+            ]);
 
             return $fresh->refresh();
         });

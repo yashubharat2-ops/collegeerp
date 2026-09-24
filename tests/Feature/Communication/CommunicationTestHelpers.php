@@ -4,7 +4,9 @@ namespace Tests\Feature\Communication;
 
 use App\Models\Circular;
 use App\Models\College;
+use App\Models\CommunicationLog;
 use App\Models\CommunicationNotification;
+use App\Models\CommunicationTemplate;
 use App\Models\Faculty;
 use App\Models\Notice;
 use App\Models\Program;
@@ -40,6 +42,18 @@ trait CommunicationTestHelpers
     private const CIRCULAR_PERMISSIONS = ['circulars.view', 'circulars.create', 'circulars.update', 'circulars.delete', 'circulars.publish'];
 
     private const NOTIFICATION_PERMISSIONS = ['notifications.view', 'notifications.create', 'notifications.update', 'notifications.delete'];
+
+    /** Every Communication Phase 2 permission slug (templates, logs, tracking, reports). */
+    private const COMMUNICATION_PHASE2_PERMISSIONS = [
+        'communication_templates.view', 'communication_templates.create', 'communication_templates.update', 'communication_templates.delete',
+        'communication_logs.view',
+        'communication_tracking.view',
+        'communication_reports.view',
+    ];
+
+    private const TEMPLATE_PERMISSIONS = [
+        'communication_templates.view', 'communication_templates.create', 'communication_templates.update', 'communication_templates.delete',
+    ];
 
     /**
      * Run a callback with the tenant context bound to $college (CollegeScope
@@ -116,6 +130,53 @@ trait CommunicationTestHelpers
             'priority' => 'normal',
             'read_at' => null,
         ], $overrides));
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeTemplate(College $college, array $overrides = []): CommunicationTemplate
+    {
+        return $this->forceCreate(new CommunicationTemplate, array_merge([
+            'college_id' => $college->id,
+            'name' => 'Template '.Str::upper(Str::random(6)),
+            'code' => 'TPL'.Str::upper(Str::random(6)),
+            'channel' => 'email',
+            'subject' => 'Subject line',
+            'body' => 'Dear {{ name }}, this is a reusable message.',
+            'status' => 'active',
+        ], $overrides));
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeLog(College $college, array $overrides = []): CommunicationLog
+    {
+        return $this->forceCreate(new CommunicationLog, array_merge([
+            'college_id' => $college->id,
+            'channel' => 'email',
+            'recipient' => Str::lower(Str::random(8)).'@example.test',
+            'subject' => 'Subject line',
+            'content' => 'Message content.',
+            'status' => 'queued',
+        ], $overrides));
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function templatePayload(array $overrides = []): array
+    {
+        return array_merge([
+            'name' => 'Fee reminder',
+            'code' => 'FEE_REMINDER',
+            'channel' => 'email',
+            'subject' => 'Your fee instalment is due',
+            'body' => 'Dear {{ student_name }}, your instalment is due on {{ due_date }}.',
+            'status' => 'active',
+        ], $overrides);
     }
 
     /**

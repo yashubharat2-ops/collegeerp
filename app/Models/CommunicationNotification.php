@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Domain\Communication\Support\CommunicationPriority;
 use App\Domain\Communication\Support\CommunicationTypes;
+use App\Domain\Communication\Support\DeliveryStates;
 use App\Domain\Communication\Support\NotificationRecipients;
 use App\Domain\Foundation\Traits\BelongsToCollege;
 use Illuminate\Database\Eloquent\Builder;
@@ -50,6 +51,8 @@ class CommunicationNotification extends Model
         'message',
         'notification_type',
         'priority',
+        'sent_at',
+        'delivered_at',
         'read_at',
         'created_by',
     ];
@@ -63,6 +66,8 @@ class CommunicationNotification extends Model
     {
         return [
             'recipient_id' => 'integer',
+            'sent_at' => 'datetime',
+            'delivered_at' => 'datetime',
             'read_at' => 'datetime',
         ];
     }
@@ -75,6 +80,25 @@ class CommunicationNotification extends Model
     public function isRead(): bool
     {
         return $this->read_at !== null;
+    }
+
+    /**
+     * Phase 2 delivery / read tracking — derived from the timestamps of THIS
+     * row (no tracking table, no duplicated record).
+     */
+    public function deliveryState(): string
+    {
+        return DeliveryStates::resolve($this->sent_at, $this->delivered_at, $this->read_at);
+    }
+
+    public function deliveryStateLabel(): string
+    {
+        return DeliveryStates::label($this->deliveryState());
+    }
+
+    public function isDelivered(): bool
+    {
+        return $this->delivered_at !== null || $this->read_at !== null;
     }
 
     /** Whether the notification is addressed to this platform user. */
@@ -103,6 +127,26 @@ class CommunicationNotification extends Model
     public function scopeRead(Builder $query): Builder
     {
         return $query->whereNotNull($this->qualifyColumn('read_at'));
+    }
+
+    /** Notifications in a given Phase 2 delivery state. */
+    public function scopeDeliveryState(Builder $query, string $state): Builder
+    {
+        return match ($state) {
+            DeliveryStates::READ => $query->whereNotNull($this->qualifyColumn('read_at')),
+            DeliveryStates::DELIVERED => $query
+                ->whereNotNull($this->qualifyColumn('delivered_at'))
+                ->whereNull($this->qualifyColumn('read_at')),
+            DeliveryStates::SENT => $query
+                ->whereNotNull($this->qualifyColumn('sent_at'))
+                ->whereNull($this->qualifyColumn('delivered_at'))
+                ->whereNull($this->qualifyColumn('read_at')),
+            DeliveryStates::PENDING => $query
+                ->whereNull($this->qualifyColumn('sent_at'))
+                ->whereNull($this->qualifyColumn('delivered_at'))
+                ->whereNull($this->qualifyColumn('read_at')),
+            default => $query,
+        };
     }
 
     /** Notifications addressed to a platform user (within the active college scope). */

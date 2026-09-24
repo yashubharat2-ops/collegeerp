@@ -11,6 +11,11 @@ class AuthServiceProvider extends ServiceProvider
         \App\Models\Notice::class => \App\Policies\NoticePolicy::class,
         \App\Models\Circular::class => \App\Policies\CircularPolicy::class,
         \App\Models\CommunicationNotification::class => \App\Policies\CommunicationNotificationPolicy::class,
+        // Communication Management — Phase 2 (templates, logs, delivery / read tracking, reports).
+        \App\Models\CommunicationTemplate::class => \App\Policies\CommunicationTemplatePolicy::class,
+        \App\Models\CommunicationLog::class => \App\Policies\CommunicationLogPolicy::class,
+        \App\Models\CommunicationTracking::class => \App\Policies\CommunicationTrackingPolicy::class,
+        \App\Models\CommunicationReport::class => \App\Policies\CommunicationReportPolicy::class,
         // Hostel Management — Phase 1 masters, Phase 2 allocations/fees, Phase 3 attendance/reports.
         \App\Models\HostelDashboard::class => \App\Policies\HostelDashboardPolicy::class,
         \App\Models\Hostel::class => \App\Policies\HostelPolicy::class,
