@@ -423,6 +423,15 @@ Route::middleware('auth')->group(function () {
         // Read-only Communication Reports (live aggregates, no report tables).
         Route::get('communication-reports', [\App\Http\Controllers\Communication\CommunicationReportController::class, 'index'])->name('communication-reports.index');
 
+        // Inventory / Asset Management — Phase 1. The dashboard is read-only
+        // and aggregated live (no dashboard tables). Items and assets share
+        // one master. Purchase orders, stock movements, issue/return,
+        // assignment, maintenance and reports are not part of this phase.
+        Route::get('inventory/dashboard', \App\Http\Controllers\Inventory\InventoryDashboardController::class)->name('inventory.dashboard');
+        Route::resource('inventory-categories', \App\Http\Controllers\Inventory\InventoryCategoryController::class)->except('show')->parameters(['inventory-categories' => 'inventory_category']);
+        Route::resource('inventory-items', \App\Http\Controllers\Inventory\InventoryItemController::class)->except('show')->parameters(['inventory-items' => 'inventory_item']);
+        Route::resource('inventory-vendors', \App\Http\Controllers\Inventory\InventoryVendorController::class)->except('show')->parameters(['inventory-vendors' => 'inventory_vendor']);
+
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
     });

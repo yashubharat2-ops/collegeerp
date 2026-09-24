@@ -6,6 +6,11 @@ use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvid
 class AuthServiceProvider extends ServiceProvider
 {
     protected $policies = [
+        // Inventory / Asset Management — Phase 1 (dashboard, categories, items/assets, vendors).
+        \App\Models\InventoryDashboard::class => \App\Policies\InventoryDashboardPolicy::class,
+        \App\Models\InventoryCategory::class => \App\Policies\InventoryCategoryPolicy::class,
+        \App\Models\InventoryItem::class => \App\Policies\InventoryItemPolicy::class,
+        \App\Models\InventoryVendor::class => \App\Policies\InventoryVendorPolicy::class,
         // Communication Management — Phase 1 (dashboard, notices, circulars, internal notifications).
         \App\Models\CommunicationDashboard::class => \App\Policies\CommunicationDashboardPolicy::class,
         \App\Models\Notice::class => \App\Policies\NoticePolicy::class,

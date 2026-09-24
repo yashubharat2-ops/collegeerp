@@ -250,5 +250,20 @@
 <a class="nav-link" href="{{ route('communication-reports.index') }}">📊 <span>Communication Reports</span></a>
 @endif
 @endif
+@if(auth()->user()?->hasPermission('inventory_dashboard.view') || auth()->user()?->hasPermission('inventory_categories.view') || auth()->user()?->hasPermission('inventory_items.view') || auth()->user()?->hasPermission('inventory_vendors.view'))
+<div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Inventory / Asset Management</div>
+@if(auth()->user()?->hasPermission('inventory_dashboard.view'))
+<a class="nav-link" href="{{ route('inventory.dashboard') }}">📦 <span>Inventory Dashboard</span></a>
+@endif
+@if(auth()->user()?->hasPermission('inventory_categories.view'))
+<a class="nav-link" href="{{ route('inventory-categories.index') }}">🗂 <span>Item Categories</span></a>
+@endif
+@if(auth()->user()?->hasPermission('inventory_items.view'))
+<a class="nav-link" href="{{ route('inventory-items.index') }}">🧰 <span>Items / Assets</span></a>
+@endif
+@if(auth()->user()?->hasPermission('inventory_vendors.view'))
+<a class="nav-link" href="{{ route('inventory-vendors.index') }}">🏪 <span>Vendors</span></a>
+@endif
+@endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Platform</div>
 <a class="nav-link" href="{{ route('settings.index') }}">⚙ <span>Settings</span></a></nav></aside><section class="min-w-0 flex-1"><header class="no-print flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4"><div><div class="flex items-center gap-3"><p class="text-sm text-slate-500">{{ app(\App\Support\Tenancy\TenantContext::class)->college()?->name ?? 'Platform' }}</p>@isset($colleges) @if($colleges->count() > 1)<form method="POST" action="{{ route('college-context.switch') }}">@csrf<select class="rounded-lg border-slate-300 text-xs" name="college_id" onchange="this.form.submit()">@foreach($colleges as $college)<option value="{{ $college->id }}" @selected(app(\App\Support\Tenancy\TenantContext::class)->id() === $college->id)>{{ $college->name }}</option>@endforeach</select></form>@endif @endisset</div><h1 class="text-xl font-semibold">@yield('title', 'Dashboard')</h1></div><div class="flex items-center gap-4"><button class="relative text-slate-500" aria-label="Notifications">♢<span class="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-indigo-500"></span></button><div class="flex items-center gap-3"><div class="grid h-9 w-9 place-items-center rounded-full bg-indigo-100 font-bold text-indigo-700">{{ strtoupper(substr(auth()->user()->name, 0, 1)) }}</div><div class="hidden text-sm sm:block"><p class="font-semibold">{{ auth()->user()->name }}</p><p class="text-slate-500">{{ auth()->user()->email }}</p></div><form method="POST" action="{{ route('logout') }}">@csrf<button class="text-sm text-slate-500 hover:text-rose-600" type="submit">Logout</button></form></div></div></header><main class="p-6">@if(session('success'))<div class="alert-success">{{ session('success') }}</div>@endif @if($errors->any())<div class="alert-error">{{ $errors->first() }}</div>@endif @yield('content')</main></section></div>@stack('scripts')</body></html>
