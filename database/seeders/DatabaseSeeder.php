@@ -13,7 +13,7 @@ class DatabaseSeeder extends Seeder
         $college = College::firstOrCreate(['code' => 'DEMO'], ['name' => 'Demo College', 'slug' => 'demo-college', 'status' => 'active']);
         $permissions = collect([
             ...TransportPermissionSeeder::PERMISSIONS,
-            // Hostel Management Phase 1 — masters only (dashboard, hostels, buildings, rooms, beds).
+            // Hostel Management permissions (masters, allocation, fees, attendance, reports).
             ...HostelPermissionSeeder::PERMISSIONS,
             'dashboard.view',
             'colleges.view', 'colleges.update',

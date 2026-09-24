@@ -8,8 +8,8 @@ use App\Models\User;
 use Tests\TestCase;
 
 /**
- * Hostel Management Phase 2 navigation: exactly 7 entries, permission gating,
- * Phase 3 items must NOT appear.
+ * Hostel navigation after Phase 3: the Phase 2 entries remain, attendance and
+ * reports are added, and later modules (visitors and beyond) must not appear.
  */
 class HostelPhase2NavigationTest extends TestCase
 {
@@ -23,12 +23,12 @@ class HostelPhase2NavigationTest extends TestCase
         'Beds' => ['hostel_beds.view', 'hostel-beds.index'],
         'Hostel Allocation' => ['hostel_allocations.view', 'hostel-allocations.index'],
         'Hostel Fees' => ['hostel_fees.view', 'hostel-fees.index'],
+        'Hostel Attendance' => ['hostel_attendance.view', 'hostel-attendance.index'],
+        'Hostel Reports' => ['hostel_reports.view', 'hostel-reports.index'],
     ];
 
-    private const PHASE3_NOT_ALLOWED = [
-        'Hostel Attendance',
+    private const FUTURE_NOT_ALLOWED = [
         'Visitors',
-        'Hostel Reports',
         'Mess Management',
         'Hostel Maintenance',
         'Hostel Leave Management',
@@ -51,7 +51,7 @@ class HostelPhase2NavigationTest extends TestCase
         return array_values(array_map(fn (array $e) => $e[0], self::ENTRIES));
     }
 
-    public function test_phase2_navigation_has_exactly_seven_entries(): void
+    public function test_hostel_navigation_has_exactly_nine_entries_after_phase_three(): void
     {
         $college = $this->makeCollege('H2NAV1');
         $user = $this->makeUserWithPermissions($college, $this->allViewPermissions());
@@ -62,15 +62,15 @@ class HostelPhase2NavigationTest extends TestCase
 
         $group = $this->hostelNavGroup($html);
 
-        $this->assertSame(7, substr_count($group, 'class="nav-link"'), 'Must have exactly 7 entries after Phase 2.');
+        $this->assertSame(9, substr_count($group, 'class="nav-link"'), 'Must have exactly 9 entries after Phase 3.');
 
         foreach (self::ENTRIES as $label => [$perm, $route]) {
             $this->assertStringContainsString(route($route), $group, "Missing route for {$label}");
             $this->assertStringContainsString($label, $group, "Missing label for {$label}");
         }
 
-        foreach (self::PHASE3_NOT_ALLOWED as $future) {
-            $this->assertStringNotContainsString($future, $group, "{$future} must NOT appear (Phase 3).");
+        foreach (self::FUTURE_NOT_ALLOWED as $future) {
+            $this->assertStringNotContainsString($future, $group, "{$future} must NOT appear.");
         }
     }
 
@@ -87,7 +87,7 @@ class HostelPhase2NavigationTest extends TestCase
         $this->assertStringNotContainsString(route('hostel-fees.index'), $group);
     }
 
-    public function test_phase3_items_must_not_appear_even_for_super_admin(): void
+    public function test_future_hostel_modules_must_not_appear_even_for_super_admin(): void
     {
         $college = $this->makeCollege('H2NAV3');
         $super = $this->makeSuperAdmin($college);
@@ -95,7 +95,11 @@ class HostelPhase2NavigationTest extends TestCase
         $html = $this->asCollege($college, $super)->get(route('dashboard'))->assertOk()->getContent();
         $group = $this->hostelNavGroup($html);
 
-        foreach (self::PHASE3_NOT_ALLOWED as $future) {
+        $this->assertSame(9, substr_count($group, 'class="nav-link"'));
+        $this->assertStringContainsString('Hostel Attendance', $group);
+        $this->assertStringContainsString('Hostel Reports', $group);
+
+        foreach (self::FUTURE_NOT_ALLOWED as $future) {
             $this->assertStringNotContainsString($future, $group, "{$future} must NOT appear even for super admin.");
         }
     }
@@ -132,6 +136,10 @@ class HostelPhase2NavigationTest extends TestCase
             'hostel-fees.create',
             'hostel-fee-structures.index',
             'hostel-fee-structures.create',
+            'hostel-attendance.index',
+            'hostel-attendance.create',
+            'hostel-attendance.bulk',
+            'hostel-reports.index',
         ] as $route) {
             $this->asCollege($college, $user)->get(route($route))->assertOk();
         }

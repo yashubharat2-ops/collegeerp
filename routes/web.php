@@ -370,6 +370,15 @@ Route::middleware('auth')->group(function () {
         Route::resource('hostel-fees', \App\Http\Controllers\Hostel\HostelFeeController::class)->parameters(['hostel-fees' => 'fee']);
         Route::resource('hostel-fee-structures', \App\Http\Controllers\Hostel\HostelFeeStructureController::class)->except('show')->parameters(['hostel-fee-structures' => 'fee_structure']);
 
+        // Hostel Management Phase 3 — Hostel Attendance. Bulk routes are
+        // registered before the resource so "bulk" is not captured as an id.
+        Route::get('hostel-attendance/bulk', [\App\Http\Controllers\Hostel\HostelAttendanceController::class, 'bulk'])->name('hostel-attendance.bulk');
+        Route::post('hostel-attendance/bulk', [\App\Http\Controllers\Hostel\HostelAttendanceController::class, 'storeBulk'])->name('hostel-attendance.bulk.store');
+        Route::resource('hostel-attendance', \App\Http\Controllers\Hostel\HostelAttendanceController::class)->except('show')->parameters(['hostel-attendance' => 'hostel_attendance']);
+
+        // Hostel Management Phase 3 — Hostel Reports (read-only; GET only).
+        Route::get('hostel-reports', [\App\Http\Controllers\Hostel\HostelReportController::class, 'index'])->name('hostel-reports.index');
+
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
     });
