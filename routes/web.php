@@ -352,15 +352,23 @@ Route::middleware('auth')->group(function () {
         // Transport Phase 2 — Transport Reports (read-only).
         Route::get('transport-reports', [\App\Http\Controllers\Transport\TransportReportController::class, 'index'])->name('transport-reports.index');
 
-        // Hostel Management — Phase 1: tenant-scoped masters only (Dashboard,
-        // Hostels, Buildings / Blocks, Rooms, Beds). Allocation, Fees,
-        // Attendance, Visitors and Reports are future phases. The dashboard is
-        // read-only and aggregated live (no dashboard tables).
+        // Hostel Management — Phase 1 masters + Phase 2 allocations and fees.
+        // The dashboard is read-only and aggregated live (no dashboard tables).
         Route::get('hostels/dashboard', \App\Http\Controllers\Hostel\HostelDashboardController::class)->name('hostels.dashboard');
         Route::resource('hostels', \App\Http\Controllers\Hostel\HostelController::class)->except('show')->parameters(['hostels' => 'hostel']);
         Route::resource('hostel-buildings', \App\Http\Controllers\Hostel\HostelBuildingController::class)->except('show')->parameters(['hostel-buildings' => 'building']);
         Route::resource('hostel-rooms', \App\Http\Controllers\Hostel\HostelRoomController::class)->except('show')->parameters(['hostel-rooms' => 'room']);
         Route::resource('hostel-beds', \App\Http\Controllers\Hostel\HostelBedController::class)->except('show')->parameters(['hostel-beds' => 'bed']);
+
+        // Hostel Management Phase 2 — Hostel Allocation (existing enrollments to existing beds).
+        Route::post('hostel-allocations/{allocation}/vacate', [\App\Http\Controllers\Hostel\HostelAllocationController::class, 'vacate'])->name('hostel-allocations.vacate');
+        Route::post('hostel-allocations/{allocation}/cancel', [\App\Http\Controllers\Hostel\HostelAllocationController::class, 'cancel'])->name('hostel-allocations.cancel');
+        Route::resource('hostel-allocations', \App\Http\Controllers\Hostel\HostelAllocationController::class)->parameters(['hostel-allocations' => 'allocation']);
+
+        // Hostel Management Phase 2 — Hostel Fees. Collections reuse existing Finance fee_payments rows.
+        Route::post('hostel-fees/{fee}/collect', [\App\Http\Controllers\Hostel\HostelFeeController::class, 'collect'])->name('hostel-fees.collect');
+        Route::resource('hostel-fees', \App\Http\Controllers\Hostel\HostelFeeController::class)->parameters(['hostel-fees' => 'fee']);
+        Route::resource('hostel-fee-structures', \App\Http\Controllers\Hostel\HostelFeeStructureController::class)->except('show')->parameters(['hostel-fee-structures' => 'fee_structure']);
 
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');

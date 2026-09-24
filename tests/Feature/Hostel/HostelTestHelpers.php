@@ -30,6 +30,15 @@ trait HostelTestHelpers
         'hostel_buildings.view', 'hostel_buildings.create', 'hostel_buildings.update', 'hostel_buildings.delete',
         'hostel_rooms.view', 'hostel_rooms.create', 'hostel_rooms.update', 'hostel_rooms.delete',
         'hostel_beds.view', 'hostel_beds.create', 'hostel_beds.update', 'hostel_beds.delete',
+        // Phase 2
+        'hostel_allocations.view', 'hostel_allocations.create', 'hostel_allocations.update', 'hostel_allocations.delete',
+        'hostel_fees.view', 'hostel_fees.create', 'hostel_fees.update', 'hostel_fees.delete', 'hostel_fees.collect',
+    ];
+
+    /** Phase 2 permissions only */
+    private const HOSTEL_PHASE2_PERMISSIONS = [
+        'hostel_allocations.view', 'hostel_allocations.create', 'hostel_allocations.update', 'hostel_allocations.delete',
+        'hostel_fees.view', 'hostel_fees.create', 'hostel_fees.update', 'hostel_fees.delete', 'hostel_fees.collect',
     ];
 
     /**
@@ -199,6 +208,170 @@ trait HostelTestHelpers
             'bed_number' => '1',
             'status' => HostelBed::STATUS_AVAILABLE,
             'description' => null,
+        ], $overrides);
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeHostelAllocation(\App\Models\College $college, ?\App\Models\StudentEnrollment $enrollment = null, ?\App\Models\HostelBed $bed = null, array $overrides = []): \App\Models\HostelAllocation
+    {
+        if ($enrollment === null) {
+            $year = $overrides['academic_year_id'] ?? null;
+            if ($year instanceof \App\Models\AcademicYear) {
+                $academicYear = $year;
+            } else {
+                $academicYear = \App\Models\AcademicYear::create([
+                    'college_id' => $college->id,
+                    'name' => 'Year '.Str::upper(Str::random(4)),
+                    'code' => Str::upper(Str::random(6)),
+                    'starts_on' => '2026-07-01',
+                    'ends_on' => '2027-06-30',
+                    'status' => 'active',
+                ]);
+            }
+            $student = \App\Models\Student::create([
+                'college_id' => $college->id,
+                'student_number' => 'STU-'.Str::upper(Str::random(4)),
+                'first_name' => 'Test',
+                'last_name' => 'Student',
+                'status' => 'active',
+            ]);
+            $enrollment = \App\Models\StudentEnrollment::create([
+                'college_id' => $college->id,
+                'student_id' => $student->id,
+                'academic_year_id' => $academicYear->id ?? $academicYear->id,
+                'enrollment_number' => 'ENR-'.Str::upper(Str::random(4)),
+                'enrollment_date' => now()->toDateString(),
+                'status' => 'active',
+            ]);
+        }
+
+        $enrollment->loadMissing(['academicYear']);
+
+        $bed ??= $this->makeHostelBed($college);
+
+        $academicYearId = $overrides['academic_year_id'] ?? $enrollment->academic_year_id;
+        if ($academicYearId instanceof \App\Models\AcademicYear) {
+            $academicYearId = $academicYearId->id;
+        }
+
+        return \App\Models\HostelAllocation::create(array_merge([
+            'college_id' => $college->id,
+            'student_enrollment_id' => $enrollment->id,
+            'academic_year_id' => $academicYearId,
+            'hostel_id' => $bed->hostel_id,
+            'hostel_building_id' => $bed->building_id,
+            'hostel_room_id' => $bed->room_id,
+            'hostel_bed_id' => $bed->id,
+            'allocation_date' => now()->toDateString(),
+            'vacated_date' => null,
+            'status' => \App\Models\HostelAllocation::STATUS_ACTIVE,
+            'remarks' => null,
+        ], $overrides));
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function allocationPayload(?\App\Models\StudentEnrollment $enrollment = null, ?\App\Models\AcademicYear $year = null, ?\App\Models\Hostel $hostel = null, ?\App\Models\HostelBuilding $building = null, ?\App\Models\HostelRoom $room = null, ?\App\Models\HostelBed $bed = null, array $overrides = []): array
+    {
+        // If bed provided, derive hierarchy
+        if ($bed) {
+            $room ??= $bed->room;
+            $building ??= $bed->building;
+            $hostel ??= $bed->hostel;
+        }
+
+        return array_merge([
+            'student_enrollment_id' => $enrollment?->id ?? 1,
+            'academic_year_id' => $year?->id ?? 1,
+            'hostel_id' => $hostel?->id ?? 1,
+            'hostel_building_id' => $building?->id ?? 1,
+            'hostel_room_id' => $room?->id ?? 1,
+            'hostel_bed_id' => $bed?->id ?? 1,
+            'allocation_date' => now()->format('Y-m-d'),
+            'status' => \App\Models\HostelAllocation::STATUS_ACTIVE,
+            'remarks' => null,
+        ], $overrides);
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeHostelFeeStructure(\App\Models\College $college, ?\App\Models\AcademicYear $year = null, array $overrides = []): \App\Models\HostelFeeStructure
+    {
+        $year ??= \App\Models\AcademicYear::create([
+            'college_id' => $college->id,
+            'name' => 'Year '.Str::upper(Str::random(4)),
+            'code' => Str::upper(Str::random(6)),
+            'starts_on' => '2026-07-01',
+            'ends_on' => '2027-06-30',
+            'status' => 'active',
+        ]);
+
+        return \App\Models\HostelFeeStructure::create(array_merge([
+            'college_id' => $college->id,
+            'academic_year_id' => $year->id,
+            'name' => 'Hostel Fee '.Str::upper(Str::random(4)),
+            'code' => 'HF-'.Str::upper(Str::random(4)),
+            'amount' => 5000,
+            'frequency' => 'yearly',
+            'status' => \App\Models\HostelFeeStructure::STATUS_ACTIVE,
+            'description' => null,
+        ], $overrides));
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeHostelFeeAssignment(\App\Models\College $college, ?\App\Models\HostelAllocation $allocation = null, ?\App\Models\HostelFeeStructure $structure = null, array $overrides = []): \App\Models\HostelFeeAssignment
+    {
+        $allocation ??= $this->makeHostelAllocation($college);
+        $structure ??= $this->makeHostelFeeStructure($college, $allocation->academicYear);
+
+        return \App\Models\HostelFeeAssignment::create(array_merge([
+            'college_id' => $college->id,
+            'hostel_allocation_id' => $allocation->id,
+            'hostel_fee_structure_id' => $structure->id,
+            'academic_year_id' => $allocation->academic_year_id,
+            'assigned_amount' => $structure->amount,
+            'effective_from' => now()->format('Y-m-d'),
+            'effective_until' => null,
+            'status' => \App\Models\HostelFeeAssignment::STATUS_ACTIVE,
+            'remarks' => null,
+        ], $overrides));
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function feeStructurePayload(\App\Models\AcademicYear $year, array $overrides = []): array
+    {
+        return array_merge([
+            'academic_year_id' => $year->id,
+            'name' => 'Hostel Fee',
+            'code' => 'HF-'.Str::upper(Str::random(4)),
+            'amount' => 5000,
+            'frequency' => 'yearly',
+            'status' => \App\Models\HostelFeeStructure::STATUS_ACTIVE,
+            'description' => 'Hostel accommodation fee',
+        ], $overrides);
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function hostelFeeAssignmentPayload(\App\Models\HostelAllocation $allocation, \App\Models\HostelFeeStructure $structure, array $overrides = []): array
+    {
+        return array_merge([
+            'hostel_allocation_id' => $allocation->id,
+            'hostel_fee_structure_id' => $structure->id,
+            'effective_from' => now()->format('Y-m-d'),
+            'status' => \App\Models\HostelFeeAssignment::STATUS_ACTIVE,
         ], $overrides);
     }
 }
