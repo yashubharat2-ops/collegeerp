@@ -5,6 +5,7 @@ namespace App\Domain\Inventory\Services;
 use App\Models\College;
 use App\Models\InventoryCategory;
 use App\Models\InventoryItem;
+use App\Models\InventoryStockMovement;
 use App\Models\User;
 use App\Services\Audit\AuditLogService;
 use App\Support\Tenancy\TenantContext;
@@ -24,6 +25,12 @@ use Illuminate\Validation\ValidationException;
  *   - `code` is unique among the college's active (not soft-deleted) items
  *   - `serial_number`, when present, is unique among the college's active items
  *   - college_id, created_by and updated_by are server-controlled
+ *
+ * Phase 2 addition: the stock ledger is the reason behind every balance, so an
+ * opening quantity and any quantity corrected here are written to
+ * `inventory_stock_movements` (through InventoryStockService) in the same
+ * transaction. The item form still works exactly as it did; it just no longer
+ * leaves an unexplained number behind.
  */
 class InventoryItemService
 {
@@ -48,8 +55,10 @@ class InventoryItemService
     /** Optional scalar fields where an empty form input means "not recorded". */
     private const OPTIONAL = ['brand', 'model', 'serial_number', 'description'];
 
-    public function __construct(private readonly AuditLogService $audit)
-    {
+    public function __construct(
+        private readonly AuditLogService $audit,
+        private readonly InventoryStockService $stock,
+    ) {
     }
 
     /**
@@ -85,6 +94,11 @@ class InventoryItemService
             }
 
             $this->audit->record('inventory_items.created', $item, [], $item->only(self::AUDITED));
+
+            // Phase 2: the stock ledger is the reason behind every balance, so
+            // an opening quantity is recorded as an opening movement rather
+            // than left as an unexplained number.
+            $this->stock->recordDirectBalance($item, InventoryStockMovement::TYPE_OPENING, '0.00', $actor);
 
             return $item->refresh();
         });
@@ -125,6 +139,17 @@ class InventoryItemService
             }
 
             $this->audit->record('inventory_items.updated', $item, $old, $item->only(self::AUDITED));
+
+            // Phase 2: a quantity corrected on the item form would otherwise
+            // leave the ledger unable to explain the balance, so the
+            // difference is written as an adjustment.
+            $this->stock->recordDirectBalance(
+                $item,
+                InventoryStockMovement::TYPE_ADJUSTMENT,
+                (string) ($old['quantity'] ?? '0.00'),
+                $actor,
+                'Corrected on the item form',
+            );
 
             return $item->refresh();
         });

@@ -13,8 +13,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *
  * Consumables and fixed assets are the same master, distinguished only by
  * `item_type` (`consumable` or `asset`). There is no separate Asset model
- * and no separate assets table. Stock in/out, issue/return and assignment
- * are later phases; this row is the catalogue record only.
+ * and no separate assets table.
+ *
+ * `quantity` is the on-hand balance. From Phase 2 it is moved by the stock
+ * ledger (`InventoryStockMovement`) rather than typed in: purchase receipts,
+ * manual stock in/out and corrections all write a ledger row, and a quantity
+ * edited on the item form is recorded as an adjustment, so every balance has a
+ * reason. Issue/return and assignment are later phases.
  *
  * Identifiers: `code` is required and unique among the college's active rows.
  * `serial_number` is optional and, when present, stored upper-cased and unique
