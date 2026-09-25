@@ -153,7 +153,7 @@ Route::middleware('auth')->group(function () {
         Route::post('students/convert/{admission_application}', [StudentController::class, 'convert'])->name('students.convert');
         Route::get('students/{student}/photo', [StudentController::class, 'photo'])->name('students.photo');
         Route::resource('students', StudentController::class);
-        Route::resource('student-enrollments', StudentEnrollmentController::class);
+        Route::resource('student-enrollments', StudentEnrollmentController::class)->except('show');
 
         // Students — Academic Records (progression ledger; references Platform
         // academic master data, never duplicates it).
@@ -367,7 +367,7 @@ Route::middleware('auth')->group(function () {
 
         // Hostel Management Phase 2 — Hostel Fees. Collections reuse existing Finance fee_payments rows.
         Route::post('hostel-fees/{fee}/collect', [\App\Http\Controllers\Hostel\HostelFeeController::class, 'collect'])->name('hostel-fees.collect');
-        Route::resource('hostel-fees', \App\Http\Controllers\Hostel\HostelFeeController::class)->parameters(['hostel-fees' => 'fee']);
+        Route::resource('hostel-fees', \App\Http\Controllers\Hostel\HostelFeeController::class)->except('show')->parameters(['hostel-fees' => 'fee']);
         Route::resource('hostel-fee-structures', \App\Http\Controllers\Hostel\HostelFeeStructureController::class)->except('show')->parameters(['hostel-fee-structures' => 'fee_structure']);
 
         // Hostel Management Phase 3 — Hostel Attendance. Bulk routes are
