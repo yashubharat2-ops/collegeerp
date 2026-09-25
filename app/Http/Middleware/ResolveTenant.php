@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\College;
 use App\Support\Tenancy\TenantContext;
+use App\Support\Tenancy\TenantFlash;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -36,7 +37,18 @@ class ResolveTenant
 
         if (! $college && $selected) abort(403, 'You are not authorized to use this college context.');
         if (! $college && ! $request->user()->isSuperAdmin()) abort(403, 'No college access has been assigned.');
-        if ($college) $context->set($college, true);
+        if ($college) {
+            $context->set($college, true);
+
+            // The session outlives the tenant: a notification flashed while
+            // working in one college would otherwise be rendered on the next
+            // page the same user opens in another one, quoting records that do
+            // not belong to it. Pending one-shot data is therefore dropped the
+            // moment a request is served under a different college.
+            if ($request->hasSession()) {
+                TenantFlash::forgetStale($request->session(), (int) $college->getKey());
+            }
+        }
         return $next($request);
     }
 

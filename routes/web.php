@@ -425,12 +425,28 @@ Route::middleware('auth')->group(function () {
 
         // Inventory / Asset Management — Phase 1. The dashboard is read-only
         // and aggregated live (no dashboard tables). Items and assets share
-        // one master. Purchase orders, stock movements, issue/return,
-        // assignment, maintenance and reports are not part of this phase.
+        // one master.
         Route::get('inventory/dashboard', \App\Http\Controllers\Inventory\InventoryDashboardController::class)->name('inventory.dashboard');
         Route::resource('inventory-categories', \App\Http\Controllers\Inventory\InventoryCategoryController::class)->except('show')->parameters(['inventory-categories' => 'inventory_category']);
         Route::resource('inventory-items', \App\Http\Controllers\Inventory\InventoryItemController::class)->except('show')->parameters(['inventory-items' => 'inventory_item']);
         Route::resource('inventory-vendors', \App\Http\Controllers\Inventory\InventoryVendorController::class)->except('show')->parameters(['inventory-vendors' => 'inventory_vendor']);
+
+        // Inventory / Asset Management — Phase 2. Purchasing and stock: purchase
+        // orders with their lines, goods receipts, and the immutable stock
+        // movement ledger. Lifecycle actions are their own routes so submitting,
+        // receiving and cancelling can be granted separately. Issue/return to
+        // staff, asset assignment, maintenance and reports are later phases.
+        Route::post('inventory-purchase-orders/{purchase_order}/submit', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'submit'])->name('inventory-purchase-orders.submit');
+        Route::post('inventory-purchase-orders/{purchase_order}/cancel', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'cancel'])->name('inventory-purchase-orders.cancel');
+        Route::get('inventory-purchase-orders/{purchase_order}/receive', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'receiveForm'])->name('inventory-purchase-orders.receive.create');
+        Route::post('inventory-purchase-orders/{purchase_order}/receive', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'receive'])->name('inventory-purchase-orders.receive.store');
+        Route::resource('inventory-purchase-orders', \App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class)->parameters(['inventory-purchase-orders' => 'purchase_order']);
+
+        // Stock ledger. Movements are append-only, so there are no update or
+        // destroy routes: a correction is a new movement.
+        Route::get('inventory-stock', [\App\Http\Controllers\Inventory\InventoryStockController::class, 'index'])->name('inventory-stock.index');
+        Route::get('inventory-stock/create', [\App\Http\Controllers\Inventory\InventoryStockController::class, 'create'])->name('inventory-stock.create');
+        Route::post('inventory-stock', [\App\Http\Controllers\Inventory\InventoryStockController::class, 'store'])->name('inventory-stock.store');
 
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');

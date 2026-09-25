@@ -21,6 +21,8 @@ class DatabaseSeeder extends Seeder
             ...CommunicationPhase2PermissionSeeder::PERMISSIONS,
             // Inventory / Asset Management Phase 1 (dashboard, item categories, items/assets, vendors).
             ...InventoryPermissionSeeder::PERMISSIONS,
+            // Inventory / Asset Management Phase 2 (purchase orders, stock movements).
+            ...InventoryPhase2PermissionSeeder::PERMISSIONS,
             'dashboard.view',
             'colleges.view', 'colleges.update',
             'campuses.view', 'campuses.create', 'campuses.update', 'campuses.delete',
