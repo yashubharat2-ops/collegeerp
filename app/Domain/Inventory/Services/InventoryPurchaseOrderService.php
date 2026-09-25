@@ -252,11 +252,9 @@ class InventoryPurchaseOrderService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if (! $current->isReceivable()) {
-                throw ValidationException::withMessages([
-                    'status' => "Only a submitted purchase order can be received; this one is {$current->status}.",
-                ]);
-            }
+            // Re-checked inside the lock: the request validated the status a
+            // moment ago, but a concurrent receipt may have settled the order.
+            $this->assertReceivable($current);
 
             $receipts = $this->normaliseReceipts($data['receipts'] ?? []);
             $lines = $current->lines()->get()->keyBy(fn (InventoryPurchaseOrderItem $line): int => (int) $line->getKey());
@@ -334,13 +332,34 @@ class InventoryPurchaseOrderService
     /**
      * Validate a set of receipt rows against the order's own lines.
      *
+     * Called from the receiving form request, so everything the service would
+     * refuse is reported as a field error on the form rather than as an
+     * exception after the fact. Whether the order may be received at all is
+     * checked FIRST: a draft or an already settled order has nothing
+     * outstanding either, and answering that with a per-line quantity error
+     * would send the storekeeper to correct numbers that are not the problem.
+     *
      * @param  array<int, array>  $receipts  Raw rows (before normalisation).
      */
     public function validateReceipts(InventoryPurchaseOrder $order, array $receipts): void
     {
+        $this->assertReceivable($order);
+
         $lines = $order->lines()->get()->keyBy(fn (InventoryPurchaseOrderItem $line): int => (int) $line->getKey());
 
         $this->assertReceiptRules($this->normaliseReceipts($receipts), $lines);
+    }
+
+    /**
+     * Only a submitted or partially received order accepts goods.
+     */
+    private function assertReceivable(InventoryPurchaseOrder $order): void
+    {
+        if (! $order->isReceivable()) {
+            throw ValidationException::withMessages([
+                'status' => "Only a submitted or partially received purchase order can be received; this one is {$order->status}.",
+            ]);
+        }
     }
 
     /**

@@ -16,10 +16,24 @@ use Illuminate\Validation\Rule;
  *
  * The permission checked depends on the movement type — stock in, stock out
  * and corrections are separately grantable, so a storekeeper can be allowed to
- * receive stock without being allowed to write it off.
+ * receive stock without being allowed to write it off. That per-type ability is
+ * enforced by the controller AFTER this request has validated (see ability()):
+ * deciding it from the raw `type` input would answer a blank or misspelt
+ * submission with a bare 403 instead of telling the user which field to fix,
+ * and a request that cannot name a movement type can never write stock anyway.
  */
 class StoreInventoryStockMovementRequest extends FormRequest
 {
+    /** The three separately grantable recording abilities. */
+    public const ABILITIES = ['in', 'out', 'adjust'];
+
+    /**
+     * Someone who may not record stock at all is refused here, before
+     * validation. WHICH of the three abilities a submission needs cannot be
+     * decided from the raw `type` input, so that decision is taken after
+     * validation instead (see ability()) — otherwise a blank or misspelt form
+     * would come back as a bare 403 with nothing to correct.
+     */
     public function authorize(): bool
     {
         $user = $this->user();
@@ -28,14 +42,27 @@ class StoreInventoryStockMovementRequest extends FormRequest
             return false;
         }
 
-        $ability = match ((string) $this->input('type', '')) {
+        foreach (self::ABILITIES as $ability) {
+            if ($user->can($ability, InventoryStockMovement::class)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The ability this submission needs, or null when the payload does not name
+     * a movement type that can write stock. Only meaningful once validated().
+     */
+    public function ability(): ?string
+    {
+        return match ((string) $this->validated('type')) {
             InventoryStockMovement::TYPE_STOCK_IN => 'in',
             InventoryStockMovement::TYPE_STOCK_OUT => 'out',
             InventoryStockMovement::TYPE_ADJUSTMENT => 'adjust',
             default => null,
         };
-
-        return $ability !== null && $user->can($ability, InventoryStockMovement::class);
     }
 
     protected function prepareForValidation(): void

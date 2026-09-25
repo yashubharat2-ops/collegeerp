@@ -439,4 +439,52 @@ class InventoryStockMovementTest extends TestCase
             $this->assertSame(1, InventoryStockMovement::query()->count());
         });
     }
+
+    /**
+     * The ability a movement needs depends on its type, which is only known
+     * once the submission has been read — so a payload that cannot name a
+     * usable type is answered with the fields to fix, while a well-formed
+     * movement the user may not record is still refused outright. Checking the
+     * ability first would turn every typo into a bare 403.
+     */
+    public function test_a_malformed_movement_gets_field_errors_and_an_ungrantable_one_is_refused(): void
+    {
+        $college = $this->makeCollege('ISTK13');
+        $user = $this->makeUserWithPermissions($college, ['inventory_stock.view', 'inventory_stock.in']);
+        $item = $this->makeInventoryItem($college, ['quantity' => '4.00']);
+
+        // Nothing usable submitted at all.
+        $this->asCollege($college, $user)
+            ->post(route('inventory-stock.store'), [])
+            ->assertSessionHasErrors(['item_id', 'type', 'direction', 'quantity', 'movement_date']);
+
+        // A type that can never write stock is a field error, not a refusal.
+        $this->asCollege($college, $user)
+            ->post(route('inventory-stock.store'), $this->movementPayload($item, ['type' => 'teleport']))
+            ->assertSessionHasErrors('type');
+
+        // A correction this user may not record, but whose direction is missing:
+        // the missing field is reported first.
+        $this->asCollege($college, $user)
+            ->post(route('inventory-stock.store'), $this->movementPayload($item, [
+                'type' => InventoryStockMovement::TYPE_ADJUSTMENT,
+                'direction' => '',
+                'reason' => 'Stock take',
+            ]))
+            ->assertSessionHasErrors('direction');
+
+        // The same correction, complete: now the ability decides, and it says no.
+        $this->asCollege($college, $user)
+            ->post(route('inventory-stock.store'), $this->movementPayload($item, [
+                'type' => InventoryStockMovement::TYPE_ADJUSTMENT,
+                'direction' => InventoryStockMovement::DIRECTION_IN,
+                'reason' => 'Stock take',
+            ]))
+            ->assertForbidden();
+
+        $this->withTenant($college, function () use ($item): void {
+            $this->assertSame('4.00', $item->fresh()->quantity);
+            $this->assertSame(0, InventoryStockMovement::query()->count());
+        });
+    }
 }

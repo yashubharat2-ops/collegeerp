@@ -99,6 +99,15 @@ class InventoryStockController extends Controller
 
     public function store(StoreInventoryStockMovementRequest $request): RedirectResponse
     {
+        // Authorized here rather than in the Form Request so that validation
+        // runs first: a malformed submission is answered with field errors,
+        // while a well-formed one the user may not record is still refused.
+        $ability = $request->ability();
+
+        abort_if($ability === null, 403);
+
+        $this->authorize($ability, InventoryStockMovement::class);
+
         $item = InventoryItem::query()->findOrFail($request->validated('item_id'));
 
         $movement = $this->stock->record($item, $request->validated(), $request->user());
@@ -118,8 +127,12 @@ class InventoryStockController extends Controller
             return false;
         }
 
-        return $user->can('in', InventoryStockMovement::class)
-            || $user->can('out', InventoryStockMovement::class)
-            || $user->can('adjust', InventoryStockMovement::class);
+        foreach (StoreInventoryStockMovementRequest::ABILITIES as $ability) {
+            if ($user->can($ability, InventoryStockMovement::class)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -605,4 +605,46 @@ class InventoryPurchaseOrderTest extends TestCase
             ->assertSee('GRN-9')
             ->assertDontSee('Nothing has been received against this order yet.');
     }
+
+    /**
+     * A draft, a cancelled or an already settled order cannot accept goods at
+     * all. Every line on it is also "not outstanding", so answering with a
+     * per-line quantity error would send the storekeeper to fix numbers that
+     * were never the problem: the answer has to be the order's status.
+     */
+    public function test_an_order_that_cannot_be_received_reports_its_status_not_its_quantities(): void
+    {
+        $college = $this->makeCollege('IPO20');
+        $user = $this->makeUserWithPermissions($college, ['inventory_purchase_orders.receive']);
+        $vendor = $this->makeInventoryVendor($college);
+        $item = $this->makeInventoryItem($college);
+
+        // Draft: the line still has its whole quantity outstanding.
+        $draft = $this->makeInventoryPurchaseOrder($college, ['vendor_id' => $vendor->id]);
+        $draftLine = $this->addPurchaseOrderLine($draft, $item, ['quantity' => '5.00']);
+
+        $this->asCollege($college, $user)
+            ->post(route('inventory-purchase-orders.receive.store', $draft), ['receipts' => [['line_id' => $draftLine->id, 'quantity' => '1']], 'movement_date' => '2026-10-01'])
+            ->assertSessionHasErrors('status');
+
+        // Cancelled: same answer, whatever the quantities say.
+        $cancelled = $this->makeInventoryPurchaseOrder($college, ['vendor_id' => $vendor->id, 'status' => InventoryPurchaseOrder::STATUS_CANCELLED]);
+        $cancelledLine = $this->addPurchaseOrderLine($cancelled, $item, ['quantity' => '5.00']);
+
+        $this->asCollege($college, $user)
+            ->post(route('inventory-purchase-orders.receive.store', $cancelled), ['receipts' => [['line_id' => $cancelledLine->id, 'quantity' => '1']], 'movement_date' => '2026-10-01'])
+            ->assertSessionHasErrors('status');
+
+        // A receivable order still reports a bad quantity as a bad quantity.
+        $open = $this->makeInventoryPurchaseOrder($college, ['vendor_id' => $vendor->id, 'status' => InventoryPurchaseOrder::STATUS_SUBMITTED]);
+        $openLine = $this->addPurchaseOrderLine($open, $item, ['quantity' => '5.00']);
+
+        $this->asCollege($college, $user)
+            ->post(route('inventory-purchase-orders.receive.store', $open), ['receipts' => [['line_id' => $openLine->id, 'quantity' => '5.01']], 'movement_date' => '2026-10-01'])
+            ->assertSessionHasErrors('receipts.0.quantity');
+
+        $this->withTenant($college, function (): void {
+            $this->assertSame(0, InventoryStockMovement::query()->count());
+        });
+    }
 }

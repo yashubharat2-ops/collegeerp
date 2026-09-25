@@ -112,6 +112,39 @@ becomes a real `FOREIGN KEY constraint failed` rejection at the database level
 instead of a silent mismatch, so tenant safety is enforced twice: in the service
 and in the schema.
 
+## Fixes found by the review pass
+
+**A non-receivable order reports its status, not its quantities.** Whether an
+order may accept goods is now checked first in
+`InventoryPurchaseOrderService::validateReceipts()`, which the receiving form
+request calls. A draft, a cancelled or a fully received order also has nothing
+outstanding, so the old ordering answered with *"Only 0.00 of … is still
+outstanding"* on `receipts.n.quantity` — sending the storekeeper to fix numbers
+that were never the problem. Both paths now share `assertReceivable()`, and
+`receive()` still re-checks it inside the row lock, so a concurrent receipt
+cannot settle the order between validation and write.
+
+**A malformed movement is answered with fields, not a 403.** Which of the three
+recording abilities a submission needs depends on its `type`, and reading that
+from raw input in `StoreInventoryStockMovementRequest::authorize()` meant a
+blank form or a misspelt type came back as `403` with nothing to correct. The
+request now refuses only users who hold no recording ability at all; the
+per-type ability is enforced by the controller from `validated('type')` once the
+submission is well formed. Authorization is unchanged for a valid payload — a
+storekeeper who may book stock in is still refused outright for a stock out or a
+correction.
+
+**A notification never follows the user into another college.** The session is
+per user, not per college, so a flashed message composed from one college's
+records was rendered on the next page opened in another: recording a receipt of
+"Theirs Only" in college B put that name on college A's stock ledger, even
+though every query behind the ledger is tenant-scoped. `App\Support\Tenancy\TenantFlash`
+records which college owns the pending one-shot data (`success`, `error`,
+`warning`, `info`, `status`, `errors`, `_old_input`) and `ResolveTenant` drops it
+when a request is served under a different one. Nothing persistent is touched,
+and a deliberate college switch stamps the new college itself so its own
+confirmation still appears.
+
 ## Tests
 
 `tests/Feature/Inventory/InventoryPurchaseOrderTest`,
@@ -122,3 +155,6 @@ refusal, negative-stock refusal, ledger immutability, isolation, per-ability
 RBAC and the item-form adjustment hook. `InventoryNavigationTest` and
 `InventoryModuleSeederTest` were updated: the section now pins six entries, and
 only the phases that are still unbuilt are asserted absent.
+`InventorySchemaRelationshipTest` pins the composite foreign keys and their
+parent keys, and `tests/Feature/Tenancy/TenantFlashIsolationTest` pins that
+one-shot session data does not cross a tenant boundary.

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Middleware\ResolveTenant;
 use App\Models\College;
 use App\Models\User;
+use App\Support\Tenancy\TenantFlash;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -25,6 +26,11 @@ class CollegeSwitchController
         }
 
         $request->session()->put('active_college_id', $college->getKey());
+
+        // A college switch is the authorized tenant boundary, so the
+        // confirmation it flashes belongs to the college being entered rather
+        // than being discarded as stale data from the one being left.
+        TenantFlash::stamp($request->session(), (int) $college->getKey());
 
         // Record the authorization decision for colleges the user is not a member of,
         // so ResolveTenant can honour the elevated selection on subsequent requests
