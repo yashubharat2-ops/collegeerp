@@ -14,7 +14,7 @@ Menu: **Inventory / Asset Management → … , Purchase Orders, Stock Movements*
 
 | Layer | Artefact |
 | --- | --- |
-| Migrations | `2026_09_30_000001_create_inventory_purchase_orders_table`, `…000002_create_inventory_purchase_order_items_table`, `…000003_create_inventory_stock_movements_table` (additive only) |
+| Migrations | `2026_09_30_000001_create_inventory_purchase_orders_table`, `…000002_create_inventory_purchase_order_items_table`, `…000003_create_inventory_stock_movements_table`, `…000004_add_inventory_composite_foreign_key_parent_keys` (additive only) |
 | Models | `InventoryPurchaseOrder`, `InventoryPurchaseOrderItem`, `InventoryStockMovement` |
 | Domain | `App\Domain\Inventory\Services\{InventoryPurchaseOrderService, InventoryStockService}` |
 | Policies | `InventoryPurchaseOrderPolicy`, `InventoryStockMovementPolicy` (registered in `AuthServiceProvider`) |
@@ -86,6 +86,31 @@ route, no `deleted_at`. A correction is a new movement.
 three stock abilities are separate from each other, so a storekeeper can be
 allowed to receive stock without being able to write stock off. Movements are
 immutable, so there is no create/update/delete permission for them.
+
+## Composite foreign keys and their parent keys
+
+Every relationship here is a composite `(x_id, college_id)` foreign key, which
+is what stops a movement or an order line ever pointing at another college's
+record. SQLite resolves such a key against a parent index when a statement is
+prepared, and it requires a **non-partial UNIQUE** index covering the referenced
+columns — the soft-delete-aware `… WHERE deleted_at IS NULL` indexes do not
+count. Without one, *every* insert into the child failed:
+
+```
+SQLSTATE[HY000]: General error: 1 foreign key mismatch -
+"inventory_stock_movements" referencing "inventory_purchase_orders"
+```
+
+even for a row whose `purchase_order_id` is NULL (an opening movement), because
+the failure happens before any value is examined.
+
+`2026_09_30_000004` adds the missing parent key — a plain UNIQUE index on
+`(id, college_id)` — to `inventory_categories`, `inventory_vendors`,
+`inventory_items` and `inventory_purchase_orders`. `id` is already unique, so
+existing data can never violate it. With it in place the cross-tenant case
+becomes a real `FOREIGN KEY constraint failed` rejection at the database level
+instead of a silent mismatch, so tenant safety is enforced twice: in the service
+and in the schema.
 
 ## Tests
 
