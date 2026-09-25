@@ -107,6 +107,12 @@ class HostelAllocation extends Model
         return $this->hasMany(HostelFeeAssignment::class, 'hostel_allocation_id');
     }
 
+    /** Daily attendance marks recorded against this allocation. */
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(HostelAttendance::class, 'hostel_allocation_id');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
