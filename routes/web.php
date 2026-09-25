@@ -370,159 +370,85 @@ Route::middleware('auth')->group(function () {
         Route::resource('hostel-fees', \App\Http\Controllers\Hostel\HostelFeeController::class)->parameters(['hostel-fees' => 'fee']);
         Route::resource('hostel-fee-structures', \App\Http\Controllers\Hostel\HostelFeeStructureController::class)->except('show')->parameters(['hostel-fee-structures' => 'fee_structure']);
 
-        // Hostel Management Phase 3 — Hostel Attendance.
-        // Bulk routes are registered before the resource so "bulk"
-        // is not captured as an id.
-        Route::get(
-            'hostel-attendance/bulk',
-            [\App\Http\Controllers\Hostel\HostelAttendanceController::class, 'bulk']
-        )->name('hostel-attendance.bulk');
+        // Hostel Management Phase 3 — Hostel Attendance. Bulk routes are
+        // registered before the resource so "bulk" is not captured as an id.
+        Route::get('hostel-attendance/bulk', [\App\Http\Controllers\Hostel\HostelAttendanceController::class, 'bulk'])->name('hostel-attendance.bulk');
+        Route::post('hostel-attendance/bulk', [\App\Http\Controllers\Hostel\HostelAttendanceController::class, 'storeBulk'])->name('hostel-attendance.bulk.store');
+        Route::resource('hostel-attendance', \App\Http\Controllers\Hostel\HostelAttendanceController::class)->except('show')->parameters(['hostel-attendance' => 'hostel_attendance']);
 
-        Route::post(
-            'hostel-attendance/bulk',
-            [\App\Http\Controllers\Hostel\HostelAttendanceController::class, 'storeBulk']
-        )->name('hostel-attendance.bulk.store');
+        // Hostel Management Phase 3 — Hostel Reports (read-only; GET only).
+        Route::get('hostel-reports', [\App\Http\Controllers\Hostel\HostelReportController::class, 'index'])->name('hostel-reports.index');
 
-        Route::resource(
-            'hostel-attendance',
-            \App\Http\Controllers\Hostel\HostelAttendanceController::class
-        )->except('show')
-         ->parameters(['hostel-attendance' => 'hostel_attendance']);
+        // Communication Management — Phase 1 (internal only: no SMS / e-mail /
+        // WhatsApp gateways, templates, delivery logs or reports). The
+        // dashboard is read-only and aggregated live (no dashboard tables).
+        Route::get('communication', \App\Http\Controllers\Communication\CommunicationDashboardController::class)->name('communication.dashboard');
 
-        // Hostel Management Phase 3 — Hostel Reports.
-        Route::get(
-            'hostel-reports',
-            [\App\Http\Controllers\Hostel\HostelReportController::class, 'index']
-        )->name('hostel-reports.index');
+        // Notices / Announcements — status only changes through the workflow
+        // actions (notices.publish); attachments stream from the private disk.
+        Route::post('notices/{notice}/publish', [\App\Http\Controllers\Communication\NoticeController::class, 'publish'])->name('notices.publish');
+        Route::post('notices/{notice}/unpublish', [\App\Http\Controllers\Communication\NoticeController::class, 'unpublish'])->name('notices.unpublish');
+        Route::post('notices/{notice}/archive', [\App\Http\Controllers\Communication\NoticeController::class, 'archive'])->name('notices.archive');
+        Route::get('notices/{notice}/attachment', [\App\Http\Controllers\Communication\NoticeController::class, 'attachment'])->name('notices.attachment');
+        Route::resource('notices', \App\Http\Controllers\Communication\NoticeController::class);
 
-        // Communication Management — Phase 1.
-        Route::get(
-            'communication',
-            \App\Http\Controllers\Communication\CommunicationDashboardController::class
-        )->name('communication.dashboard');
+        // Circulars — a separate module with its own numbering (circulars.publish).
+        Route::post('circulars/{circular}/publish', [\App\Http\Controllers\Communication\CircularController::class, 'publish'])->name('circulars.publish');
+        Route::post('circulars/{circular}/unpublish', [\App\Http\Controllers\Communication\CircularController::class, 'unpublish'])->name('circulars.unpublish');
+        Route::post('circulars/{circular}/archive', [\App\Http\Controllers\Communication\CircularController::class, 'archive'])->name('circulars.archive');
+        Route::get('circulars/{circular}/attachment', [\App\Http\Controllers\Communication\CircularController::class, 'attachment'])->name('circulars.attachment');
+        Route::resource('circulars', \App\Http\Controllers\Communication\CircularController::class);
 
-        Route::post(
-            'notices/{notice}/publish',
-            [\App\Http\Controllers\Communication\NoticeController::class, 'publish']
-        )->name('notices.publish');
+        // Internal (in-app) notifications. "read-all" is registered before the
+        // resource so it is never captured as a notification id.
+        Route::post('notifications/read-all', [\App\Http\Controllers\Communication\CommunicationNotificationController::class, 'markAllRead'])->name('notifications.read-all');
+        Route::post('notifications/{notification}/read', [\App\Http\Controllers\Communication\CommunicationNotificationController::class, 'markRead'])->name('notifications.read');
+        Route::post('notifications/{notification}/unread', [\App\Http\Controllers\Communication\CommunicationNotificationController::class, 'markUnread'])->name('notifications.unread');
+        Route::resource('notifications', \App\Http\Controllers\Communication\CommunicationNotificationController::class);
 
-        Route::post(
-            'notices/{notice}/unpublish',
-            [\App\Http\Controllers\Communication\NoticeController::class, 'unpublish']
-        )->name('notices.unpublish');
+        // Communication Management — Phase 2 (templates, logs, delivery /
+        // read tracking, reports). Still no external SMS / e-mail gateway:
+        // templates are reusable definitions and logs only record what
+        // happened to a message.
+        Route::resource('communication-templates', \App\Http\Controllers\Communication\CommunicationTemplateController::class);
 
-        Route::post(
-            'notices/{notice}/archive',
-            [\App\Http\Controllers\Communication\NoticeController::class, 'archive']
-        )->name('notices.archive');
+        // SMS / Email logs are immutable from the UI: read-only routes only.
+        Route::get('communication-logs', [\App\Http\Controllers\Communication\CommunicationLogController::class, 'index'])->name('communication-logs.index');
+        Route::get('communication-logs/{communicationLog}', [\App\Http\Controllers\Communication\CommunicationLogController::class, 'show'])->name('communication-logs.show');
 
-        Route::get(
-            'notices/{notice}/attachment',
-            [\App\Http\Controllers\Communication\NoticeController::class, 'attachment']
-        )->name('notices.attachment');
+        // Delivery / read tracking of the existing notification flow.
+        Route::get('communication-tracking', [\App\Http\Controllers\Communication\CommunicationTrackingController::class, 'index'])->name('communication-tracking.index');
+        Route::post('communication-tracking/{notification}/delivered', [\App\Http\Controllers\Communication\CommunicationTrackingController::class, 'markDelivered'])->name('communication-tracking.delivered');
 
-        Route::resource(
-            'notices',
-            \App\Http\Controllers\Communication\NoticeController::class
-        );
+        // Read-only Communication Reports (live aggregates, no report tables).
+        Route::get('communication-reports', [\App\Http\Controllers\Communication\CommunicationReportController::class, 'index'])->name('communication-reports.index');
 
-        Route::post(
-            'circulars/{circular}/publish',
-            [\App\Http\Controllers\Communication\CircularController::class, 'publish']
-        )->name('circulars.publish');
+        // Inventory / Asset Management — Phase 1. The dashboard is read-only
+        // and aggregated live (no dashboard tables). Items and assets share
+        // one master.
+        Route::get('inventory/dashboard', \App\Http\Controllers\Inventory\InventoryDashboardController::class)->name('inventory.dashboard');
+        Route::resource('inventory-categories', \App\Http\Controllers\Inventory\InventoryCategoryController::class)->except('show')->parameters(['inventory-categories' => 'inventory_category']);
+        Route::resource('inventory-items', \App\Http\Controllers\Inventory\InventoryItemController::class)->except('show')->parameters(['inventory-items' => 'inventory_item']);
+        Route::resource('inventory-vendors', \App\Http\Controllers\Inventory\InventoryVendorController::class)->except('show')->parameters(['inventory-vendors' => 'inventory_vendor']);
 
-        Route::post(
-            'circulars/{circular}/unpublish',
-            [\App\Http\Controllers\Communication\CircularController::class, 'unpublish']
-        )->name('circulars.unpublish');
+        // Inventory / Asset Management — Phase 2. Purchasing and stock: purchase
+        // orders with their lines, goods receipts, and the immutable stock
+        // movement ledger. Lifecycle actions are their own routes so submitting,
+        // receiving and cancelling can be granted separately. Issue/return to
+        // staff, asset assignment, maintenance and reports are later phases.
+        Route::post('inventory-purchase-orders/{purchase_order}/submit', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'submit'])->name('inventory-purchase-orders.submit');
+        Route::post('inventory-purchase-orders/{purchase_order}/cancel', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'cancel'])->name('inventory-purchase-orders.cancel');
+        Route::get('inventory-purchase-orders/{purchase_order}/receive', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'receiveForm'])->name('inventory-purchase-orders.receive.create');
+        Route::post('inventory-purchase-orders/{purchase_order}/receive', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'receive'])->name('inventory-purchase-orders.receive.store');
+        Route::resource('inventory-purchase-orders', \App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class)->parameters(['inventory-purchase-orders' => 'purchase_order']);
 
-        Route::post(
-            'circulars/{circular}/archive',
-            [\App\Http\Controllers\Communication\CircularController::class, 'archive']
-        )->name('circulars.archive');
+        // Stock ledger. Movements are append-only, so there are no update or
+        // destroy routes: a correction is a new movement.
+        Route::get('inventory-stock', [\App\Http\Controllers\Inventory\InventoryStockController::class, 'index'])->name('inventory-stock.index');
+        Route::get('inventory-stock/create', [\App\Http\Controllers\Inventory\InventoryStockController::class, 'create'])->name('inventory-stock.create');
+        Route::post('inventory-stock', [\App\Http\Controllers\Inventory\InventoryStockController::class, 'store'])->name('inventory-stock.store');
 
-        Route::get(
-            'circulars/{circular}/attachment',
-            [\App\Http\Controllers\Communication\CircularController::class, 'attachment']
-        )->name('circulars.attachment');
-
-        Route::resource(
-            'circulars',
-            \App\Http\Controllers\Communication\CircularController::class
-        );
-
-        // Internal notifications.
-        Route::post(
-            'notifications/read-all',
-            [\App\Http\Controllers\Communication\CommunicationNotificationController::class, 'markAllRead']
-        )->name('notifications.read-all');
-
-        Route::post(
-            'notifications/{notification}/read',
-            [\App\Http\Controllers\Communication\CommunicationNotificationController::class, 'markRead']
-        )->name('notifications.read');
-
-        Route::post(
-            'notifications/{notification}/unread',
-            [\App\Http\Controllers\Communication\CommunicationNotificationController::class, 'markUnread']
-        )->name('notifications.unread');
-
-        Route::resource(
-            'notifications',
-            \App\Http\Controllers\Communication\CommunicationNotificationController::class
-        );
-
-        // Communication Management — Phase 2.
-        Route::resource(
-            'communication-templates',
-            \App\Http\Controllers\Communication\CommunicationTemplateController::class
-        );
-
-        Route::get(
-            'communication-logs',
-            [\App\Http\Controllers\Communication\CommunicationLogController::class, 'index']
-        )->name('communication-logs.index');
-
-        Route::get(
-            'communication-logs/{communicationLog}',
-            [\App\Http\Controllers\Communication\CommunicationLogController::class, 'show']
-        )->name('communication-logs.show');
-
-        Route::get(
-            'communication-tracking',
-            [\App\Http\Controllers\Communication\CommunicationTrackingController::class, 'index']
-        )->name('communication-tracking.index');
-
-        Route::post(
-            'communication-tracking/{notification}/delivered',
-            [\App\Http\Controllers\Communication\CommunicationTrackingController::class, 'markDelivered']
-        )->name('communication-tracking.delivered');
-
-        Route::get(
-            'communication-reports',
-            [\App\Http\Controllers\Communication\CommunicationReportController::class, 'index']
-        )->name('communication-reports.index');
-
-        // Inventory / Asset Management — Phase 1.
-        Route::get(
-            'inventory/dashboard',
-            \App\Http\Controllers\Inventory\InventoryDashboardController::class
-        )->name('inventory.dashboard');
-
-        Route::resource(
-            'inventory-categories',
-            \App\Http\Controllers\Inventory\InventoryCategoryController::class
-        )->except('show')
-         ->parameters(['inventory-categories' => 'inventory_category']);
-
-        Route::resource(
-            'inventory-items',
-            \App\Http\Controllers\Inventory\InventoryItemController::class
-        )->except('show')
-         ->parameters(['inventory-items' => 'inventory_item']);
-
-        Route::resource(
-            'inventory-vendors',
-            \App\Http\Controllers\Inventory\InventoryVendorController::class
-        )->except('show')
-         ->parameters(['inventory-vendors' => 'inventory_vendor']);
+        Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
+        Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
+    });
+});

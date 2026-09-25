@@ -6,25 +6,25 @@ use App\Models\College;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
-use Database\Seeders\InventoryPermissionSeeder;
+use Database\Seeders\InventoryPhase2PermissionSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
- * Inventory / Asset Management RBAC seeding — Phase 1.
+ * Inventory / Asset Management RBAC seeding — Phase 2.
  *
- * The thirteen Phase 1 permissions exist exactly once, are granted to the
- * seeded Super Admin and College Admin roles through the centralized seeder,
- * and re-seeding is a no-op. Permissions of the phases that have not been
- * built yet are deliberately not seeded; the Phase 2 (purchase orders and
- * stock) permissions are pinned by InventoryPhase2SeederTest.
+ * The nine Phase 2 permissions exist exactly once, are granted to the seeded
+ * Super Admin and College Admin roles through the centralized seeder, and
+ * re-seeding is a no-op. Permissions of the phases that are not built yet
+ * (issue/return, asset assignment, maintenance, reports) are still not seeded,
+ * and stock movements stay immutable (no update / delete permission).
  */
-class InventoryModuleSeederTest extends TestCase
+class InventoryPhase2SeederTest extends TestCase
 {
     use InventoryTestHelpers;
 
-    public function test_inventory_permissions_are_seeded_once_and_granted_to_both_admin_roles(): void
+    public function test_phase_two_permissions_are_seeded_once_and_granted_to_both_admin_roles(): void
     {
         $college = College::where('code', 'DEMO')->firstOrFail();
         $admin = Role::where('college_id', $college->id)->where('slug', 'college-admin')->firstOrFail();
@@ -32,31 +32,30 @@ class InventoryModuleSeederTest extends TestCase
         $adminGranted = $admin->permissions()->pluck('slug')->all();
         $superGranted = $super->permissions()->pluck('slug')->all();
 
-        $this->assertCount(13, self::INVENTORY_PERMISSIONS);
-        $this->assertSame(self::INVENTORY_PERMISSIONS, InventoryPermissionSeeder::PERMISSIONS);
+        $this->assertCount(9, self::INVENTORY_PHASE2_PERMISSIONS);
+        $this->assertSame(self::INVENTORY_PHASE2_PERMISSIONS, InventoryPhase2PermissionSeeder::PERMISSIONS);
 
-        foreach (self::INVENTORY_PERMISSIONS as $slug) {
+        foreach (self::INVENTORY_PHASE2_PERMISSIONS as $slug) {
             $this->assertSame(1, Permission::where('slug', $slug)->count(), "Permission {$slug} must be seeded exactly once.");
             $this->assertContains($slug, $adminGranted, "College admin must hold {$slug}.");
             $this->assertContains($slug, $superGranted, "Super admin must hold {$slug}.");
         }
 
-        $permission = Permission::where('slug', 'inventory_items.create')->firstOrFail();
-        $this->assertSame('inventory_items', $permission->module);
-        $this->assertSame('create', $permission->action);
-        $this->assertSame(Str::headline('inventory_items.create'), $permission->name);
+        $permission = Permission::where('slug', 'inventory_purchase_orders.receive')->firstOrFail();
+        $this->assertSame('inventory_purchase_orders', $permission->module);
+        $this->assertSame('receive', $permission->action);
+        $this->assertSame(Str::headline('inventory_purchase_orders.receive'), $permission->name);
     }
 
-    public function test_later_phase_permissions_are_not_seeded(): void
+    public function test_stock_movements_stay_immutable_and_later_phases_are_not_seeded(): void
     {
         foreach ([
-            'inventory_issues.view',
-            'inventory_assignments.view',
-            'inventory_maintenance.view',
-            'inventory_reports.view',
-            'assets.view',
+            'inventory_stock.create', 'inventory_stock.update', 'inventory_stock.delete',
+            'inventory_stock_movements.view', 'inventory_stock_movements.delete',
+            'inventory_issues.view', 'inventory_assignments.view', 'inventory_maintenance.view',
+            'inventory_reports.view', 'assets.view',
         ] as $slug) {
-            $this->assertSame(0, Permission::where('slug', $slug)->count(), "{$slug} belongs to a later phase.");
+            $this->assertSame(0, Permission::where('slug', $slug)->count(), "{$slug} must not exist.");
         }
     }
 
@@ -70,15 +69,15 @@ class InventoryModuleSeederTest extends TestCase
         $this->assertSame($before, $this->counts());
     }
 
-    public function test_the_standalone_seeder_is_idempotent_and_touches_no_grants(): void
+    public function test_the_standalone_phase_two_seeder_is_idempotent_and_touches_no_grants(): void
     {
         $before = [
             'permissions' => Permission::count(),
             'permission_role' => DB::table('permission_role')->count(),
         ];
 
-        $this->seed(InventoryPermissionSeeder::class);
-        $this->seed(InventoryPermissionSeeder::class);
+        $this->seed(InventoryPhase2PermissionSeeder::class);
+        $this->seed(InventoryPhase2PermissionSeeder::class);
 
         $this->assertSame($before, [
             'permissions' => Permission::count(),
@@ -93,7 +92,7 @@ class InventoryModuleSeederTest extends TestCase
     {
         return [
             'permissions' => Permission::count(),
-            'inventory_permissions' => Permission::whereIn('slug', self::INVENTORY_PERMISSIONS)->count(),
+            'phase2_permissions' => Permission::whereIn('slug', self::INVENTORY_PHASE2_PERMISSIONS)->count(),
             'roles' => Role::count(),
             'users' => User::count(),
             'colleges' => College::count(),

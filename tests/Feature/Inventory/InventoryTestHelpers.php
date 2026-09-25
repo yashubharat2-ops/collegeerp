@@ -5,18 +5,20 @@ namespace Tests\Feature\Inventory;
 use App\Models\College;
 use App\Models\InventoryCategory;
 use App\Models\InventoryItem;
+use App\Models\InventoryPurchaseOrder;
+use App\Models\InventoryPurchaseOrderItem;
 use App\Models\InventoryVendor;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Str;
 use Tests\Feature\ExamAttendance\ExamAttendanceTestHelpers;
 
 /**
- * Shared fixtures for Inventory / Asset Management (Phase 1).
+ * Shared fixtures for Inventory / Asset Management (Phases 1 + 2).
  *
  * Reuses the project-wide college and RBAC fixtures and adds only what this
- * module owns: categories, items/assets and vendors. Fixtures are created
- * directly (not through HTTP) so each test exercises one behaviour, and are
- * always stamped with an explicit college_id.
+ * module owns: categories, items/assets, vendors, purchase orders and their
+ * lines. Fixtures are created directly (not through HTTP) so each test
+ * exercises one behaviour, and are always stamped with an explicit college_id.
  */
 trait InventoryTestHelpers
 {
@@ -32,12 +34,18 @@ trait InventoryTestHelpers
         $this->withoutVite();
     }
 
-    /** Every Inventory permission slug seeded by DatabaseSeeder. */
+    /** Every Phase 1 permission slug seeded by DatabaseSeeder. */
     private const INVENTORY_PERMISSIONS = [
         'inventory_dashboard.view',
         'inventory_categories.view', 'inventory_categories.create', 'inventory_categories.update', 'inventory_categories.delete',
         'inventory_items.view', 'inventory_items.create', 'inventory_items.update', 'inventory_items.delete',
         'inventory_vendors.view', 'inventory_vendors.create', 'inventory_vendors.update', 'inventory_vendors.delete',
+    ];
+
+    /** Every Phase 2 permission slug (purchase orders and stock) seeded by DatabaseSeeder. */
+    private const INVENTORY_PHASE2_PERMISSIONS = [
+        'inventory_purchase_orders.view', 'inventory_purchase_orders.create', 'inventory_purchase_orders.update', 'inventory_purchase_orders.delete', 'inventory_purchase_orders.receive',
+        'inventory_stock.view', 'inventory_stock.in', 'inventory_stock.out', 'inventory_stock.adjust',
     ];
 
     /**
@@ -112,5 +120,58 @@ trait InventoryTestHelpers
         ], $overrides, [
             'category_id' => $categoryId,
         ]));
+    }
+
+    /**
+     * A purchase order header. Lines are added with addPurchaseOrderLine();
+     * a vendor is created unless one is supplied.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeInventoryPurchaseOrder(College $college, array $overrides = []): InventoryPurchaseOrder
+    {
+        $vendorId = $overrides['vendor_id'] ?? $this->makeInventoryVendor($college)->id;
+
+        return InventoryPurchaseOrder::create(array_merge([
+            'college_id' => $college->id,
+            'vendor_id' => $vendorId,
+            'number' => 'PO-'.Str::upper(Str::random(6)),
+            'po_date' => '2026-09-30',
+            'status' => InventoryPurchaseOrder::STATUS_DRAFT,
+            'total_amount' => '0.00',
+        ], $overrides, [
+            'vendor_id' => $vendorId,
+        ]));
+    }
+
+    /**
+     * Add a line to a purchase order and keep the header total honest.
+     *
+     * The header is updated through a scope-free query because fixtures run
+     * outside an HTTP request, where CollegeScope would match no rows.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    private function addPurchaseOrderLine(InventoryPurchaseOrder $order, InventoryItem $item, array $overrides = []): InventoryPurchaseOrderItem
+    {
+        $line = InventoryPurchaseOrderItem::create(array_merge([
+            'college_id' => $order->college_id,
+            'purchase_order_id' => $order->id,
+            'item_id' => $item->id,
+            'quantity' => '10.00',
+            'unit_price' => '100.00',
+            'received_quantity' => '0.00',
+        ], $overrides));
+
+        $total = '0.00';
+
+        foreach ($order->lines()->withoutGlobalScopes()->get() as $row) {
+            $total = bcadd($total, bcmul($row->quantity, $row->unit_price, 2), 2);
+        }
+
+        InventoryPurchaseOrder::withoutGlobalScopes()->whereKey($order->id)->update(['total_amount' => $total]);
+        $order->total_amount = $total;
+
+        return $line;
     }
 }

@@ -2,9 +2,11 @@
 
 **Scope of this phase:** the catalogue masters only — item categories, a single
 items / assets master, and vendors — plus a read-only **Inventory Dashboard**
-over them. Purchase orders, stock in/out, issue/return, asset assignment,
-maintenance and reports are deliberately **not** implemented. There is no
-separate Asset master.
+over them. There is no separate Asset master.
+
+> **Superseded in part by [Phase 2](inventory-phase-2.md).** Purchase orders and
+> stock in/out are now implemented. Issue/return to staff, asset assignment,
+> maintenance and reports are still **not** implemented.
 
 Menu: **Inventory / Asset Management → Inventory Dashboard, Item Categories,
 Items / Assets, Vendors** (exactly four entries, each individually

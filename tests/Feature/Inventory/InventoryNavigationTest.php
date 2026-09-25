@@ -9,13 +9,15 @@ use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
- * Sidebar navigation for Inventory / Asset Management — Phase 1.
+ * Sidebar navigation for Inventory / Asset Management — Phases 1 + 2.
  *
  *   - a single "Inventory / Asset Management" section, rendered exactly once;
- *   - it lists exactly the four Phase 1 entries, in order;
+ *   - it lists exactly the six entries (the four Phase 1 masters plus purchase
+ *     orders and stock movements), in order;
  *   - every entry is individually gated on its own view permission;
  *   - the section is hidden entirely without any inventory view permission;
- *   - later phases are not rendered.
+ *   - the phases that are not built yet (issue/return, asset assignment,
+ *     maintenance, reports) are not rendered.
  */
 class InventoryNavigationTest extends TestCase
 {
@@ -31,12 +33,11 @@ class InventoryNavigationTest extends TestCase
         'Item Categories' => ['inventory_categories.view', 'inventory-categories.index'],
         'Items / Assets' => ['inventory_items.view', 'inventory-items.index'],
         'Vendors' => ['inventory_vendors.view', 'inventory-vendors.index'],
+        'Purchase Orders' => ['inventory_purchase_orders.view', 'inventory-purchase-orders.index'],
+        'Stock Movements' => ['inventory_stock.view', 'inventory-stock.index'],
     ];
 
     private const FUTURE = [
-        'Purchase Orders',
-        'Stock In',
-        'Stock Out',
         'Issue / Return',
         'Asset Assignment',
         'Maintenance',
@@ -61,7 +62,7 @@ class InventoryNavigationTest extends TestCase
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
 
-    public function test_the_section_lists_exactly_the_four_phase_one_entries_in_order(): void
+    public function test_the_section_lists_exactly_the_six_inventory_entries_in_order(): void
     {
         $college = $this->makeCollege('INAV1');
         $user = $this->makeUserWithPermissions($college, array_column(self::ENTRIES, 0));
@@ -72,7 +73,7 @@ class InventoryNavigationTest extends TestCase
         $this->assertSame(1, substr_count($html, '<aside'), 'The layout must keep one sidebar.');
 
         $group = $this->inventoryNavGroup($html);
-        $this->assertSame(4, substr_count($group, 'class="nav-link"'), 'Exactly four Inventory entries.');
+        $this->assertSame(6, substr_count($group, 'class="nav-link"'), 'Exactly six Inventory entries.');
 
         $cursor = -1;
         foreach (self::ENTRIES as $label => [$permission, $route]) {
@@ -140,13 +141,13 @@ class InventoryNavigationTest extends TestCase
         $this->assertNotFalse($inventory);
         $this->assertGreaterThan($communication, $inventory);
         $this->assertGreaterThan($inventory, $platform);
-        $this->assertSame(4, substr_count($this->inventoryNavGroup($html), 'class="nav-link"'));
+        $this->assertSame(6, substr_count($this->inventoryNavGroup($html), 'class="nav-link"'));
 
         foreach (self::FUTURE as $future) {
             $this->assertStringNotContainsString($future, $this->inventoryNavGroup($html));
         }
 
-        foreach (['purchase_orders', 'inventory_stock_movements', 'inventory_issues', 'asset_assignments', 'inventory_maintenances', 'assets'] as $table) {
+        foreach (['inventory_issues', 'asset_assignments', 'inventory_maintenances', 'assets'] as $table) {
             $this->assertFalse(Schema::hasTable($table), "{$table} belongs to a later phase.");
         }
     }
@@ -178,6 +179,8 @@ class InventoryNavigationTest extends TestCase
             'inventory-categories.index', 'inventory-categories.create',
             'inventory-items.index', 'inventory-items.create',
             'inventory-vendors.index', 'inventory-vendors.create',
+            'inventory-purchase-orders.index', 'inventory-purchase-orders.create',
+            'inventory-stock.index', 'inventory-stock.create',
         ] as $route) {
             $this->asCollege($college, $user)->get(route($route))->assertOk();
         }

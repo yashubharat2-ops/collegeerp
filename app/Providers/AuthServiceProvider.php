@@ -1,35 +1,30 @@
 <?php
-
 namespace App\Providers;
-
 use App\Models\{AcademicSubjectEnrollment, AcademicTimetable, AcademicTerm, AcademicYear, Admission, AdmissionApplicant, AdmissionApplication, AdmissionDocument, AdmissionDocumentType, AdmissionEnquiry, AdmissionMeritEntry, AdmissionMeritList, Campus, College, Department, Examination, ExamAttendance, ExamMark, ExamReport, ExamResult, ExamSchedule, Marksheet, GradeCard, Faculty, FacultySubjectAssignment, FeeCategory, FeeConcession, FeeDue, FeePayment, FeeReceipt, FeeRefund, FeeReport, FeeStructure, StudentFeeAssignment, StudentTransportAssignment, StudentTransportFeeAssignment, TransportFeeStructure, TransportReport, VehicleDocument, GradeScale, InstitutionalSetting, Permission, Program, Role, Section, Student, StudentAcademicRecord, StudentDocument, StudentEnrollment, StudentPromotion, StudentTransfer, StudentResultHistory, Subject, Designation, Employee, EmployeeDocument, StaffAttendance, LeaveType, LeaveRequest, SalaryStructure, SalaryComponent, Payroll, HrReport, Author, Book, BookCategory, BookCopy, LibraryDashboard, LibraryMember, LibraryRenewal, LibraryTransaction, LibraryFine, Publisher, HostelAllocation, HostelFeeStructure, HostelFeeAssignment};
-
 use App\Policies\{AcademicSubjectEnrollmentPolicy, AcademicTimetablePolicy, AcademicTermPolicy, AcademicYearPolicy, AdmissionApplicantPolicy, AdmissionApplicationPolicy, AdmissionDocumentPolicy, AdmissionDocumentTypePolicy, AdmissionEnquiryPolicy, AdmissionMeritEntryPolicy, AdmissionMeritListPolicy, AdmissionPolicy, CampusPolicy, CollegePolicy, DepartmentPolicy, ExaminationPolicy, ExamAttendancePolicy, ExamMarkPolicy, ExamReportPolicy, ExamResultPolicy, ExamSchedulePolicy, MarksheetPolicy, GradeCardPolicy, FacultyPolicy, FacultySubjectAssignmentPolicy, FeeCategoryPolicy, FeeConcessionPolicy, FeeDuePolicy, FeePaymentPolicy, FeeReceiptPolicy, FeeRefundPolicy, FeeReportPolicy, FeeStructurePolicy, StudentFeeAssignmentPolicy, StudentTransportAssignmentPolicy, StudentTransportFeeAssignmentPolicy, TransportFeeStructurePolicy, TransportReportPolicy, VehicleDocumentPolicy, GradeScalePolicy, InstitutionalSettingPolicy, PermissionPolicy, ProgramPolicy, RolePolicy, SectionPolicy, StudentAcademicRecordPolicy, StudentDocumentPolicy, StudentEnrollmentPolicy, StudentPolicy, StudentPromotionPolicy, StudentTransferPolicy, StudentResultHistoryPolicy, SubjectPolicy, DesignationPolicy, EmployeeDocumentPolicy, StaffAttendancePolicy, LeaveTypePolicy, LeaveRequestPolicy, SalaryStructurePolicy, SalaryComponentPolicy, PayrollPolicy, HrReportPolicy, AuthorPolicy, BookPolicy, BookCategoryPolicy, BookCopyPolicy, LibraryDashboardPolicy, LibraryMemberPolicy, LibraryRenewalPolicy, LibraryTransactionPolicy, LibraryFinePolicy, LibraryReportPolicy, PublisherPolicy, HostelAllocationPolicy, HostelFeeStructurePolicy, HostelFeeAssignmentPolicy};
-
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
-
 class AuthServiceProvider extends ServiceProvider
 {
     protected $policies = [
-        // Inventory / Asset Management — Phase 1
+        // Inventory / Asset Management — Phase 1 (dashboard, categories, items/assets, vendors).
         \App\Models\InventoryDashboard::class => \App\Policies\InventoryDashboardPolicy::class,
         \App\Models\InventoryCategory::class => \App\Policies\InventoryCategoryPolicy::class,
         \App\Models\InventoryItem::class => \App\Policies\InventoryItemPolicy::class,
         \App\Models\InventoryVendor::class => \App\Policies\InventoryVendorPolicy::class,
-
-        // Communication Management — Phase 1
+        // Inventory / Asset Management — Phase 2 (purchase orders, stock movements).
+        \App\Models\InventoryPurchaseOrder::class => \App\Policies\InventoryPurchaseOrderPolicy::class,
+        \App\Models\InventoryStockMovement::class => \App\Policies\InventoryStockMovementPolicy::class,
+        // Communication Management — Phase 1 (dashboard, notices, circulars, internal notifications).
         \App\Models\CommunicationDashboard::class => \App\Policies\CommunicationDashboardPolicy::class,
         \App\Models\Notice::class => \App\Policies\NoticePolicy::class,
         \App\Models\Circular::class => \App\Policies\CircularPolicy::class,
         \App\Models\CommunicationNotification::class => \App\Policies\CommunicationNotificationPolicy::class,
-
-        // Communication Management — Phase 2
+        // Communication Management — Phase 2 (templates, logs, delivery / read tracking, reports).
         \App\Models\CommunicationTemplate::class => \App\Policies\CommunicationTemplatePolicy::class,
         \App\Models\CommunicationLog::class => \App\Policies\CommunicationLogPolicy::class,
         \App\Models\CommunicationTracking::class => \App\Policies\CommunicationTrackingPolicy::class,
         \App\Models\CommunicationReport::class => \App\Policies\CommunicationReportPolicy::class,
-
-        // Hostel Management — Phase 1, Phase 2 and Phase 3
+        // Hostel Management — Phase 1 masters, Phase 2 allocations/fees, Phase 3 attendance/reports.
         \App\Models\HostelDashboard::class => \App\Policies\HostelDashboardPolicy::class,
         \App\Models\Hostel::class => \App\Policies\HostelPolicy::class,
         \App\Models\HostelBuilding::class => \App\Policies\HostelBuildingPolicy::class,
@@ -40,100 +35,19 @@ class AuthServiceProvider extends ServiceProvider
         \App\Models\HostelFeeAssignment::class => \App\Policies\HostelFeeAssignmentPolicy::class,
         \App\Models\HostelAttendance::class => \App\Policies\HostelAttendancePolicy::class,
         \App\Models\HostelReport::class => \App\Policies\HostelReportPolicy::class,
-
-        // Transport Phase 1
+        // Transport Phase 1.
         \App\Models\TransportDashboard::class => \App\Policies\TransportDashboardPolicy::class,
         \App\Models\Vehicle::class => \App\Policies\VehiclePolicy::class,
         \App\Models\TransportDriver::class => \App\Policies\TransportDriverPolicy::class,
         \App\Models\TransportRoute::class => \App\Policies\TransportRoutePolicy::class,
         \App\Models\TransportStop::class => \App\Policies\TransportStopPolicy::class,
-
-        // Transport Phase 2
+        // Transport Phase 2 — Vehicle Documents, Student Transport Assignment,
+        // Transport Fees (structures + assignments) and Transport Reports.
         VehicleDocument::class => VehicleDocumentPolicy::class,
         StudentTransportAssignment::class => StudentTransportAssignmentPolicy::class,
         TransportFeeStructure::class => TransportFeeStructurePolicy::class,
         StudentTransportFeeAssignment::class => StudentTransportFeeAssignmentPolicy::class,
         TransportReport::class => TransportReportPolicy::class,
-
-        AcademicSubjectEnrollment::class => AcademicSubjectEnrollmentPolicy::class,
-        AcademicTimetable::class => AcademicTimetablePolicy::class,
-        College::class => CollegePolicy::class,
-        Campus::class => CampusPolicy::class,
-        Department::class => DepartmentPolicy::class,
-        AcademicYear::class => AcademicYearPolicy::class,
-        AcademicTerm::class => AcademicTermPolicy::class,
-        Program::class => ProgramPolicy::class,
-        Section::class => SectionPolicy::class,
-        Subject::class => SubjectPolicy::class,
-        Faculty::class => FacultyPolicy::class,
-        Employee::class => FacultyPolicy::class,
-        FacultySubjectAssignment::class => FacultySubjectAssignmentPolicy::class,
-
-        FeeCategory::class => FeeCategoryPolicy::class,
-        FeeConcession::class => FeeConcessionPolicy::class,
-        FeeDue::class => FeeDuePolicy::class,
-        FeePayment::class => FeePaymentPolicy::class,
-        FeeReceipt::class => FeeReceiptPolicy::class,
-        FeeRefund::class => FeeRefundPolicy::class,
-        FeeReport::class => FeeReportPolicy::class,
-        FeeStructure::class => FeeStructurePolicy::class,
-        StudentFeeAssignment::class => StudentFeeAssignmentPolicy::class,
-
-        InstitutionalSetting::class => InstitutionalSettingPolicy::class,
-        Role::class => RolePolicy::class,
-        Permission::class => PermissionPolicy::class,
-
-        AdmissionApplicant::class => AdmissionApplicantPolicy::class,
-        AdmissionEnquiry::class => AdmissionEnquiryPolicy::class,
-        AdmissionApplication::class => AdmissionApplicationPolicy::class,
-        AdmissionDocumentType::class => AdmissionDocumentTypePolicy::class,
-        AdmissionDocument::class => AdmissionDocumentPolicy::class,
-        AdmissionMeritList::class => AdmissionMeritListPolicy::class,
-        AdmissionMeritEntry::class => AdmissionMeritEntryPolicy::class,
-        Admission::class => AdmissionPolicy::class,
-
-        Student::class => StudentPolicy::class,
-        StudentEnrollment::class => StudentEnrollmentPolicy::class,
-        StudentAcademicRecord::class => StudentAcademicRecordPolicy::class,
-        StudentDocument::class => StudentDocumentPolicy::class,
-        StudentPromotion::class => StudentPromotionPolicy::class,
-        StudentTransfer::class => StudentTransferPolicy::class,
-        StudentResultHistory::class => StudentResultHistoryPolicy::class,
-
-        Examination::class => ExaminationPolicy::class,
-        ExamSchedule::class => ExamSchedulePolicy::class,
-        ExamAttendance::class => ExamAttendancePolicy::class,
-        ExamMark::class => ExamMarkPolicy::class,
-        ExamResult::class => ExamResultPolicy::class,
-        ExamReport::class => ExamReportPolicy::class,
-        GradeScale::class => GradeScalePolicy::class,
-        Marksheet::class => MarksheetPolicy::class,
-        GradeCard::class => GradeCardPolicy::class,
-
-        Designation::class => DesignationPolicy::class,
-        EmployeeDocument::class => EmployeeDocumentPolicy::class,
-        StaffAttendance::class => StaffAttendancePolicy::class,
-        LeaveType::class => LeaveTypePolicy::class,
-        LeaveRequest::class => LeaveRequestPolicy::class,
-        SalaryStructure::class => SalaryStructurePolicy::class,
-        SalaryComponent::class => SalaryComponentPolicy::class,
-        Payroll::class => PayrollPolicy::class,
-        HrReport::class => HrReportPolicy::class,
-
-        LibraryDashboard::class => LibraryDashboardPolicy::class,
-        Book::class => BookPolicy::class,
-        BookCategory::class => BookCategoryPolicy::class,
-        Author::class => AuthorPolicy::class,
-        Publisher::class => PublisherPolicy::class,
-        BookCopy::class => BookCopyPolicy::class,
-        LibraryMember::class => LibraryMemberPolicy::class,
-        LibraryTransaction::class => LibraryTransactionPolicy::class,
-        LibraryRenewal::class => LibraryRenewalPolicy::class,
-        LibraryFine::class => LibraryFinePolicy::class,
-        \App\Http\Controllers\LibraryReportController::class => LibraryReportPolicy::class,
-    ];
-
-    public function boot(): void
-    {
-    }
+        AcademicSubjectEnrollment::class => AcademicSubjectEnrollmentPolicy::class, AcademicTimetable::class => AcademicTimetablePolicy::class, College::class => CollegePolicy::class, Campus::class => CampusPolicy::class, Department::class => DepartmentPolicy::class, AcademicYear::class => AcademicYearPolicy::class, AcademicTerm::class => AcademicTermPolicy::class, Program::class => ProgramPolicy::class, Section::class => SectionPolicy::class, Subject::class => SubjectPolicy::class, Faculty::class => FacultyPolicy::class, Employee::class => FacultyPolicy::class, FacultySubjectAssignment::class => FacultySubjectAssignmentPolicy::class, FeeCategory::class => FeeCategoryPolicy::class, FeeConcession::class => FeeConcessionPolicy::class, FeeDue::class => FeeDuePolicy::class, FeePayment::class => FeePaymentPolicy::class, FeeReceipt::class => FeeReceiptPolicy::class, FeeRefund::class => FeeRefundPolicy::class, FeeReport::class => FeeReportPolicy::class, FeeStructure::class => FeeStructurePolicy::class, StudentFeeAssignment::class => StudentFeeAssignmentPolicy::class, InstitutionalSetting::class => InstitutionalSettingPolicy::class, Role::class => RolePolicy::class, Permission::class => PermissionPolicy::class, AdmissionApplicant::class => AdmissionApplicantPolicy::class, AdmissionEnquiry::class => AdmissionEnquiryPolicy::class, AdmissionApplication::class => AdmissionApplicationPolicy::class, AdmissionDocumentType::class => AdmissionDocumentTypePolicy::class, AdmissionDocument::class => AdmissionDocumentPolicy::class, AdmissionMeritList::class => AdmissionMeritListPolicy::class, AdmissionMeritEntry::class => AdmissionMeritEntryPolicy::class, Admission::class => AdmissionPolicy::class, Student::class => StudentPolicy::class, StudentEnrollment::class => StudentEnrollmentPolicy::class, StudentAcademicRecord::class => StudentAcademicRecordPolicy::class, StudentDocument::class => StudentDocumentPolicy::class, StudentPromotion::class => StudentPromotionPolicy::class, StudentTransfer::class => StudentTransferPolicy::class, Examination::class => ExaminationPolicy::class, ExamSchedule::class => ExamSchedulePolicy::class, ExamAttendance::class => ExamAttendancePolicy::class, ExamMark::class => ExamMarkPolicy::class, ExamResult::class => ExamResultPolicy::class, ExamReport::class => ExamReportPolicy::class, GradeScale::class => GradeScalePolicy::class, Marksheet::class => MarksheetPolicy::class, GradeCard::class => GradeCardPolicy::class, StudentResultHistory::class => StudentResultHistoryPolicy::class, Designation::class => DesignationPolicy::class, EmployeeDocument::class => EmployeeDocumentPolicy::class, StaffAttendance::class => StaffAttendancePolicy::class, LeaveType::class => LeaveTypePolicy::class, LeaveRequest::class => LeaveRequestPolicy::class, SalaryStructure::class => SalaryStructurePolicy::class, SalaryComponent::class => SalaryComponentPolicy::class, Payroll::class => PayrollPolicy::class, HrReport::class => HrReportPolicy::class, LibraryDashboard::class => LibraryDashboardPolicy::class, Book::class => BookPolicy::class, BookCategory::class => BookCategoryPolicy::class, Author::class => AuthorPolicy::class, Publisher::class => PublisherPolicy::class, BookCopy::class => BookCopyPolicy::class, LibraryMember::class => LibraryMemberPolicy::class, LibraryTransaction::class => LibraryTransactionPolicy::class, LibraryRenewal::class => LibraryRenewalPolicy::class, LibraryFine::class => LibraryFinePolicy::class, \App\Http\Controllers\LibraryReportController::class => LibraryReportPolicy::class];
+    public function boot(): void {}
 }
