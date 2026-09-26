@@ -49,10 +49,11 @@ class InventoryModuleSeederTest extends TestCase
 
     public function test_later_phase_permissions_are_not_seeded(): void
     {
+        // Phase 3 (issue / assignment / return / maintenance) is built and
+        // seeded — its slugs are pinned by InventoryPhase3SeederTest. What
+        // remains unbuilt are the inventory reports and any asset-master
+        // permissions, which this module deliberately never introduces.
         foreach ([
-            'inventory_issues.view',
-            'inventory_assignments.view',
-            'inventory_maintenance.view',
             'inventory_reports.view',
             'assets.view',
         ] as $slug) {

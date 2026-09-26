@@ -14,6 +14,10 @@ class AuthServiceProvider extends ServiceProvider
         // Inventory / Asset Management — Phase 2 (purchase orders, stock movements).
         \App\Models\InventoryPurchaseOrder::class => \App\Policies\InventoryPurchaseOrderPolicy::class,
         \App\Models\InventoryStockMovement::class => \App\Policies\InventoryStockMovementPolicy::class,
+        // Inventory / Asset Management — Phase 3 (issue, assignment + return, maintenance).
+        \App\Models\InventoryIssue::class => \App\Policies\InventoryIssuePolicy::class,
+        \App\Models\InventoryAssignment::class => \App\Policies\InventoryAssignmentPolicy::class,
+        \App\Models\InventoryMaintenance::class => \App\Policies\InventoryMaintenancePolicy::class,
         // Communication Management — Phase 1 (dashboard, notices, circulars, internal notifications).
         \App\Models\CommunicationDashboard::class => \App\Policies\CommunicationDashboardPolicy::class,
         \App\Models\Notice::class => \App\Policies\NoticePolicy::class,

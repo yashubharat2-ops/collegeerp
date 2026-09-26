@@ -9,10 +9,10 @@ use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
- * Sidebar navigation for Inventory / Asset Management — Phases 1 + 2 final.
+ * Sidebar navigation for Inventory / Asset Management — Phases 1 + 2 + 3 final.
  *
  * Final structure: a SINGLE "Inventory / Asset Management" sidebar section
- * containing all 8 entries (Phase 1 + Phase 2 merged into one section):
+ * containing all 12 entries (Phase 1 + Phase 2 + Phase 3 in one section):
  *   - Inventory Dashboard
  *   - Item Categories
  *   - Items / Assets
@@ -21,10 +21,16 @@ use Tests\TestCase;
  *   - Goods Receipt / Stock In
  *   - Stock Adjustment
  *   - Inventory Transactions
+ *   - Item Issue / Allocation
+ *   - Asset Assignment
+ *   - Asset Return
+ *   - Asset Maintenance
  *
  * There must be no separate "Purchase & Stock", "Purchase", "Stock",
- * "Inventory Operations", or "Stock Management" headings. Each entry is
- * individually gated by its own view permission. Future phases are absent.
+ * "Inventory Operations", "Stock Management", "Asset Management", or
+ * "Phase 3" headings — Phase 3 extends the existing section, it never splits
+ * the sidebar. Each entry is individually gated by its own view permission.
+ * The future reports module is absent.
  */
 class InventoryNavigationTest extends TestCase
 {
@@ -39,6 +45,10 @@ class InventoryNavigationTest extends TestCase
         'Goods Receipt / Stock In'=> ['inventory_goods_receipts.view',  'inventory-goods-receipts.index'],
         'Stock Adjustment'        => ['inventory_stock_adjustments.view','inventory-stock-adjustments.index'],
         'Inventory Transactions'  => ['inventory_transactions.view',    'inventory-transactions.index'],
+        'Item Issue / Allocation' => ['inventory_issues.view',          'inventory-issues.index'],
+        'Asset Assignment'        => ['inventory_assignments.view',     'inventory-assignments.index'],
+        'Asset Return'            => ['inventory_asset_returns.view',   'inventory-asset-returns.index'],
+        'Asset Maintenance'       => ['inventory_maintenance.view',     'inventory-maintenances.index'],
     ];
 
     /** Permission slugs that gate the outer section (any one of these shows it). */
@@ -52,12 +62,13 @@ class InventoryNavigationTest extends TestCase
         'inventory_stock_adjustments.view',
         'inventory_transactions.view',
         'inventory_stock.view',
+        'inventory_issues.view',
+        'inventory_assignments.view',
+        'inventory_asset_returns.view',
+        'inventory_maintenance.view',
     ];
 
     private const FUTURE = [
-        'Issue / Return',
-        'Asset Assignment',
-        'Maintenance',
         'Inventory Reports',
         'Stock Movements',
     ];
@@ -70,6 +81,8 @@ class InventoryNavigationTest extends TestCase
         '>Stock</div>',
         'Inventory Operations',
         'Stock Management',
+        '>Asset Management</div>',
+        '>Phase 3</div>',
     ];
 
     private const HEADING = '>Inventory / Asset Management</div>';
@@ -94,7 +107,7 @@ class InventoryNavigationTest extends TestCase
         return substr($html, $after, $platform - $after);
     }
 
-    public function test_the_inventory_section_lists_exactly_the_8_final_entries_in_order(): void
+    public function test_the_inventory_section_lists_exactly_the_12_final_entries_in_order(): void
     {
         $college = $this->makeCollege('INAV1');
         $user = $this->makeUserWithPermissions($college, array_column(self::ALL_ENTRIES, 0));
@@ -110,9 +123,9 @@ class InventoryNavigationTest extends TestCase
             $this->assertStringNotContainsString($bad, $html, "Forbidden heading must not appear: {$bad}");
         }
 
-        // 3. All 8 entries live inside that single section.
+        // 3. All 12 entries live inside that single section.
         $group = $this->inventoryGroup($html);
-        $this->assertSame(8, substr_count($group, 'class="nav-link"'), 'Inventory section must contain exactly 8 entries.');
+        $this->assertSame(12, substr_count($group, 'class="nav-link"'), 'Inventory section must contain exactly 12 entries.');
 
         // 4. Order matches spec.
         $cursor = -1;
@@ -201,9 +214,9 @@ class InventoryNavigationTest extends TestCase
         $this->assertGreaterThan($communication, $inventory, 'Inventory must come after Communication.');
         $this->assertGreaterThan($inventory, $platform, 'Platform must come after Inventory.');
 
-        // Exactly one Inventory heading, exactly 8 entries in it.
+        // Exactly one Inventory heading, exactly 12 entries in it.
         $this->assertSame(1, substr_count($html, self::HEADING));
-        $this->assertSame(8, substr_count($this->inventoryGroup($html), 'class="nav-link"'));
+        $this->assertSame(12, substr_count($this->inventoryGroup($html), 'class="nav-link"'));
 
         foreach (self::FORBIDDEN_HEADINGS as $bad) {
             $this->assertStringNotContainsString($bad, $html, "Forbidden heading must be absent for super admin: {$bad}");
@@ -216,7 +229,12 @@ class InventoryNavigationTest extends TestCase
             $this->assertStringNotContainsString($future, $this->inventoryGroup($html));
         }
 
-        foreach (['inventory_issues', 'asset_assignments', 'inventory_maintenances', 'assets'] as $table) {
+        // Phase 3 tables exist; the future modules have no tables yet.
+        foreach (['inventory_issues', 'inventory_assignments', 'inventory_maintenances'] as $table) {
+            $this->assertTrue(Schema::hasTable($table), "{$table} belongs to Phase 3 and must exist.");
+        }
+
+        foreach (['inventory_reports', 'assets'] as $table) {
             $this->assertFalse(Schema::hasTable($table), "{$table} belongs to a later phase.");
         }
     }
@@ -256,6 +274,11 @@ class InventoryNavigationTest extends TestCase
             'inventory-goods-receipts.index', 'inventory-goods-receipts.create',
             'inventory-stock-adjustments.index', 'inventory-stock-adjustments.create',
             'inventory-transactions.index',
+            // Phase 3 — the seeded college admin holds the Phase 3 family too.
+            'inventory-issues.index', 'inventory-issues.create',
+            'inventory-assignments.index', 'inventory-assignments.create',
+            'inventory-asset-returns.index',
+            'inventory-maintenances.index', 'inventory-maintenances.create',
             // backward compat routes still work
             'inventory-stock.index',
         ] as $route) {

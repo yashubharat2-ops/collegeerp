@@ -437,8 +437,9 @@ Route::middleware('auth')->group(function () {
         // Architecture: PO → Goods Receipt / Stock In → Inventory Transactions → Current Stock
         // Stock Adjustment also generates inventory transactions.
         // Lifecycle actions are their own routes so submitting, receiving and
-        // cancelling can be granted separately. Issue/return to staff, asset
-        // assignment, maintenance and reports are later phases.
+        // cancelling can be granted separately. Issue / allocation, asset
+        // assignment, asset return and maintenance are Phase 3 (below);
+        // reports remain a later phase.
         Route::post('inventory-purchase-orders/{purchase_order}/submit', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'submit'])->name('inventory-purchase-orders.submit');
         Route::post('inventory-purchase-orders/{purchase_order}/cancel', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'cancel'])->name('inventory-purchase-orders.cancel');
         Route::get('inventory-purchase-orders/{purchase_order}/receive', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'receiveForm'])->name('inventory-purchase-orders.receive.create');
@@ -466,6 +467,36 @@ Route::middleware('auth')->group(function () {
         Route::get('inventory-stock', [\App\Http\Controllers\Inventory\InventoryStockController::class, 'index'])->name('inventory-stock.index');
         Route::get('inventory-stock/create', [\App\Http\Controllers\Inventory\InventoryStockController::class, 'create'])->name('inventory-stock.create');
         Route::post('inventory-stock', [\App\Http\Controllers\Inventory\InventoryStockController::class, 'store'])->name('inventory-stock.store');
+
+        // Inventory / Asset Management — Phase 3. Four modules, each gated by
+        // its OWN permission family, all inside the single existing
+        // "Inventory / Asset Management" sidebar section (see layout):
+        //   - Item Issue / Allocation: consumables only; stock is reduced
+        //     through the existing Phase 2 ledger (stock_out movement whose
+        //     reference is the issue number). Append-only.
+        //   - Asset Assignment: individual assets only; custody, not
+        //     consumption — no stock movement. One active assignment per
+        //     asset; the rows are the asset's custody history.
+        //   - Asset Return: flips the active assignment row to `returned`
+        //     (history preserved); a re-assignment is a new row.
+        //   - Asset Maintenance: work orders always linked to an existing
+        //     asset; optional vendor reuses the Phase 1 vendor master.
+        Route::get('inventory-issues', [\App\Http\Controllers\Inventory\InventoryIssueController::class, 'index'])->name('inventory-issues.index');
+        Route::get('inventory-issues/create', [\App\Http\Controllers\Inventory\InventoryIssueController::class, 'create'])->name('inventory-issues.create');
+        Route::post('inventory-issues', [\App\Http\Controllers\Inventory\InventoryIssueController::class, 'store'])->name('inventory-issues.store');
+
+        Route::get('inventory-assignments', [\App\Http\Controllers\Inventory\InventoryAssignmentController::class, 'index'])->name('inventory-assignments.index');
+        Route::get('inventory-assignments/create', [\App\Http\Controllers\Inventory\InventoryAssignmentController::class, 'create'])->name('inventory-assignments.create');
+        Route::post('inventory-assignments', [\App\Http\Controllers\Inventory\InventoryAssignmentController::class, 'store'])->name('inventory-assignments.store');
+
+        Route::get('inventory-asset-returns', [\App\Http\Controllers\Inventory\InventoryAssetReturnController::class, 'index'])->name('inventory-asset-returns.index');
+        Route::post('inventory-asset-returns', [\App\Http\Controllers\Inventory\InventoryAssetReturnController::class, 'store'])->name('inventory-asset-returns.store');
+
+        Route::get('inventory-maintenances', [\App\Http\Controllers\Inventory\InventoryMaintenanceController::class, 'index'])->name('inventory-maintenances.index');
+        Route::get('inventory-maintenances/create', [\App\Http\Controllers\Inventory\InventoryMaintenanceController::class, 'create'])->name('inventory-maintenances.create');
+        Route::post('inventory-maintenances', [\App\Http\Controllers\Inventory\InventoryMaintenanceController::class, 'store'])->name('inventory-maintenances.store');
+        Route::get('inventory-maintenances/{maintenance}/edit', [\App\Http\Controllers\Inventory\InventoryMaintenanceController::class, 'edit'])->name('inventory-maintenances.edit');
+        Route::put('inventory-maintenances/{maintenance}', [\App\Http\Controllers\Inventory\InventoryMaintenanceController::class, 'update'])->name('inventory-maintenances.update');
 
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
