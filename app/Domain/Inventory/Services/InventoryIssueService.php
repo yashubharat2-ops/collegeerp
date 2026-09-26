@@ -147,7 +147,9 @@ class InventoryIssueService
             ->orderByDesc('number')
             ->value('number');
 
-        $sequence = $last === null ? 0 : ((int) substr($last, 4)) + 1;
+        // First issue of a college is ISS-000001; afterwards the number
+        // continues from the college's current maximum.
+        $sequence = $last === null ? 1 : ((int) substr($last, 4)) + 1;
 
         return 'ISS-'.str_pad((string) $sequence, 6, '0', STR_PAD_LEFT);
     }

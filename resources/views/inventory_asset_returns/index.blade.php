@@ -26,36 +26,43 @@
         </div>
     </form>
 
-    @if(auth()->user()?->hasPermission('inventory_asset_returns.create'))
-        <div class="mt-6 overflow-x-auto">
-            <table class="w-full min-w-[64rem] text-left text-sm">
-                <thead>
-                    <tr class="border-b text-slate-500">
-                        <th class="py-2">Asset</th>
-                        <th>Serial</th>
-                        <th>Assignee</th>
-                        <th>Purpose</th>
-                        <th>Assigned on</th>
-                        <th>Assigned by</th>
-                        <th>Return</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($assignments as $assignment)
-                        <tr class="border-b align-top">
-                            <td class="font-medium">
-                                {{ $assignment->item?->name ?? '—' }}
-                                <span class="ml-1 font-mono text-xs text-slate-500">{{ $assignment->item?->code }}</span>
-                            </td>
-                            <td class="font-mono text-xs text-slate-600">{{ $assignment->item?->serial_number ?? '—' }}</td>
-                            <td>
-                                <span class="font-medium">{{ $assignment->assigneeName() }}</span>
-                                <span class="block text-xs text-slate-500">{{ $assignment->assigned_to_type === 'student' ? 'Student' : 'Staff' }}</span>
-                            </td>
-                            <td class="text-xs text-slate-600">{{ $assignment->purpose ?? '—' }}</td>
-                            <td>{{ $assignment->assigned_on->format('d M Y') }}</td>
-                            <td class="text-slate-600">{{ $assignment->creator?->name ?? '—' }}</td>
-                            <td>
+    @unless(auth()->user()?->hasPermission('inventory_asset_returns.create'))
+        <p class="mt-6 text-xs text-slate-500">
+            You can see the assets currently out. Recording returns requires the
+            <code>inventory_asset_returns.create</code> permission.
+        </p>
+    @endunless
+
+    <div class="mt-6 overflow-x-auto">
+        <table class="w-full min-w-[64rem] text-left text-sm">
+            <thead>
+                <tr class="border-b text-slate-500">
+                    <th class="py-2">Asset</th>
+                    <th>Serial</th>
+                    <th>Assignee</th>
+                    <th>Purpose</th>
+                    <th>Assigned on</th>
+                    <th>Assigned by</th>
+                    <th>Return</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($assignments as $assignment)
+                    <tr class="border-b align-top">
+                        <td class="font-medium">
+                            {{ $assignment->item?->name ?? '—' }}
+                            <span class="ml-1 font-mono text-xs text-slate-500">{{ $assignment->item?->code }}</span>
+                        </td>
+                        <td class="font-mono text-xs text-slate-600">{{ $assignment->item?->serial_number ?? '—' }}</td>
+                        <td>
+                            <span class="font-medium">{{ $assignment->assigneeName() }}</span>
+                            <span class="block text-xs text-slate-500">{{ $assignment->assigned_to_type === 'student' ? 'Student' : 'Staff' }}</span>
+                        </td>
+                        <td class="text-xs text-slate-600">{{ $assignment->purpose ?? '—' }}</td>
+                        <td>{{ $assignment->assigned_on->format('d M Y') }}</td>
+                        <td class="text-slate-600">{{ $assignment->creator?->name ?? '—' }}</td>
+                        <td>
+                            @if(auth()->user()?->hasPermission('inventory_asset_returns.create'))
                                 <form method="POST" action="{{ route('inventory-asset-returns.store') }}" class="grid gap-2">
                                     @csrf
                                     <input type="hidden" name="assignment_id" value="{{ $assignment->id }}">
@@ -63,25 +70,17 @@
                                     <input class="input" name="return_notes" type="text" maxlength="2000" placeholder="Condition / notes (optional)">
                                     <button class="button !bg-emerald-600 text-white" type="submit">Return asset</button>
                                 </form>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td class="py-4 text-slate-500" colspan="7">No assets are currently out. Nothing to return.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    @else
-        <div class="mt-6">
-            <p class="text-slate-500">
-                @if($assignments->isEmpty())
-                    No assets are currently out. Nothing to return.
-                @else
-                    {{ $assignments->total() }} asset(s) currently out. Recording returns requires the <code>inventory_asset_returns.create</code> permission.
-                @endif
-            </p>
-        </div>
-    @endif
+                            @else
+                                <span class="text-slate-500">—</span>
+                            @endif
+                        </td>
+                    </tr>
+                @empty
+                    <tr><td class="py-4 text-slate-500" colspan="7">No assets are currently out. Nothing to return.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
 
     <div class="mt-6">{{ $assignments->links() }}</div>
 </div>

@@ -50,7 +50,18 @@ class InventoryMaintenanceService
      */
     public function create(College $college, array $data, User $actor): InventoryMaintenance
     {
-        $item = InventoryItem::query()->findOrFail($data['item_id']);
+        // Look the asset up against the college the controller resolved from
+        // the tenant context, not through the CollegeScope: the scope
+        // silently matches no rows (-> 404) whenever the context is not
+        // visible to the query, while this lookup is deterministic — the
+        // 404 happens only when the asset genuinely does not exist or
+        // belongs to another college.
+        $item = InventoryItem::withoutGlobalScopes()
+            ->whereKey($data['item_id'])
+            ->where('college_id', $college->getKey())
+            ->whereNull('deleted_at')
+            ->firstOrFail();
+
         $this->assertTenant($item);
         $this->assertMaintainable($item);
         $this->assertVendor($data['vendor_id'] ?? null, $item->college_id);
