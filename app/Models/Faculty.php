@@ -67,6 +67,20 @@ class Faculty extends Model
         ];
     }
 
+    /**
+     * Audit logs (and any other consumer of the model's morph alias) record the
+     * fully-qualified class name for faculty/staff subjects. The `faculty`
+     * morph-map alias is intentionally kept for the Inventory issue/assignment
+     * recipient keys, which store the short string directly; overriding
+     * getMorphClass() here only affects models that resolve their type through
+     * the model instance (e.g. AuditLogService) and keeps subtypes such as
+     * Employee reporting their own class.
+     */
+    public function getMorphClass(): string
+    {
+        return static::class;
+    }
+
     public function setEmployeeCodeAttribute($value): void
     {
         // Codes are compared consistently across SQLite/MySQL collations.
