@@ -42,10 +42,13 @@ trait InventoryTestHelpers
         'inventory_vendors.view', 'inventory_vendors.create', 'inventory_vendors.update', 'inventory_vendors.delete',
     ];
 
-    /** Every Phase 2 permission slug (purchase orders and stock) seeded by DatabaseSeeder. */
+    /** Every Phase 2 permission slug (purchase orders and stock) seeded by DatabaseSeeder — final structure. */
     private const INVENTORY_PHASE2_PERMISSIONS = [
         'inventory_purchase_orders.view', 'inventory_purchase_orders.create', 'inventory_purchase_orders.update', 'inventory_purchase_orders.delete', 'inventory_purchase_orders.receive',
         'inventory_stock.view', 'inventory_stock.in', 'inventory_stock.out', 'inventory_stock.adjust',
+        'inventory_goods_receipts.view', 'inventory_goods_receipts.create',
+        'inventory_stock_adjustments.view', 'inventory_stock_adjustments.create',
+        'inventory_transactions.view',
     ];
 
     /**

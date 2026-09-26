@@ -250,7 +250,7 @@
 <a class="nav-link" href="{{ route('communication-reports.index') }}">📊 <span>Communication Reports</span></a>
 @endif
 @endif
-@if(auth()->user()?->hasPermission('inventory_dashboard.view') || auth()->user()?->hasPermission('inventory_categories.view') || auth()->user()?->hasPermission('inventory_items.view') || auth()->user()?->hasPermission('inventory_vendors.view') || auth()->user()?->hasPermission('inventory_purchase_orders.view') || auth()->user()?->hasPermission('inventory_stock.view'))
+@if(auth()->user()?->hasPermission('inventory_dashboard.view') || auth()->user()?->hasPermission('inventory_categories.view') || auth()->user()?->hasPermission('inventory_items.view') || auth()->user()?->hasPermission('inventory_vendors.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Inventory / Asset Management</div>
 @if(auth()->user()?->hasPermission('inventory_dashboard.view'))
 <a class="nav-link" href="{{ route('inventory.dashboard') }}">📦 <span>Inventory Dashboard</span></a>
@@ -264,11 +264,20 @@
 @if(auth()->user()?->hasPermission('inventory_vendors.view'))
 <a class="nav-link" href="{{ route('inventory-vendors.index') }}">🏪 <span>Vendors</span></a>
 @endif
+@endif
+@if(auth()->user()?->hasPermission('inventory_purchase_orders.view') || auth()->user()?->hasPermission('inventory_goods_receipts.view') || auth()->user()?->hasPermission('inventory_stock_adjustments.view') || auth()->user()?->hasPermission('inventory_transactions.view') || auth()->user()?->hasPermission('inventory_stock.view'))
+<div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Purchase & Stock</div>
 @if(auth()->user()?->hasPermission('inventory_purchase_orders.view'))
 <a class="nav-link" href="{{ route('inventory-purchase-orders.index') }}">📝 <span>Purchase Orders</span></a>
 @endif
-@if(auth()->user()?->hasPermission('inventory_stock.view'))
-<a class="nav-link" href="{{ route('inventory-stock.index') }}">📥 <span>Stock Movements</span></a>
+@if(auth()->user()?->hasPermission('inventory_goods_receipts.view') || auth()->user()?->hasPermission('inventory_stock.view') || auth()->user()?->hasPermission('inventory_transactions.view'))
+<a class="nav-link" href="{{ route('inventory-goods-receipts.index') }}">📥 <span>Goods Receipt / Stock In</span></a>
+@endif
+@if(auth()->user()?->hasPermission('inventory_stock_adjustments.view') || auth()->user()?->hasPermission('inventory_stock.view') || auth()->user()?->hasPermission('inventory_transactions.view'))
+<a class="nav-link" href="{{ route('inventory-stock-adjustments.index') }}">⚖️ <span>Stock Adjustment</span></a>
+@endif
+@if(auth()->user()?->hasPermission('inventory_transactions.view') || auth()->user()?->hasPermission('inventory_stock.view'))
+<a class="nav-link" href="{{ route('inventory-transactions.index') }}">📜 <span>Inventory Transactions</span></a>
 @endif
 @endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Platform</div>

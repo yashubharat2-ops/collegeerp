@@ -32,7 +32,7 @@ class InventoryPhase2SeederTest extends TestCase
         $adminGranted = $admin->permissions()->pluck('slug')->all();
         $superGranted = $super->permissions()->pluck('slug')->all();
 
-        $this->assertCount(9, self::INVENTORY_PHASE2_PERMISSIONS);
+        $this->assertCount(14, self::INVENTORY_PHASE2_PERMISSIONS);
         $this->assertSame(self::INVENTORY_PHASE2_PERMISSIONS, InventoryPhase2PermissionSeeder::PERMISSIONS);
 
         foreach (self::INVENTORY_PHASE2_PERMISSIONS as $slug) {
