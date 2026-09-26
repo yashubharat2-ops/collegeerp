@@ -19,7 +19,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * ledger (`InventoryStockMovement`) rather than typed in: purchase receipts,
  * manual stock in/out and corrections all write a ledger row, and a quantity
  * edited on the item form is recorded as an adjustment, so every balance has a
- * reason. Issue/return and assignment are later phases.
+ * reason. From Phase 3, issued consumable stock (`issues()`) and the
+ * custody history of assets (`assignments()`, `activeAssignment()`,
+ * `maintenances()`) live in their own tenant-scoped tables referencing
+ * this master.
  *
  * Identifiers: `code` is required and unique among the college's active rows.
  * `serial_number` is optional and, when present, stored upper-cased and unique
@@ -100,6 +103,32 @@ class InventoryItem extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(InventoryCategory::class, 'category_id');
+    }
+
+    /** Phase 3: issues / allocations of this item's consumable stock. */
+    public function issues()
+    {
+        return $this->hasMany(InventoryIssue::class, 'item_id');
+    }
+
+    /** Phase 3: the custody history of this asset. */
+    public function assignments()
+    {
+        return $this->hasMany(InventoryAssignment::class, 'item_id');
+    }
+
+    /** Phase 3: the maintenance history of this asset. */
+    public function maintenances()
+    {
+        return $this->hasMany(InventoryMaintenance::class, 'item_id');
+    }
+
+    /** Phase 3: the one assignment that currently holds this asset, if any. */
+    public function activeAssignment()
+    {
+        return $this->hasOne(InventoryAssignment::class, 'item_id')
+            ->where('status', InventoryAssignment::STATUS_ACTIVE)
+            ->latestOfMany();
     }
 
     public function creator(): BelongsTo

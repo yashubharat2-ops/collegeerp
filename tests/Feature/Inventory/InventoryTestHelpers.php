@@ -3,11 +3,17 @@
 namespace Tests\Feature\Inventory;
 
 use App\Models\College;
+use App\Models\Faculty;
+use App\Models\InventoryAssignment;
 use App\Models\InventoryCategory;
 use App\Models\InventoryItem;
+use App\Models\InventoryIssue;
+use App\Models\InventoryMaintenance;
 use App\Models\InventoryPurchaseOrder;
 use App\Models\InventoryPurchaseOrderItem;
 use App\Models\InventoryVendor;
+use App\Models\Student;
+use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Str;
 use Tests\Feature\ExamAttendance\ExamAttendanceTestHelpers;
@@ -49,6 +55,14 @@ trait InventoryTestHelpers
         'inventory_goods_receipts.view', 'inventory_goods_receipts.create',
         'inventory_stock_adjustments.view', 'inventory_stock_adjustments.create',
         'inventory_transactions.view',
+    ];
+
+    /** Every Phase 3 permission slug (issue, assignment, return, maintenance) seeded by DatabaseSeeder. */
+    private const INVENTORY_PHASE3_PERMISSIONS = [
+        'inventory_issues.view', 'inventory_issues.create',
+        'inventory_assignments.view', 'inventory_assignments.create',
+        'inventory_asset_returns.view', 'inventory_asset_returns.create',
+        'inventory_maintenance.view', 'inventory_maintenance.create', 'inventory_maintenance.update',
     ];
 
     /**
@@ -176,5 +190,159 @@ trait InventoryTestHelpers
         $order->total_amount = $total;
 
         return $line;
+    }
+
+    /**
+     * Phase 3 fixtures: people (the recipients / assignees), and the Phase 3
+     * rows themselves. Created directly with an explicit college_id, the way
+     * the rest of this trait works.
+     */
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeStudent(College $college, array $overrides = []): Student
+    {
+        return Student::create(array_merge([
+            'college_id' => $college->id,
+            'student_number' => 'STU-'.strtoupper(Str::random(6)),
+            'first_name' => 'Asha',
+            'middle_name' => null,
+            'last_name' => 'Test'.Str::upper(Str::random(3)),
+            'email' => strtolower('stu-'.Str::random(8)).'@example.test',
+            'status' => 'active',
+        ], $overrides));
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeFaculty(College $college, array $overrides = []): Faculty
+    {
+        return Faculty::create(array_merge([
+            'college_id' => $college->id,
+            'employee_code' => 'EMP-'.strtoupper(Str::random(6)),
+            'first_name' => 'Ravi',
+            'middle_name' => null,
+            'last_name' => 'Staff'.Str::upper(Str::random(3)),
+            'email' => strtolower('emp-'.Str::random(8)).'@example.test',
+            'status' => 'active',
+        ], $overrides));
+    }
+
+    /**
+     * A consumable with real on-hand stock, ready to be issued.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeIssuableConsumable(College $college, array $overrides = []): InventoryItem
+    {
+        return $this->makeInventoryItem($college, array_merge([
+            'item_type' => InventoryItem::TYPE_CONSUMABLE,
+            'quantity' => '10.00',
+            'status' => InventoryItem::STATUS_ACTIVE,
+        ], $overrides));
+    }
+
+    /**
+     * An individual asset, ready to be assigned.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeAsset(College $college, array $overrides = []): InventoryItem
+    {
+        return $this->makeInventoryItem($college, array_merge([
+            'item_type' => InventoryItem::TYPE_ASSET,
+            'unit' => 'nos',
+            'quantity' => '1.00',
+            'serial_number' => 'SN-'.strtoupper(Str::random(6)),
+            'status' => InventoryItem::STATUS_ACTIVE,
+        ], $overrides));
+    }
+
+    /**
+     * A recorded issue row WITHOUT its stock movement — direct model writes
+     * are only for list / RBAC / tenant fixtures. Ledger-backed issues go
+     * through the HTTP routes so the movement is asserted for real.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeInventoryIssue(College $college, InventoryItem $item, array $overrides = []): InventoryIssue
+    {
+        $actor = $this->makeUserWithPermissions($college, []);
+
+        return InventoryIssue::create(array_merge([
+            'college_id' => $college->id,
+            'item_id' => $item->id,
+            'number' => 'ISS-'.strtoupper(Str::random(6)),
+            'quantity' => '1.00',
+            'issued_to_type' => 'student',
+            'issued_to_id' => $this->makeStudent($college)->id,
+            'purpose' => 'Fixture issue',
+            'reference' => null,
+            'movement_date' => '2026-09-15',
+            'notes' => null,
+            'created_by' => $actor->id,
+        ], $overrides));
+    }
+
+    /**
+     * An assignment row (default: active) — the custody-history fixture.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeInventoryAssignment(College $college, InventoryItem $item, array $overrides = []): InventoryAssignment
+    {
+        $actor = $this->makeUserWithPermissions($college, []);
+
+        return InventoryAssignment::create(array_merge([
+            'college_id' => $college->id,
+            'item_id' => $item->id,
+            'assigned_to_type' => 'student',
+            'assigned_to_id' => $this->makeStudent($college)->id,
+            'purpose' => 'Fixture assignment',
+            'assigned_on' => '2026-09-10',
+            'returned_on' => null,
+            'returned_by' => null,
+            'return_notes' => null,
+            'status' => InventoryAssignment::STATUS_ACTIVE,
+            'created_by' => $actor->id,
+            'updated_by' => $actor->id,
+        ], $overrides));
+    }
+
+    /**
+     * A maintenance record linked to an existing asset.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeInventoryMaintenance(College $college, InventoryItem $item, array $overrides = []): InventoryMaintenance
+    {
+        $actor = $this->makeUserWithPermissions($college, []);
+
+        return InventoryMaintenance::create(array_merge([
+            'college_id' => $college->id,
+            'item_id' => $item->id,
+            'vendor_id' => null,
+            'title' => 'Fixture maintenance',
+            'maintenance_type' => InventoryMaintenance::TYPE_PREVENTIVE,
+            'status' => InventoryMaintenance::STATUS_SCHEDULED,
+            'scheduled_on' => '2026-10-01',
+            'completed_on' => null,
+            'cost' => null,
+            'performed_by' => null,
+            'description' => null,
+            'created_by' => $actor->id,
+            'updated_by' => $actor->id,
+        ], $overrides));
+    }
+
+    /**
+     * A user who belongs to the given college but holds no inventory
+     * permissions at all — the RBAC negative case.
+     */
+    private function makeBystanderUser(College $college): User
+    {
+        return $this->makeUserWithPermissions($college, []);
     }
 }

@@ -51,8 +51,13 @@ class InventoryPurchaseOrderTest extends TestCase
         $this->assertTrue(Schema::hasTable('inventory_purchase_orders'));
         $this->assertTrue(Schema::hasTable('inventory_purchase_order_items'));
         $this->assertTrue(Schema::hasTable('inventory_stock_movements'));
+        // Phase 3 added the issue / assignment / maintenance tables on top;
+        // there is still no separate asset master and no reports table.
+        $this->assertTrue(Schema::hasTable('inventory_issues'));
+        $this->assertTrue(Schema::hasTable('inventory_assignments'));
+        $this->assertTrue(Schema::hasTable('inventory_maintenances'));
         $this->assertFalse(Schema::hasTable('assets'));
-        $this->assertFalse(Schema::hasTable('inventory_issues'));
+        $this->assertFalse(Schema::hasTable('inventory_reports'));
     }
 
     public function test_a_new_order_is_a_draft_with_server_computed_line_totals(): void
