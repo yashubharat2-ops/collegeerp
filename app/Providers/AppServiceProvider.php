@@ -21,10 +21,13 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Phase 3 (Inventory / Asset Management) stores short recipient keys
-        // ("student", "faculty") on the issue and assignment morphs. The map
-        // is additive (not enforced), so FQCN-based morphs such as the audit
-        // log's subject keep working. Staff are the `faculties` table, which
-        // also backs the HR Employee alias.
+        // ("student", "faculty") on the issue and assignment morphs and resolves
+        // them back to models through this map. The map is additive (not
+        // enforced), so FQCN-based morphs such as the audit log's subject keep
+        // working: Faculty overrides getMorphClass() to report its class name,
+        // while the literal "faculty" alias below still resolves the Inventory
+        // recipient keys. Staff are the `faculties` table, which also backs the
+        // HR Employee alias.
         Relation::morphMap([
             'student' => Student::class,
             'faculty' => Faculty::class,
