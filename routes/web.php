@@ -431,19 +431,38 @@ Route::middleware('auth')->group(function () {
         Route::resource('inventory-items', \App\Http\Controllers\Inventory\InventoryItemController::class)->except('show')->parameters(['inventory-items' => 'inventory_item']);
         Route::resource('inventory-vendors', \App\Http\Controllers\Inventory\InventoryVendorController::class)->except('show')->parameters(['inventory-vendors' => 'inventory_vendor']);
 
-        // Inventory / Asset Management — Phase 2. Purchasing and stock: purchase
-        // orders with their lines, goods receipts, and the immutable stock
-        // movement ledger. Lifecycle actions are their own routes so submitting,
-        // receiving and cancelling can be granted separately. Issue/return to
-        // staff, asset assignment, maintenance and reports are later phases.
+        // Inventory / Asset Management — Phase 2 final structure.
+        // Final sidebar: Purchase & Stock → Purchase Orders, Goods Receipt / Stock In,
+        // Stock Adjustment, Inventory Transactions.
+        // Architecture: PO → Goods Receipt / Stock In → Inventory Transactions → Current Stock
+        // Stock Adjustment also generates inventory transactions.
+        // Lifecycle actions are their own routes so submitting, receiving and
+        // cancelling can be granted separately. Issue/return to staff, asset
+        // assignment, maintenance and reports are later phases.
         Route::post('inventory-purchase-orders/{purchase_order}/submit', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'submit'])->name('inventory-purchase-orders.submit');
         Route::post('inventory-purchase-orders/{purchase_order}/cancel', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'cancel'])->name('inventory-purchase-orders.cancel');
         Route::get('inventory-purchase-orders/{purchase_order}/receive', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'receiveForm'])->name('inventory-purchase-orders.receive.create');
         Route::post('inventory-purchase-orders/{purchase_order}/receive', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'receive'])->name('inventory-purchase-orders.receive.store');
         Route::resource('inventory-purchase-orders', \App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class)->parameters(['inventory-purchase-orders' => 'purchase_order']);
 
-        // Stock ledger. Movements are append-only, so there are no update or
-        // destroy routes: a correction is a new movement.
+        // Goods Receipt / Stock In — incoming stock (purchase_receipt + stock_in).
+        // Manual stock_in is recorded here; PO receipts are booked via PO receive
+        // but listed here as well.
+        Route::get('inventory-goods-receipts', [\App\Http\Controllers\Inventory\InventoryGoodsReceiptController::class, 'index'])->name('inventory-goods-receipts.index');
+        Route::get('inventory-goods-receipts/create', [\App\Http\Controllers\Inventory\InventoryGoodsReceiptController::class, 'create'])->name('inventory-goods-receipts.create');
+        Route::post('inventory-goods-receipts', [\App\Http\Controllers\Inventory\InventoryGoodsReceiptController::class, 'store'])->name('inventory-goods-receipts.store');
+
+        // Stock Adjustment — corrections and stock_out, each generating a transaction.
+        Route::get('inventory-stock-adjustments', [\App\Http\Controllers\Inventory\InventoryStockAdjustmentController::class, 'index'])->name('inventory-stock-adjustments.index');
+        Route::get('inventory-stock-adjustments/create', [\App\Http\Controllers\Inventory\InventoryStockAdjustmentController::class, 'create'])->name('inventory-stock-adjustments.create');
+        Route::post('inventory-stock-adjustments', [\App\Http\Controllers\Inventory\InventoryStockAdjustmentController::class, 'store'])->name('inventory-stock-adjustments.store');
+
+        // Inventory Transactions — immutable ledger (refactored Stock Movements).
+        Route::get('inventory-transactions', [\App\Http\Controllers\Inventory\InventoryTransactionController::class, 'index'])->name('inventory-transactions.index');
+
+        // Backward compatibility: old Stock Movements routes still work via the
+        // original controller, but are removed from the sidebar (see layout).
+        // New modules use the refactored controllers above.
         Route::get('inventory-stock', [\App\Http\Controllers\Inventory\InventoryStockController::class, 'index'])->name('inventory-stock.index');
         Route::get('inventory-stock/create', [\App\Http\Controllers\Inventory\InventoryStockController::class, 'create'])->name('inventory-stock.create');
         Route::post('inventory-stock', [\App\Http\Controllers\Inventory\InventoryStockController::class, 'store'])->name('inventory-stock.store');

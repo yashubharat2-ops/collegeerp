@@ -1,25 +1,39 @@
-# Inventory / Asset Management — Phase 2 (Purchasing & Stock)
+# Inventory / Asset Management — Phase 2 (Purchasing & Stock) — Final
 
-**Scope of this phase:** purchase orders with their lines, goods receipts, and
-the stock movement ledger that sits behind every on-hand quantity.
+**Scope of this phase:** purchase orders with their lines, goods receipts, stock
+adjustments, and the immutable stock transaction ledger.
 
 Issue/return to staff, asset assignment, maintenance and inventory reports are
 deliberately **not** implemented, and there is still no separate Asset master
 and no payment record — Finance owns payments.
 
-Menu: **Inventory / Asset Management → … , Purchase Orders, Stock Movements**
-(six entries in total; each individually permission-gated).
+Architecture: **Purchase Order → Goods Receipt / Stock In → Inventory Transactions → Current Stock**
+Stock Adjustment also generates an inventory transaction.
 
-## What was added
+Menu:
+- **Inventory / Asset Management** → Inventory Dashboard, Item Categories, Items / Assets, Vendors (4 entries, Phase 1 preserved)
+- **Purchase & Stock** → Purchase Orders, Goods Receipt / Stock In, Stock Adjustment, Inventory Transactions (exactly 4 entries, each individually permission-gated)
+
+The old **Stock Movements** menu has been removed/renamed and refactored into the three final modules:
+- Goods Receipt / Stock In (incoming: purchase_receipt + stock_in)
+- Stock Adjustment (adjustment + stock_out)
+- Inventory Transactions (full immutable ledger)
+
+Backward compatibility: old `inventory-stock.*` routes still resolve via the original controller but are no longer in the sidebar.
+
+## What was added (final refactor)
 
 | Layer | Artefact |
 | --- | --- |
-| Migrations | `2026_09_30_000001_create_inventory_purchase_orders_table`, `…000002_create_inventory_purchase_order_items_table`, `…000003_create_inventory_stock_movements_table`, `…000004_add_inventory_composite_foreign_key_parent_keys` (additive only) |
-| Models | `InventoryPurchaseOrder`, `InventoryPurchaseOrderItem`, `InventoryStockMovement` |
-| Domain | `App\Domain\Inventory\Services\{InventoryPurchaseOrderService, InventoryStockService}` |
-| Policies | `InventoryPurchaseOrderPolicy`, `InventoryStockMovementPolicy` (registered in `AuthServiceProvider`) |
-| HTTP | `InventoryPurchaseOrderController`, `InventoryStockController`; Form Requests under `App\Http\Requests\Inventory` |
-| RBAC | 9 slugs in `InventoryPhase2PermissionSeeder`, spread into `DatabaseSeeder` |
+| Migrations | `2026_09_30_000001_create_inventory_purchase_orders_table`, `…000002_create_inventory_purchase_order_items_table`, `…000003_create_inventory_stock_movements_table`, `…000004_add_inventory_composite_foreign_key_parent_keys` (additive only, reused) |
+| Models | `InventoryPurchaseOrder`, `InventoryPurchaseOrderItem`, `InventoryStockMovement` (reused, no new tables) |
+| Domain | `App\Domain\Inventory\Services\{InventoryPurchaseOrderService, InventoryStockService}` (reused) |
+| Policies | `InventoryPurchaseOrderPolicy`, `InventoryStockMovementPolicy` updated with `viewTransactions`, `viewGoodsReceipts`, `createGoodsReceipt`, `viewAdjustments`, `createAdjustment` (registered in `AuthServiceProvider`) |
+| HTTP | `InventoryPurchaseOrderController` (kept), `InventoryGoodsReceiptController`, `InventoryStockAdjustmentController`, `InventoryTransactionController` (new, reuse service), `InventoryStockController` kept for backward compat; Form Requests `StoreInventoryGoodsReceiptRequest`, `StoreInventoryStockAdjustmentRequest` plus existing |
+| Views | `inventory_goods_receipts/*`, `inventory_stock_adjustments/*`, `inventory_transactions/*` (new), `inventory_stock/*` kept for BC |
+| RBAC | 14 slugs in `InventoryPhase2PermissionSeeder` (5 PO + 4 legacy stock + 5 new final modules), spread into `DatabaseSeeder` |
+| Routes | `inventory-goods-receipts.*`, `inventory-stock-adjustments.*`, `inventory-transactions.*` plus legacy `inventory-stock.*` aliases |
+| Navigation | `Purchase & Stock` section with exactly 4 entries, `Inventory / Asset Management` preserved with 4 Phase 1 entries; `Stock Movements` removed |
 
 ## Purchase orders
 
@@ -55,18 +69,19 @@ consignments. Blank rows mean "nothing arrived on that line"; a row may never
 receive more than its outstanding quantity; an empty receipt is refused. The
 order's status follows its lines — it is never posted.
 
-## Stock ledger
+## Stock ledger (now split into 3 final modules)
 
 `inventory_stock_movements` is **append-only**: no update route, no destroy
-route, no `deleted_at`. A correction is a new movement.
+route, no `deleted_at`. A correction is a new movement. Same table reused for
+all 3 new modules.
 
-| Type | Direction | Who writes it |
-| --- | --- | --- |
-| `opening` | in | the item form, when a new item is recorded with a quantity |
-| `purchase_receipt` | in | receiving a purchase order |
-| `stock_in` | in | the Stock screen |
-| `stock_out` | out | the Stock screen (a reason is required) |
-| `adjustment` | in or out | the Stock screen, or a quantity corrected on the item form |
+| Type | Direction | Who writes it | Final module |
+| --- | --- | --- | --- |
+| `opening` | in | the item form, when a new item is recorded with a quantity | Transactions |
+| `purchase_receipt` | in | receiving a purchase order | Goods Receipt / Stock In + Transactions |
+| `stock_in` | in | Goods Receipt screen (manual) | Goods Receipt / Stock In + Transactions |
+| `stock_out` | out | Stock Adjustment screen (a reason is required) | Stock Adjustment + Transactions |
+| `adjustment` | in or out | Stock Adjustment screen, or a quantity corrected on the item form | Stock Adjustment + Transactions |
 
 * `quantity` is always a positive magnitude; `direction` carries the sign.
 * `balance_after` snapshots the on-hand quantity at write time, so the ledger
@@ -77,15 +92,23 @@ route, no `deleted_at`. A correction is a new movement.
 * Because a quantity typed on the item form is recorded as an `adjustment`,
   every balance has a reason and no path can bypass the ledger.
 
-## RBAC
+## RBAC (final)
 
-`inventory_purchase_orders.view/create/update/delete/receive` and
-`inventory_stock.view/in/out/adjust`.
+- `inventory_purchase_orders.view/create/update/delete/receive` (PO lifecycle)
+- Legacy: `inventory_stock.view/in/out/adjust` (kept for BC, maps to new modules)
+- Final: `inventory_goods_receipts.view/create`, `inventory_stock_adjustments.view/create`, `inventory_transactions.view`
 
 `receive` is separate from `update` (booking goods in changes stock), and the
-three stock abilities are separate from each other, so a storekeeper can be
-allowed to receive stock without being able to write stock off. Movements are
-immutable, so there is no create/update/delete permission for them.
+three stock abilities are separately grantable. Movements remain immutable —
+no update/delete permission. New permissions reuse the same ledger table; no
+duplicate business logic.
+
+Policy checks both old and new slugs so existing grants keep working while new
+modules are gated by their own slugs:
+
+- Transactions: `inventory_transactions.view` OR `inventory_stock.view`
+- Goods Receipt: view `inventory_goods_receipts.view` OR `inventory_stock.view`; create `inventory_goods_receipts.create` OR `inventory_stock.in`
+- Stock Adjustment: view `inventory_stock_adjustments.view` OR `inventory_stock.view`; create `inventory_stock_adjustments.create` OR `inventory_stock.adjust` OR `inventory_stock.out`
 
 ## Composite foreign keys and their parent keys
 

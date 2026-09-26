@@ -26,7 +26,12 @@ class InventoryPhase2PermissionSeeder extends Seeder
 {
     public const PERMISSIONS = [
         'inventory_purchase_orders.view', 'inventory_purchase_orders.create', 'inventory_purchase_orders.update', 'inventory_purchase_orders.delete', 'inventory_purchase_orders.receive',
+        // Legacy Phase 2 stock permissions (kept for backward compatibility; new modules reuse the same ledger).
         'inventory_stock.view', 'inventory_stock.in', 'inventory_stock.out', 'inventory_stock.adjust',
+        // Final Phase 2 structure: Purchase & Stock — 4 modules.
+        'inventory_goods_receipts.view', 'inventory_goods_receipts.create',
+        'inventory_stock_adjustments.view', 'inventory_stock_adjustments.create',
+        'inventory_transactions.view',
     ];
 
     public function run(): void
