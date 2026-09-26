@@ -58,8 +58,7 @@ class InventoryStockMovementPolicy
     public function viewGoodsReceipts(User $user): bool
     {
         return $user->hasPermission('inventory_goods_receipts.view')
-            || $user->hasPermission('inventory_stock.view')
-            || $user->hasPermission('inventory_transactions.view');
+            || $user->hasPermission('inventory_stock.view');
     }
 
     public function createGoodsReceipt(User $user): bool
@@ -71,8 +70,7 @@ class InventoryStockMovementPolicy
     public function viewAdjustments(User $user): bool
     {
         return $user->hasPermission('inventory_stock_adjustments.view')
-            || $user->hasPermission('inventory_stock.view')
-            || $user->hasPermission('inventory_transactions.view');
+            || $user->hasPermission('inventory_stock.view');
     }
 
     public function createAdjustment(User $user): bool

@@ -267,13 +267,13 @@
 @if(auth()->user()?->hasPermission('inventory_purchase_orders.view'))
 <a class="nav-link" href="{{ route('inventory-purchase-orders.index') }}">📝 <span>Purchase Orders</span></a>
 @endif
-@if(auth()->user()?->hasPermission('inventory_goods_receipts.view') || auth()->user()?->hasPermission('inventory_stock.view') || auth()->user()?->hasPermission('inventory_transactions.view'))
+@if(auth()->user()?->hasPermission('inventory_goods_receipts.view'))
 <a class="nav-link" href="{{ route('inventory-goods-receipts.index') }}">📥 <span>Goods Receipt / Stock In</span></a>
 @endif
-@if(auth()->user()?->hasPermission('inventory_stock_adjustments.view') || auth()->user()?->hasPermission('inventory_stock.view') || auth()->user()?->hasPermission('inventory_transactions.view'))
+@if(auth()->user()?->hasPermission('inventory_stock_adjustments.view'))
 <a class="nav-link" href="{{ route('inventory-stock-adjustments.index') }}">⚖️ <span>Stock Adjustment</span></a>
 @endif
-@if(auth()->user()?->hasPermission('inventory_transactions.view') || auth()->user()?->hasPermission('inventory_stock.view'))
+@if(auth()->user()?->hasPermission('inventory_transactions.view'))
 <a class="nav-link" href="{{ route('inventory-transactions.index') }}">📜 <span>Inventory Transactions</span></a>
 @endif
 @endif

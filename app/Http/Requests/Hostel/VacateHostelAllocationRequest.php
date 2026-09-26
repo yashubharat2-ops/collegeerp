@@ -40,7 +40,6 @@ class VacateHostelAllocationRequest extends FormRequest
             'vacated_date' => [
                 'required',
                 'date',
-                'after_or_equal:today',
                 'after_or_equal:allocation_date',
             ],
             'remarks' => [
