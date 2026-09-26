@@ -91,24 +91,42 @@ class InventoryMaintenanceController extends Controller
             ->with('success', "Maintenance \"{$maintenance->title}\" recorded for \"{$maintenance->item?->name}\".");
     }
 
-    public function edit(InventoryMaintenance $maintenance): View
+    public function edit(string $maintenance): View
     {
-        $this->authorize('update', $maintenance);
+        $model = $this->findScoped($maintenance);
+        $this->authorize('update', $model);
 
         return view('inventory_maintenances.edit', [
-            'maintenance' => $maintenance->load(['item:id,name,code,serial_number', 'vendor:id,name,code']),
+            'maintenance' => $model->load(['item:id,name,code,serial_number', 'vendor:id,name,code']),
             'vendors' => InventoryFormOptions::vendors(),
             'types' => InventoryMaintenance::TYPES,
             'statuses' => InventoryMaintenance::STATUSES,
         ]);
     }
 
-    public function update(UpdateInventoryMaintenanceRequest $request, InventoryMaintenance $maintenance): RedirectResponse
+    public function update(UpdateInventoryMaintenanceRequest $request, string $maintenance): RedirectResponse
     {
-        $updated = $this->maintenances->update($maintenance, $request->validated(), $request->user());
+        $updated = $this->maintenances->update($this->findScoped($maintenance), $request->validated(), $request->user());
 
         return redirect()
             ->route('inventory-maintenances.index')
             ->with('success', "Maintenance \"{$updated->title}\" updated.");
+    }
+
+    /**
+     * Resolve a maintenance record by its route key inside the request
+     * lifecycle — i.e. after the tenant middleware has resolved the active
+     * college — so CollegeScope narrows the lookup to the current tenant.
+     *
+     * Route-model binding is deliberately NOT used here: it runs in
+     * SubstituteBindings before ResolveTenant, when no tenant is active and
+     * CollegeScope collapses to `whereRaw('1 = 0')`, so a record that belongs
+     * to the current college would 404. Resolving here mirrors the tenant-safe
+     * pattern already used by FacultyController::findScoped(): an in-tenant id
+     * resolves, while a missing or cross-tenant id still 404s.
+     */
+    private function findScoped(string $id): InventoryMaintenance
+    {
+        return InventoryMaintenance::query()->findOrFail($id);
     }
 }

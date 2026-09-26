@@ -19,10 +19,18 @@ class UpdateInventoryMaintenanceRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        $maintenance = $this->route('maintenance');
+        // Resolve the record here (inside the request lifecycle, after the
+        // tenant middleware has run) rather than via route-model binding, so
+        // CollegeScope narrows it to the active college. A missing or
+        // cross-tenant id is a 404; an in-tenant id then goes through the
+        // policy. Mirrors UpdateFacultyRequest::authorize().
+        $maintenance = InventoryMaintenance::query()->find((string) $this->route('maintenance'));
 
-        return $maintenance instanceof InventoryMaintenance
-            && ($this->user()?->can('update', $maintenance) ?? false);
+        if (! $maintenance) {
+            abort(404);
+        }
+
+        return $this->user()?->can('update', $maintenance) ?? false;
     }
 
     public function ability(): ?string
