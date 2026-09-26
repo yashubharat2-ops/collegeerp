@@ -11,42 +11,47 @@ use Tests\TestCase;
 /**
  * Sidebar navigation for Inventory / Asset Management — Phases 1 + 2 final.
  *
- * Final structure:
- *   - Inventory / Asset Management: 4 entries (Dashboard, Categories, Items, Vendors)
- *   - Purchase & Stock: 4 entries (Purchase Orders, Goods Receipt / Stock In,
- *     Stock Adjustment, Inventory Transactions)
+ * Final structure: a SINGLE "Inventory / Asset Management" sidebar section
+ * containing all 8 entries (Phase 1 + Phase 2 merged into one section):
+ *   - Inventory Dashboard
+ *   - Item Categories
+ *   - Items / Assets
+ *   - Vendors
+ *   - Purchase Orders
+ *   - Goods Receipt / Stock In
+ *   - Stock Adjustment
+ *   - Inventory Transactions
  *
- *   - Stock Movements menu is removed/renamed.
- *   - Each entry individually gated.
- *   - Future phases still absent.
+ * There must be no separate "Purchase & Stock", "Purchase", "Stock",
+ * "Inventory Operations", or "Stock Management" headings. Each entry is
+ * individually gated by its own view permission. Future phases are absent.
  */
 class InventoryNavigationTest extends TestCase
 {
     use InventoryTestHelpers;
 
-    private const PHASE1_ENTRIES = [
-        'Inventory Dashboard' => ['inventory_dashboard.view', 'inventory.dashboard'],
-        'Item Categories' => ['inventory_categories.view', 'inventory-categories.index'],
-        'Items / Assets' => ['inventory_items.view', 'inventory-items.index'],
-        'Vendors' => ['inventory_vendors.view', 'inventory-vendors.index'],
-    ];
-
-    private const PHASE2_ENTRIES = [
-        'Purchase Orders' => ['inventory_purchase_orders.view', 'inventory-purchase-orders.index'],
-        'Goods Receipt / Stock In' => ['inventory_goods_receipts.view', 'inventory-goods-receipts.index'],
-        'Stock Adjustment' => ['inventory_stock_adjustments.view', 'inventory-stock-adjustments.index'],
-        'Inventory Transactions' => ['inventory_transactions.view', 'inventory-transactions.index'],
-    ];
-
     private const ALL_ENTRIES = [
-        'Inventory Dashboard' => ['inventory_dashboard.view', 'inventory.dashboard'],
-        'Item Categories' => ['inventory_categories.view', 'inventory-categories.index'],
-        'Items / Assets' => ['inventory_items.view', 'inventory-items.index'],
-        'Vendors' => ['inventory_vendors.view', 'inventory-vendors.index'],
-        'Purchase Orders' => ['inventory_purchase_orders.view', 'inventory-purchase-orders.index'],
-        'Goods Receipt / Stock In' => ['inventory_goods_receipts.view', 'inventory-goods-receipts.index'],
-        'Stock Adjustment' => ['inventory_stock_adjustments.view', 'inventory-stock-adjustments.index'],
-        'Inventory Transactions' => ['inventory_transactions.view', 'inventory-transactions.index'],
+        'Inventory Dashboard'     => ['inventory_dashboard.view',       'inventory.dashboard'],
+        'Item Categories'         => ['inventory_categories.view',      'inventory-categories.index'],
+        'Items / Assets'          => ['inventory_items.view',           'inventory-items.index'],
+        'Vendors'                 => ['inventory_vendors.view',         'inventory-vendors.index'],
+        'Purchase Orders'         => ['inventory_purchase_orders.view', 'inventory-purchase-orders.index'],
+        'Goods Receipt / Stock In'=> ['inventory_goods_receipts.view',  'inventory-goods-receipts.index'],
+        'Stock Adjustment'        => ['inventory_stock_adjustments.view','inventory-stock-adjustments.index'],
+        'Inventory Transactions'  => ['inventory_transactions.view',    'inventory-transactions.index'],
+    ];
+
+    /** Permission slugs that gate the outer section (any one of these shows it). */
+    private const SECTION_GATE_PERMISSIONS = [
+        'inventory_dashboard.view',
+        'inventory_categories.view',
+        'inventory_items.view',
+        'inventory_vendors.view',
+        'inventory_purchase_orders.view',
+        'inventory_goods_receipts.view',
+        'inventory_stock_adjustments.view',
+        'inventory_transactions.view',
+        'inventory_stock.view',
     ];
 
     private const FUTURE = [
@@ -57,66 +62,74 @@ class InventoryNavigationTest extends TestCase
         'Stock Movements',
     ];
 
-    private const HEADING_PHASE1 = '>Inventory / Asset Management</div>';
-    private const HEADING_PHASE2 = '>Purchase & Stock</div>';
+    /** Forbidden sub-headings that must NOT appear in the sidebar. */
+    private const FORBIDDEN_HEADINGS = [
+        'Purchase &amp; Stock',
+        'Purchase & Stock',
+        '>Purchase</div>',
+        '>Stock</div>',
+        'Inventory Operations',
+        'Stock Management',
+    ];
+
+    private const HEADING = '>Inventory / Asset Management</div>';
 
     private function href(string $routeName): string
     {
         return 'href="'.route($routeName).'"';
     }
 
-    private function navGroup(string $html, string $heading): string
+    /** Extract the HTML chunk between the Inventory heading and the next section heading. */
+    private function inventoryGroup(string $html): string
     {
-        $start = strpos($html, $heading);
-        $this->assertNotFalse($start, "Missing heading: {$heading}");
+        $start = strpos($html, self::HEADING);
+        $this->assertNotFalse($start, 'Missing Inventory / Asset Management heading.');
 
-        $after = $start + strlen($heading);
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $after = $start + strlen(self::HEADING);
+        // Next uppercase section heading ends the group; Platform is the
+        // trailing section used by the layout so that is a safe anchor.
+        $platform = strpos($html, '>Platform</div>', $after);
+        $this->assertNotFalse($platform, 'Platform section must follow Inventory.');
 
-        return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
+        return substr($html, $after, $platform - $after);
     }
 
-    public function test_the_sections_list_exactly_the_final_entries_in_order(): void
+    public function test_the_inventory_section_lists_exactly_the_8_final_entries_in_order(): void
     {
         $college = $this->makeCollege('INAV1');
         $user = $this->makeUserWithPermissions($college, array_column(self::ALL_ENTRIES, 0));
 
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
 
-        $this->assertSame(1, substr_count($html, self::HEADING_PHASE1), 'Exactly one Inventory / Asset Management heading.');
-        $this->assertSame(1, substr_count($html, self::HEADING_PHASE2), 'Exactly one Purchase & Stock heading.');
+        // 1. Exactly one Inventory / Asset Management section.
+        $this->assertSame(1, substr_count($html, self::HEADING), 'Exactly one Inventory / Asset Management heading.');
         $this->assertSame(1, substr_count($html, '<aside'), 'One sidebar.');
 
-        $phase1Group = $this->navGroup($html, self::HEADING_PHASE1);
-        $phase2Group = $this->navGroup($html, self::HEADING_PHASE2);
+        // 2. No forbidden sub-headings remain.
+        foreach (self::FORBIDDEN_HEADINGS as $bad) {
+            $this->assertStringNotContainsString($bad, $html, "Forbidden heading must not appear: {$bad}");
+        }
 
-        $this->assertSame(4, substr_count($phase1Group, 'class="nav-link"'), 'Phase 1: 4 entries.');
-        $this->assertSame(4, substr_count($phase2Group, 'class="nav-link"'), 'Phase 2: Purchase & Stock must contain exactly 4 entries.');
+        // 3. All 8 entries live inside that single section.
+        $group = $this->inventoryGroup($html);
+        $this->assertSame(8, substr_count($group, 'class="nav-link"'), 'Inventory section must contain exactly 8 entries.');
 
+        // 4. Order matches spec.
         $cursor = -1;
-        foreach (self::PHASE1_ENTRIES as $label => [$permission, $route]) {
-            $position = strpos($phase1Group, $this->href($route));
-            $this->assertNotFalse($position, "Missing Phase1 entry: {$label}");
-            $this->assertStringContainsString($label, $phase1Group);
-            $this->assertGreaterThan($cursor, $position, "{$label} out of order in Phase1.");
+        foreach (self::ALL_ENTRIES as $label => [$permission, $route]) {
+            $position = strpos($group, $this->href($route));
+            $this->assertNotFalse($position, "Missing entry: {$label}");
+            $this->assertStringContainsString($label, $group);
+            $this->assertGreaterThan($cursor, $position, "{$label} out of order.");
             $cursor = $position;
         }
 
-        $cursor = -1;
-        foreach (self::PHASE2_ENTRIES as $label => [$permission, $route]) {
-            $position = strpos($phase2Group, $this->href($route));
-            $this->assertNotFalse($position, "Missing Phase2 entry: {$label}");
-            $this->assertStringContainsString($label, $phase2Group);
-            $this->assertGreaterThan($cursor, $position, "{$label} out of order in Phase2.");
-            $cursor = $position;
-        }
-
+        // 5. Future entries absent.
         foreach (self::FUTURE as $future) {
-            // Stock Movements must not appear anywhere in the final nav
             if ($future === 'Stock Movements') {
                 $this->assertStringNotContainsString('Stock Movements', $html, 'Stock Movements menu must be removed/renamed.');
             } else {
-                $this->assertStringNotContainsString($future, $phase2Group, "{$future} must not be rendered.");
+                $this->assertStringNotContainsString($future, $group, "{$future} must not be rendered.");
             }
         }
     }
@@ -125,45 +138,53 @@ class InventoryNavigationTest extends TestCase
     {
         $college = $this->makeCollege('INAV2');
 
-        foreach (self::PHASE1_ENTRIES as $label => [$permission, $route]) {
+        foreach (self::ALL_ENTRIES as $label => [$permission, $route]) {
             $user = $this->makeUserWithPermissions($college, [$permission]);
             $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
-            $group = $this->navGroup($html, self::HEADING_PHASE1);
-            $this->assertSame(1, substr_count($group, 'class="nav-link"'), "Only {$label} may render for {$permission}.");
-            $this->assertStringContainsString($this->href($route), $group);
-        }
 
-        foreach (self::PHASE2_ENTRIES as $label => [$permission, $route]) {
-            $user = $this->makeUserWithPermissions($college, [$permission]);
-            $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
-            $group = $this->navGroup($html, self::HEADING_PHASE2);
+            $this->assertSame(1, substr_count($html, self::HEADING), "Section must appear for permission {$permission}.");
+
+            // None of the forbidden headings may appear.
+            foreach (self::FORBIDDEN_HEADINGS as $bad) {
+                $this->assertStringNotContainsString($bad, $html, "Forbidden heading must not appear when user only has {$permission}: {$bad}");
+            }
+
+            $group = $this->inventoryGroup($html);
             $this->assertSame(1, substr_count($group, 'class="nav-link"'), "Only {$label} may render for {$permission}.");
             $this->assertStringContainsString($this->href($route), $group);
         }
     }
 
-    public function test_the_sections_are_hidden_without_any_inventory_view_permission(): void
+    public function test_the_section_is_hidden_without_any_inventory_view_permission(): void
     {
         $college = $this->makeCollege('INAV3');
         $stranger = $this->makeUserWithPermissions($college, ['students.view', 'hostels.view']);
 
         $response = $this->asCollege($college, $stranger)
             ->get(route('dashboard'))
-            ->assertOk()
-            ->assertDontSee(self::HEADING_PHASE1, false)
-            ->assertDontSee(self::HEADING_PHASE2, false);
+            ->assertOk();
+
+        $response->assertDontSee('Inventory / Asset Management', false);
+        foreach (self::FORBIDDEN_HEADINGS as $bad) {
+            // assertDontSee with escaped=false; these are raw substrings we want absent.
+            $this->assertStringNotContainsString(
+                html_entity_decode($bad, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+                $response->getContent(),
+                "Forbidden heading must not appear for a non-inventory user: {$bad}"
+            );
+        }
 
         foreach (self::ALL_ENTRIES as $label => [$permission, $route]) {
             $response->assertDontSee($this->href($route), false);
         }
 
+        // Write/delete permissions alone (no *.view) must not surface the nav.
         $writer = $this->makeUserWithPermissions($college, ['inventory_items.create', 'inventory_vendors.delete']);
         $html = $this->asCollege($college, $writer)->get(route('dashboard'))->assertOk()->getContent();
-        $this->assertStringNotContainsString(self::HEADING_PHASE1, $html);
-        $this->assertStringNotContainsString(self::HEADING_PHASE2, $html);
+        $this->assertStringNotContainsString(self::HEADING, $html);
     }
 
-    public function test_the_sections_do_not_disturb_communication_and_close_before_settings(): void
+    public function test_the_section_sits_between_communication_and_platform(): void
     {
         $college = $this->makeCollege('INAV4');
         $super = $this->makeSuperAdmin($college);
@@ -171,25 +192,28 @@ class InventoryNavigationTest extends TestCase
         $html = $this->asCollege($college, $super)->get(route('dashboard'))->assertOk()->getContent();
 
         $communication = strpos($html, '>Communication Management</div>');
-        $inventory = strpos($html, self::HEADING_PHASE1);
-        $purchaseStock = strpos($html, self::HEADING_PHASE2);
-        $platform = strrpos($html, '>Platform</div>');
+        $inventory     = strpos($html, self::HEADING);
+        $platform      = strrpos($html, '>Platform</div>');
 
         $this->assertNotFalse($communication);
         $this->assertNotFalse($inventory);
-        $this->assertNotFalse($purchaseStock);
-        $this->assertGreaterThan($communication, $inventory);
-        $this->assertGreaterThan($inventory, $purchaseStock);
-        $this->assertGreaterThan($purchaseStock, $platform);
+        $this->assertNotFalse($platform);
+        $this->assertGreaterThan($communication, $inventory, 'Inventory must come after Communication.');
+        $this->assertGreaterThan($inventory, $platform, 'Platform must come after Inventory.');
 
-        $this->assertSame(4, substr_count($this->navGroup($html, self::HEADING_PHASE1), 'class="nav-link"'));
-        $this->assertSame(4, substr_count($this->navGroup($html, self::HEADING_PHASE2), 'class="nav-link"'));
+        // Exactly one Inventory heading, exactly 8 entries in it.
+        $this->assertSame(1, substr_count($html, self::HEADING));
+        $this->assertSame(8, substr_count($this->inventoryGroup($html), 'class="nav-link"'));
+
+        foreach (self::FORBIDDEN_HEADINGS as $bad) {
+            $this->assertStringNotContainsString($bad, $html, "Forbidden heading must be absent for super admin: {$bad}");
+        }
 
         foreach (self::FUTURE as $future) {
             if ($future === 'Stock Movements') {
                 continue;
             }
-            $this->assertStringNotContainsString($future, $this->navGroup($html, self::HEADING_PHASE2));
+            $this->assertStringNotContainsString($future, $this->inventoryGroup($html));
         }
 
         foreach (['inventory_issues', 'asset_assignments', 'inventory_maintenances', 'assets'] as $table) {
@@ -217,6 +241,10 @@ class InventoryNavigationTest extends TestCase
 
         foreach (self::ALL_ENTRIES as $label => [$permission, $route]) {
             $response->assertSee($this->href($route), false)->assertSee($label);
+        }
+
+        foreach (self::FORBIDDEN_HEADINGS as $bad) {
+            $this->assertStringNotContainsString($bad, $response->getContent());
         }
 
         foreach ([
