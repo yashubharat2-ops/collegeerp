@@ -29,8 +29,10 @@ class StudentModuleSeederTest extends TestCase
         'student_documents.update', 'student_documents.delete',
         'student_id_cards.view', 'student_id_cards.generate',
         'student_promotions.view', 'student_promotions.create', 'student_promotions.approve',
-        'student_transfers.view', 'student_transfers.create',
-        'student_transfers.update', 'student_transfers.approve',
+        'certificates_dashboard.view', 'certificates_templates.view', 'certificates_templates.manage',
+        'certificates_generation.view', 'certificates_issuance.view', 'certificates_issuance.create',
+        'certificates_verification.view', 'certificates_requests.view', 'certificates_requests.create',
+        'certificates_requests.manage', 'certificates_requests.review', 'certificates_reports.view',
         'student_history.view',
         // Pre-existing Students module slugs that must not be lost.
         'students.view', 'students.create', 'students.update', 'students.delete',
@@ -102,7 +104,6 @@ class StudentModuleSeederTest extends TestCase
             'student-documents.index',
             'student-id-cards.index',
             'student-promotions.index',
-            'student-transfers.index',
             'student-history.index',
         ] as $route) {
             $this->asCollege($college, $user)->get(route($route))->assertOk();
@@ -114,7 +115,6 @@ class StudentModuleSeederTest extends TestCase
             'student-academic-records.create',
             'student-documents.create',
             'student-promotions.create',
-            'student-transfers.create',
         ] as $route) {
             $this->asCollege($college, $user)->get(route($route))->assertOk();
         }
@@ -132,7 +132,6 @@ class StudentModuleSeederTest extends TestCase
             'student-documents.index',
             'student-id-cards.index',
             'student-promotions.index',
-            'student-transfers.index',
             'student-history.index',
         ] as $route) {
             $this->asCollege($college, $nobody)->get(route($route))->assertForbidden();

@@ -1,0 +1,8 @@
+@extends('layouts.app')
+@section('title','Certificate Templates')
+@section('content')
+<div class="panel"><h2 class="panel-title">Certificate Templates</h2><p class="panel-subtitle">Group 1 templates support Bonafide and Character certificates. Template content is rendered with escaped student details.</p>
+<form method="POST" action="{{ route('certificates.templates.store') }}" class="mt-5 grid gap-3 md:grid-cols-2">@csrf
+<select class="input" name="type" required><option value="">Certificate type</option>@foreach($types as $key=>$type)<option value="{{ $key }}">{{ $type }}</option>@endforeach</select><input class="input" name="name" placeholder="Template name" required maxlength="120"><textarea class="input md:col-span-2" name="body" rows="5" required placeholder="Tokens: student_name, student_number, college_name">This is to certify that {{ '{{student_name}}' }} ({{ '{{student_number}}' }}) is a student of {{ '{{college_name}}' }}.</textarea><button class="button md:col-span-2" type="submit">Save template</button></form>
+<div class="mt-7 overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr class="border-b text-slate-500"><th class="py-3">Name</th><th>Type</th><th>Status</th></tr></thead><tbody>@forelse($templates as $template)<tr class="border-b"><td class="py-3">{{ $template->name }}</td><td>{{ $types[$template->type] ?? $template->type }}</td><td>{{ $template->is_active ? 'Active' : 'Inactive' }}</td></tr>@empty<tr><td colspan="3" class="py-4 text-slate-500">No templates have been added.</td></tr>@endforelse</tbody></table></div></div>
+@endsection

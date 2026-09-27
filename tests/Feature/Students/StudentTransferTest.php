@@ -41,15 +41,15 @@ class StudentTransferTest extends TestCase
     {
         $college = $this->makeCollege('TRPERM');
         $nobody = $this->makeUserWithPermissions($college, []);
-        $viewer = $this->makeUserWithPermissions($college, ['student_transfers.view']);
+        $viewer = $this->makeUserWithPermissions($college, ['certificates_requests.view']);
 
-        $this->asCollege($college, $nobody)->get(route('student-transfers.index'))->assertForbidden();
-        $this->asCollege($college, $viewer)->get(route('student-transfers.index'))->assertOk()->assertSee('Student Transfer / TC');
+        $this->asCollege($college, $nobody)->get(route('certificates.transfer-requests.index'))->assertForbidden();
+        $this->asCollege($college, $viewer)->get(route('certificates.transfer-requests.index'))->assertOk()->assertSee('Transfer Certificate Requests');
     }
 
     public function test_guest_is_redirected_to_login(): void
     {
-        $this->get(route('student-transfers.index'))->assertRedirect(route('login'));
+        $this->get(route('certificates.transfer-requests.index'))->assertRedirect(route('login'));
     }
 
     public function test_workflow_permissions_are_separate(): void
@@ -57,14 +57,14 @@ class StudentTransferTest extends TestCase
         $college = $this->makeCollege('TRPERMS');
         $student = $this->makeStudent($college);
         $transfer = $this->makeTransfer($college, $student);
-        $creator = $this->makeUserWithPermissions($college, ['student_transfers.view', 'student_transfers.create']);
+        $creator = $this->makeUserWithPermissions($college, ['certificates_requests.view', 'certificates_requests.create']);
 
-        $this->asCollege($college, $creator)->get(route('student-transfers.create'))->assertOk();
-        $this->asCollege($college, $creator)->post(route('student-transfers.approve', $transfer))->assertForbidden();
-        $this->asCollege($college, $creator)->post(route('student-transfers.issue', $transfer))->assertForbidden();
-        $this->asCollege($college, $creator)->post(route('student-transfers.cancel', $transfer))->assertForbidden();
-        $this->asCollege($college, $creator)->post(route('student-transfers.reject', $transfer))->assertForbidden();
-        $this->asCollege($college, $creator)->get(route('student-transfers.edit', $transfer))->assertForbidden();
+        $this->asCollege($college, $creator)->get(route('certificates.transfer-requests.create'))->assertOk();
+        $this->asCollege($college, $creator)->post(route('certificates.transfer-requests.approve', $transfer))->assertForbidden();
+        $this->asCollege($college, $creator)->post(route('certificates.transfer-requests.issue', $transfer))->assertForbidden();
+        $this->asCollege($college, $creator)->post(route('certificates.transfer-requests.cancel', $transfer))->assertForbidden();
+        $this->asCollege($college, $creator)->post(route('certificates.transfer-requests.reject', $transfer))->assertForbidden();
+        $this->asCollege($college, $creator)->get(route('certificates.transfer-requests.edit', $transfer))->assertForbidden();
 
         $this->assertSame('pending', $transfer->fresh()->status);
     }
@@ -72,16 +72,16 @@ class StudentTransferTest extends TestCase
     public function test_transfer_request_is_recorded_as_pending(): void
     {
         $college = $this->makeCollege('TRREQ');
-        $admin = $this->makeUserWithPermissions($college, ['student_transfers.view', 'student_transfers.create']);
+        $admin = $this->makeUserWithPermissions($college, ['certificates_requests.view', 'certificates_requests.create']);
         $year = $this->makeYear($college);
         $program = $this->makeProgram($college);
         $student = $this->makeStudent($college, ['student_number' => 'STU-TR-1']);
         $enrollment = $this->makeEnrollment($college, $student, $year, $program);
 
         $this->asCollege($college, $admin)
-            ->post(route('student-transfers.store'), $this->payload($student->id, ['enrollment_id' => $enrollment->id]))
+            ->post(route('certificates.transfer-requests.store'), $this->payload($student->id, ['enrollment_id' => $enrollment->id]))
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('student-transfers.index'));
+            ->assertRedirect(route('certificates.transfer-requests.index'));
 
         $transfer = StudentTransfer::withoutGlobalScopes()->where('college_id', $college->id)->first();
 
@@ -100,15 +100,15 @@ class StudentTransferTest extends TestCase
     public function test_validation_requires_student_date_and_reason(): void
     {
         $college = $this->makeCollege('TRVAL');
-        $admin = $this->makeUserWithPermissions($college, ['student_transfers.create']);
+        $admin = $this->makeUserWithPermissions($college, ['certificates_requests.create']);
         $student = $this->makeStudent($college);
 
         $this->asCollege($college, $admin)
-            ->post(route('student-transfers.store'), ['student_id' => $student->id])
+            ->post(route('certificates.transfer-requests.store'), ['student_id' => $student->id])
             ->assertSessionHasErrors(['transfer_date', 'reason']);
 
         $this->asCollege($college, $admin)
-            ->post(route('student-transfers.store'), $this->payload($student->id, ['transfer_date' => 'not-a-date']))
+            ->post(route('certificates.transfer-requests.store'), $this->payload($student->id, ['transfer_date' => 'not-a-date']))
             ->assertSessionHasErrors('transfer_date');
 
         $this->assertSame(0, StudentTransfer::withoutGlobalScopes()->where('college_id', $college->id)->count());
@@ -117,22 +117,22 @@ class StudentTransferTest extends TestCase
     public function test_approval_then_issuance_updates_statuses_and_mints_the_tc_number(): void
     {
         $college = $this->makeCollege('TRISSUE');
-        $admin = $this->makeUserWithPermissions($college, ['student_transfers.view', 'student_transfers.create', 'student_transfers.update', 'student_transfers.approve']);
+        $admin = $this->makeUserWithPermissions($college, ['certificates_requests.view', 'certificates_requests.create', 'certificates_requests.manage', 'certificates_requests.review', 'certificates_issuance.create']);
         $year = $this->makeYear($college);
         $program = $this->makeProgram($college);
         $student = $this->makeStudent($college, ['student_number' => 'STU-TR-2']);
         $enrollment = $this->makeEnrollment($college, $student, $year, $program, ['enrollment_number' => 'ENR-TR-2']);
 
-        $this->asCollege($college, $admin)->post(route('student-transfers.store'), $this->payload($student->id, ['enrollment_id' => $enrollment->id]))->assertSessionHasNoErrors();
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.store'), $this->payload($student->id, ['enrollment_id' => $enrollment->id]))->assertSessionHasNoErrors();
         $transfer = StudentTransfer::withoutGlobalScopes()->where('college_id', $college->id)->first();
 
         // A TC cannot be issued before approval.
         $this->asCollege($college, $admin)
-            ->post(route('student-transfers.issue', $transfer), ['tc_issue_date' => '2026-08-15'])
+            ->post(route('certificates.transfer-requests.issue', $transfer), ['tc_issue_date' => '2026-08-15'])
             ->assertSessionHasErrors('status');
         $this->assertSame('pending', $transfer->fresh()->tc_status);
 
-        $this->asCollege($college, $admin)->post(route('student-transfers.approve', $transfer))->assertSessionHas('success');
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.approve', $transfer))->assertSessionHas('success');
         $transfer->refresh();
         $this->assertSame('approved', $transfer->status);
         $this->assertSame($admin->id, $transfer->approved_by);
@@ -140,7 +140,7 @@ class StudentTransferTest extends TestCase
         $this->assertSame('active', $student->fresh()->status, 'Approval alone does not withdraw the student.');
 
         $this->asCollege($college, $admin)
-            ->post(route('student-transfers.issue', $transfer), [
+            ->post(route('certificates.transfer-requests.issue', $transfer), [
                 'tc_issue_date' => '2026-08-15',
                 'tc_file' => UploadedFile::fake()->create('signed-tc.pdf', 60, 'application/pdf'),
             ])
@@ -173,15 +173,15 @@ class StudentTransferTest extends TestCase
     public function test_tc_numbers_are_sequential_per_college(): void
     {
         $college = $this->makeCollege('TRSEQ');
-        $admin = $this->makeUserWithPermissions($college, ['student_transfers.create', 'student_transfers.approve']);
+        $admin = $this->makeUserWithPermissions($college, ['certificates_requests.create', 'certificates_requests.review', 'certificates_issuance.create']);
 
         $numbers = [];
         foreach (['STU-TR-S1', 'STU-TR-S2'] as $index => $number) {
             $student = $this->makeStudent($college, ['student_number' => $number, 'phone' => '900000000'.$index]);
-            $this->asCollege($college, $admin)->post(route('student-transfers.store'), $this->payload($student->id))->assertSessionHasNoErrors();
+            $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.store'), $this->payload($student->id))->assertSessionHasNoErrors();
             $transfer = StudentTransfer::withoutGlobalScopes()->where('student_id', $student->id)->first();
-            $this->asCollege($college, $admin)->post(route('student-transfers.approve', $transfer))->assertSessionHas('success');
-            $this->asCollege($college, $admin)->post(route('student-transfers.issue', $transfer))->assertSessionHas('success');
+            $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.approve', $transfer))->assertSessionHas('success');
+            $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.issue', $transfer))->assertSessionHas('success');
             $numbers[] = $transfer->fresh()->tc_number;
         }
 
@@ -192,18 +192,18 @@ class StudentTransferTest extends TestCase
     public function test_an_issued_tc_cannot_be_issued_cancelled_or_deleted_again(): void
     {
         $college = $this->makeCollege('TRLOCK');
-        $admin = $this->makeUserWithPermissions($college, ['student_transfers.create', 'student_transfers.update', 'student_transfers.approve']);
+        $admin = $this->makeUserWithPermissions($college, ['certificates_requests.create', 'certificates_requests.manage', 'certificates_requests.review', 'certificates_issuance.create']);
         $student = $this->makeStudent($college);
 
-        $this->asCollege($college, $admin)->post(route('student-transfers.store'), $this->payload($student->id))->assertSessionHasNoErrors();
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.store'), $this->payload($student->id))->assertSessionHasNoErrors();
         $transfer = StudentTransfer::withoutGlobalScopes()->where('college_id', $college->id)->first();
-        $this->asCollege($college, $admin)->post(route('student-transfers.approve', $transfer))->assertSessionHas('success');
-        $this->asCollege($college, $admin)->post(route('student-transfers.issue', $transfer))->assertSessionHas('success');
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.approve', $transfer))->assertSessionHas('success');
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.issue', $transfer))->assertSessionHas('success');
         $tcNumber = $transfer->fresh()->tc_number;
 
-        $this->asCollege($college, $admin)->post(route('student-transfers.issue', $transfer))->assertSessionHasErrors('tc_status');
-        $this->asCollege($college, $admin)->post(route('student-transfers.cancel', $transfer))->assertSessionHasErrors('status');
-        $this->asCollege($college, $admin)->delete(route('student-transfers.destroy', $transfer), [], ['Referer' => route('student-transfers.index')])->assertSessionHasErrors('status');
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.issue', $transfer))->assertSessionHasErrors('tc_status');
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.cancel', $transfer))->assertSessionHasErrors('status');
+        $this->asCollege($college, $admin)->delete(route('certificates.transfer-requests.destroy', $transfer), [], ['Referer' => route('certificates.transfer-requests.index')])->assertSessionHasErrors('status');
 
         $transfer->refresh();
         $this->assertSame('issued', $transfer->tc_status);
@@ -214,14 +214,14 @@ class StudentTransferTest extends TestCase
     public function test_pending_request_can_be_edited_rejected_or_cancelled(): void
     {
         $college = $this->makeCollege('TREDIT');
-        $admin = $this->makeUserWithPermissions($college, ['student_transfers.view', 'student_transfers.create', 'student_transfers.update', 'student_transfers.approve']);
+        $admin = $this->makeUserWithPermissions($college, ['certificates_requests.view', 'certificates_requests.create', 'certificates_requests.manage', 'certificates_requests.review', 'certificates_issuance.create']);
         $student = $this->makeStudent($college);
 
-        $this->asCollege($college, $admin)->post(route('student-transfers.store'), $this->payload($student->id))->assertSessionHasNoErrors();
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.store'), $this->payload($student->id))->assertSessionHasNoErrors();
         $transfer = StudentTransfer::withoutGlobalScopes()->where('college_id', $college->id)->first();
 
         $this->asCollege($college, $admin)
-            ->put(route('student-transfers.update', $transfer), $this->payload($student->id, ['reason' => 'Corrected reason', 'destination_institution' => 'Another college']), ['Referer' => route('student-transfers.edit', $transfer)])
+            ->put(route('certificates.transfer-requests.update', $transfer), $this->payload($student->id, ['reason' => 'Corrected reason', 'destination_institution' => 'Another college']), ['Referer' => route('certificates.transfer-requests.edit', $transfer)])
             ->assertSessionHas('success');
 
         $transfer->refresh();
@@ -229,7 +229,7 @@ class StudentTransferTest extends TestCase
         $this->assertSame('Another college', $transfer->destination_institution);
         $this->assertSame('pending', $transfer->status);
 
-        $this->asCollege($college, $admin)->post(route('student-transfers.cancel', $transfer))->assertSessionHas('success');
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.cancel', $transfer))->assertSessionHas('success');
         $transfer->refresh();
         $this->assertSame('cancelled', $transfer->status);
         $this->assertSame('cancelled', $transfer->tc_status);
@@ -237,9 +237,9 @@ class StudentTransferTest extends TestCase
 
         // A closed request can no longer be edited or approved.
         $this->asCollege($college, $admin)
-            ->put(route('student-transfers.update', $transfer), $this->payload($student->id, ['reason' => 'Too late']), ['Referer' => route('student-transfers.edit', $transfer)])
+            ->put(route('certificates.transfer-requests.update', $transfer), $this->payload($student->id, ['reason' => 'Too late']), ['Referer' => route('certificates.transfer-requests.edit', $transfer)])
             ->assertSessionHasErrors('status');
-        $this->asCollege($college, $admin)->post(route('student-transfers.approve', $transfer))->assertSessionHasErrors('status');
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.approve', $transfer))->assertSessionHasErrors('status');
         $this->assertSame('Corrected reason', $transfer->fresh()->reason);
         $this->assertSame('active', $student->fresh()->status, 'A cancelled transfer must not affect the student.');
     }
@@ -247,14 +247,14 @@ class StudentTransferTest extends TestCase
     public function test_rejecting_a_request_records_the_decision(): void
     {
         $college = $this->makeCollege('TRREJ');
-        $admin = $this->makeUserWithPermissions($college, ['student_transfers.create', 'student_transfers.approve']);
+        $admin = $this->makeUserWithPermissions($college, ['certificates_requests.create', 'certificates_requests.review', 'certificates_issuance.create']);
         $student = $this->makeStudent($college);
 
-        $this->asCollege($college, $admin)->post(route('student-transfers.store'), $this->payload($student->id))->assertSessionHasNoErrors();
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.store'), $this->payload($student->id))->assertSessionHasNoErrors();
         $transfer = StudentTransfer::withoutGlobalScopes()->where('college_id', $college->id)->first();
 
         $this->asCollege($college, $admin)
-            ->post(route('student-transfers.reject', $transfer), ['remarks' => 'Dues pending'])
+            ->post(route('certificates.transfer-requests.reject', $transfer), ['remarks' => 'Dues pending'])
             ->assertSessionHas('success');
 
         $transfer->refresh();
@@ -268,21 +268,21 @@ class StudentTransferTest extends TestCase
     public function test_tc_file_can_be_downloaded_by_an_authorized_user(): void
     {
         $college = $this->makeCollege('TRDL');
-        $admin = $this->makeUserWithPermissions($college, ['student_transfers.view', 'student_transfers.create', 'student_transfers.approve']);
+        $admin = $this->makeUserWithPermissions($college, ['certificates_requests.view', 'certificates_requests.create', 'certificates_requests.review', 'certificates_issuance.create']);
         $student = $this->makeStudent($college);
 
-        $this->asCollege($college, $admin)->post(route('student-transfers.store'), $this->payload($student->id))->assertSessionHasNoErrors();
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.store'), $this->payload($student->id))->assertSessionHasNoErrors();
         $transfer = StudentTransfer::withoutGlobalScopes()->where('college_id', $college->id)->first();
 
         // No file attached yet.
-        $this->asCollege($college, $admin)->get(route('student-transfers.download', $transfer))->assertNotFound();
+        $this->asCollege($college, $admin)->get(route('certificates.transfer-requests.download', $transfer))->assertNotFound();
 
-        $this->asCollege($college, $admin)->post(route('student-transfers.approve', $transfer))->assertSessionHas('success');
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.approve', $transfer))->assertSessionHas('success');
         $this->asCollege($college, $admin)
-            ->post(route('student-transfers.issue', $transfer), ['tc_file' => UploadedFile::fake()->create('tc.pdf', 20, 'application/pdf')])
+            ->post(route('certificates.transfer-requests.issue', $transfer), ['tc_file' => UploadedFile::fake()->create('tc.pdf', 20, 'application/pdf')])
             ->assertSessionHas('success');
 
-        $response = $this->asCollege($college, $admin)->get(route('student-transfers.download', $transfer));
+        $response = $this->asCollege($college, $admin)->get(route('certificates.transfer-requests.download', $transfer));
         $response->assertOk();
         $this->assertSame('attachment; filename=tc.pdf', $response->headers->get('content-disposition'));
         $this->assertDatabaseHas('audit_logs', ['action' => 'student_transfer.downloaded']);
@@ -291,17 +291,17 @@ class StudentTransferTest extends TestCase
     public function test_history_is_preserved_after_a_transfer(): void
     {
         $college = $this->makeCollege('TRHIST');
-        $admin = $this->makeUserWithPermissions($college, ['student_transfers.create', 'student_transfers.approve', 'student_history.view', 'students.view']);
+        $admin = $this->makeUserWithPermissions($college, ['certificates_requests.create', 'certificates_requests.review', 'certificates_issuance.create', 'student_history.view', 'students.view']);
         $year = $this->makeYear($college);
         $program = $this->makeProgram($college);
         $student = $this->makeStudent($college, ['student_number' => 'STU-TR-HIST']);
         $enrollment = $this->makeEnrollment($college, $student, $year, $program);
         $this->makeAcademicRecord($college, $student, $year);
 
-        $this->asCollege($college, $admin)->post(route('student-transfers.store'), $this->payload($student->id, ['enrollment_id' => $enrollment->id]))->assertSessionHasNoErrors();
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.store'), $this->payload($student->id, ['enrollment_id' => $enrollment->id]))->assertSessionHasNoErrors();
         $transfer = StudentTransfer::withoutGlobalScopes()->where('college_id', $college->id)->first();
-        $this->asCollege($college, $admin)->post(route('student-transfers.approve', $transfer))->assertSessionHas('success');
-        $this->asCollege($college, $admin)->post(route('student-transfers.issue', $transfer))->assertSessionHas('success');
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.approve', $transfer))->assertSessionHas('success');
+        $this->asCollege($college, $admin)->post(route('certificates.transfer-requests.issue', $transfer))->assertSessionHas('success');
 
         // The student, enrollment and academic record all still exist.
         $this->assertDatabaseHas('students', ['id' => $student->id, 'deleted_at' => null]);

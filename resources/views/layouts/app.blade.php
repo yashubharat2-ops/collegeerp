@@ -47,11 +47,19 @@
 <a class="nav-link" href="{{ route('students.index') }}">🧑 <span>Students</span></a>
 <a class="nav-link" href="{{ route('student-enrollments.index') }}">🗂 <span>Enrollments</span></a>
 <a class="nav-link" href="{{ route('student-academic-records.index') }}">📚 <span>Academic Records</span></a>
-<a class="nav-link" href="{{ route('student-documents.index') }}">📄 <span>Documents</span></a>
 <a class="nav-link" href="{{ route('student-id-cards.index') }}">🪪 <span>ID Cards</span></a>
 <a class="nav-link" href="{{ route('student-promotions.index') }}">🔄 <span>Promotion</span></a>
-<a class="nav-link" href="{{ route('student-transfers.index') }}">🚚 <span>Transfer / TC</span></a>
 <a class="nav-link" href="{{ route('student-history.index') }}">🕘 <span>Student History</span></a>
+@if(auth()->user()?->hasPermission('certificates_dashboard.view') || auth()->user()?->hasPermission('certificates_templates.view') || auth()->user()?->hasPermission('certificates_generation.view') || auth()->user()?->hasPermission('certificates_issuance.view') || auth()->user()?->hasPermission('certificates_verification.view') || auth()->user()?->hasPermission('certificates_requests.view') || auth()->user()?->hasPermission('certificates_reports.view'))
+<div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Certificate Management (EC)</div>
+@if(auth()->user()?->hasPermission('certificates_dashboard.view'))<a class="nav-link" href="{{ route('certificates.dashboard') }}">📜 <span>Certificate Dashboard</span></a>@endif
+@if(auth()->user()?->hasPermission('certificates_templates.view'))<a class="nav-link" href="{{ route('certificates.templates.index') }}">🧩 <span>Certificate Templates</span></a>@endif
+@if(auth()->user()?->hasPermission('certificates_generation.view'))<a class="nav-link" href="{{ route('certificates.generation.index') }}">✍ <span>Certificate Generation</span></a>@endif
+@if(auth()->user()?->hasPermission('certificates_issuance.view'))<a class="nav-link" href="{{ route('certificates.issuance.index') }}">🪪 <span>Certificate Issuance</span></a>@endif
+@if(auth()->user()?->hasPermission('certificates_verification.view'))<a class="nav-link" href="{{ route('certificates.verification.index') }}">🔎 <span>Certificate Verification</span></a>@endif
+@if(auth()->user()?->hasPermission('certificates_requests.view'))<a class="nav-link" href="{{ route('certificates.requests.index') }}">📨 <span>Certificate Requests</span></a>@endif
+@if(auth()->user()?->hasPermission('certificates_reports.view'))<a class="nav-link" href="{{ route('certificates.reports.index') }}">📊 <span>Certificate Reports</span></a>@endif
+@endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Academics</div>
 <a class="nav-link" href="{{ route('academic-subject-enrollments.index') }}">📚 <span>Student Subject Enrollment</span></a>
 <a class="nav-link" href="{{ route('academic-sections.index') }}">🏫 <span>Class / Section Management</span></a>

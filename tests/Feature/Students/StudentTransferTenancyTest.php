@@ -32,10 +32,10 @@ class StudentTransferTenancyTest extends TestCase
         $this->makeTransfer($collegeA, $studentA, ['tc_number' => 'TC-2026-0001', 'tc_status' => 'issued']);
         $this->makeTransfer($collegeB, $studentB, ['tc_number' => 'TC-2026-0002', 'tc_status' => 'issued']);
 
-        $adminA = $this->makeUserWithPermissions($collegeA, ['student_transfers.view']);
+        $adminA = $this->makeUserWithPermissions($collegeA, ['certificates_requests.view']);
 
         $this->asCollege($collegeA, $adminA)
-            ->get(route('student-transfers.index'))
+            ->get(route('certificates.transfer-requests.index'))
             ->assertSee('STU-TA')
             ->assertDontSee('STU-TB')
             ->assertDontSee('TC-2026-0002');
@@ -48,15 +48,15 @@ class StudentTransferTenancyTest extends TestCase
         $studentB = $this->makeStudent($collegeB);
         $foreign = $this->makeTransfer($collegeB, $studentB);
 
-        $adminA = $this->makeUserWithPermissions($collegeA, ['student_transfers.view', 'student_transfers.update', 'student_transfers.approve']);
+        $adminA = $this->makeUserWithPermissions($collegeA, ['certificates_requests.view', 'certificates_requests.manage', 'certificates_requests.review', 'certificates_issuance.create']);
 
         foreach ([
-            'GET' => route('student-transfers.edit', $foreign),
-            'GET' => route('student-transfers.download', $foreign),
-            'POST' => route('student-transfers.approve', $foreign),
-            'POST' => route('student-transfers.reject', $foreign),
-            'POST' => route('student-transfers.issue', $foreign),
-            'POST' => route('student-transfers.cancel', $foreign),
+            'GET' => route('certificates.transfer-requests.edit', $foreign),
+            'GET' => route('certificates.transfer-requests.download', $foreign),
+            'POST' => route('certificates.transfer-requests.approve', $foreign),
+            'POST' => route('certificates.transfer-requests.reject', $foreign),
+            'POST' => route('certificates.transfer-requests.issue', $foreign),
+            'POST' => route('certificates.transfer-requests.cancel', $foreign),
         ] as $method => $uri) {
             $this->asCollege($collegeA, $adminA)->json($method, $uri)->assertNotFound();
         }
@@ -69,7 +69,7 @@ class StudentTransferTenancyTest extends TestCase
     {
         $collegeA = $this->makeCollege('TRFA');
         $collegeB = $this->makeCollege('TRFB');
-        $adminA = $this->makeUserWithPermissions($collegeA, ['student_transfers.create']);
+        $adminA = $this->makeUserWithPermissions($collegeA, ['certificates_requests.create']);
         $yearA = $this->makeYear($collegeA);
         $programA = $this->makeProgram($collegeA);
         $studentA = $this->makeStudent($collegeA);
@@ -81,7 +81,7 @@ class StudentTransferTenancyTest extends TestCase
         $enrollmentB = $this->makeEnrollment($collegeB, $studentB, $yearB, $programB);
 
         $this->asCollege($collegeA, $adminA)
-            ->post(route('student-transfers.store'), [
+            ->post(route('certificates.transfer-requests.store'), [
                 'student_id' => $studentB->id,
                 'transfer_date' => '2026-08-01',
                 'reason' => 'Relocation',
@@ -89,7 +89,7 @@ class StudentTransferTenancyTest extends TestCase
             ->assertSessionHasErrors('student_id');
 
         $this->asCollege($collegeA, $adminA)
-            ->post(route('student-transfers.store'), [
+            ->post(route('certificates.transfer-requests.store'), [
                 'student_id' => $studentA->id,
                 'enrollment_id' => $enrollmentB->id,
                 'transfer_date' => '2026-08-01',
@@ -106,11 +106,11 @@ class StudentTransferTenancyTest extends TestCase
     {
         $collegeA = $this->makeCollege('TRSAFE');
         $collegeB = $this->makeCollege('TRSAFB');
-        $adminA = $this->makeUserWithPermissions($collegeA, ['student_transfers.create']);
+        $adminA = $this->makeUserWithPermissions($collegeA, ['certificates_requests.create']);
         $studentA = $this->makeStudent($collegeA);
 
         $this->asCollege($collegeA, $adminA)
-            ->post(route('student-transfers.store'), [
+            ->post(route('certificates.transfer-requests.store'), [
                 'college_id' => $collegeB->id,
                 'student_id' => $studentA->id,
                 'transfer_date' => '2026-08-01',
@@ -140,12 +140,12 @@ class StudentTransferTenancyTest extends TestCase
     {
         $collegeA = $this->makeCollege('TRFILE');
         // Downloading the TC file is a view-level action in StudentTransferPolicy,
-        // so the actor needs student_transfers.view in addition to create/approve.
-        $admin = $this->makeUserWithPermissions($collegeA, ['student_transfers.view', 'student_transfers.create', 'student_transfers.approve']);
+        // so the actor needs certificates_requests.view in addition to create/approve.
+        $admin = $this->makeUserWithPermissions($collegeA, ['certificates_requests.view', 'certificates_requests.create', 'certificates_requests.review', 'certificates_issuance.create']);
         $student = $this->makeStudent($collegeA, ['student_number' => 'STU-TR-FILE']);
 
         $this->asCollege($collegeA, $admin)
-            ->post(route('student-transfers.store'), [
+            ->post(route('certificates.transfer-requests.store'), [
                 'student_id' => $student->id,
                 'transfer_date' => '2026-08-01',
                 'reason' => 'Relocation',
@@ -153,10 +153,10 @@ class StudentTransferTenancyTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $transfer = StudentTransfer::withoutGlobalScopes()->where('college_id', $collegeA->id)->first();
-        $this->asCollege($collegeA, $admin)->post(route('student-transfers.approve', $transfer))->assertSessionHas('success');
+        $this->asCollege($collegeA, $admin)->post(route('certificates.transfer-requests.approve', $transfer))->assertSessionHas('success');
 
         $this->asCollege($collegeA, $admin)
-            ->post(route('student-transfers.issue', $transfer), ['tc_file' => UploadedFile::fake()->create('../../evil.pdf', 10, 'application/pdf')])
+            ->post(route('certificates.transfer-requests.issue', $transfer), ['tc_file' => UploadedFile::fake()->create('../../evil.pdf', 10, 'application/pdf')])
             ->assertSessionHas('success');
 
         $transfer->refresh();
@@ -173,7 +173,7 @@ class StudentTransferTenancyTest extends TestCase
 
         // The raw name is kept for display only, and is sanitised before it can
         // reach a Content-Disposition header.
-        $response = $this->asCollege($collegeA, $admin)->get(route('student-transfers.download', $transfer));
+        $response = $this->asCollege($collegeA, $admin)->get(route('certificates.transfer-requests.download', $transfer));
         $response->assertOk();
         $disposition = (string) $response->headers->get('content-disposition');
         $this->assertStringContainsString('attachment', $disposition);

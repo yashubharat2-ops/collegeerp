@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Requests\StudentTransfer;
+namespace App\Http\Requests\Certificates;
 
 use App\Models\StudentTransfer;
 use Illuminate\Foundation\Http\FormRequest;
 
-class IssueStudentTransferRequest extends FormRequest
+class IssueTransferCertificateRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -21,13 +21,14 @@ class IssueStudentTransferRequest extends FormRequest
 
     /**
      * The TC number is never accepted: it is minted server-side by
-     * GenerateTcNumber. An optional scanned copy of the signed TC may be
+     * Certificate Management. An optional scanned copy of the signed TC may be
      * attached (PDF/JPG/PNG only, hard 5 MB ceiling).
      */
     public function rules(): array
     {
         return [
             'tc_issue_date' => ['nullable', 'date'],
+            'template_id' => ['nullable', 'integer', 'exists:certificate_templates,id'],
             'tc_file' => ['nullable', 'file', 'max:5120', 'mimes:pdf,jpg,jpeg,png'],
         ];
     }

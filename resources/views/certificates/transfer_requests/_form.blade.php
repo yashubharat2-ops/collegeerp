@@ -63,7 +63,7 @@
 
     <div class="md:col-span-2 flex gap-2">
         <button class="button" type="submit">{{ $submitLabel }}</button>
-        <a class="button !bg-slate-200 !text-slate-700" href="{{ route('student-transfers.index') }}">Cancel</a>
+        <a class="button !bg-slate-200 !text-slate-700" href="{{ route('certificates.transfer-requests.index') }}">Cancel</a>
     </div>
 </div>
 

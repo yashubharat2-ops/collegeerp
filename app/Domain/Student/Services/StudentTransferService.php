@@ -2,47 +2,36 @@
 
 namespace App\Domain\Student\Services;
 
-use App\Domain\Student\Actions\GenerateTcNumber;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentTransfer;
 use App\Services\Audit\AuditLogService;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Student transfer / Transfer Certificate (TC) workflow.
+ * Student transfer request and exit-lifecycle workflow.
  *
- * Active student → transfer request → approved → statuses updated → TC issued.
+ * Active student → transfer request → approved. Issuance is owned by Certificate Management.
  *
- * The defining rule of this module: NOTHING IS DELETED. Issuing a TC only
- * changes statuses (the linked enrollment and the student become `withdrawn`)
- * and records the certificate. The Student row and its enrollments, academic
+ * The defining rule of this module: NOTHING IS DELETED. Certificate Management
+ * changes transfer/student/enrollment statuses on issuance; this service retains
+ * the request and exit history and never destroys the underlying student data. The Student row and its enrollments, academic
  * records and documents remain, because a transferred student is still part of
  * the institution's history and may return.
  *
- * The TC number is minted server-side by GenerateTcNumber and the optional TC
- * file is stored on the private disk under a tenant-scoped, server-generated
- * path — never a client-supplied one.
- *
- * Every transition is transactional, tenant-verified and audited.
+ * Request transitions are transactional, tenant-verified and audited.
  */
 class StudentTransferService
 {
     public const AUDITED = [
         'id', 'student_id', 'enrollment_id', 'transfer_date', 'reason', 'destination_institution',
         'status', 'tc_number', 'tc_issue_date', 'tc_status', 'tc_file_path', 'tc_original_filename',
-        'tc_file_size', 'remarks', 'requested_by', 'approved_by', 'approved_at', 'cancelled_at',
+        'tc_file_size', 'certificate_template_id', 'remarks', 'requested_by', 'approved_by', 'approved_at', 'cancelled_at',
     ];
-
-    /** Extensions accepted for an uploaded TC scan/reference. */
-    private const ALLOWED_TC_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png'];
 
     public function __construct(
         private readonly StudentService $students,
-        private readonly GenerateTcNumber $tcNumbers,
         private readonly AuditLogService $audit,
     ) {}
 
@@ -177,78 +166,6 @@ class StudentTransferService
     }
 
     /**
-     * Issue the TC: mints the number, optionally attaches the scanned TC, and
-     * marks the student + linked enrollment as withdrawn. Nothing is deleted.
-     */
-    public function issue(StudentTransfer $transfer, int $collegeId, ?int $userId = null, ?string $issueDate = null, ?UploadedFile $file = null): StudentTransfer
-    {
-        return DB::transaction(function () use ($transfer, $collegeId, $userId, $issueDate, $file): StudentTransfer {
-            $this->assertOwnedByCollege($transfer, $collegeId);
-
-            if (! $transfer->isApproved()) {
-                throw ValidationException::withMessages([
-                    'status' => 'Only an approved transfer request can be issued. Current status: '.$transfer->status.'.',
-                ]);
-            }
-
-            if ($transfer->isTcIssued()) {
-                throw ValidationException::withMessages([
-                    'tc_status' => 'The transfer certificate has already been issued ('.$transfer->tc_number.').',
-                ]);
-            }
-
-            $student = Student::withoutGlobalScopes()
-                ->where('college_id', $collegeId)
-                ->whereKey((int) $transfer->student_id)
-                ->lockForUpdate()
-                ->first();
-
-            if (! $student) {
-                abort(404, 'Student not found in this college context.');
-            }
-
-            $tcIssueDate = $issueDate ?: now()->toDateString();
-            $tcNumber = $this->tcNumbers->execute($collegeId, substr($tcIssueDate, 0, 4));
-
-            $old = $transfer->only(self::AUDITED);
-
-            $changes = [
-                'tc_number' => $tcNumber,
-                'tc_issue_date' => $tcIssueDate,
-                'tc_status' => 'issued',
-                'updated_by' => $userId,
-            ];
-
-            if ($file) {
-                $changes['tc_file_path'] = $this->storeTcFile($file, $collegeId, (int) $student->id);
-                $changes['tc_original_filename'] = $file->getClientOriginalName();
-                $changes['tc_file_size'] = $file->getSize();
-            }
-
-            $transfer->update($changes);
-
-            // Statuses only — history is preserved.
-            if ($transfer->enrollment_id) {
-                $enrollment = StudentEnrollment::query()
-                    ->where('student_id', $student->id)
-                    ->find($transfer->enrollment_id);
-
-                if ($enrollment && $enrollment->status !== 'withdrawn') {
-                    $this->students->updateEnrollment($enrollment, ['status' => 'withdrawn'], $collegeId);
-                }
-            }
-
-            if ($student->status !== 'withdrawn') {
-                $this->students->updateStudent($student, ['status' => 'withdrawn']);
-            }
-
-            $this->audit->record('student_transfer.issued', $transfer, $old, $transfer->only(self::AUDITED));
-
-            return $transfer->refresh()->load('student');
-        });
-    }
-
-    /**
      * Cancel a request that has not been issued. The student is untouched.
      */
     public function cancel(StudentTransfer $transfer, int $collegeId, ?int $userId = null, ?string $remarks = null): StudentTransfer
@@ -313,40 +230,4 @@ class StudentTransferService
         }
     }
 
-    /**
-     * Store an uploaded TC scan under a tenant-scoped private path with a
-     * generated name; the client never controls the stored location.
-     */
-    private function storeTcFile(UploadedFile $file, int $collegeId, int $studentId): string
-    {
-        $extension = strtolower((string) $file->getClientOriginalExtension());
-        if ($extension === '') {
-            $extension = strtolower((string) $file->extension());
-        }
-        $extension = (string) preg_replace('/[^a-z0-9]/', '', $extension);
-
-        if (! in_array($extension, self::ALLOWED_TC_EXTENSIONS, true)) {
-            throw ValidationException::withMessages([
-                'tc_file' => 'The TC file must be a PDF, JPG or PNG.',
-            ]);
-        }
-
-        if ((int) $file->getSize() > 5120 * 1024) {
-            throw ValidationException::withMessages([
-                'tc_file' => 'The TC file exceeds the maximum allowed size of 5120 KB.',
-            ]);
-        }
-
-        $directory = sprintf('students/%d/%d/tc', $collegeId, $studentId);
-
-        $storedPath = $file->storeAs($directory, Str::uuid()->toString().'.'.$extension, 'private');
-
-        if ($storedPath === false) {
-            throw ValidationException::withMessages([
-                'tc_file' => 'The TC file could not be stored. Please try again.',
-            ]);
-        }
-
-        return $storedPath;
-    }
 }

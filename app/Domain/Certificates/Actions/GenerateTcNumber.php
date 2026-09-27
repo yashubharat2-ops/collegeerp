@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Domain\Student\Actions;
+namespace App\Domain\Certificates\Actions;
 
 use App\Models\College;
 use App\Models\StudentTransfer;

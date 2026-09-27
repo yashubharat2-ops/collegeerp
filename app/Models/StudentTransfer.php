@@ -20,7 +20,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * - `status`    request workflow — pending → approved | rejected | cancelled
  * - `tc_status` certificate lifecycle — pending → issued | cancelled
  *
- * `tc_number` is minted server-side by GenerateTcNumber and is unique per
+ * `tc_number` is minted server-side by Certificate Management and is unique per
  * college; it is never accepted from the browser.
  *
  * Tenant isolation via BelongsToCollege + CollegeScope.
@@ -46,6 +46,7 @@ class StudentTransfer extends Model
         'tc_number',
         'tc_issue_date',
         'tc_status',
+        'certificate_template_id',
         'tc_file_path',
         'tc_original_filename',
         'tc_file_size',
@@ -67,6 +68,11 @@ class StudentTransfer extends Model
             'approved_at' => 'datetime',
             'cancelled_at' => 'datetime',
         ];
+    }
+
+    public function certificateTemplate(): BelongsTo
+    {
+        return $this->belongsTo(CertificateTemplate::class, 'certificate_template_id');
     }
 
     public function student(): BelongsTo

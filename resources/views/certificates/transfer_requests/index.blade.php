@@ -1,21 +1,21 @@
 @extends('layouts.app')
-@section('title','Transfer / TC')
+@section('title','Transfer Certificate Requests')
 @section('content')
 <div class="panel">
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-            <h2 class="panel-title">Student Transfer / TC</h2>
+            <h2 class="panel-title">Transfer Certificate Requests</h2>
             <p class="panel-subtitle">
                 Request → approve → issue TC. A transfer never deletes a student: statuses change and the student's
                 enrollments, academic records and documents are preserved.
             </p>
         </div>
         @can('create', App\Models\StudentTransfer::class)
-            <a class="button" href="{{ route('student-transfers.create') }}">+ New transfer request</a>
+            <a class="button" href="{{ route('certificates.transfer-requests.create') }}">+ New transfer request</a>
         @endcan
     </div>
 
-    <form method="GET" action="{{ route('student-transfers.index') }}" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <form method="GET" action="{{ route('certificates.transfer-requests.index') }}" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <input class="input" type="search" name="search" value="{{ $search }}" placeholder="Search TC number, student, institution">
         <select class="input" name="student_id">
             <option value="">All students</option>
@@ -38,7 +38,7 @@
         <div class="flex gap-2">
             <button class="button" type="submit">Filter</button>
             @if($search !== '' || $student_id || $status || $tc_status)
-                <a class="button !bg-slate-200 !text-slate-700" href="{{ route('student-transfers.index') }}">Clear</a>
+                <a class="button !bg-slate-200 !text-slate-700" href="{{ route('certificates.transfer-requests.index') }}">Clear</a>
             @endif
         </div>
     </form>
@@ -84,21 +84,21 @@
                         <div class="flex flex-wrap items-center justify-end gap-2">
                             @if($transfer->isPending())
                                 @can('update', $transfer)
-                                    <a class="text-xs font-semibold text-slate-600 hover:underline" href="{{ route('student-transfers.edit', $transfer) }}">Edit</a>
+                                    <a class="text-xs font-semibold text-slate-600 hover:underline" href="{{ route('certificates.transfer-requests.edit', $transfer) }}">Edit</a>
                                 @endcan
                                 @can('approve', $transfer)
-                                    <form class="inline" method="POST" action="{{ route('student-transfers.approve', $transfer) }}"
+                                    <form class="inline" method="POST" action="{{ route('certificates.transfer-requests.approve', $transfer) }}"
                                           onsubmit="return confirm(@js('Approve the transfer request for '.$transfer->student?->fullName().'?'))">
                                         @csrf
                                         <button class="text-xs font-semibold text-emerald-600 hover:underline" type="submit">Approve</button>
                                     </form>
-                                    <form class="inline" method="POST" action="{{ route('student-transfers.reject', $transfer) }}"
+                                    <form class="inline" method="POST" action="{{ route('certificates.transfer-requests.reject', $transfer) }}"
                                           onsubmit="const reason = prompt('Rejection remarks (optional):'); if (reason === null) return false; this.querySelector('[name=remarks]').value = reason; return true;">
                                         @csrf
                                         <input type="hidden" name="remarks" value="">
                                         <button class="text-xs font-semibold text-rose-600 hover:underline" type="submit">Reject</button>
                                     </form>
-                                    <form class="inline" method="POST" action="{{ route('student-transfers.cancel', $transfer) }}"
+                                    <form class="inline" method="POST" action="{{ route('certificates.transfer-requests.cancel', $transfer) }}"
                                           onsubmit="return confirm(@js('Cancel the transfer request for '.$transfer->student?->fullName().'?'))">
                                         @csrf
                                         <button class="text-xs font-semibold text-slate-500 hover:underline" type="submit">Cancel</button>
@@ -109,12 +109,13 @@
                             @if($transfer->isApproved() && ! $transfer->isTcIssued())
                                 @can('issue', $transfer)
                                     <form class="flex w-full flex-wrap items-center justify-end gap-2" method="POST"
-                                          action="{{ route('student-transfers.issue', $transfer) }}" enctype="multipart/form-data"
+                                          action="{{ route('certificates.transfer-requests.issue', $transfer) }}" enctype="multipart/form-data"
                                           onsubmit="return confirm(@js('Issue the TC for '.$transfer->student?->fullName().'? The student and enrollment become withdrawn; history is preserved.'))">
                                         @csrf
                                         <input class="input !w-36 !py-1 text-xs" type="date" name="tc_issue_date"
                                                value="{{ old('tc_issue_date', now()->format('Y-m-d')) }}" aria-label="TC issue date">
-                                        <input class="text-xs" type="file" name="tc_file" accept=".pdf,.jpg,.jpeg,.png" aria-label="TC file (optional)">
+                                        <select class="input !w-40 !py-1 text-xs" name="template_id" aria-label="TC template"><option value="">Default TC layout</option>@foreach($templates as $template)<option value="{{ $template->id }}">{{ $template->name }}</option>@endforeach</select>
+                                        <input class="text-xs" type="file" name="tc_file" accept=".pdf,.jpg,.jpeg,.png" aria-label="Signed TC copy (optional)">
                                         <button class="text-xs font-semibold text-indigo-600 hover:underline" type="submit">Issue TC</button>
                                     </form>
                                 @endcan
@@ -122,13 +123,13 @@
 
                             @if($transfer->hasTcFile())
                                 @can('download', $transfer)
-                                    <a class="text-xs font-semibold text-indigo-600 hover:underline" href="{{ route('student-transfers.download', $transfer) }}">TC file</a>
+                                    <a class="text-xs font-semibold text-indigo-600 hover:underline" href="{{ route('certificates.transfer-requests.download', $transfer) }}">TC file</a>
                                 @endcan
                             @endif
 
                             @if(! $transfer->isTcIssued())
                                 @can('delete', $transfer)
-                                    <form method="POST" action="{{ route('student-transfers.destroy', $transfer) }}"
+                                    <form method="POST" action="{{ route('certificates.transfer-requests.destroy', $transfer) }}"
                                           onsubmit="return confirm(@js('Delete this transfer request? Issued TCs cannot be deleted.'))">
                                         @csrf
                                         @method('DELETE')

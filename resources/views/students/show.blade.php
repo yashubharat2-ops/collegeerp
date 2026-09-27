@@ -10,7 +10,7 @@
         'documents' => 'Documents',
         'id-card' => 'ID Card',
         'promotion' => 'Promotion',
-        'transfer' => 'Transfer / TC',
+        'transfer' => 'Transfer History',
         'history' => 'History',
     ];
     $tab = array_key_exists($tab, $tabs) ? $tab : 'profile';
@@ -249,35 +249,24 @@
             </table>
         </div>
 
-    {{-- ================= 7. Transfer / TC ================= --}}
+    {{-- ================= 7. Transfer History ================= --}}
     @elseif($tab === 'transfer')
         <div class="mt-6 flex items-center justify-between">
-            <h3 class="font-semibold">Transfer / TC</h3>
-            @can('create', \App\Models\StudentTransfer::class)
-                <a class="button !px-3 !py-2 text-xs" href="{{ route('student-transfers.create', ['student_id' => $student->id]) }}">+ New transfer request</a>
-            @endcan
+            <h3 class="font-semibold">Transfer History</h3>
         </div>
         <div class="mt-4 overflow-x-auto">
             <table class="w-full text-left text-sm">
-                <thead><tr class="border-b text-slate-500"><th class="py-3">Transfer date</th><th>Destination</th><th>Request</th><th>TC number</th><th>TC status</th><th class="text-right">Actions</th></tr></thead>
+                <thead><tr class="border-b text-slate-500"><th class="py-3">Transfer date</th><th>Destination</th><th>Request</th><th>Student status</th></tr></thead>
                 <tbody>
                 @forelse($student->transfers as $transfer)
                     <tr class="border-b">
                         <td class="py-3">{{ $transfer->transfer_date?->format('d M Y') ?? '—' }}</td>
                         <td>{{ $transfer->destination_institution ?? '—' }}</td>
                         <td>{{ ucfirst($transfer->status) }}</td>
-                        <td class="font-medium">{{ $transfer->tc_number ?? '—' }}</td>
-                        <td>{{ ucfirst(str_replace('_', ' ', $transfer->tc_status)) }}</td>
-                        <td class="text-right">
-                            @if($transfer->hasTcFile())
-                                @can('download', $transfer)
-                                    <a class="text-xs font-semibold text-indigo-600 hover:underline" href="{{ route('student-transfers.download', $transfer) }}">TC file</a>
-                                @endcan
-                            @endif
-                        </td>
+                        <td>{{ ucfirst(str_replace('_', ' ', $student->status)) }}</td>
                     </tr>
                 @empty
-                    <tr><td class="py-6 text-slate-500" colspan="6">No transfer requests.</td></tr>
+                    <tr><td class="py-6 text-slate-500" colspan="4">No transfer history.</td></tr>
                 @endforelse
                 </tbody>
             </table>

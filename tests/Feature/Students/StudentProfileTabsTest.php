@@ -25,11 +25,11 @@ class StudentProfileTabsTest extends TestCase
         'documents' => 'Documents',
         'id-card' => 'ID Card',
         'promotion' => 'Promotion',
-        'transfer' => 'Transfer / TC',
+        'transfer' => 'Transfer History',
         'history' => 'History',
     ];
 
-    public function test_all_eight_tabs_are_rendered_on_the_student_detail_page(): void
+    public function test_all_profile_tabs_are_rendered_on_the_student_detail_page(): void
     {
         [$college, $student] = $this->makeScenario();
         $viewer = $this->makeUserWithPermissions($college, ['students.view']);
@@ -42,7 +42,7 @@ class StudentProfileTabsTest extends TestCase
         }
     }
 
-    public function test_sidebar_students_group_has_exactly_eight_links_and_no_separate_profile_master(): void
+    public function test_sidebar_students_group_has_no_transfer_or_documents_module_and_no_separate_profile_master(): void
     {
         [$college, $student] = $this->makeScenario();
         $viewer = $this->makeUserWithPermissions($college, ['students.view']);
@@ -50,10 +50,12 @@ class StudentProfileTabsTest extends TestCase
         $response = $this->asCollege($college, $viewer)->get(route('dashboard'))->assertOk();
         $sidebar = $this->studentNavGroup($response->getContent());
 
-        $this->assertSame(8, substr_count($sidebar, 'class="nav-link"'), 'The STUDENTS nav group must contain exactly 8 entries.');
+        $this->assertSame(6, substr_count($sidebar, 'class="nav-link"'), 'The STUDENTS nav group should not expose transfer or document modules.');
         $this->assertStringNotContainsString('Student Profile', $sidebar, 'There must be no separate "Student Profile" master menu.');
         $this->assertStringContainsString('student-history', $sidebar);
-        $this->assertStringContainsString('student-transfers', $sidebar);
+        $this->assertStringNotContainsString('student-transfers', $sidebar);
+        $this->assertStringNotContainsString('student-documents', $sidebar);
+        $this->assertStringNotContainsString('certificates.transfer-requests', $sidebar);
 
         // No dedicated profile route was introduced either.
         foreach (['student-profiles.index', 'student-profiles.show', 'student-profile.index'] as $route) {
@@ -71,7 +73,7 @@ class StudentProfileTabsTest extends TestCase
             'student_documents.view', 'student_documents.create',
             'student_id_cards.view', 'student_id_cards.generate',
             'student_promotions.view', 'student_promotions.create',
-            'student_transfers.view', 'student_transfers.create',
+            'certificates_requests.view', 'certificates_requests.create',
             'student_history.view',
         ]);
 
@@ -85,7 +87,7 @@ class StudentProfileTabsTest extends TestCase
             'documents' => '+ Upload document',
             'id-card' => 'Generate / print ID card',
             'promotion' => '+ New promotion',
-            'transfer' => '+ New transfer request',
+            'transfer' => 'Transfer history',
             'history' => 'Lifecycle history',
         ];
 

@@ -76,7 +76,8 @@ use App\Http\Controllers\StudentHistoryController;
 use App\Http\Controllers\StudentIdCardController;
 use App\Http\Controllers\StudentPromotionController;
 use App\Http\Controllers\StudentResultHistoryController;
-use App\Http\Controllers\StudentTransferController;
+use App\Http\Controllers\Certificates\CertificateManagementController;
+use App\Http\Controllers\Certificates\CertificateRequestController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('dashboard'))->name('home');
@@ -173,13 +174,32 @@ Route::middleware('auth')->group(function () {
         Route::post('student-promotions/{student_promotion}/cancel', [StudentPromotionController::class, 'cancel'])->name('student-promotions.cancel');
         Route::resource('student-promotions', StudentPromotionController::class)->only(['index', 'create', 'store']);
 
-        // Students — Transfer / TC (statuses only; history is never deleted).
-        Route::post('student-transfers/{student_transfer}/approve', [StudentTransferController::class, 'approve'])->name('student-transfers.approve');
-        Route::post('student-transfers/{student_transfer}/reject', [StudentTransferController::class, 'reject'])->name('student-transfers.reject');
-        Route::post('student-transfers/{student_transfer}/issue', [StudentTransferController::class, 'issue'])->name('student-transfers.issue');
-        Route::post('student-transfers/{student_transfer}/cancel', [StudentTransferController::class, 'cancel'])->name('student-transfers.cancel');
-        Route::get('student-transfers/{student_transfer}/download', [StudentTransferController::class, 'download'])->name('student-transfers.download');
-        Route::resource('student-transfers', StudentTransferController::class)->except('show');
+        // Certificate Management Group 1. TC reuses StudentTransfer as the
+        // authoritative transfer/history row; there is no student-side TC route.
+        Route::prefix('certificates')->name('certificates.')->group(function () {
+            Route::get('/', [CertificateManagementController::class, 'dashboard'])->name('dashboard');
+            Route::get('templates', [CertificateManagementController::class, 'templates'])->name('templates.index');
+            Route::post('templates', [CertificateManagementController::class, 'storeTemplate'])->name('templates.store');
+            Route::get('generation', [CertificateManagementController::class, 'generation'])->name('generation.index');
+            Route::post('generation', [CertificateManagementController::class, 'generate'])->name('generation.store');
+            Route::get('issuance', [CertificateManagementController::class, 'issuance'])->name('issuance.index');
+            Route::get('issuance/{issuance}/pdf', [CertificateManagementController::class, 'issuancePdf'])->name('issuance.pdf');
+            Route::get('tc/{student_transfer}/pdf', [CertificateManagementController::class, 'tcPdf'])->name('tc.pdf');
+            Route::get('verification', [CertificateManagementController::class, 'verification'])->name('verification.index');
+            Route::get('requests', [CertificateManagementController::class, 'requests'])->name('requests.index');
+            Route::post('requests', [CertificateManagementController::class, 'storeRequest'])->name('requests.store');
+            Route::patch('requests/{certificate_request}/review', [CertificateManagementController::class, 'reviewRequest'])->name('requests.review');
+            Route::get('reports', [CertificateManagementController::class, 'reports'])->name('reports.index');
+
+            // Existing transfer request workflow moved here unchanged in data,
+            // with TC issue/download actions available only in this module.
+            Route::post('transfer-requests/{student_transfer}/approve', [CertificateRequestController::class, 'approve'])->name('transfer-requests.approve');
+            Route::post('transfer-requests/{student_transfer}/reject', [CertificateRequestController::class, 'reject'])->name('transfer-requests.reject');
+            Route::post('transfer-requests/{student_transfer}/issue', [CertificateRequestController::class, 'issue'])->name('transfer-requests.issue');
+            Route::post('transfer-requests/{student_transfer}/cancel', [CertificateRequestController::class, 'cancel'])->name('transfer-requests.cancel');
+            Route::get('transfer-requests/{student_transfer}/download', [CertificateRequestController::class, 'download'])->name('transfer-requests.download');
+            Route::resource('transfer-requests', CertificateRequestController::class)->parameters(['transfer-requests' => 'student_transfer'])->except('show');
+        });
 
         // Students — History (derived timeline; read-only).
         Route::get('student-history', [StudentHistoryController::class, 'index'])->name('student-history.index');

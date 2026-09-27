@@ -1,10 +1,13 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Certificates;
+
+use App\Http\Controllers\Controller;
 
 use App\Domain\Student\Services\StudentDocumentService;
+use App\Domain\Certificates\Services\CertificateService;
 use App\Domain\Student\Services\StudentTransferService;
-use App\Http\Requests\StudentTransfer\IssueStudentTransferRequest;
+use App\Http\Requests\Certificates\IssueTransferCertificateRequest;
 use App\Http\Requests\StudentTransfer\StoreStudentTransferRequest;
 use App\Http\Requests\StudentTransfer\UpdateStudentTransferRequest;
 use App\Models\Student;
@@ -29,7 +32,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * part of the institution's history. Every transition is authorized, tenant
  * scoped, transactional (in the service) and audited.
  */
-class StudentTransferController extends Controller
+class CertificateRequestController extends Controller
 {
     public function index(Request $request): View
     {
@@ -64,13 +67,14 @@ class StudentTransferController extends Controller
             $query->where('tc_status', $request->input('tc_status'));
         }
 
-        return view('student_transfers.index', [
+        return view('certificates.transfer_requests.index', [
             'transfers' => $query->paginate(15)->withQueryString(),
             'search' => trim((string) $request->input('search')),
             'student_id' => $request->input('student_id'),
             'status' => $request->input('status'),
             'tc_status' => $request->input('tc_status'),
             'students' => $this->studentOptions(),
+            'templates' => \App\Models\CertificateTemplate::query()->where('type', 'tc')->where('is_active', true)->get(),
         ]);
     }
 
@@ -78,7 +82,7 @@ class StudentTransferController extends Controller
     {
         $this->authorize('create', StudentTransfer::class);
 
-        return view('student_transfers.create', [
+        return view('certificates.transfer_requests.create', [
             'students' => $this->studentOptions(),
             'enrollments' => $this->enrollmentOptions(),
             'selectedStudentId' => $request->input('student_id'),
@@ -91,7 +95,7 @@ class StudentTransferController extends Controller
 
         $transfer = $service->create($request->validated(), $collegeId, auth()->id());
 
-        return redirect()->route('student-transfers.index')
+        return redirect()->route('certificates.transfer-requests.index')
             ->with('success', 'Transfer request recorded for '.$transfer->student?->student_number.'.');
     }
 
@@ -100,7 +104,7 @@ class StudentTransferController extends Controller
         $model = $this->findScoped($student_transfer);
         $this->authorize('update', $model);
 
-        return view('student_transfers.edit', [
+        return view('certificates.transfer_requests.edit', [
             'transfer' => $model->load(['student', 'enrollment']),
             'students' => $this->studentOptions(),
             'enrollments' => $this->enrollmentOptions(),
@@ -114,7 +118,7 @@ class StudentTransferController extends Controller
 
         $service->update($model, $request->validated(), $collegeId, auth()->id());
 
-        return redirect()->route('student-transfers.index')->with('success', 'Transfer request updated.');
+        return redirect()->route('certificates.transfer-requests.index')->with('success', 'Transfer request updated.');
     }
 
     public function approve(string $student_transfer, StudentTransferService $service): RedirectResponse
@@ -139,21 +143,22 @@ class StudentTransferController extends Controller
         return back()->with('success', 'Transfer request rejected.');
     }
 
-    public function issue(IssueStudentTransferRequest $request, string $student_transfer, StudentTransferService $service): RedirectResponse
+    public function issue(IssueTransferCertificateRequest $request, string $student_transfer, CertificateService $service): RedirectResponse
     {
         $model = $this->findScoped($student_transfer);
 
         $collegeId = app(TenantContext::class)->id();
 
-        $issued = $service->issue(
+        $issued = $service->issueTransfer(
             $model,
             $collegeId,
             auth()->id(),
             $request->input('tc_issue_date'),
             $request->file('tc_file'),
+            $request->input('template_id'),
         );
 
-        return redirect()->route('student-transfers.index')
+        return redirect()->route('certificates.transfer-requests.index')
             ->with('success', 'Transfer certificate '.$issued->tc_number.' issued. The student record and history are preserved.');
     }
 
@@ -176,7 +181,7 @@ class StudentTransferController extends Controller
 
         $service->delete($model, app(TenantContext::class)->id(), auth()->id());
 
-        return redirect()->route('student-transfers.index')->with('success', 'Transfer request deleted.');
+        return redirect()->route('certificates.transfer-requests.index')->with('success', 'Transfer request deleted.');
     }
 
     /**
