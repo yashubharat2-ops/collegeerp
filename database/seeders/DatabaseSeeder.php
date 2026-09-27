@@ -65,6 +65,8 @@ class DatabaseSeeder extends Seeder
             'student_promotions.view', 'student_promotions.create', 'student_promotions.approve',
             'student_transfers.view', 'student_transfers.create', 'student_transfers.update', 'student_transfers.approve',
             'student_history.view',
+            // REPORTS — Student Reports (read-only, separate from operational Student permissions).
+            'student_reports.view',
             'admission_reports.view',
             'settings.view', 'settings.update',
             'academic_subject_enrollments.view','academic_subject_enrollments.create','academic_subject_enrollments.update','academic_subject_enrollments.delete',
