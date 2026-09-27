@@ -184,6 +184,8 @@ class StudentTransferService
     {
         return DB::transaction(function () use ($transfer, $collegeId, $userId, $issueDate, $file): StudentTransfer {
             $this->assertOwnedByCollege($transfer, $collegeId);
+            \App\Models\College::whereKey($collegeId)->lockForUpdate()->firstOrFail();
+            $transfer = StudentTransfer::where('college_id', $collegeId)->lockForUpdate()->findOrFail($transfer->id);
 
             if (! $transfer->isApproved()) {
                 throw ValidationException::withMessages([

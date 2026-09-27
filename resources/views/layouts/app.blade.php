@@ -50,8 +50,9 @@
 <a class="nav-link" href="{{ route('student-documents.index') }}">📄 <span>Documents</span></a>
 <a class="nav-link" href="{{ route('student-id-cards.index') }}">🪪 <span>ID Cards</span></a>
 <a class="nav-link" href="{{ route('student-promotions.index') }}">🔄 <span>Promotion</span></a>
-<a class="nav-link" href="{{ route('student-transfers.index') }}">🚚 <span>Transfer / TC</span></a>
+<a class="nav-link" href="{{ route('student-transfers.index') }}">🚚 <span>Student Transfers</span></a>
 <a class="nav-link" href="{{ route('student-history.index') }}">🕘 <span>Student History</span></a>
+@include('certificates._sidebar')
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Academics</div>
 <a class="nav-link" href="{{ route('academic-subject-enrollments.index') }}">📚 <span>Student Subject Enrollment</span></a>
 <a class="nav-link" href="{{ route('academic-sections.index') }}">🏫 <span>Class / Section Management</span></a>

@@ -27,6 +27,11 @@ class StudentEnrollment extends Model
 
     public const STATUSES = ['active', 'completed', 'cancelled', 'withdrawn'];
 
+    public function certificates(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Certificate::class, 'student_enrollment_id');
+    }
+
     protected $fillable = [
         'college_id',
         'student_id',
