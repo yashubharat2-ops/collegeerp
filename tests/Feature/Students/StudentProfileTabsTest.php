@@ -87,7 +87,7 @@ class StudentProfileTabsTest extends TestCase
             'documents' => '+ Upload document',
             'id-card' => 'Generate / print ID card',
             'promotion' => '+ New promotion',
-            'transfer' => 'No transfer history.',
+            'transfer' => 'Model Science College, Indore',
             'history' => 'Lifecycle history',
         ];
 
@@ -100,7 +100,13 @@ class StudentProfileTabsTest extends TestCase
             ->assertOk()->assertSee('marksheet-tab.pdf', false);
         $this->asCollege($college, $viewer)
             ->get(route('students.show', ['student' => $student, 'tab' => 'transfer']))
-            ->assertOk()->assertSee('Model Science College, Indore', false);
+            ->assertOk()
+            ->assertSee('Transfer History', false)
+            ->assertSee('Transfer date', false)
+            ->assertSee('Destination', false)
+            ->assertSee('Request', false)
+            ->assertSee('Student status', false)
+            ->assertSee('Model Science College, Indore', false);
         $this->asCollege($college, $viewer)
             ->get(route('students.show', ['student' => $student, 'tab' => 'promotion']))
             ->assertOk()->assertSee('2027-28', false);
