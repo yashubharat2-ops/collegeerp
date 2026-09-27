@@ -52,7 +52,26 @@
 <a class="nav-link" href="{{ route('student-promotions.index') }}">🔄 <span>Promotion</span></a>
 <a class="nav-link" href="{{ route('student-transfers.index') }}">🚚 <span>Student Transfers</span></a>
 <a class="nav-link" href="{{ route('student-history.index') }}">🕘 <span>Student History</span></a>
-@include('certificates._sidebar')
+@if(auth()->user()?->hasPermission('certificates.view') || auth()->user()?->hasPermission('certificate_types.manage') || auth()->user()?->hasPermission('certificate_templates.manage') || auth()->user()?->hasPermission('certificate_reports.view'))
+<div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">CERTIFICATE MANAGEMENT (EC)</div>
+@if(auth()->user()->hasPermission('certificates.view'))
+<a class="nav-link" href="{{ route('certificates.index', ['type' => 'TC', 'stage' => 'requests']) }}">Transfer Certificate (TC)</a>
+<a class="nav-link" href="{{ route('certificates.index', ['type' => 'BON', 'stage' => 'requests']) }}">Bonafide Certificate</a>
+<a class="nav-link" href="{{ route('certificates.index', ['type' => 'CHAR', 'stage' => 'requests']) }}">Character Certificate</a>
+<a class="nav-link" href="{{ route('certificates.index', ['type' => 'CC', 'stage' => 'requests']) }}">Course Completion Certificate</a>
+<a class="nav-link" href="{{ route('certificates.index', ['type' => 'MIG', 'stage' => 'requests']) }}">Migration Certificate</a>
+<a class="nav-link" href="{{ route('certificates.index', ['type' => 'PROV', 'stage' => 'requests']) }}">Provisional Certificate</a>
+@endif
+@if(auth()->user()->hasPermission('certificates.view') || auth()->user()->hasPermission('certificate_types.manage'))
+<a class="nav-link" href="{{ auth()->user()->hasPermission('certificates.view') ? route('certificates.index', ['type' => 'CUSTOM', 'stage' => 'requests']) : route('certificates.types') }}">Custom Certificate</a>
+@endif
+@if(auth()->user()->hasPermission('certificate_templates.manage'))
+<a class="nav-link" href="{{ route('certificates.templates') }}">Certificate Templates</a>
+@endif
+@if(auth()->user()->hasPermission('certificate_reports.view'))
+<a class="nav-link" href="{{ route('certificates.reports') }}">Certificate Reports</a>
+@endif
+@endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Academics</div>
 <a class="nav-link" href="{{ route('academic-subject-enrollments.index') }}">📚 <span>Student Subject Enrollment</span></a>
 <a class="nav-link" href="{{ route('academic-sections.index') }}">🏫 <span>Class / Section Management</span></a>
