@@ -17,8 +17,8 @@ use Tests\TestCase;
  * The nine Phase 3 permissions (issue, assignment, return, maintenance)
  * exist exactly once, are granted to the seeded Super Admin and College Admin
  * roles through the centralized seeder, and re-seeding is a no-op. The
- * future reports module and any asset-master permissions are deliberately
- * not seeded.
+ * Phase 4 reports have their own seeder; no separate asset-master permissions
+ * are introduced.
  */
 class InventoryPhase3SeederTest extends TestCase
 {
@@ -47,16 +47,16 @@ class InventoryPhase3SeederTest extends TestCase
         $this->assertSame(Str::headline('inventory_maintenance.update'), $permission->name);
     }
 
-    public function test_issue_and_assignment_history_stay_append_only_and_reports_are_not_seeded(): void
+    public function test_issue_and_assignment_history_stay_append_only_without_an_asset_master(): void
     {
-        // No update / delete anywhere in the Phase 3 families except the
-        // live-work maintenance module, and no future module permissions.
+        // No update/delete for Phase 3 history except live maintenance work;
+        // no separate asset master is introduced.
         foreach ([
             'inventory_issues.update', 'inventory_issues.delete',
             'inventory_assignments.update', 'inventory_assignments.delete',
             'inventory_asset_returns.update', 'inventory_asset_returns.delete',
             'inventory_maintenance.delete',
-            'inventory_reports.view', 'assets.view',
+            'assets.view',
         ] as $slug) {
             $this->assertSame(0, Permission::where('slug', $slug)->count(), "{$slug} must not exist.");
         }

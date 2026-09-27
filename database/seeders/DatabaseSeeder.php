@@ -25,6 +25,8 @@ class DatabaseSeeder extends Seeder
             ...InventoryPhase2PermissionSeeder::PERMISSIONS,
             // Inventory / Asset Management Phase 3 (item issue / allocation, asset assignment, asset return, asset maintenance).
             ...InventoryPhase3PermissionSeeder::PERMISSIONS,
+            // Inventory / Asset Management Phase 4 (five read-only screens in the existing menu).
+            ...InventoryPhase4PermissionSeeder::PERMISSIONS,
             'dashboard.view',
             'colleges.view', 'colleges.update',
             'campuses.view', 'campuses.create', 'campuses.update', 'campuses.delete',

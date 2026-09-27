@@ -37,4 +37,15 @@ class InventoryItemPolicy
     {
         return $user->hasPermission('inventory_items.delete', $item->college_id);
     }
+
+    /** Read-only Phase 4 screens; neither implies access to the item editor. */
+    public function viewRegister(User $user): bool
+    {
+        return $user->hasPermission('inventory_asset_register.view');
+    }
+
+    public function viewReports(User $user): bool
+    {
+        return $user->hasPermission('inventory_reports.view');
+    }
 }

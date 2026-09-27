@@ -14,11 +14,9 @@ use Tests\TestCase;
 /**
  * Inventory / Asset Management RBAC seeding — Phase 2.
  *
- * The nine Phase 2 permissions exist exactly once, are granted to the seeded
- * Super Admin and College Admin roles through the centralized seeder, and
- * re-seeding is a no-op. Permissions of the phases that are not built yet
- * (issue/return, asset assignment, maintenance, reports) are still not seeded,
- * and stock movements stay immutable (no update / delete permission).
+ * Phase 2 permissions exist exactly once, are granted to the seeded Super
+ * Admin and College Admin roles, and re-seeding is a no-op. Later-phase grants
+ * have their own tests; stock movements stay immutable (no update/delete).
  */
 class InventoryPhase2SeederTest extends TestCase
 {
@@ -47,14 +45,13 @@ class InventoryPhase2SeederTest extends TestCase
         $this->assertSame(Str::headline('inventory_purchase_orders.receive'), $permission->name);
     }
 
-    public function test_stock_movements_stay_immutable_and_later_phases_are_not_seeded(): void
+    public function test_stock_movements_stay_immutable_without_an_asset_master_permission(): void
     {
-        // Phase 3 (issue / assignment / return / maintenance) is built and
-        // seeded — its slugs are pinned by InventoryPhase3SeederTest.
+        // Phase 3/4 permissions are pinned by their own seeder tests.
         foreach ([
             'inventory_stock.create', 'inventory_stock.update', 'inventory_stock.delete',
             'inventory_stock_movements.view', 'inventory_stock_movements.delete',
-            'inventory_reports.view', 'assets.view',
+            'assets.view',
         ] as $slug) {
             $this->assertSame(0, Permission::where('slug', $slug)->count(), "{$slug} must not exist.");
         }

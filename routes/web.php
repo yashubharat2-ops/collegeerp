@@ -439,7 +439,7 @@ Route::middleware('auth')->group(function () {
         // Lifecycle actions are their own routes so submitting, receiving and
         // cancelling can be granted separately. Issue / allocation, asset
         // assignment, asset return and maintenance are Phase 3 (below);
-        // reports remain a later phase.
+        // the read-only reporting screens are registered below.
         Route::post('inventory-purchase-orders/{purchase_order}/submit', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'submit'])->name('inventory-purchase-orders.submit');
         Route::post('inventory-purchase-orders/{purchase_order}/cancel', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'cancel'])->name('inventory-purchase-orders.cancel');
         Route::get('inventory-purchase-orders/{purchase_order}/receive', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'receiveForm'])->name('inventory-purchase-orders.receive.create');
@@ -497,6 +497,14 @@ Route::middleware('auth')->group(function () {
         Route::post('inventory-maintenances', [\App\Http\Controllers\Inventory\InventoryMaintenanceController::class, 'store'])->name('inventory-maintenances.store');
         Route::get('inventory-maintenances/{maintenance}/edit', [\App\Http\Controllers\Inventory\InventoryMaintenanceController::class, 'edit'])->name('inventory-maintenances.edit');
         Route::put('inventory-maintenances/{maintenance}', [\App\Http\Controllers\Inventory\InventoryMaintenanceController::class, 'update'])->name('inventory-maintenances.update');
+
+        // Phase 4: five independent, read-only views on the existing ledger,
+        // item/asset master, assignment/return history and maintenance rows.
+        Route::get('inventory-current-stock', [\App\Http\Controllers\Inventory\InventoryCurrentStockController::class, 'index'])->name('inventory-current-stock.index');
+        Route::get('inventory-low-stock', [\App\Http\Controllers\Inventory\InventoryLowStockController::class, 'index'])->name('inventory-low-stock.index');
+        Route::get('inventory-asset-register', [\App\Http\Controllers\Inventory\InventoryAssetRegisterController::class, 'index'])->name('inventory-asset-register.index');
+        Route::get('inventory-stock-reports', [\App\Http\Controllers\Inventory\InventoryStockReportController::class, 'index'])->name('inventory-stock-reports.index');
+        Route::get('inventory-reports', [\App\Http\Controllers\Inventory\InventoryReportController::class, 'index'])->name('inventory-reports.index');
 
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
