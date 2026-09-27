@@ -56,7 +56,11 @@ class CertificateManagementTest extends TestCase
         preg_match_all('/<a\b[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/s', $sidebar[0], $links, PREG_SET_ORDER);
         $certificateLinks = collect($links)
             ->filter(fn ($link) => str_starts_with(html_entity_decode($link[1]), route('certificates.index')))
-            ->map(fn ($link) => trim(html_entity_decode(strip_tags($link[2]))))
+            ->map(function ($link): string {
+                // The label lives in a span; the preceding Unicode icon is decorative.
+                preg_match('/<span\b[^>]*>(.*?)<\/span>/s', $link[2], $label);
+                return trim(html_entity_decode(strip_tags($label[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            })
             ->values()->all();
         $this->assertSame([
             ...array_column(CertificateType::BUILT_INS, 1),
