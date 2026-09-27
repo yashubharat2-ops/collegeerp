@@ -87,7 +87,7 @@ class StudentProfileTabsTest extends TestCase
             'documents' => '+ Upload document',
             'id-card' => 'Generate / print ID card',
             'promotion' => '+ New promotion',
-            'transfer' => 'Transfer history',
+            'transfer' => 'No transfer history.',
             'history' => 'Lifecycle history',
         ];
 
@@ -157,7 +157,7 @@ class StudentProfileTabsTest extends TestCase
 
         $this->asCollege($college, $viewer)
             ->get(route('students.show', ['student' => $student, 'tab' => 'transfer']))
-            ->assertOk()->assertSee('No transfer requests.', false);
+            ->assertOk()->assertSee('No transfer history.', false);
 
         $this->asCollege($college, $viewer)
             ->get(route('students.show', ['student' => $student, 'tab' => 'history']))
