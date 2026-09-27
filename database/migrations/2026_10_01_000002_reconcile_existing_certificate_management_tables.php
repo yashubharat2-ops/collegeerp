@@ -11,12 +11,12 @@ return new class extends Migration
 
     public function up(): void
     {
+        // Also covers installations where the original create migration was already applied.
         (new ReconcileCertificateSchema())->up();
     }
 
     public function down(): void
     {
-        // A rollback cannot distinguish adopted legacy rows from new records safely.
         throw new RuntimeException('Certificate schema reconciliation is forward-only. Restore a verified backup to undo it; legacy certificate records will not be dropped.');
     }
 };
