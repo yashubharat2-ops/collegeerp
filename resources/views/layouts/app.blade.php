@@ -53,7 +53,7 @@
 <a class="nav-link" href="{{ route('student-transfers.index') }}">🚚 <span>Student Transfers</span></a>
 <a class="nav-link" href="{{ route('student-history.index') }}">🕘 <span>Student History</span></a>
 @if(auth()->user()?->hasPermission('certificates.view') || auth()->user()?->hasPermission('certificate_types.manage') || auth()->user()?->hasPermission('certificate_templates.manage') || auth()->user()?->hasPermission('certificate_reports.view'))
-<div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">CERTIFICATE MANAGEMENT (EC)</div>
+<div class="flex items-center gap-3 px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500"><span class="shrink-0 text-sm leading-none" aria-hidden="true">📜</span>CERTIFICATE MANAGEMENT (EC)</div>
 @if(auth()->user()->hasPermission('certificates.view'))
 <a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'TC']) }}">Transfer Certificate (TC)</a>
 <a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'BON']) }}">Bonafide Certificate</a>
@@ -149,7 +149,7 @@
 @endif
 @endif
 @if(auth()->user()?->hasPermission('transport_dashboard.view') || auth()->user()?->hasPermission('vehicles.view') || auth()->user()?->hasPermission('vehicle_documents.view') || auth()->user()?->hasPermission('transport_drivers.view') || auth()->user()?->hasPermission('transport_routes.view') || auth()->user()?->hasPermission('student_transport_assignments.view') || auth()->user()?->hasPermission('transport_fees.view') || auth()->user()?->hasPermission('transport_reports.view'))
-<div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Transport Management</div>
+<div class="flex items-center gap-3 px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500"><span class="shrink-0 text-sm leading-none" aria-hidden="true">🚌</span>Transport Management</div>
 @if(auth()->user()?->hasPermission('transport_dashboard.view'))
 <a class="nav-link" href="{{ route('transport.dashboard') }}"><span>Transport Dashboard</span></a>
 @endif
