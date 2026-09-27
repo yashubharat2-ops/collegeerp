@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AcademicReportController;
 use App\Http\Controllers\AcademicsController;
 use App\Http\Controllers\AcademicTermController;
 use App\Http\Controllers\AcademicYearController;
@@ -212,6 +213,9 @@ Route::middleware('auth')->group(function () {
             Route::get('/profile/{student}', 'profile')->whereNumber('student')->name('profile');
             Route::get('/history/{student}', 'history')->whereNumber('student')->name('history');
         });
+
+        // REPORTS — Academic Reports: read-only views over existing Academic data. GET only.
+        Route::get('academic-reports', [AcademicReportController::class, 'index'])->name('academic-reports.index');
 
         Route::get('admission-reports', [AdmissionReportController::class, 'index'])->name('admission-reports.index');
         // Academics is operational only: all master data remains in Platform/Students.
