@@ -126,13 +126,22 @@ class InventoryPhase4Test extends TestCase
             });
         $this->asCollege($college, $user)->get(route('inventory-stock-reports.index', ['item_id' => $foreign->id]))
             ->assertOk()->assertDontSee('Foreign Gloves')->assertViewHas('rows', fn ($rows) => $rows->isEmpty());
-        $this->asCollege($college, $user)->get(route('inventory-stock-reports.index', ['from' => '2026-10-02', 'to' => '2026-10-01']))
-            ->assertSessionHasErrors('to');
 
         // Historical ledger activity survives an archived catalogue item.
         $this->withTenant($college, fn () => $item->delete());
         $this->asCollege($college, $user)->get(route('inventory-stock-reports.index'))
             ->assertOk()->assertSee('Lab Gloves')->assertSee('(archived)');
+    }
+
+    public function test_stock_report_rejects_a_to_date_before_from(): void
+    {
+        $college = $this->makeCollege('I4R2');
+        $user = $this->makeUserWithPermissions($college, ['inventory_stock_reports.view']);
+
+        // Validation failures flash errors to the next request. Keep this
+        // assertion separate from the successful archived-item report above.
+        $this->asCollege($college, $user)->get(route('inventory-stock-reports.index', ['from' => '2026-10-02', 'to' => '2026-10-01']))
+            ->assertSessionHasErrors('to');
     }
 
     public function test_asset_register_reads_custody_returns_and_maintenance_without_a_new_asset_master(): void

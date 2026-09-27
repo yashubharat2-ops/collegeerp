@@ -21,7 +21,7 @@ class InventoryStockReportService
         $from = $filters['from'] ?? null;
         $query = InventoryStockMovement::query()
             ->select('item_id')
-            ->with(['item' => fn ($q) => $q->withTrashed()->select('id', 'college_id', 'name', 'code', 'unit')]);
+            ->with(['item' => fn ($q) => $q->withTrashed()->select('id', 'college_id', 'name', 'code', 'unit', 'deleted_at')]);
 
         if (! empty($filters['to'])) {
             $query->where('movement_date', '<=', $filters['to']);
