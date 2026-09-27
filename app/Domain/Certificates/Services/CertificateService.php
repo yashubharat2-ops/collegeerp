@@ -107,7 +107,7 @@ class CertificateService
             $sequence = $last ? ((int) Str::afterLast($last, '-') + 1) : 1;
             $number = sprintf('%s-%s-%04d', $prefix, $year, $sequence);
             $content = $template?->body ?? CertificateTypes::label($data['type'])."\n\nThis is to certify that {{student_name}} ({{student_number}}) is/was a student of {{college_name}}.";
-            $content = str_replace(['{{student_name}}', '{{student_number}}', '{{college_name}}'], [trim($student->first_name.' '.$student->middle_name.' '.$student->last_name), $student->student_number, $student->college?->name ?? 'the institution'], $content);
+            $content = $this->renderStudentTemplate($content, $student);
 
             $issuance = CertificateIssuance::create([
                 'college_id' => $collegeId, 'student_id' => $student->id, 'enrollment_id' => $enrollment?->id,
@@ -118,5 +118,20 @@ class CertificateService
             $this->audit->record('certificate.issued', $issuance, [], $issuance->only(['id', 'student_id', 'type', 'certificate_number', 'issued_at']));
             return $issuance;
         });
+    }
+
+    /** Resolve the supported, non-recursive template tokens from the existing student and college snapshots. */
+    private function renderStudentTemplate(string $template, Student $student): string
+    {
+        return strtr($template, [
+            '{{student_name}}' => $student->fullName(),
+            '{{student_number}}' => $student->student_number,
+            '{{college_name}}' => $student->college?->name ?? 'the institution',
+            '{{first_name}}' => $student->first_name,
+            '{{middle_name}}' => $student->middle_name ?? '',
+            '{{last_name}}' => $student->last_name,
+            '{{date_of_birth}}' => $student->date_of_birth?->format('Y-m-d') ?? '',
+            '{{admission_date}}' => $student->admission_date?->format('Y-m-d') ?? '',
+        ]);
     }
 }
