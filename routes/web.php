@@ -75,6 +75,7 @@ use App\Http\Controllers\StudentEnrollmentController;
 use App\Http\Controllers\StudentHistoryController;
 use App\Http\Controllers\StudentIdCardController;
 use App\Http\Controllers\StudentPromotionController;
+use App\Http\Controllers\StudentReportController;
 use App\Http\Controllers\StudentResultHistoryController;
 use App\Http\Controllers\StudentTransferController;
 use Illuminate\Support\Facades\Route;
@@ -204,6 +205,14 @@ Route::middleware('auth')->group(function () {
         // Students — History (derived timeline; read-only).
         Route::get('student-history', [StudentHistoryController::class, 'index'])->name('student-history.index');
         Route::get('student-history/{student}', [StudentHistoryController::class, 'show'])->name('student-history.show');
+
+        // REPORTS — Student Reports only. No write, file-download or export endpoints.
+        Route::prefix('student-reports')->name('student-reports.')->controller(StudentReportController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/profile/{student}', 'profile')->whereNumber('student')->name('profile');
+            Route::get('/history/{student}', 'history')->whereNumber('student')->name('history');
+        });
+
         Route::get('admission-reports', [AdmissionReportController::class, 'index'])->name('admission-reports.index');
         // Academics is operational only: all master data remains in Platform/Students.
         Route::get('academics/subject-enrollments', [AcademicsController::class, 'subjectEnrollments'])->name('academic-subject-enrollments.index');

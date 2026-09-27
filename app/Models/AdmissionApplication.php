@@ -87,4 +87,10 @@ class AdmissionApplication extends Model
     {
         return $this->hasOne(Admission::class, 'application_id');
     }
+
+    /** The optional student created from this application (same tenant scope). */
+    public function student(): HasOne
+    {
+        return $this->hasOne(Student::class, 'admission_application_id');
+    }
 }

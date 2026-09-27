@@ -52,6 +52,10 @@
 <a class="nav-link" href="{{ route('student-promotions.index') }}">🔄 <span>Promotion</span></a>
 <a class="nav-link" href="{{ route('student-transfers.index') }}">🚚 <span>Student Transfers</span></a>
 <a class="nav-link" href="{{ route('student-history.index') }}">🕘 <span>Student History</span></a>
+@if(auth()->user()?->hasPermission('student_reports.view'))
+<div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">REPORTS</div>
+<a class="nav-link" href="{{ route('student-reports.index') }}">📊 <span>Student Reports</span></a>
+@endif
 @if(auth()->user()?->hasPermission('certificates.view') || auth()->user()?->hasPermission('certificate_types.manage') || auth()->user()?->hasPermission('certificate_templates.manage') || auth()->user()?->hasPermission('certificate_reports.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">CERTIFICATE MANAGEMENT (EC)</div>
 @if(auth()->user()->hasPermission('certificates.view'))
