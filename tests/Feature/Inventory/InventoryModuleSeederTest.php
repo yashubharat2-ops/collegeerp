@@ -16,9 +16,8 @@ use Tests\TestCase;
  *
  * The thirteen Phase 1 permissions exist exactly once, are granted to the
  * seeded Super Admin and College Admin roles through the centralized seeder,
- * and re-seeding is a no-op. Permissions of the phases that have not been
- * built yet are deliberately not seeded; the Phase 2 (purchase orders and
- * stock) permissions are pinned by InventoryPhase2SeederTest.
+ * and re-seeding is a no-op. Later phase grants are pinned by their own
+ * seeder tests; no separate assets master is introduced.
  */
 class InventoryModuleSeederTest extends TestCase
 {
@@ -47,18 +46,11 @@ class InventoryModuleSeederTest extends TestCase
         $this->assertSame(Str::headline('inventory_items.create'), $permission->name);
     }
 
-    public function test_later_phase_permissions_are_not_seeded(): void
+    public function test_no_separate_asset_master_permission_is_seeded(): void
     {
-        // Phase 3 (issue / assignment / return / maintenance) is built and
-        // seeded — its slugs are pinned by InventoryPhase3SeederTest. What
-        // remains unbuilt are the inventory reports and any asset-master
-        // permissions, which this module deliberately never introduces.
-        foreach ([
-            'inventory_reports.view',
-            'assets.view',
-        ] as $slug) {
-            $this->assertSame(0, Permission::where('slug', $slug)->count(), "{$slug} belongs to a later phase.");
-        }
+        // Phase 4 reports are seeded separately. There is still no separate
+        // asset master (assets remain inventory_items rows).
+        $this->assertSame(0, Permission::where('slug', 'assets.view')->count());
     }
 
     public function test_seeding_again_does_not_duplicate_permissions_roles_or_grants(): void

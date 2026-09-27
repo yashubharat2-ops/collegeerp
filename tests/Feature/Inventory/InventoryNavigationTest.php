@@ -9,10 +9,9 @@ use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
- * Sidebar navigation for Inventory / Asset Management — Phases 1 + 2 + 3 final.
+ * Sidebar navigation for the single Inventory / Asset Management section.
  *
- * Final structure: a SINGLE "Inventory / Asset Management" sidebar section
- * containing all 12 entries (Phase 1 + Phase 2 + Phase 3 in one section):
+ * The five read-only Phase 4 entries extend the existing twelve, in order:
  *   - Inventory Dashboard
  *   - Item Categories
  *   - Items / Assets
@@ -25,12 +24,11 @@ use Tests\TestCase;
  *   - Asset Assignment
  *   - Asset Return
  *   - Asset Maintenance
+ *   - Current Stock, Low Stock, Asset Register, Stock / Transaction Reports,
+ *     Inventory Reports
  *
- * There must be no separate "Purchase & Stock", "Purchase", "Stock",
- * "Inventory Operations", "Stock Management", "Asset Management", or
- * "Phase 3" headings — Phase 3 extends the existing section, it never splits
- * the sidebar. Each entry is individually gated by its own view permission.
- * The future reports module is absent.
+ * There must be no separate "Purchase & Stock", "Reports", "Asset Management",
+ * or "Phase 4" headings. Each entry has its own view permission.
  */
 class InventoryNavigationTest extends TestCase
 {
@@ -49,6 +47,11 @@ class InventoryNavigationTest extends TestCase
         'Asset Assignment'        => ['inventory_assignments.view',     'inventory-assignments.index'],
         'Asset Return'            => ['inventory_asset_returns.view',   'inventory-asset-returns.index'],
         'Asset Maintenance'       => ['inventory_maintenance.view',     'inventory-maintenances.index'],
+        'Current Stock'           => ['inventory_current_stock.view',   'inventory-current-stock.index'],
+        'Low Stock'               => ['inventory_low_stock.view',       'inventory-low-stock.index'],
+        'Asset Register'          => ['inventory_asset_register.view',  'inventory-asset-register.index'],
+        'Stock / Transaction Reports' => ['inventory_stock_reports.view', 'inventory-stock-reports.index'],
+        'Inventory Reports'       => ['inventory_reports.view',         'inventory-reports.index'],
     ];
 
     /** Permission slugs that gate the outer section (any one of these shows it). */
@@ -66,11 +69,11 @@ class InventoryNavigationTest extends TestCase
         'inventory_assignments.view',
         'inventory_asset_returns.view',
         'inventory_maintenance.view',
-    ];
-
-    private const FUTURE = [
-        'Inventory Reports',
-        'Stock Movements',
+        'inventory_current_stock.view',
+        'inventory_low_stock.view',
+        'inventory_asset_register.view',
+        'inventory_stock_reports.view',
+        'inventory_reports.view',
     ];
 
     /** Forbidden sub-headings that must NOT appear in the sidebar. */
@@ -82,7 +85,9 @@ class InventoryNavigationTest extends TestCase
         'Inventory Operations',
         'Stock Management',
         '>Asset Management</div>',
+        '>Reports</div>',
         '>Phase 3</div>',
+        '>Phase 4</div>',
     ];
 
     private const HEADING = '>Inventory / Asset Management</div>';
@@ -107,7 +112,7 @@ class InventoryNavigationTest extends TestCase
         return substr($html, $after, $platform - $after);
     }
 
-    public function test_the_inventory_section_lists_exactly_the_12_final_entries_in_order(): void
+    public function test_the_inventory_section_lists_exactly_the_17_entries_in_order(): void
     {
         $college = $this->makeCollege('INAV1');
         $user = $this->makeUserWithPermissions($college, array_column(self::ALL_ENTRIES, 0));
@@ -123,9 +128,9 @@ class InventoryNavigationTest extends TestCase
             $this->assertStringNotContainsString($bad, $html, "Forbidden heading must not appear: {$bad}");
         }
 
-        // 3. All 12 entries live inside that single section.
+        // 3. All 17 entries live inside that single section.
         $group = $this->inventoryGroup($html);
-        $this->assertSame(12, substr_count($group, 'class="nav-link"'), 'Inventory section must contain exactly 12 entries.');
+        $this->assertSame(17, substr_count($group, 'class="nav-link"'), 'Inventory section must contain exactly 17 entries.');
 
         // 4. Order matches spec.
         $cursor = -1;
@@ -137,14 +142,8 @@ class InventoryNavigationTest extends TestCase
             $cursor = $position;
         }
 
-        // 5. Future entries absent.
-        foreach (self::FUTURE as $future) {
-            if ($future === 'Stock Movements') {
-                $this->assertStringNotContainsString('Stock Movements', $html, 'Stock Movements menu must be removed/renamed.');
-            } else {
-                $this->assertStringNotContainsString($future, $group, "{$future} must not be rendered.");
-            }
-        }
+        // The old Stock Movements nav entry stays absent.
+        $this->assertStringNotContainsString('Stock Movements', $html);
     }
 
     public function test_each_entry_is_gated_on_its_own_view_permission(): void
@@ -214,28 +213,23 @@ class InventoryNavigationTest extends TestCase
         $this->assertGreaterThan($communication, $inventory, 'Inventory must come after Communication.');
         $this->assertGreaterThan($inventory, $platform, 'Platform must come after Inventory.');
 
-        // Exactly one Inventory heading, exactly 12 entries in it.
+        // Exactly one Inventory heading, exactly 17 entries in it.
         $this->assertSame(1, substr_count($html, self::HEADING));
-        $this->assertSame(12, substr_count($this->inventoryGroup($html), 'class="nav-link"'));
+        $this->assertSame(17, substr_count($this->inventoryGroup($html), 'class="nav-link"'));
 
         foreach (self::FORBIDDEN_HEADINGS as $bad) {
             $this->assertStringNotContainsString($bad, $html, "Forbidden heading must be absent for super admin: {$bad}");
         }
 
-        foreach (self::FUTURE as $future) {
-            if ($future === 'Stock Movements') {
-                continue;
-            }
-            $this->assertStringNotContainsString($future, $this->inventoryGroup($html));
-        }
+        $this->assertStringNotContainsString('Stock Movements', $this->inventoryGroup($html));
 
-        // Phase 3 tables exist; the future modules have no tables yet.
+        // Phase 3 tables still exist; Phase 4 introduces no tables.
         foreach (['inventory_issues', 'inventory_assignments', 'inventory_maintenances'] as $table) {
             $this->assertTrue(Schema::hasTable($table), "{$table} belongs to Phase 3 and must exist.");
         }
 
         foreach (['inventory_reports', 'assets'] as $table) {
-            $this->assertFalse(Schema::hasTable($table), "{$table} belongs to a later phase.");
+            $this->assertFalse(Schema::hasTable($table), "{$table} must not be created for reports or assets.");
         }
     }
 
@@ -279,6 +273,10 @@ class InventoryNavigationTest extends TestCase
             'inventory-assignments.index', 'inventory-assignments.create',
             'inventory-asset-returns.index',
             'inventory-maintenances.index', 'inventory-maintenances.create',
+            // Phase 4 read-only screens.
+            'inventory-current-stock.index', 'inventory-low-stock.index',
+            'inventory-asset-register.index', 'inventory-stock-reports.index',
+            'inventory-reports.index',
             // backward compat routes still work
             'inventory-stock.index',
         ] as $route) {

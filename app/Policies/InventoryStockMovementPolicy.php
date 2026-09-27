@@ -79,4 +79,20 @@ class InventoryStockMovementPolicy
             || $user->hasPermission('inventory_stock.adjust')
             || $user->hasPermission('inventory_stock.out');
     }
+
+    /** Separate read-only Phase 4 permissions do not grant ledger write access. */
+    public function viewCurrentStock(User $user): bool
+    {
+        return $user->hasPermission('inventory_current_stock.view');
+    }
+
+    public function viewLowStock(User $user): bool
+    {
+        return $user->hasPermission('inventory_low_stock.view');
+    }
+
+    public function viewStockReports(User $user): bool
+    {
+        return $user->hasPermission('inventory_stock_reports.view');
+    }
 }
