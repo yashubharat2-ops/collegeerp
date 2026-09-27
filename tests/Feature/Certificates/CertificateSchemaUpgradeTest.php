@@ -29,6 +29,7 @@ class CertificateSchemaUpgradeTest extends TestCase
             $table->id();
             $table->string('name');
             $table->timestamps();
+            $table->softDeletes();
         });
         foreach (['users', 'students', 'student_enrollments', 'student_transfers'] as $name) {
             Schema::create($name, fn (Blueprint $table) => $table->id());

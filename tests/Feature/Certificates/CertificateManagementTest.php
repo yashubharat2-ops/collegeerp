@@ -187,7 +187,10 @@ class CertificateManagementTest extends TestCase
         $certificate = $this->requestCertificate($type);
         $wrongTypeTemplate = $this->template(CertificateType::where('code', 'CHAR')->firstOrFail());
         $this->post(route('certificates.generate', $certificate), ['certificate_template_id' => $wrongTypeTemplate->id])->assertNotFound();
-        $foreignTemplate = CertificateTemplate::withoutGlobalScopes()->create(['college_id' => $other->id, 'certificate_type_id' => $type->id, 'name' => 'Foreign', 'body' => 'Hidden']);
+        app(CertificateCatalog::class)->provision($other->id);
+        $foreignType = CertificateType::withoutGlobalScopes()
+            ->where('college_id', $other->id)->where('code', 'BON')->firstOrFail();
+        $foreignTemplate = CertificateTemplate::withoutGlobalScopes()->create(['college_id' => $other->id, 'certificate_type_id' => $foreignType->id, 'name' => 'Foreign', 'body' => 'Hidden']);
         $this->post(route('certificates.generate', $certificate), ['certificate_template_id' => $foreignTemplate->id])->assertNotFound();
     }
 
