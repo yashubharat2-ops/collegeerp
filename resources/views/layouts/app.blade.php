@@ -55,21 +55,21 @@
 @if(auth()->user()?->hasPermission('certificates.view') || auth()->user()?->hasPermission('certificate_types.manage') || auth()->user()?->hasPermission('certificate_templates.manage') || auth()->user()?->hasPermission('certificate_reports.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">CERTIFICATE MANAGEMENT (EC)</div>
 @if(auth()->user()->hasPermission('certificates.view'))
-<a class="nav-link" href="{{ route('certificates.index', ['type' => 'TC', 'stage' => 'requests']) }}">Transfer Certificate (TC)</a>
-<a class="nav-link" href="{{ route('certificates.index', ['type' => 'BON', 'stage' => 'requests']) }}">Bonafide Certificate</a>
-<a class="nav-link" href="{{ route('certificates.index', ['type' => 'CHAR', 'stage' => 'requests']) }}">Character Certificate</a>
-<a class="nav-link" href="{{ route('certificates.index', ['type' => 'CC', 'stage' => 'requests']) }}">Course Completion Certificate</a>
-<a class="nav-link" href="{{ route('certificates.index', ['type' => 'MIG', 'stage' => 'requests']) }}">Migration Certificate</a>
-<a class="nav-link" href="{{ route('certificates.index', ['type' => 'PROV', 'stage' => 'requests']) }}">Provisional Certificate</a>
+<a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'TC']) }}">Transfer Certificate (TC)</a>
+<a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'BON']) }}">Bonafide Certificate</a>
+<a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'CHAR']) }}">Character Certificate</a>
+<a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'CC']) }}">Course Completion Certificate</a>
+<a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'MIG']) }}">Migration Certificate</a>
+<a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'PROV']) }}">Provisional Certificate</a>
 @endif
 @if(auth()->user()->hasPermission('certificates.view') || auth()->user()->hasPermission('certificate_types.manage'))
-<a class="nav-link" href="{{ auth()->user()->hasPermission('certificates.view') ? route('certificates.index', ['type' => 'CUSTOM', 'stage' => 'requests']) : route('certificates.types') }}">Custom Certificate</a>
+<a class="nav-link" href="{{ auth()->user()->hasPermission('certificates.view') ? route('certificates.requests.index', ['type' => 'CUSTOM']) : route('certificates.types') }}">Custom Certificate</a>
 @endif
 @if(auth()->user()->hasPermission('certificate_templates.manage'))
-<a class="nav-link" href="{{ route('certificates.templates') }}">Certificate Templates</a>
+<a class="nav-link" href="{{ route('certificates.templates.index') }}">Certificate Templates</a>
 @endif
 @if(auth()->user()->hasPermission('certificate_reports.view'))
-<a class="nav-link" href="{{ route('certificates.reports') }}">Certificate Reports</a>
+<a class="nav-link" href="{{ route('certificates.reports.index') }}">Certificate Reports</a>
 @endif
 @endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Academics</div>

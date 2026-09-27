@@ -7,7 +7,7 @@
     <p class="panel-subtitle">Requests → Generation → Issuance → Verification</p>
     <div class="flex flex-wrap gap-4 my-4">
         @foreach(['requests', 'generation', 'issuance', 'verification'] as $step)
-            <a @if($stage === $step) aria-current="page" class="font-bold" @endif href="{{ route('certificates.index', ['type' => $type?->code, 'stage' => $step]) }}">{{ ucfirst($step) }}</a>
+            <a @if($stage === $step) aria-current="page" class="font-bold" @endif href="{{ route('certificates.'.$step.'.index', ['type' => $type?->code]) }}">{{ ucfirst($step) }}</a>
         @endforeach
     </div>
     <form method="GET" class="flex gap-3">

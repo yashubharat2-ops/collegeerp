@@ -97,6 +97,12 @@ Route::middleware('auth')->group(function () {
     Route::middleware(['tenant', 'tenant.access'])->group(function () {
         Route::prefix('certificates')->name('certificates.')->controller(\App\Http\Controllers\CertificateController::class)->group(function () {
             Route::get('/', 'index')->name('index');
+            // Shared, type-filtered workflow entry points; legacy URLs remain available.
+            foreach (['requests', 'generation', 'issuance', 'verification'] as $stage) {
+                Route::get('/'.$stage, 'index')->defaults('certificate_stage', $stage)->name($stage.'.index');
+            }
+            Route::get('/templates/index', 'templates')->name('templates.index');
+            Route::get('/reports/index', 'reports')->name('reports.index');
             Route::post('/', 'store')->name('store');
             Route::get('/types', 'types')->name('types');
             Route::post('/types', 'storeType')->name('types.store');

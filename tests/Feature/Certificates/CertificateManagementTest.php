@@ -48,7 +48,7 @@ class CertificateManagementTest extends TestCase
         $this->assertSame(7, CertificateType::count());
         $response = $this->get(route('certificates.index'))->assertOk();
         foreach (CertificateType::BUILT_INS as [$code, $name]) {
-            $response->assertSee($name)->assertSee(route('certificates.index', ['type' => $code, 'stage' => 'requests']));
+            $response->assertSee($name)->assertSee(route('certificates.requests.index', ['type' => $code]));
         }
         $this->assertSame(1, substr_count($response->getContent(), '>CERTIFICATE MANAGEMENT (EC)</div>'));
         $response->assertSee('Certificate Templates')->assertSee('Certificate Reports');

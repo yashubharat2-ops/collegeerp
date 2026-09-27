@@ -27,7 +27,7 @@ class CertificateController extends Controller
         $this->provision();
         $data = $request->validate(['type' => ['nullable', 'string', 'max:30'], 'stage' => ['nullable', Rule::in(['requests', 'generation', 'issuance', 'verification'])]]);
         $type = isset($data['type']) ? CertificateType::where('code', $data['type'])->firstOrFail() : null;
-        $stage = $data['stage'] ?? 'requests';
+        $stage = $request->route('certificate_stage') ?? $data['stage'] ?? 'requests';
         $query = Certificate::with(['type', 'student', 'enrollment'])->latest('id');
         if ($type) $query->where('certificate_type_id', $type->id);
         $query->where('status', ['requests' => 'requested', 'generation' => 'requested', 'issuance' => 'generated', 'verification' => 'issued'][$stage]);
