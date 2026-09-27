@@ -48,10 +48,20 @@ class CertificateManagementTest extends TestCase
         $this->assertSame(7, CertificateType::count());
         $response = $this->get(route('certificates.index'))->assertOk();
         foreach (CertificateType::BUILT_INS as [$code, $name]) {
-            $response->assertSee($name)->assertSee(route('certificates.index', ['type' => $code, 'stage' => 'verification']));
+            $response->assertSee($name)->assertSee(route('certificates.index', ['type' => $code, 'stage' => 'requests']));
         }
         $this->assertSame(1, substr_count($response->getContent(), '>CERTIFICATE MANAGEMENT (EC)</div>'));
         $response->assertSee('Certificate Templates')->assertSee('Certificate Reports');
+        preg_match('/<aside\b.*?<\/aside>/s', $response->getContent(), $sidebar);
+        preg_match_all('/<a\b[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/s', $sidebar[0], $links, PREG_SET_ORDER);
+        $certificateLinks = collect($links)
+            ->filter(fn ($link) => str_starts_with(html_entity_decode($link[1]), route('certificates.index')))
+            ->map(fn ($link) => trim(html_entity_decode(strip_tags($link[2]))))
+            ->values()->all();
+        $this->assertSame([
+            ...array_column(CertificateType::BUILT_INS, 1),
+            'Certificate Templates', 'Certificate Reports',
+        ], $certificateLinks);
         $this->get(route('certificates.templates'))->assertOk();
         $this->get(route('certificates.types'))->assertOk();
         $this->get(route('certificates.reports'))->assertOk();
