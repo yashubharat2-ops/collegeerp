@@ -35,6 +35,11 @@ class StudentTransfer extends Model
     /** Certificate lifecycle. */
     public const TC_STATUSES = ['pending', 'issued', 'cancelled'];
 
+    public function certificates(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Certificate::class, 'student_transfer_id');
+    }
+
     protected $fillable = [
         'college_id',
         'student_id',

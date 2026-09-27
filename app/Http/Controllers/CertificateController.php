@@ -1,0 +1,138 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\{Certificate, CertificateTemplate, CertificateType, StudentEnrollment, StudentTransfer};
+use App\Services\Audit\AuditLogService;
+use App\Services\Certificates\{CertificateCatalog, CertificateWorkflow};
+use App\Support\Tenancy\TenantContext;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+
+class CertificateController extends Controller
+{
+    private function permit(string $permission): void
+    {
+        abort_unless(auth()->user()?->hasPermission($permission), 403);
+    }
+
+    private function provision(): void
+    {
+        app(CertificateCatalog::class)->provision(app(TenantContext::class)->require()->id);
+    }
+
+    public function index(Request $request)
+    {
+        $this->permit('certificates.view');
+        $this->provision();
+        $data = $request->validate(['type' => ['nullable', 'string', 'max:30'], 'stage' => ['nullable', Rule::in(['requests', 'generation', 'issuance', 'verification'])]]);
+        $type = isset($data['type']) ? CertificateType::where('code', $data['type'])->firstOrFail() : null;
+        $stage = $request->route('certificate_stage') ?? $data['stage'] ?? 'requests';
+        $query = Certificate::with(['type', 'student', 'enrollment'])->latest('id');
+        if ($type) $query->where('certificate_type_id', $type->id);
+        $query->where('status', ['requests' => 'requested', 'generation' => 'requested', 'issuance' => 'generated', 'verification' => 'issued'][$stage]);
+        return view('certificates.index', [
+            'types' => CertificateType::orderBy('id')->get(), 'type' => $type, 'stage' => $stage,
+            'certificates' => $query->paginate(20)->withQueryString(),
+            'enrollments' => StudentEnrollment::with(['student', 'program'])->whereHas('student')->orderByDesc('id')->get(),
+            'transfers' => StudentTransfer::with('student')->where('status', 'approved')->where('tc_status', '!=', 'cancelled')->get(),
+        ]);
+    }
+
+    public function store(Request $request, CertificateWorkflow $workflow)
+    {
+        $this->permit('certificates.request');
+        $data = $request->validate([
+            'certificate_type_id' => ['required', 'integer'], 'student_enrollment_id' => ['required', 'integer'],
+            'student_transfer_id' => ['nullable', 'integer'], 'purpose' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $certificate = $workflow->request($data);
+        return redirect()->route('certificates.show', $certificate)->with('success', 'Certificate requested.');
+    }
+
+    public function show(int $certificate)
+    {
+        $this->permit('certificates.view');
+        $model = Certificate::with(['student', 'enrollment', 'transfer', 'type'])->findOrFail($certificate);
+        return view('certificates.show', ['certificate' => $model, 'templates' => CertificateTemplate::where('certificate_type_id', $model->certificate_type_id)->get()]);
+    }
+
+    public function generate(Request $request, int $certificate, CertificateWorkflow $workflow)
+    {
+        $this->permit('certificates.generate');
+        $data = $request->validate(['certificate_template_id' => ['required', 'integer']]);
+        $workflow->generate($certificate, $data['certificate_template_id']);
+        return back()->with('success', 'Certificate generated. Review the draft before issuance.');
+    }
+
+    public function issue(int $certificate, CertificateWorkflow $workflow)
+    {
+        $this->permit('certificates.issue');
+        $workflow->issue($certificate);
+        return back()->with('success', 'Certificate issued.');
+    }
+
+    public function verify(Request $request, CertificateWorkflow $workflow)
+    {
+        $this->permit('certificates.verify');
+        $data = $request->validate(['number' => ['required', 'string', 'max:100']]);
+        $certificate = $workflow->verify($data['number']);
+        return view('certificates.verified', compact('certificate'));
+    }
+
+    public function types()
+    {
+        $this->permit('certificate_types.manage');
+        $this->provision();
+        return view('certificates.types', ['types' => CertificateType::withCount('templates')->orderBy('id')->get()]);
+    }
+
+    public function storeType(Request $request, AuditLogService $audit)
+    {
+        $this->permit('certificate_types.manage');
+        $this->provision();
+        $request->merge(['code' => strtoupper(trim((string) $request->input('code')))]);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'code' => ['required', 'string', 'max:30', 'regex:/^[A-Z][A-Z0-9_]*$/', Rule::unique('certificate_types', 'code')->where('college_id', app(TenantContext::class)->id())],
+            'description' => ['required', 'string', 'max:2000'],
+        ]);
+        $type = CertificateType::create($data);
+        $audit->record('certificate_type.created', $type, [], $data);
+        return back()->with('success', 'Certificate type created. Add one or more templates under Certificate Templates.');
+    }
+
+    public function templates()
+    {
+        $this->permit('certificate_templates.manage');
+        $this->provision();
+        return view('certificates.templates', ['types' => CertificateType::orderBy('id')->get(), 'templates' => CertificateTemplate::with('type')->latest('id')->paginate(20)]);
+    }
+
+    public function storeTemplate(Request $request, AuditLogService $audit)
+    {
+        $this->permit('certificate_templates.manage');
+        $data = $request->validate(['certificate_type_id' => ['required', 'integer'], 'name' => ['required', 'string', 'max:255'], 'body' => ['required', 'string', 'max:20000']]);
+        CertificateType::findOrFail($data['certificate_type_id']);
+        preg_match_all('/\{\{\s*(.*?)\s*\}\}/s', $data['body'], $matches);
+        if (array_diff($matches[1], CertificateWorkflow::PLACEHOLDERS)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['body' => 'Use only the supported placeholders listed below.']);
+        }
+        $template = CertificateTemplate::create($data);
+        $audit->record('certificate_template.created', $template, [], ['name' => $template->name, 'certificate_type_id' => $template->certificate_type_id]);
+        return back()->with('success', 'Template added. Existing generated documents remain unchanged.');
+    }
+
+    public function reports(Request $request)
+    {
+        $this->permit('certificate_reports.view');
+        $data = $request->validate(['certificate_type_id' => ['nullable', 'integer'], 'status' => ['nullable', Rule::in(['requested', 'generated', 'issued'])]]);
+        $query = Certificate::with(['type', 'student'])->latest('id');
+        if (! empty($data['certificate_type_id'])) {
+            CertificateType::findOrFail($data['certificate_type_id']);
+            $query->where('certificate_type_id', $data['certificate_type_id']);
+        }
+        if (! empty($data['status'])) $query->where('status', $data['status']);
+        return view('certificates.reports', ['certificates' => $query->paginate(30)->withQueryString(), 'types' => CertificateType::orderBy('name')->get()]);
+    }
+}

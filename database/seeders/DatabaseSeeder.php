@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
         $college = College::firstOrCreate(['code' => 'DEMO'], ['name' => 'Demo College', 'slug' => 'demo-college', 'status' => 'active']);
         $permissions = collect([
             ...TransportPermissionSeeder::PERMISSIONS,
+            ...CertificateManagementSeeder::PERMISSIONS,
             // Hostel Management permissions (masters, allocation, fees, attendance, reports).
             ...HostelPermissionSeeder::PERMISSIONS,
             // Communication Management Phase 1 (dashboard, notices, circulars, internal notifications).
@@ -131,6 +132,7 @@ class DatabaseSeeder extends Seeder
         $permissionIds = $permissions->values()->map->getKey()->all();
         $super->permissions()->sync($permissionIds);
         $admin->permissions()->sync($permissionIds);
+        $this->call(CertificateManagementSeeder::class);
         $user = User::firstOrCreate(['email' => 'test@example.com'], ['name' => 'Test User', 'password' => 'password', 'is_active' => true]);
         $user->colleges()->syncWithoutDetaching([$college->id => ['is_default' => true]]);
         $user->roles()->syncWithoutDetaching([$super->id => ['college_id' => null], $admin->id => ['college_id' => $college->id]]);

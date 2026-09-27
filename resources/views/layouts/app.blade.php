@@ -50,8 +50,28 @@
 <a class="nav-link" href="{{ route('student-documents.index') }}">📄 <span>Documents</span></a>
 <a class="nav-link" href="{{ route('student-id-cards.index') }}">🪪 <span>ID Cards</span></a>
 <a class="nav-link" href="{{ route('student-promotions.index') }}">🔄 <span>Promotion</span></a>
-<a class="nav-link" href="{{ route('student-transfers.index') }}">🚚 <span>Transfer / TC</span></a>
+<a class="nav-link" href="{{ route('student-transfers.index') }}">🚚 <span>Student Transfers</span></a>
 <a class="nav-link" href="{{ route('student-history.index') }}">🕘 <span>Student History</span></a>
+@if(auth()->user()?->hasPermission('certificates.view') || auth()->user()?->hasPermission('certificate_types.manage') || auth()->user()?->hasPermission('certificate_templates.manage') || auth()->user()?->hasPermission('certificate_reports.view'))
+<div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">CERTIFICATE MANAGEMENT (EC)</div>
+@if(auth()->user()->hasPermission('certificates.view'))
+<a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'TC']) }}">📜 <span>Transfer Certificate (TC)</span></a>
+<a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'BON']) }}">📜 <span>Bonafide Certificate</span></a>
+<a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'CHAR']) }}">📜 <span>Character Certificate</span></a>
+<a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'CC']) }}">📜 <span>Course Completion Certificate</span></a>
+<a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'MIG']) }}">📜 <span>Migration Certificate</span></a>
+<a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'PROV']) }}">📜 <span>Provisional Certificate</span></a>
+@endif
+@if(auth()->user()->hasPermission('certificates.view') || auth()->user()->hasPermission('certificate_types.manage'))
+<a class="nav-link" href="{{ auth()->user()->hasPermission('certificates.view') ? route('certificates.requests.index', ['type' => 'CUSTOM']) : route('certificates.types') }}">📜 <span>Custom Certificate</span></a>
+@endif
+@if(auth()->user()->hasPermission('certificate_templates.manage'))
+<a class="nav-link" href="{{ route('certificates.templates.index') }}">📄 <span>Certificate Templates</span></a>
+@endif
+@if(auth()->user()->hasPermission('certificate_reports.view'))
+<a class="nav-link" href="{{ route('certificates.reports.index') }}">📊 <span>Certificate Reports</span></a>
+@endif
+@endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Academics</div>
 <a class="nav-link" href="{{ route('academic-subject-enrollments.index') }}">📚 <span>Student Subject Enrollment</span></a>
 <a class="nav-link" href="{{ route('academic-sections.index') }}">🏫 <span>Class / Section Management</span></a>
@@ -131,31 +151,31 @@
 @if(auth()->user()?->hasPermission('transport_dashboard.view') || auth()->user()?->hasPermission('vehicles.view') || auth()->user()?->hasPermission('vehicle_documents.view') || auth()->user()?->hasPermission('transport_drivers.view') || auth()->user()?->hasPermission('transport_routes.view') || auth()->user()?->hasPermission('student_transport_assignments.view') || auth()->user()?->hasPermission('transport_fees.view') || auth()->user()?->hasPermission('transport_reports.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Transport Management</div>
 @if(auth()->user()?->hasPermission('transport_dashboard.view'))
-<a class="nav-link" href="{{ route('transport.dashboard') }}"><span>Transport Dashboard</span></a>
+<a class="nav-link" href="{{ route('transport.dashboard') }}">🚌 <span>Transport Dashboard</span></a>
 @endif
 @if(auth()->user()?->hasPermission('vehicles.view'))
-<a class="nav-link" href="{{ route('vehicles.index') }}"><span>Vehicles</span></a>
+<a class="nav-link" href="{{ route('vehicles.index') }}">🚐 <span>Vehicles</span></a>
 @endif
 @if(auth()->user()?->hasPermission('vehicle_documents.view'))
-<a class="nav-link" href="{{ route('vehicle-documents.index') }}"><span>Vehicle Documents</span></a>
+<a class="nav-link" href="{{ route('vehicle-documents.index') }}">📄 <span>Vehicle Documents</span></a>
 @endif
 @if(auth()->user()?->hasPermission('transport_drivers.view'))
-<a class="nav-link" href="{{ route('transport-drivers.index') }}"><span>Drivers</span></a>
+<a class="nav-link" href="{{ route('transport-drivers.index') }}">👤 <span>Drivers</span></a>
 @endif
 @if(auth()->user()?->hasPermission('transport_routes.view'))
-<a class="nav-link" href="{{ route('transport-routes.index') }}"><span>Routes</span></a>
+<a class="nav-link" href="{{ route('transport-routes.index') }}">🗺 <span>Routes</span></a>
 @endif
 @if(auth()->user()?->hasPermission('transport_routes.view'))
-<a class="nav-link" href="{{ route('transport-stops.list') }}"><span>Stops</span></a>
+<a class="nav-link" href="{{ route('transport-stops.list') }}">📍 <span>Stops</span></a>
 @endif
 @if(auth()->user()?->hasPermission('student_transport_assignments.view'))
-<a class="nav-link" href="{{ route('transport-assignments.index') }}"><span>Student Transport Assignment</span></a>
+<a class="nav-link" href="{{ route('transport-assignments.index') }}">🚌 <span>Student Transport Assignment</span></a>
 @endif
 @if(auth()->user()?->hasPermission('transport_fees.view'))
-<a class="nav-link" href="{{ route('transport-fees.index') }}"><span>Transport Fees</span></a>
+<a class="nav-link" href="{{ route('transport-fees.index') }}">💰 <span>Transport Fees</span></a>
 @endif
 @if(auth()->user()?->hasPermission('transport_reports.view'))
-<a class="nav-link" href="{{ route('transport-reports.index') }}"><span>Transport Reports</span></a>
+<a class="nav-link" href="{{ route('transport-reports.index') }}">📊 <span>Transport Reports</span></a>
 @endif
 @endif
 @if(auth()->user()?->hasPermission('library_dashboard.view') || auth()->user()?->hasPermission('books.view') || auth()->user()?->hasPermission('book_categories.view') || auth()->user()?->hasPermission('authors.view') || auth()->user()?->hasPermission('publishers.view') || auth()->user()?->hasPermission('book_copies.view') || auth()->user()?->hasPermission('library_members.view') || auth()->user()?->hasPermission('library_transactions.view') || auth()->user()?->hasPermission('library_renewals.view') || auth()->user()?->hasPermission('library_fines.view') || auth()->user()?->hasPermission('library_reports.view'))

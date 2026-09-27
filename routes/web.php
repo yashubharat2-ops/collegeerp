@@ -95,6 +95,26 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', DashboardController::class)->middleware('tenant')->name('dashboard');
     Route::post('/college-context', CollegeSwitchController::class)->name('college-context.switch');
     Route::middleware(['tenant', 'tenant.access'])->group(function () {
+        Route::prefix('certificates')->name('certificates.')->controller(\App\Http\Controllers\CertificateController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            // Shared, type-filtered workflow entry points; legacy URLs remain available.
+            foreach (['requests', 'generation', 'issuance', 'verification'] as $stage) {
+                Route::get('/'.$stage, 'index')->defaults('certificate_stage', $stage)->name($stage.'.index');
+            }
+            Route::get('/templates/index', 'templates')->name('templates.index');
+            Route::get('/reports/index', 'reports')->name('reports.index');
+            Route::post('/', 'store')->name('store');
+            Route::get('/types', 'types')->name('types');
+            Route::post('/types', 'storeType')->name('types.store');
+            Route::get('/templates', 'templates')->name('templates');
+            Route::post('/templates', 'storeTemplate')->name('templates.store');
+            Route::get('/reports', 'reports')->name('reports');
+            Route::post('/verify', 'verify')->middleware('throttle:30,1')->name('verify');
+            Route::get('/{certificate}', 'show')->whereNumber('certificate')->name('show');
+            Route::post('/{certificate}/generate', 'generate')->whereNumber('certificate')->name('generate');
+            Route::post('/{certificate}/issue', 'issue')->whereNumber('certificate')->name('issue');
+        });
+
         Route::get('/campuses', [CampusController::class, 'index'])->name('campuses.index');
         Route::post('/campuses', [CampusController::class, 'store'])->name('campuses.store');
         Route::get('/departments', [DepartmentController::class, 'index'])->name('departments.index');

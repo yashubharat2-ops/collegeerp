@@ -30,6 +30,11 @@ class Student extends Model
 
     public const STATUSES = ['active', 'inactive', 'graduated', 'suspended', 'withdrawn'];
 
+    public function certificates(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Certificate::class, 'student_id');
+    }
+
     protected $fillable = [
         'college_id',
         'admission_application_id',
