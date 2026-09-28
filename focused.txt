@@ -1,0 +1,62 @@
+
+   FAIL  Tests\Feature\HrReports\HrReportsTest
+  ✓ the view permission is required and separate from hr permissions     1.14s  
+  ✓ the eight reports are listed in order and the sidebar entry is gate… 0.33s  
+  ⨯ empty and invalid filters are handled gracefully                     0.84s  
+  ⨯ every report is tenant scoped even with foreign filter ids           0.23s  
+  ✓ filters read the existing hr relationships                           2.24s  
+  ✓ report figures reconcile with the existing records                   0.76s  
+  ✓ soft deleted and inactive records are respected                      0.76s  
+  ✓ lists paginate deterministically and keep filters                    0.45s  
+  ✓ report routes never write and expose only get                        1.62s  
+  ✓ query count does not grow with rows on any report                    1.98s  
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\HrReports\HrReportsTest > empty and invalid filters…   
+  Expected response status code [200] but received 302.
+Failed asserting that 302 is identical to 200.
+
+The following errors occurred during the last request:
+
+The from field must match the format Y-m-d.
+
+  at tests/Feature/HrReports/HrReportsTest.php:163
+    159▕             'report' => 'directory',
+    160▕             'leave_type_id' => 999, 'state' => 'expired', 'salary_structure_id' => 999,
+    161▕         ]))->assertOk()->assertViewHas('rows', fn ($rows) => $rows->total() === 3);
+    162▕         $this->get(route('hr-reports.index', ['report' => 'department', 'from' => 'not-a-date']))
+  ➜ 163▕             ->assertOk()->assertViewHas('rows', fn ($rows) => $rows->total() === 2);
+    164▕         $this->assertNotEmpty($world);
+    165▕     }
+    166▕ 
+    167▕     public function test_every_report_is_tenant_scoped_even_with_foreign_filter_ids(): void
+
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\HrReports\HrReportsTest > every report is tenant sc…   
+  Failed asserting that two arrays are identical.
+   Array &0 [
+  -    0 => null,
+  -    1 => null,
+  -    2 => null,
+  +    0 => 4,
+  +    1 => 5,
+  +    2 => 6,
+   ]
+  
+
+  at tests/Feature/HrReports/HrReportsTest.php:179
+    175▕ 
+    176▕         // The dropdowns only ever offer the active college's own rows.
+    177▕         $response = $this->get(route('hr-reports.index', ['report' => 'leave']))->assertOk();
+    178▕         $ownIds = fn ($rows) => collect($rows)->pluck('id')->sort()->values()->all();
+  ➜ 179▕         $this->assertSame(
+    180▕             $ownIds([$worldA['employee']->id, $worldA['second']->id, $worldA['inactive']->id]),
+    181▕             $ownIds($response->viewData('employees'))
+    182▕         );
+    183▕         $this->assertSame(
+
+  1   tests/Feature/HrReports/HrReportsTest.php:179
+
+
+  Tests:    2 failed, 8 passed (236 assertions)
+  Duration: 10.38s
+
