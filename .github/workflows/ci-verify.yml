@@ -1,0 +1,103 @@
+name: ci-verify
+
+on:
+  push:
+    branches: ['**']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_sqlite, sqlite3, mbstring, xml, curl, bcmath, intl, zip
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build assets
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+
+      - name: Focused HR Reports tests
+        if: always()
+        run: |
+          mkdir -p /tmp/out
+          php artisan test tests/Feature/HrReports 2>&1 | tee /tmp/out/focused.txt
+          echo "focused=${PIPESTATUS[0]}" > /tmp/out/focused.exit
+
+      - name: HR module regression
+        if: always()
+        run: |
+          php artisan test tests/Feature/HR 2>&1 | tee /tmp/out/hr.txt
+          echo "hr=${PIPESTATUS[0]}" > /tmp/out/hr.exit
+
+      - name: Reports regression (sidebar and shared screens)
+        if: always()
+        run: |
+          php artisan test \
+            tests/Feature/StudentReports \
+            tests/Feature/AcademicReports \
+            tests/Feature/ExaminationReports \
+            tests/Feature/Finance \
+            tests/Feature/Communication 2>&1 | tee /tmp/out/regression.txt
+          echo "regression=${PIPESTATUS[0]}" > /tmp/out/regression.exit
+
+      - name: Complete suite
+        # Iteration runs skip the slow full suite; a commit message carrying
+        # "[full]" turns it back on for the final validation run.
+        if: always() && contains(github.event.head_commit.message, '[full]')
+        run: |
+          php artisan test 2>&1 | tee /tmp/out/all.txt
+          echo "all=${PIPESTATUS[0]}" > /tmp/out/all.exit
+
+      - name: Publish raw output to results branch
+        if: always()
+        env:
+          TOKEN: ${{ github.token }}
+          RESULTS_BRANCH: ci-results/run-${{ github.run_id }}
+        run: |
+          cd /tmp/out
+          git init -q
+          git config user.email "ci@users.noreply.github.com"
+          git config user.name "ci"
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git"
+          git add -A
+          git commit -qm "phpunit output" || true
+          git push -f origin "HEAD:refs/heads/${RESULTS_BRANCH}" -q
+          echo "results published to ${RESULTS_BRANCH}"
+
+      - name: Fail if any suite failed
+        if: always()
+        run: |
+          ec=0
+          grep -qx "focused=0" /tmp/out/focused.exit || ec=1
+          grep -qx "hr=0" /tmp/out/hr.exit || ec=1
+          grep -qx "regression=0" /tmp/out/regression.exit || ec=1
+          if [ -f /tmp/out/all.exit ]; then grep -qx "all=0" /tmp/out/all.exit || ec=1; fi
+          echo "focused=$(cat /tmp/out/focused.exit) hr=$(cat /tmp/out/hr.exit) regression=$(cat /tmp/out/regression.exit) all=$(cat /tmp/out/all.exit 2>/dev/null || echo skipped)"
+          [ "$ec" -eq 0 ] || { echo "::error::at least one test suite failed"; exit 1; }
