@@ -1,0 +1,457 @@
+
+   FAIL  Tests\Feature\HrReports\HrReportsTest
+  ⨯ the view permission is required and separate from hr permissions     0.77s  
+  ✓ the eight reports are listed in order and the sidebar entry is gate… 0.23s  
+  ⨯ empty and invalid filters are handled gracefully                     0.42s  
+  ⨯ every report is tenant scoped even with foreign filter ids           0.16s  
+  ⨯ filters read the existing hr relationships                           1.05s  
+  ⨯ report figures reconcile with the existing records                   0.28s  
+  ⨯ soft deleted and inactive records are respected                      0.48s  
+  ✓ lists paginate deterministically and keep filters                    0.32s  
+  ⨯ report routes never write and expose only get                        0.42s  
+  ⨯ query count does not grow with rows on any report                    0.43s  
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\HrReports\HrReportsTest > the view permission is re…   
+  Expected response status code [200] but received 500.
+Failed asserting that 500 is identical to 200.
+
+The following exception occurred during the last request:
+
+TypeError: App\Domain\HR\Services\HrReportService::leaveDaysTotal(): Argument #2 ($facultyIds) must be of type Illuminate\Database\Eloquent\Builder, Illuminate\Database\Query\Builder given, called in /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php on line 301 and defined in /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php:643
+Stack trace:
+#0 /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php(301): App\Domain\HR\Services\HrReportService->leaveDaysTotal()
+#1 /home/runner/work/collegeerp/collegeerp/app/Http/Controllers/HrReportController.php(94): App\Domain\HR\Services\HrReportService->leaveBalance()
+#2 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/ControllerDispatcher.php(46): App\Http\Controllers\HrReportController->index()
+#3 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Route.php(265): Illuminate\Routing\ControllerDispatcher->dispatch()
+#4 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Route.php(211): Illuminate\Routing\Route->runController()
+#5 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(822): Illuminate\Routing\Route->run()
+#6 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(180): Illuminate\Routing\Router->Illuminate\Routing\{closure}()
+#7 /home/runner/work/collegeerp/collegeerp/app/Http/Middleware/EnsureTenantAccess.php(14): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#8 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): App\Http\Middleware\EnsureTenantAccess->handle()
+#9 /home/runner/work/collegeerp/collegeerp/app/Http/Middleware/ResolveTenant.php(52): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#10 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): App\Http\Middleware\ResolveTenant->handle()
+#11 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Middleware/SubstituteBindings.php(50): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#12 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Routing\Middleware\SubstituteBindings->handle()
+#13 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Auth/Middleware/Authenticate.php(63): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#14 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Auth\Middleware\Authenticate->handle()
+#15 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/VerifyCsrfToken.php(87): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#16 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\VerifyCsrfToken->handle()
+#17 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/View/Middleware/ShareErrorsFromSession.php(48): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#18 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\View\Middleware\ShareErrorsFromSession->handle()
+#19 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Session/Middleware/StartSession.php(120): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#20 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Session/Middleware/StartSession.php(63): Illuminate\Session\Middleware\StartSession->handleStatefulRequest()
+#21 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Session\Middleware\StartSession->handle()
+#22 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Cookie/Middleware/AddQueuedCookiesToResponse.php(36): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#23 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse->handle()
+#24 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Cookie/Middleware/EncryptCookies.php(74): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#25 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Cookie\Middleware\EncryptCookies->handle()
+#26 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(137): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#27 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(821): Illuminate\Pipeline\Pipeline->then()
+#28 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(800): Illuminate\Routing\Router->runRouteWithinStack()
+#29 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(764): Illuminate\Routing\Router->runRoute()
+#30 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(753): Illuminate\Routing\Router->dispatchToRoute()
+#31 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(200): Illuminate\Routing\Router->dispatch()
+#32 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(180): Illuminate\Foundation\Http\Kernel->Illuminate\Foundation\Http\{closure}()
+#33 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/TransformsRequest.php(21): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#34 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/ConvertEmptyStringsToNull.php(31): Illuminate\Foundation\Http\Middleware\TransformsRequest->handle()
+#35 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull->handle()
+#36 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/TransformsRequest.php(21): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#37 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/TrimStrings.php(51): Illuminate\Foundation\Http\Middleware\TransformsRequest->handle()
+#38 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\TrimStrings->handle()
+#39 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/ValidatePostSize.php(27): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#40 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\ValidatePostSize->handle()
+#41 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/PreventRequestsDuringMaintenance.php(109): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#42 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance->handle()
+#43 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/HandleCors.php(61): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#44 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\HandleCors->handle()
+#45 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/TrustProxies.php(58): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#46 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\TrustProxies->handle()
+#47 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/InvokeDeferredCallbacks.php(22): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#48 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\InvokeDeferredCallbacks->handle()
+#49 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/ValidatePathEncoding.php(26): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#50 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\ValidatePathEncoding->handle()
+#51 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(137): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#52 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(175): Illuminate\Pipeline\Pipeline->then()
+#53 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(144): Illuminate\Foundation\Http\Kernel->sendRequestThroughRouter()
+#54 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Testing/Concerns/MakesHttpRequests.php(607): Illuminate\Foundation\Http\Kernel->handle()
+#55 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Testing/Concerns/MakesHttpRequests.php(368): Illuminate\Foundation\Testing\TestCase->call()
+#56 /home/runner/work/collegeerp/collegeerp/tests/Feature/HrReports/HrReportsTest.php(52): Illuminate\Foundation\Testing\TestCase->get()
+#57 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestCase.php(1667): Tests\Feature\HrReports\HrReportsTest->test_the_view_permission_is_required_and_separate_from_hr_permissions()
+#58 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestCase.php(519): PHPUnit\Framework\TestCase->runTest()
+#59 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestRunner/TestRunner.php(87): PHPUnit\Framework\TestCase->runBare()
+#60 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestCase.php(365): PHPUnit\Framework\TestRunner->run()
+#61 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestSuite.php(369): PHPUnit\Framework\TestCase->run()
+#62 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestSuite.php(369): PHPUnit\Framework\TestSuite->run()
+#63 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/TextUI/TestRunner.php(64): PHPUnit\Framework\TestSuite->run()
+#64 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/TextUI/Application.php(211): PHPUnit\TextUI\TestRunner->run()
+#65 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/phpunit(104): PHPUnit\TextUI\Application->run()
+#66 {main}
+
+----------------------------------------------------------------------------------
+
+App\Domain\HR\Services\HrReportService::leaveDaysTotal(): Argument #2 ($facultyIds) must be of type Illuminate\Database\Eloquent\Builder, Illuminate\Database\Query\Builder given, called in /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php on line 301
+
+  at tests/Feature/HrReports/HrReportsTest.php:52
+     48▕ 
+     49▕         // The report permission opens every report view…
+     50▕         $reporter = $this->reporter($college);
+     51▕         foreach (array_keys(HrReportController::REPORTS) as $report) {
+  ➜  52▕             $this->asCollege($college, $reporter)->get(route('hr-reports.index', ['report' => $report]))->assertOk();
+     53▕         }
+     54▕ 
+     55▕         // …and nothing else: the report viewer holds no operational HR access.
+     56▕         $this->asCollege($college, $reporter)->get(route('employees.index'))->assertForbidden();
+
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\HrReports\HrReportsTest > empty and invalid filters…   
+  Expected response status code [200] but received 500.
+Failed asserting that 500 is identical to 200.
+
+The following exception occurred during the last request:
+
+TypeError: App\Domain\HR\Services\HrReportService::leaveDaysTotal(): Argument #2 ($facultyIds) must be of type Illuminate\Database\Eloquent\Builder, Illuminate\Database\Query\Builder given, called in /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php on line 301 and defined in /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php:643
+Stack trace:
+#0 /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php(301): App\Domain\HR\Services\HrReportService->leaveDaysTotal()
+#1 /home/runner/work/collegeerp/collegeerp/app/Http/Controllers/HrReportController.php(94): App\Domain\HR\Services\HrReportService->leaveBalance()
+#2 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/ControllerDispatcher.php(46): App\Http\Controllers\HrReportController->index()
+#3 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Route.php(265): Illuminate\Routing\ControllerDispatcher->dispatch()
+#4 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Route.php(211): Illuminate\Routing\Route->runController()
+#5 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(822): Illuminate\Routing\Route->run()
+#6 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(180): Illuminate\Routing\Router->Illuminate\Routing\{closure}()
+#7 /home/runner/work/collegeerp/collegeerp/app/Http/Middleware/EnsureTenantAccess.php(14): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#8 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): App\Http\Middleware\EnsureTenantAccess->handle()
+#9 /home/runner/work/collegeerp/collegeerp/app/Http/Middleware/ResolveTenant.php(52): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#10 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): App\Http\Middleware\ResolveTenant->handle()
+#11 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Middleware/SubstituteBindings.php(50): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#12 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Routing\Middleware\SubstituteBindings->handle()
+#13 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Auth/Middleware/Authenticate.php(63): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#14 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Auth\Middleware\Authenticate->handle()
+#15 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/VerifyCsrfToken.php(87): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#16 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\VerifyCsrfToken->handle()
+#17 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/View/Middleware/ShareErrorsFromSession.php(48): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#18 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\View\Middleware\ShareErrorsFromSession->handle()
+#19 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Session/Middleware/StartSession.php(120): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#20 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Session/Middleware/StartSession.php(63): Illuminate\Session\Middleware\StartSession->handleStatefulRequest()
+#21 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Session\Middleware\StartSession->handle()
+#22 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Cookie/Middleware/AddQueuedCookiesToResponse.php(36): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#23 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse->handle()
+#24 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Cookie/Middleware/EncryptCookies.php(74): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#25 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Cookie\Middleware\EncryptCookies->handle()
+#26 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(137): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#27 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(821): Illuminate\Pipeline\Pipeline->then()
+#28 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(800): Illuminate\Routing\Router->runRouteWithinStack()
+#29 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(764): Illuminate\Routing\Router->runRoute()
+#30 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(753): Illuminate\Routing\Router->dispatchToRoute()
+#31 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(200): Illuminate\Routing\Router->dispatch()
+#32 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(180): Illuminate\Foundation\Http\Kernel->Illuminate\Foundation\Http\{closure}()
+#33 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/TransformsRequest.php(21): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#34 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/ConvertEmptyStringsToNull.php(31): Illuminate\Foundation\Http\Middleware\TransformsRequest->handle()
+#35 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull->handle()
+#36 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/TransformsRequest.php(21): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#37 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/TrimStrings.php(51): Illuminate\Foundation\Http\Middleware\TransformsRequest->handle()
+#38 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\TrimStrings->handle()
+#39 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/ValidatePostSize.php(27): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#40 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\ValidatePostSize->handle()
+#41 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/PreventRequestsDuringMaintenance.php(109): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#42 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance->handle()
+#43 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/HandleCors.php(61): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#44 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\HandleCors->handle()
+#45 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/TrustProxies.php(58): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#46 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\TrustProxies->handle()
+#47 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/InvokeDeferredCallbacks.php(22): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#48 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\InvokeDeferredCallbacks->handle()
+#49 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/ValidatePathEncoding.php(26): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#50 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\ValidatePathEncoding->handle()
+#51 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(137): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#52 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(175): Illuminate\Pipeline\Pipeline->then()
+#53 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(144): Illuminate\Foundation\Http\Kernel->sendRequestThroughRouter()
+#54 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Testing/Concerns/MakesHttpRequests.php(607): Illuminate\Foundation\Http\Kernel->handle()
+#55 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Testing/Concerns/MakesHttpRequests.php(368): Illuminate\Foundation\Testing\TestCase->call()
+#56 /home/runner/work/collegeerp/collegeerp/tests/Feature/HrReports/HrReportsTest.php(134): Illuminate\Foundation\Testing\TestCase->get()
+#57 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestCase.php(1667): Tests\Feature\HrReports\HrReportsTest->test_empty_and_invalid_filters_are_handled_gracefully()
+#58 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestCase.php(519): PHPUnit\Framework\TestCase->runTest()
+#59 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestRunner/TestRunner.php(87): PHPUnit\Framework\TestCase->runBare()
+#60 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestCase.php(365): PHPUnit\Framework\TestRunner->run()
+#61 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestSuite.php(369): PHPUnit\Framework\TestCase->run()
+#62 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestSuite.php(369): PHPUnit\Framework\TestSuite->run()
+#63 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/TextUI/TestRunner.php(64): PHPUnit\Framework\TestSuite->run()
+#64 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/TextUI/Application.php(211): PHPUnit\TextUI\TestRunner->run()
+#65 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/phpunit(104): PHPUnit\TextUI\Application->run()
+#66 {main}
+
+----------------------------------------------------------------------------------
+
+App\Domain\HR\Services\HrReportService::leaveDaysTotal(): Argument #2 ($facultyIds) must be of type Illuminate\Database\Eloquent\Builder, Illuminate\Database\Query\Builder given, called in /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php on line 301
+
+  at tests/Feature/HrReports/HrReportsTest.php:135
+    131▕             'documents' => 'No employee documents match these filters.',
+    132▕         ];
+    133▕         foreach ($empties as $report => $message) {
+    134▕             $this->get(route('hr-reports.index', ['report' => $report]))
+  ➜ 135▕                 ->assertOk()
+    136▕                 ->assertSee($message);
+    137▕         }
+    138▕ 
+    139▕         // Unknown vocabulary values are rejected, not silently applied.
+
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\HrReports\HrReportsTest > every report i…  TypeError   
+  Tests\Feature\HrReports\HrReportsTest::Tests\Feature\HrReports\{closure}(): Argument #1 ($rows) must be of type array, Illuminate\Database\Eloquent\Collection given, called in /home/runner/work/collegeerp/collegeerp/tests/Feature/HrReports/HrReportsTest.php on line 182
+
+  at tests/Feature/HrReports/HrReportsTest.php:179
+    175▕         $this->reporter($collegeB);
+    176▕ 
+    177▕         // The dropdowns only ever offer the active college's own rows.
+    178▕         $response = $this->get(route('hr-reports.index', ['report' => 'leave']))->assertOk();
+  ➜ 179▕         $ownIds = fn (array $rows) => collect($rows)->pluck('id')->sort()->values()->all();
+    180▕         $this->assertSame(
+    181▕             $ownIds([$worldA['employee']->id, $worldA['second']->id, $worldA['inactive']->id]),
+    182▕             $ownIds($response->viewData('employees'))
+    183▕         );
+
+  1   tests/Feature/HrReports/HrReportsTest.php:179
+  2   tests/Feature/HrReports/HrReportsTest.php:182
+
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\HrReports\HrReportsTest > fil…  AssertionFailedError   
+  The response is not a view.
+
+  at tests/Feature/HrReports/HrReportsTest.php:277
+    273▕             ->assertViewHas('rows', fn ($rows) => $rows->total() === 0);
+    274▕ 
+    275▕         // Leave balance: employee, department and a period.
+    276▕         $this->get(route('hr-reports.index', ['report' => 'leave_balance', 'faculty_id' => $employee->id]))
+  ➜ 277▕             ->assertViewHas('rows', fn ($rows) => $rows->total() === 1);
+    278▕         $this->get(route('hr-reports.index', ['report' => 'leave_balance', 'department_id' => $world['department']->id]))
+    279▕             ->assertViewHas('rows', fn ($rows) => $rows->total() === 2);
+    280▕         $this->get(route('hr-reports.index', ['report' => 'leave_balance', 'from' => '2026-09-01', 'to' => '2026-09-30']))
+    281▕             ->assertViewHas('totals', fn ($totals) => $totals['approved_days'] === 3.0 && $totals['pending_days'] === 2.0);
+
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\HrReports\HrReportsTest > report figures reconcile…    
+  Failed asserting that the value at [totals] fulfills the expectations defined by the closure.
+Failed asserting that false is true.
+
+  at tests/Feature/HrReports/HrReportsTest.php:341
+    337▕             });
+    338▕ 
+    339▕         // Designation-wise headcount.
+    340▕         $this->get(route('hr-reports.index', ['report' => 'designation']))
+  ➜ 341▕             ->assertViewHas('totals', fn ($totals) => $totals['designations'] === 2
+    342▕                 && $totals['staff'] === 1
+    343▕                 && $totals['unassigned'] === 2);
+    344▕ 
+    345▕         // Attendance counts and the rate over recorded working days.
+
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\HrReports\HrReportsTest > sof…  AssertionFailedError   
+  The response is not a view.
+
+  at tests/Feature/HrReports/HrReportsTest.php:437
+    433▕         $this->get(route('hr-reports.index', ['report' => 'documents']))
+    434▕             ->assertViewHas('rows', fn ($rows) => $rows->total() === 4)
+    435▕             ->assertDontSee('Old Paper');
+    436▕         $this->get(route('hr-reports.index', ['report' => 'leave_balance']))
+  ➜ 437▕             ->assertViewHas('totals', fn ($totals) => $totals['employees'] === 3);
+    438▕ 
+    439▕         // A soft-deleted attendance row, document and leave request disappear.
+    440▕         $attendance = StaffAttendance::query()->where('faculty_id', $world['employee']->id)->firstOrFail();
+    441▕         $attendance->delete();
+
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\HrReports\HrReportsTest > report routes never write…   
+  Expected response status code [200] but received 500.
+Failed asserting that 500 is identical to 200.
+
+The following exception occurred during the last request:
+
+TypeError: App\Domain\HR\Services\HrReportService::leaveDaysTotal(): Argument #2 ($facultyIds) must be of type Illuminate\Database\Eloquent\Builder, Illuminate\Database\Query\Builder given, called in /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php on line 301 and defined in /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php:643
+Stack trace:
+#0 /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php(301): App\Domain\HR\Services\HrReportService->leaveDaysTotal()
+#1 /home/runner/work/collegeerp/collegeerp/app/Http/Controllers/HrReportController.php(94): App\Domain\HR\Services\HrReportService->leaveBalance()
+#2 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/ControllerDispatcher.php(46): App\Http\Controllers\HrReportController->index()
+#3 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Route.php(265): Illuminate\Routing\ControllerDispatcher->dispatch()
+#4 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Route.php(211): Illuminate\Routing\Route->runController()
+#5 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(822): Illuminate\Routing\Route->run()
+#6 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(180): Illuminate\Routing\Router->Illuminate\Routing\{closure}()
+#7 /home/runner/work/collegeerp/collegeerp/app/Http/Middleware/EnsureTenantAccess.php(14): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#8 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): App\Http\Middleware\EnsureTenantAccess->handle()
+#9 /home/runner/work/collegeerp/collegeerp/app/Http/Middleware/ResolveTenant.php(52): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#10 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): App\Http\Middleware\ResolveTenant->handle()
+#11 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Middleware/SubstituteBindings.php(50): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#12 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Routing\Middleware\SubstituteBindings->handle()
+#13 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Auth/Middleware/Authenticate.php(63): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#14 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Auth\Middleware\Authenticate->handle()
+#15 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/VerifyCsrfToken.php(87): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#16 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\VerifyCsrfToken->handle()
+#17 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/View/Middleware/ShareErrorsFromSession.php(48): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#18 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\View\Middleware\ShareErrorsFromSession->handle()
+#19 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Session/Middleware/StartSession.php(120): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#20 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Session/Middleware/StartSession.php(63): Illuminate\Session\Middleware\StartSession->handleStatefulRequest()
+#21 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Session\Middleware\StartSession->handle()
+#22 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Cookie/Middleware/AddQueuedCookiesToResponse.php(36): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#23 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse->handle()
+#24 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Cookie/Middleware/EncryptCookies.php(74): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#25 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Cookie\Middleware\EncryptCookies->handle()
+#26 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(137): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#27 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(821): Illuminate\Pipeline\Pipeline->then()
+#28 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(800): Illuminate\Routing\Router->runRouteWithinStack()
+#29 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(764): Illuminate\Routing\Router->runRoute()
+#30 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(753): Illuminate\Routing\Router->dispatchToRoute()
+#31 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(200): Illuminate\Routing\Router->dispatch()
+#32 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(180): Illuminate\Foundation\Http\Kernel->Illuminate\Foundation\Http\{closure}()
+#33 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/TransformsRequest.php(21): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#34 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/ConvertEmptyStringsToNull.php(31): Illuminate\Foundation\Http\Middleware\TransformsRequest->handle()
+#35 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull->handle()
+#36 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/TransformsRequest.php(21): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#37 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/TrimStrings.php(51): Illuminate\Foundation\Http\Middleware\TransformsRequest->handle()
+#38 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\TrimStrings->handle()
+#39 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/ValidatePostSize.php(27): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#40 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\ValidatePostSize->handle()
+#41 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/PreventRequestsDuringMaintenance.php(109): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#42 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance->handle()
+#43 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/HandleCors.php(61): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#44 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\HandleCors->handle()
+#45 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/TrustProxies.php(58): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#46 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\TrustProxies->handle()
+#47 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/InvokeDeferredCallbacks.php(22): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#48 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\InvokeDeferredCallbacks->handle()
+#49 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/ValidatePathEncoding.php(26): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#50 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\ValidatePathEncoding->handle()
+#51 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(137): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#52 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(175): Illuminate\Pipeline\Pipeline->then()
+#53 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(144): Illuminate\Foundation\Http\Kernel->sendRequestThroughRouter()
+#54 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Testing/Concerns/MakesHttpRequests.php(607): Illuminate\Foundation\Http\Kernel->handle()
+#55 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Testing/Concerns/MakesHttpRequests.php(368): Illuminate\Foundation\Testing\TestCase->call()
+#56 /home/runner/work/collegeerp/collegeerp/tests/Feature/HrReports/HrReportsTest.php(527): Illuminate\Foundation\Testing\TestCase->get()
+#57 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestCase.php(1667): Tests\Feature\HrReports\HrReportsTest->test_report_routes_never_write_and_expose_only_get()
+#58 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestCase.php(519): PHPUnit\Framework\TestCase->runTest()
+#59 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestRunner/TestRunner.php(87): PHPUnit\Framework\TestCase->runBare()
+#60 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestCase.php(365): PHPUnit\Framework\TestRunner->run()
+#61 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestSuite.php(369): PHPUnit\Framework\TestCase->run()
+#62 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestSuite.php(369): PHPUnit\Framework\TestSuite->run()
+#63 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/TextUI/TestRunner.php(64): PHPUnit\Framework\TestSuite->run()
+#64 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/TextUI/Application.php(211): PHPUnit\TextUI\TestRunner->run()
+#65 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/phpunit(104): PHPUnit\TextUI\Application->run()
+#66 {main}
+
+----------------------------------------------------------------------------------
+
+App\Domain\HR\Services\HrReportService::leaveDaysTotal(): Argument #2 ($facultyIds) must be of type Illuminate\Database\Eloquent\Builder, Illuminate\Database\Query\Builder given, called in /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php on line 301
+
+  at tests/Feature/HrReports/HrReportsTest.php:527
+    523▕ 
+    524▕         $before = $this->snapshot();
+    525▕ 
+    526▕         foreach (array_keys(HrReportController::REPORTS) as $report) {
+  ➜ 527▕             $this->get(route('hr-reports.index', ['report' => $report]))->assertOk();
+    528▕         }
+    529▕         $this->assertSame($before, $this->snapshot(), 'Reading the reports must not change a single record.');
+    530▕ 
+    531▕         // The module owns exactly one route, and it is a read.
+
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\HrReports\HrReportsTest > query count does not grow…   
+  Expected response status code [200] but received 500.
+Failed asserting that 500 is identical to 200.
+
+The following exception occurred during the last request:
+
+TypeError: App\Domain\HR\Services\HrReportService::leaveDaysTotal(): Argument #2 ($facultyIds) must be of type Illuminate\Database\Eloquent\Builder, Illuminate\Database\Query\Builder given, called in /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php on line 301 and defined in /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php:643
+Stack trace:
+#0 /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php(301): App\Domain\HR\Services\HrReportService->leaveDaysTotal()
+#1 /home/runner/work/collegeerp/collegeerp/app/Http/Controllers/HrReportController.php(94): App\Domain\HR\Services\HrReportService->leaveBalance()
+#2 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/ControllerDispatcher.php(46): App\Http\Controllers\HrReportController->index()
+#3 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Route.php(265): Illuminate\Routing\ControllerDispatcher->dispatch()
+#4 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Route.php(211): Illuminate\Routing\Route->runController()
+#5 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(822): Illuminate\Routing\Route->run()
+#6 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(180): Illuminate\Routing\Router->Illuminate\Routing\{closure}()
+#7 /home/runner/work/collegeerp/collegeerp/app/Http/Middleware/EnsureTenantAccess.php(14): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#8 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): App\Http\Middleware\EnsureTenantAccess->handle()
+#9 /home/runner/work/collegeerp/collegeerp/app/Http/Middleware/ResolveTenant.php(52): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#10 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): App\Http\Middleware\ResolveTenant->handle()
+#11 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Middleware/SubstituteBindings.php(50): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#12 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Routing\Middleware\SubstituteBindings->handle()
+#13 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Auth/Middleware/Authenticate.php(63): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#14 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Auth\Middleware\Authenticate->handle()
+#15 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/VerifyCsrfToken.php(87): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#16 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\VerifyCsrfToken->handle()
+#17 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/View/Middleware/ShareErrorsFromSession.php(48): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#18 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\View\Middleware\ShareErrorsFromSession->handle()
+#19 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Session/Middleware/StartSession.php(120): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#20 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Session/Middleware/StartSession.php(63): Illuminate\Session\Middleware\StartSession->handleStatefulRequest()
+#21 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Session\Middleware\StartSession->handle()
+#22 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Cookie/Middleware/AddQueuedCookiesToResponse.php(36): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#23 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse->handle()
+#24 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Cookie/Middleware/EncryptCookies.php(74): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#25 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Cookie\Middleware\EncryptCookies->handle()
+#26 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(137): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#27 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(821): Illuminate\Pipeline\Pipeline->then()
+#28 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(800): Illuminate\Routing\Router->runRouteWithinStack()
+#29 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(764): Illuminate\Routing\Router->runRoute()
+#30 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Routing/Router.php(753): Illuminate\Routing\Router->dispatchToRoute()
+#31 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(200): Illuminate\Routing\Router->dispatch()
+#32 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(180): Illuminate\Foundation\Http\Kernel->Illuminate\Foundation\Http\{closure}()
+#33 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/TransformsRequest.php(21): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#34 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/ConvertEmptyStringsToNull.php(31): Illuminate\Foundation\Http\Middleware\TransformsRequest->handle()
+#35 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull->handle()
+#36 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/TransformsRequest.php(21): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#37 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/TrimStrings.php(51): Illuminate\Foundation\Http\Middleware\TransformsRequest->handle()
+#38 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\TrimStrings->handle()
+#39 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/ValidatePostSize.php(27): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#40 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\ValidatePostSize->handle()
+#41 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/PreventRequestsDuringMaintenance.php(109): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#42 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance->handle()
+#43 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/HandleCors.php(61): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#44 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\HandleCors->handle()
+#45 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/TrustProxies.php(58): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#46 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\TrustProxies->handle()
+#47 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/InvokeDeferredCallbacks.php(22): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#48 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Foundation\Http\Middleware\InvokeDeferredCallbacks->handle()
+#49 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Http/Middleware/ValidatePathEncoding.php(26): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#50 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(219): Illuminate\Http\Middleware\ValidatePathEncoding->handle()
+#51 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(137): Illuminate\Pipeline\Pipeline->Illuminate\Pipeline\{closure}()
+#52 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(175): Illuminate\Pipeline\Pipeline->then()
+#53 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(144): Illuminate\Foundation\Http\Kernel->sendRequestThroughRouter()
+#54 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Testing/Concerns/MakesHttpRequests.php(607): Illuminate\Foundation\Http\Kernel->handle()
+#55 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Foundation/Testing/Concerns/MakesHttpRequests.php(368): Illuminate\Foundation\Testing\TestCase->call()
+#56 /home/runner/work/collegeerp/collegeerp/tests/Feature/HrReports/HrReportsTest.php(632): Illuminate\Foundation\Testing\TestCase->get()
+#57 /home/runner/work/collegeerp/collegeerp/tests/Feature/HrReports/HrReportsTest.php(565): Tests\Feature\HrReports\HrReportsTest->queryLogFor()
+#58 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Collections/Arr.php(868): Tests\Feature\HrReports\HrReportsTest->Tests\Feature\HrReports\{closure}()
+#59 /home/runner/work/collegeerp/collegeerp/vendor/laravel/framework/src/Illuminate/Collections/Collection.php(877): Illuminate\Support\Arr::mapWithKeys()
+#60 /home/runner/work/collegeerp/collegeerp/tests/Feature/HrReports/HrReportsTest.php(565): Illuminate\Support\Collection->mapWithKeys()
+#61 /home/runner/work/collegeerp/collegeerp/tests/Feature/HrReports/HrReportsTest.php(567): Tests\Feature\HrReports\HrReportsTest->Tests\Feature\HrReports\{closure}()
+#62 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestCase.php(1667): Tests\Feature\HrReports\HrReportsTest->test_query_count_does_not_grow_with_rows_on_any_report()
+#63 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestCase.php(519): PHPUnit\Framework\TestCase->runTest()
+#64 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestRunner/TestRunner.php(87): PHPUnit\Framework\TestCase->runBare()
+#65 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestCase.php(365): PHPUnit\Framework\TestRunner->run()
+#66 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestSuite.php(369): PHPUnit\Framework\TestCase->run()
+#67 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/Framework/TestSuite.php(369): PHPUnit\Framework\TestSuite->run()
+#68 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/TextUI/TestRunner.php(64): PHPUnit\Framework\TestSuite->run()
+#69 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/src/TextUI/Application.php(211): PHPUnit\TextUI\TestRunner->run()
+#70 /home/runner/work/collegeerp/collegeerp/vendor/phpunit/phpunit/phpunit(104): PHPUnit\TextUI\Application->run()
+#71 {main}
+
+----------------------------------------------------------------------------------
+
+App\Domain\HR\Services\HrReportService::leaveDaysTotal(): Argument #2 ($facultyIds) must be of type Illuminate\Database\Eloquent\Builder, Illuminate\Database\Query\Builder given, called in /home/runner/work/collegeerp/collegeerp/app/Domain/HR/Services/HrReportService.php on line 301
+
+  at tests/Feature/HrReports/HrReportsTest.php:632
+    628▕     {
+    629▕         DB::enableQueryLog();
+    630▕         try {
+    631▕             DB::flushQueryLog();
+  ➜ 632▕             $this->get($url)->assertOk();
+    633▕ 
+    634▕             return array_map(fn (array $entry) => (string) $entry['query'], DB::getQueryLog());
+    635▕         } finally {
+    636▕             DB::disableQueryLog();
+
+  1   tests/Feature/HrReports/HrReportsTest.php:565
+      [2m+2 vendor frames [22m
+  4   tests/Feature/HrReports/HrReportsTest.php:565
+
+
+  Tests:    8 failed, 2 passed (102 assertions)
+  Duration: 4.68s
+
