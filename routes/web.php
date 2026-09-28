@@ -40,6 +40,7 @@ use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\FeeReceiptController;
 use App\Http\Controllers\FeeRefundController;
 use App\Http\Controllers\FeeReportController;
+use App\Http\Controllers\FinanceReportController;
 use App\Http\Controllers\FeeStructureController;
 use App\Http\Controllers\StudentFeeAssignmentController;
 use App\Http\Controllers\GradeCardController;
@@ -220,6 +221,11 @@ Route::middleware('auth')->group(function () {
 
         // REPORTS — Examination Reports: read-only views over existing Examination/Result data. GET only.
         Route::get('examination-reports', [ExaminationReportController::class, 'index'])->name('examination-reports.index');
+
+        // REPORTS — Finance Reports: read-only views over the existing Finance / Fees
+        // records (and the Transport / Hostel fee assignments that share the same
+        // payment rows). Aggregated live — no report tables, no write routes.
+        Route::get('finance-reports', [FinanceReportController::class, 'index'])->name('finance-reports.index');
 
         Route::get('admission-reports', [AdmissionReportController::class, 'index'])->name('admission-reports.index');
         // Academics is operational only: all master data remains in Platform/Students.
