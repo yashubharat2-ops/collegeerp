@@ -156,7 +156,6 @@ Route::middleware('auth')->group(function () {
         Route::resource('salary-components', SalaryComponentController::class)->except('show');
         Route::post('payrolls/{payroll}/cancel', [PayrollController::class, 'cancel'])->name('payrolls.cancel');
         Route::resource('payrolls', PayrollController::class)->only(['index', 'create', 'store', 'show']);
-        Route::get('hr-reports', [HrReportController::class, 'index'])->name('hr-reports.index');
 
         Route::resource('faculty-subject-assignments', FacultySubjectAssignmentController::class)->except('show');
         Route::get('admission/dashboard', AdmissionDashboardController::class)->name('admission.dashboard');
@@ -226,6 +225,11 @@ Route::middleware('auth')->group(function () {
         // records (and the Transport / Hostel fee assignments that share the same
         // payment rows). Aggregated live — no report tables, no write routes.
         Route::get('finance-reports', [FinanceReportController::class, 'index'])->name('finance-reports.index');
+
+        // REPORTS — HR Reports: read-only views over the existing staff / employee,
+        // department, designation, employee document, staff attendance, leave and
+        // payroll records. Aggregated live — no report tables, no write routes.
+        Route::get('hr-reports', [HrReportController::class, 'index'])->name('hr-reports.index');
 
         Route::get('admission-reports', [AdmissionReportController::class, 'index'])->name('admission-reports.index');
         // Academics is operational only: all master data remains in Platform/Students.
