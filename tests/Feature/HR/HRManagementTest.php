@@ -121,7 +121,7 @@ class HRManagementTest extends TestCase
         }
     }
 
-    public function test_hr_navigation_exposes_all_eight_options_only_with_actual_view_permissions(): void
+    public function test_hr_navigation_exposes_all_module_options_only_with_actual_view_permissions(): void
     {
         $college = $this->makeCollege('HREIGHT');
         $user = $this->makeUserWithPermissions($college, [
@@ -134,11 +134,26 @@ class HRManagementTest extends TestCase
         $this->assertNotFalse($start);
         $end = strpos($html, 'uppercase tracking-widest', $start + 1);
         $group = substr($html, $start, $end === false ? null : $end - $start);
-        $this->assertSame(8, substr_count($group, 'class="nav-link"'));
-        foreach (['Staff / Employee', 'Staff Departments', 'Designations', 'Employee Documents', 'Staff Attendance', 'Leave Management', 'Staff Salary / Payroll', 'HR Reports'] as $label) {
+
+        // HR Reports lives under REPORTS (after Finance Reports), so the HR
+        // group keeps its seven operational entries and never repeats it.
+        $this->assertSame(7, substr_count($group, 'class="nav-link"'));
+        foreach (['Staff / Employee', 'Staff Departments', 'Designations', 'Employee Documents', 'Staff Attendance', 'Leave Management', 'Staff Salary / Payroll'] as $label) {
             $this->assertStringContainsString($label, $group);
         }
+        $this->assertStringNotContainsString('HR Reports', $group);
         $this->assertStringNotContainsString('employees.', $group);
+
+        // The REPORTS section now carries HR Reports, and only that entry: the
+        // other report links stay behind their own view permissions.
+        $reports = strpos($html, '>REPORTS<');
+        $this->assertNotFalse($reports);
+        $platform = strpos($html, '>Platform<', (int) $reports);
+        $menu = substr($html, $reports, $platform - $reports);
+        $this->assertSame(1, substr_count($menu, 'class="nav-link"'));
+        $this->assertStringContainsString('HR Reports', $menu);
+        $this->assertStringNotContainsString('Finance Reports', $menu);
+        $this->assertStringNotContainsString('Student Reports', $menu);
     }
 
 }
