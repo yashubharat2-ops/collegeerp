@@ -92,6 +92,9 @@ class InventoryNavigationTest extends TestCase
 
     private const HEADING = '>Inventory / Asset Management</div>';
 
+    /** Any sidebar section heading (they share the uppercase heading styling). */
+    private const SECTION_HEADING_PATTERN = '/<div class="[^"]*\buppercase tracking-widest\b[^"]*">/';
+
     private function href(string $routeName): string
     {
         return 'href="'.route($routeName).'"';
@@ -104,12 +107,13 @@ class InventoryNavigationTest extends TestCase
         $this->assertNotFalse($start, 'Missing Inventory / Asset Management heading.');
 
         $after = $start + strlen(self::HEADING);
-        // Next uppercase section heading ends the group; Platform is the
-        // trailing section used by the layout so that is a safe anchor.
-        $platform = strpos($html, '>Platform</div>', $after);
-        $this->assertNotFalse($platform, 'Platform section must follow Inventory.');
+        // The group ends at the NEXT sidebar section heading, whichever it is
+        // (e.g. REPORTS, when the user may see it, or Platform). Slicing up to
+        // Platform would wrongly count the REPORTS links as Inventory entries.
+        $matched = preg_match(self::SECTION_HEADING_PATTERN, $html, $next, PREG_OFFSET_CAPTURE, $after);
+        $this->assertSame(1, $matched, 'Another sidebar section must follow Inventory.');
 
-        return substr($html, $after, $platform - $after);
+        return substr($html, $after, $next[0][1] - $after);
     }
 
     public function test_the_inventory_section_lists_exactly_the_17_entries_in_order(): void
