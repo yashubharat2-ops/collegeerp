@@ -1,0 +1,25 @@
+
+   PASS  Tests\Feature\HR\EmployeeDocumentTest
+  ✓ employee document upload download and delete are audited             0.67s  
+  ✓ employee documents are tenant and permission safe                    0.19s  
+
+   PASS  Tests\Feature\HR\HRManagementTest
+  ✓ designation and employee crud reuse tenant department records        0.20s  
+  ✓ employee code and designation code are tenant scoped and duplicate…  0.19s  
+  ✓ hr navigation shows only the granted permission gated options        0.24s  
+  ✓ hr navigation exposes all eight options only with actual view permi… 0.24s  
+
+   PASS  Tests\Feature\HR\HRModuleSeederTest
+  ✓ hr permissions are seeded once and granted to the college admin      0.18s  
+  ✓ seeding again does not duplicate hr permission or rbac rows          0.30s  
+
+   PASS  Tests\Feature\HR\HRPhaseOneModulesTest
+  ✓ staff attendance is tenant scoped correctable and duplicate safe     0.34s  
+  ✓ staff attendance rbac blocks mutation without create permission      0.18s  
+  ✓ leave requests validate dates and prevent approved overlap           0.20s  
+  ✓ payroll calculates monthly money and rejects duplicate period        0.19s  
+  ✓ hr reports are live filtered read only summaries                     0.26s  
+
+  Tests:    13 passed (187 assertions)
+  Duration: 3.44s
+

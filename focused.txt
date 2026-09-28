@@ -1,0 +1,42 @@
+
+   FAIL  Tests\Feature\HrReports\HrReportsTest
+  ✓ the view permission is required and separate from hr permissions     1.31s  
+  ✓ the eight reports are listed in order and the sidebar entry is gate… 0.40s  
+  ✓ empty and invalid filters are handled gracefully                     1.06s  
+  ⨯ every report is tenant scoped even with foreign filter ids           0.28s  
+  ✓ filters read the existing hr relationships                           2.68s  
+  ✓ report figures reconcile with the existing records                   0.92s  
+  ✓ soft deleted and inactive records are respected                      0.92s  
+  ✓ lists paginate deterministically and keep filters                    0.51s  
+  ✓ report routes never write and expose only get                        1.96s  
+  ✓ query count does not grow with rows on any report                    2.36s  
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\HrReports\HrReportsTest > every report is tenant sc…   
+  Failed asserting that two arrays are identical.
+   Array &0 [
+  -    0 => 1,
+  -    1 => 2,
+  -    2 => 3,
+  +    0 => 4,
+  +    1 => 5,
+  +    2 => 6,
+   ]
+  
+
+  at tests/Feature/HrReports/HrReportsTest.php:183
+    179▕ 
+    180▕         // The dropdowns only ever offer the active college's own rows.
+    181▕         $response = $this->get(route('hr-reports.index', ['report' => 'leave']))->assertOk();
+    182▕         $ownIds = fn ($rows) => collect($rows)->map(fn ($row) => is_object($row) ? $row->id : $row)->sort()->values()->all();
+  ➜ 183▕         $this->assertSame(
+    184▕             $ownIds([$worldA['employee']->id, $worldA['second']->id, $worldA['inactive']->id]),
+    185▕             $ownIds($response->viewData('employees'))
+    186▕         );
+    187▕         $this->assertSame(
+
+  1   tests/Feature/HrReports/HrReportsTest.php:183
+
+
+  Tests:    1 failed, 9 passed (240 assertions)
+  Duration: 12.44s
+

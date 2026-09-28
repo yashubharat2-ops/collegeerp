@@ -1,0 +1,310 @@
+
+   PASS  Tests\Feature\StudentReports\StudentReportsTest
+  ✓ single read only permission protects all views and appears only for… 1.79s  
+  ✓ empty results and invalid filters are handled without invented cate… 1.09s  
+  ✓ every report and detail is tenant scoped even with foreign filter i… 1.47s  
+  ✓ academic filters use one matching enrollment and strength and new o… 0.76s  
+  ✓ student and enrollment status filters are independent                0.53s  
+  ✓ strength and new old do not double count repeat enrollments of a st… 0.33s  
+  ✓ official admissions link only converted students and filter by stat… 0.46s  
+  ✓ gender documents promotion transfer and derived history filters use… 0.95s  
+  ✓ student list paginates deterministically and report routes never wr… 1.56s  
+  ✓ student list eager loads enrollments for the page in one query       0.27s  
+
+   PASS  Tests\Feature\AcademicReports\AcademicReportsTest
+  ✓ single read only permission protects every view and controls the re… 1.13s  
+  ✓ reports menu stays after inventory with student then academic repor… 0.25s  
+  ✓ empty results and invalid filters are handled gracefully             1.17s  
+  ✓ every report is tenant scoped even with foreign filter ids           5.08s  
+  ✓ enrollment strength and subject wise reports use existing relations… 1.07s  
+  ✓ faculty timetable and workload reports follow assignments and activ… 0.92s  
+  ✓ attendance register summary and calendar filters                     1.13s  
+  ✓ filters not applicable to a report are ignored                       0.41s  
+  ✓ lists paginate deterministically and keep filters in links           0.50s  
+  ✓ report routes never write and expose only get                        1.26s  
+  ✓ query count does not grow with rows on any report                    1.60s  
+
+   PASS  Tests\Feature\ExaminationReports\ExaminationReportsTest
+  ✓ single read only permission protects every view and controls the re… 1.48s  
+  ✓ reports menu stays after inventory with student academic then exami… 0.25s  
+  ✓ empty results and invalid filters are handled gracefully             1.30s  
+  ✓ every report is tenant scoped even with foreign filter ids           7.20s  
+  ✓ filters read existing examination and result relationships           3.16s  
+  ✓ published only rule and soft deleted rows are respected              1.33s  
+  ✓ lists paginate deterministically and keep filters                    0.62s  
+  ✓ report routes never write and expose only get                        1.63s  
+  ✓ query count does not grow with rows on any report                    2.23s  
+
+   PASS  Tests\Feature\Finance\FeeCategoryManagementTest
+  ✓ a category can be created and listed                                 0.26s  
+  ✓ the college id and audit columns cannot be forged                    0.18s  
+  ✓ a duplicate active code is rejected within a college                 0.19s  
+  ✓ the same code may be used by two colleges                            0.18s  
+  ✓ a code freed by a soft deleted category can be reused                0.18s  
+  ✓ validation rejects incomplete payloads                               0.18s  
+  ✓ a category can be updated and deleted                                0.18s  
+  ✓ categories of another college can never be reached                   0.25s  
+  ✓ the module is permission gated                                       0.27s  
+  ✓ deleting a category does not break linked fee components             0.18s  
+  ✓ a fee component can only reference a category of its own college     0.18s  
+  ✓ custom events are audited                                            0.19s  
+
+   PASS  Tests\Feature\Finance\FeeCollectionTest
+  ✓ a collection is recorded with a server generated payment number      0.20s  
+  ✓ payment numbers are unique per college                               0.18s  
+  ✓ an amount above the outstanding balance is rejected                  0.19s  
+  ✓ a non positive amount is rejected                                    0.19s  
+  ✓ concessions and refunds move the collection ceiling                  0.20s  
+  ✓ a duplicate reference of the same amount and date is rejected        0.20s  
+  ✓ a resubmitted form cannot record the same collection twice           0.20s  
+  ✓ the submission token is only unique inside a college                 0.19s  
+  ✓ a cancelled payment stops counting towards the collected amount      0.20s  
+  ✓ the collected amount cannot be rewritten by an update                0.19s  
+  ✓ a payment with refunds cannot be cancelled or deleted                0.19s  
+  ✓ a collection can only be made against a payable assignment of the s… 0.20s  
+  ✓ another colleges payments can never be reached                       0.29s  
+  ✓ a deleted payment stops counting towards the collected amount        0.19s  
+  ✓ the module requires its permissions                                  0.20s  
+
+   PASS  Tests\Feature\Finance\FeeConcessionTest
+  ✓ a fixed concession is recorded with the submitted money value        0.19s  
+  ✓ a percentage concession amount is computed server side               0.19s  
+  ✓ invalid values are rejected                                          0.19s  
+  ✓ a concession can never exceed the applicable fee                     0.20s  
+  ✓ approval is server controlled and audited                            0.19s  
+  ✓ changing the amount sends an approved concession back to pending     0.19s  
+  ✓ a rejected or cancelled concession cannot be approved                0.18s  
+  ✓ approval needs the approve permission                                0.28s  
+  ✓ a concession is deleted softly and keeps the history                 0.19s  
+  ✓ another colleges concession can never be reached                     0.28s  
+  ✓ a cancelled assignment cannot receive a concession                   0.19s  
+
+   PASS  Tests\Feature\Finance\FeeDueOutstandingTest
+  ✓ the outstanding amount is derived from the transactions              0.19s  
+  ✓ the screen shows the ledger columns and totals                       0.26s  
+  ✓ a concession lowers the outstanding amount                           0.18s  
+  ✓ rejected and cancelled concessions do not lower the outstanding amo… 0.19s  
+  ✓ cancelled payments are excluded and refunds re open the balance      0.19s  
+  ✓ rejected and cancelled refunds stop reducing the collected amount    0.19s  
+  ✓ the due status filter separates paid partial and due rows            0.20s  
+  ✓ the screen can be filtered by student program and structure          0.42s  
+  ✓ pagination is deterministic                                          0.35s  
+  ✓ the screen never shows another colleges assignments                  0.27s  
+  ✓ the screen is read only                                              0.41s  
+  ✓ the module requires its permission                                   0.19s  
+  ✓ an over collection is impossible so outstanding never goes negative  0.19s  
+  ✓ the ledger totals match the per row summaries                        0.19s  
+
+   PASS  Tests\Feature\Finance\FeeReceiptTest
+  ✓ a receipt is rendered for a successful collection                    0.27s  
+  ✓ the receipt number is the payment number                             0.19s  
+  ✓ a cancelled payment never produces a receipt                         0.27s  
+  ✓ printing is a separate permission                                    0.26s  
+  ✓ the print page is print friendly                                     0.26s  
+  ✓ the receipt list only shows successful collections                   0.34s  
+  ✓ another colleges payment never renders a receipt                     0.27s  
+  ✓ the module requires its permissions                                  0.20s  
+
+   PASS  Tests\Feature\Finance\FeeRefundTest
+  ✓ a refund is recorded against a completed payment                     0.19s  
+  ✓ a refund can never exceed the refundable amount of its payment       0.21s  
+  ✓ a rejected refund frees the refundable amount again                  0.19s  
+  ✓ a cancelled payment is never refundable                              0.20s  
+  ✓ only an approved refund can be processed                             0.20s  
+  ✓ editing the amount sends the refund back to pending                  0.19s  
+  ✓ a processed refund can no longer be edited                           0.19s  
+  ✓ a refund moves the outstanding balance and the net collected amount  0.19s  
+  ✓ another colleges payment can never be refunded                       0.28s  
+  ✓ there is no way to delete a refund                                   0.32s  
+  ✓ the module requires its permissions                                  0.20s  
+
+   PASS  Tests\Feature\Finance\FeeReportTest
+  ✓ the collection summary counts completed payments only                0.20s  
+  ✓ the collection summary honours the date and mode filters             0.20s  
+  ✓ the due summary agrees with the ledger totals                        0.20s  
+  ✓ the program wise report groups the ledger by program                 0.20s  
+  ✓ the payment mode report is ordered by amount collected               0.19s  
+  ✓ the date wise report groups by payment date newest first             0.20s  
+  ✓ the student fee report paginates deterministically                   0.25s  
+  ✓ the reports screen renders every report                              0.71s  
+  ✓ the reports are tenant scoped                                        0.21s  
+  ✓ the screen requires the report permission                            0.20s  
+  ✓ an unknown report falls back to the collection summary               0.27s  
+
+   PASS  Tests\Feature\Finance\FeeStructureAuthorizationTest
+  ✓ index requires the view permission                                   0.19s  
+  ✓ create page and store require the create permission                  0.18s  
+  ✓ edit and update require the update permission                        0.19s  
+  ✓ delete requires the delete permission                                0.18s  
+  ✓ a user without any fee permission cannot reach any action            0.19s  
+  ✓ guests are redirected to login                                       0.18s  
+  ✓ super admin can manage fee structures                                0.26s  
+  ✓ one permission never implies another                                 0.42s  
+
+   PASS  Tests\Feature\Finance\FeeStructureManagementTest
+  ✓ index lists only the structures of the active college                0.26s  
+  ✓ index shows the fee components and their total                       0.25s  
+  ✓ index filters by search year program and status                      0.47s  
+  ✓ fee structure can be created with its fee components                 0.18s  
+  ✓ optional term may be omitted for a whole year plan                   0.18s  
+  ✓ browser supplied college id is ignored on create                     0.19s  
+  ✓ create page is reachable with create permission                      0.24s  
+  ✓ code must be unique within college year and program                  0.18s  
+  ✓ same code may be used for another program year or college            0.20s  
+  ✓ code can be reused after a structure is deleted                      0.19s  
+  ✓ amount must not be negative                                          0.18s  
+  ✓ zero amount is allowed                                               0.18s  
+  ✓ fee head model refuses a negative amount                             0.18s  
+  ✓ at least one fee component is required                               0.18s  
+  ✓ fee component names must be unique inside one structure              0.18s  
+  ✓ fee component name is required and trimmed                           0.19s  
+  ✓ structure and its fee components can be updated                      0.19s  
+  ✓ update ignores a code of another structure                           0.19s  
+  ✓ edit page is reachable with update permission and shows fee compone… 0.25s  
+  ✓ delete soft deletes the structure and removes its fee components     0.25s  
+  ✓ fee structure lifecycle is audit logged                              0.20s  
+  ✓ no structure is created when validation fails                        0.18s  
+
+   PASS  Tests\Feature\Finance\FeeStructureNavigationTest
+  ✓ the finance section lists every module entry                         0.26s  
+  ✓ each entry is gated on its own view permission                       0.24s  
+  ✓ the section is hidden without any finance permission                 0.24s  
+  ✓ the section does not disturb the examinations group                  0.20s  
+  ✓ a seeded college admin sees every finance entry                      0.86s  
+
+   PASS  Tests\Feature\Finance\FeeStructureTenancyTest
+  ✓ structures and their fee components are scoped per college           0.18s  
+  ✓ a foreign structure cannot be edited updated or deleted              0.18s  
+  ✓ cross college academic masters are rejected                          0.19s  
+  ✓ term must belong to the selected academic year                       0.18s  
+  ✓ fee components of another structure cannot be attached               0.18s  
+  ✓ fee components of another college cannot be attached                 0.19s  
+  ✓ update cannot move a structure into another college                  0.18s  
+  ✓ permissions granted in another college do not authorise here         0.25s  
+  ✓ college membership is required even for a permitted user             0.18s  
+
+   PASS  Tests\Feature\Finance\FinanceFilterLayoutTest
+  ✓ the filter bar is a wrapping grid without fixed widths               0.48s  
+  ✓ the date range is a two column grid of shrinkable controls           0.48s  
+  ✓ the filter actions wrap in their own row next to the inputs          0.48s  
+  ✓ the date filters still render their values                           0.48s  
+
+   PASS  Tests\Feature\Finance\FinanceModuleSeederTest
+  ✓ every finance permission is seeded once                              0.18s  
+  ✓ previously seeded permissions remain intact                          0.17s  
+  ✓ seeding is idempotent                                                0.30s  
+  ✓ seeded roles hold every finance permission                           0.17s  
+  ✓ a seeded college admin can open every finance screen                 1.33s  
+  ✓ the seeded admin sees the finance section                            0.25s  
+
+   PASS  Tests\Feature\Finance\StudentFeeAssignmentTest
+  ✓ a fee structure can be assigned to an enrollment                     0.20s  
+  ✓ the assigned amount is computed server side and ignores the payload  0.19s  
+  ✓ the assignment keeps its amount when the fee structure changes late… 0.19s  
+  ✓ the same structure cannot be assigned twice to the same enrollment   0.19s  
+  ✓ a cancelled assignment no longer blocks re assignment                0.19s  
+  ✓ a structure from another academic year or program is rejected        0.19s  
+  ✓ an enrollment or structure of another college is rejected            0.19s  
+  ✓ a cancelled or withdrawn enrollment cannot be charged                0.18s  
+  ✓ the assignment cannot be re priced through an update                 0.19s  
+  ✓ cross tenant ids cannot be edited or deleted                         0.27s  
+  ✓ the module requires its permissions                                  0.18s  
+  ✓ an assignment is deleted softly and audited                          0.18s  
+  ✓ a structure without active components cannot be assigned             0.19s  
+
+   PASS  Tests\Feature\Communication\CircularTest
+  ✓ circulars are isolated per college                                   0.28s  
+  ✓ circular numbers are unique within a college only                    0.29s  
+  ✓ crud actions require the matching permission                         0.35s  
+  ✓ a circular can be created updated and deleted with server controlle… 0.40s  
+  ✓ the publish workflow follows the allowed transitions                 0.22s  
+  ✓ validation rejects invalid payloads                                  0.20s  
+  ✓ pagination is deterministic for identical issue dates                0.43s  
+  ✓ attachments are private authorized and traversal safe                0.22s  
+
+   PASS  Tests\Feature\Communication\CommunicationDashboardTest
+  ✓ the dashboard is permission gated                                    0.34s  
+  ✓ statistics are live and scoped to the active college                 0.33s  
+  ✓ the dashboard renders an empty college                               0.25s  
+
+   PASS  Tests\Feature\Communication\CommunicationLogTest
+  ✓ logs are isolated per college                                        0.25s  
+  ✓ viewing logs requires the log permission                             0.33s  
+  ✓ logs are immutable from the ui                                       0.17s  
+  ✓ a log is created with status handling and an audit entry             0.18s  
+  ✓ status transitions are validated idempotent and terminal             0.18s  
+  ✓ a log may reuse a template of the same college and channel only      0.18s  
+  ✓ the listing filters by channel status and search                     0.39s  
+  ✓ a log never lands in another college                                 0.17s  
+
+   PASS  Tests\Feature\Communication\CommunicationNavigationTest
+  ✓ the group lists exactly the eight communication entries in order     0.25s  
+  ✓ the group appears only with a relevant permission                    0.87s  
+  ✓ each entry is gated on its own permission                            0.74s  
+  ✓ super admin sees every entry through the centralized rbac            0.61s  
+  ✓ a seeded college admin sees every entry and can open each screen     1.16s  
+
+   PASS  Tests\Feature\Communication\CommunicationPhase2SeederTest
+  ✓ phase two permissions are seeded once and granted to both admin rol… 0.18s  
+  ✓ write permissions for logs tracking and reports are not seeded       0.17s  
+  ✓ seeding again does not duplicate permissions roles or grants         0.30s  
+  ✓ the standalone phase two seeder is idempotent and touches no grants  0.17s  
+
+   PASS  Tests\Feature\Communication\CommunicationReportTest
+  ✓ the report screen requires its own permission                        0.26s  
+  ✓ the report screen is read only                                       0.17s  
+  ✓ the summary counts live records of the active college only           0.26s  
+  ✓ the date filter narrows the figures                                  0.33s  
+  ✓ recent activity panels respect the module permissions                0.33s  
+
+   PASS  Tests\Feature\Communication\CommunicationSeederTest
+  ✓ communication permissions are seeded once and granted to both admin… 0.18s  
+  ✓ future phase permissions are not seeded                              0.17s  
+  ✓ seeding again does not duplicate permissions roles or grants         0.30s  
+  ✓ the standalone seeder is idempotent and touches no grants            0.18s  
+
+   PASS  Tests\Feature\Communication\CommunicationTemplateTest
+  ✓ templates are isolated per college                                   0.27s  
+  ✓ actions require the matching permission                              0.35s  
+  ✓ a template code is unique per college but reusable across colleges   0.20s  
+  ✓ a template is created updated and deleted with an audit trail        0.20s  
+  ✓ sms templates never store a subject and email templates require one  0.19s  
+  ✓ the listing filters by channel status and search                     0.47s  
+  ✓ placeholders are rendered without touching unknown markers           0.18s  
+
+   PASS  Tests\Feature\Communication\CommunicationTrackingTest
+  ✓ the tracking screen is tenant scoped                                 0.26s  
+  ✓ the screen requires the tracking permission                          0.26s  
+  ✓ sending stamps sent and reading stamps delivered and read            0.19s  
+  ✓ mark all read also records delivery                                  0.18s  
+  ✓ delivery can be recorded from the tracking screen with the notifica… 0.19s  
+  ✓ the listing filters by delivery state                                0.41s  
+
+   PASS  Tests\Feature\Communication\NoticeTest
+  ✓ notices are isolated per college                                     0.28s  
+  ✓ crud actions require the matching permission                         0.49s  
+  ✓ a notice can be created updated and deleted with server controlled…  0.41s  
+  ✓ the publish workflow follows the allowed transitions                 0.37s  
+  ✓ validation rejects invalid payloads                                  0.29s  
+  ✓ pagination is deterministic for identical publish dates              0.45s  
+  ✓ filters narrow the listing                                           1.12s  
+  ✓ deleted notices are soft deleted and keep their slug reserved        0.26s  
+  ✓ attachment downloads are private and authorized                      0.22s  
+  ✓ attachment path traversal and unsafe files are rejected              0.23s  
+  ✓ audit fields and events are recorded                                 0.21s  
+  ✓ user content is rendered escaped                                     0.39s  
+
+   PASS  Tests\Feature\Communication\NotificationTest
+  ✓ notifications are isolated per college                               0.35s  
+  ✓ recipients must belong to the active college                         0.22s  
+  ✓ the listing shows recipients and read state                          0.40s  
+  ✓ read and unread state transitions                                    0.43s  
+  ✓ mark as read is authorized                                           0.36s  
+  ✓ filters narrow the listing                                           0.85s  
+  ✓ pagination is deterministic for identical timestamps                 0.39s  
+  ✓ crud requires permissions and the recipient is immutable             0.35s  
+  ✓ user content is rendered escaped                                     0.33s  
+
+  Tests:    250 passed (3353 assertions)
+  Duration: 101.83s
+
