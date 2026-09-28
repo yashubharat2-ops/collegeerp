@@ -69,6 +69,8 @@ class DatabaseSeeder extends Seeder
             'student_reports.view',
             // REPORTS — Academic Reports (read-only, separate from operational Academic permissions).
             'academic_reports.view',
+            // REPORTS — Examination Reports (read-only, separate from operational Examination permissions).
+            'examination_reports.view',
             'admission_reports.view',
             'settings.view', 'settings.update',
             'academic_subject_enrollments.view','academic_subject_enrollments.create','academic_subject_enrollments.update','academic_subject_enrollments.delete',
