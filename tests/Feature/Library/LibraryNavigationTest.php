@@ -12,9 +12,11 @@ use Tests\TestCase;
  *
  * Guards the invariants the module depends on:
  *   - a single "Library Management" section, rendered exactly once;
- *   - it lists exactly the ten Library entries (dashboard, books, categories,
- *     authors / publishers, copies, members, issue / return, renewals), each
+ *   - it lists exactly the nine Library entries (dashboard, books, categories,
+ *     authors / publishers, copies, members, issues, renewals, fines), each
  *     gated on its view permission;
+ *   - Library Reports is NOT part of the group: it lives in the REPORTS section
+ *     of the sidebar (library_reports.view), after HR Reports;
  *   - the section disappears entirely when the user holds none of those
  *     permissions (no heading, no links);
  *   - the Finance / Fees group before it keeps its nine entries, i.e. the
@@ -39,7 +41,6 @@ class LibraryNavigationTest extends TestCase
         'Issue / Return' => ['library_transactions.view', 'library-transactions.index'],
         'Renewals' => ['library_renewals.view', 'library-renewals.index'],
         'Fines / Penalties' => ['library_fines.view', 'library-fines.index'],
-        'Library Reports' => ['library_reports.view', 'library-reports.index'],
     ];
 
     /**
@@ -65,7 +66,7 @@ class LibraryNavigationTest extends TestCase
         return array_values(array_map(fn (array $entry) => $entry[0], self::ENTRIES));
     }
 
-    public function test_the_library_section_lists_exactly_the_eight_library_entries(): void
+    public function test_the_library_section_lists_exactly_the_nine_library_entries(): void
     {
         $college = $this->makeCollege('LNAV1');
         $user = $this->makeUserWithPermissions($college, [...$this->allViewPermissions(), 'publishers.view']);
@@ -77,7 +78,9 @@ class LibraryNavigationTest extends TestCase
 
         $group = $this->libraryNavGroup($html);
 
-        $this->assertSame(10, substr_count($group, 'class="nav-link"'), 'The Library Management group must list exactly the eight library entries.');
+        $this->assertSame(9, substr_count($group, 'class="nav-link"'), 'The Library Management group must list exactly the nine operational library entries.');
+        $this->assertStringNotContainsString('Library Reports', $group, 'Library Reports belongs to the REPORTS section, not the Library Management group.');
+        $this->assertStringNotContainsString(route('library-reports.index'), $group);
 
         foreach (self::ENTRIES as $label => [$permission, $route]) {
             $this->assertStringContainsString(route($route), $group, "Missing library entry route: {$label}");
@@ -143,14 +146,20 @@ class LibraryNavigationTest extends TestCase
         $college = $this->makeCollege('LNAV7');
 
         $finesOnly = $this->makeUserWithPermissions($college, ['library_fines.view']);
-        $finesGroup = $this->libraryNavGroup($this->asCollege($college, $finesOnly)->get(route('dashboard'))->assertOk()->getContent());
+        $finesHtml = $this->asCollege($college, $finesOnly)->get(route('dashboard'))->assertOk()->getContent();
+        $finesGroup = $this->libraryNavGroup($finesHtml);
+        $this->assertSame(1, substr_count($finesGroup, 'class="nav-link"'));
         $this->assertStringContainsString('Fines / Penalties', $finesGroup);
         $this->assertStringNotContainsString('Library Reports', $finesGroup);
 
+        // library_reports.view alone reveals the REPORTS section — and the
+        // Library Management group is not rendered at all for that user.
         $reportsOnly = $this->makeUserWithPermissions($college, ['library_reports.view']);
-        $reportsGroup = $this->libraryNavGroup($this->asCollege($college, $reportsOnly)->get(route('dashboard'))->assertOk()->getContent());
-        $this->assertStringNotContainsString('Fines / Penalties', $reportsGroup);
-        $this->assertStringContainsString('Library Reports', $reportsGroup);
+        $reportsHtml = $this->asCollege($college, $reportsOnly)->get(route('dashboard'))->assertOk()->getContent();
+        $this->assertStringNotContainsString('>Library Management</div>', $reportsHtml);
+        $this->assertStringContainsString('>REPORTS<', $reportsHtml);
+        $this->assertStringContainsString('Library Reports', $reportsHtml);
+        $this->assertStringContainsString(route('library-reports.index'), $reportsHtml);
     }
 
     public function test_the_section_is_hidden_without_any_library_permission(): void
@@ -189,7 +198,7 @@ class LibraryNavigationTest extends TestCase
         // …the Library Management section sits after it, fully populated…
         $libraryStart = (int) strpos($html, '>Library Management</div>');
         $this->assertGreaterThan($start, $libraryStart);
-        $this->assertSame(10, substr_count($this->libraryNavGroup($html), 'class="nav-link"'));
+        $this->assertSame(9, substr_count($this->libraryNavGroup($html), 'class="nav-link"'));
 
         // …and Platform / Settings still closes the sidebar after it.
         $this->assertGreaterThan($libraryStart, (int) strrpos($html, '>Platform</div>'));
@@ -217,7 +226,12 @@ class LibraryNavigationTest extends TestCase
             $response->assertSee(route($route), false)->assertSee($label);
         }
 
-        foreach (['library.dashboard', 'books.index', 'books.create', 'book-categories.index', 'book-categories.create', 'authors.index', 'authors.create', 'publishers.index', 'publishers.create', 'book-copies.index', 'book-copies.create', 'library-members.index', 'library-members.create', 'library-transactions.index', 'library-transactions.create', 'library-renewals.index', 'library-renewals.create'] as $route) {
+        // Library Reports moved to the REPORTS section; the seeded college
+        // admin still sees the entry and can open the screen.
+        $response->assertSee('>REPORTS<', false);
+        $this->assertStringContainsString(route('library-reports.index'), $response->getContent());
+
+        foreach (['library.dashboard', 'books.index', 'books.create', 'book-categories.index', 'book-categories.create', 'authors.index', 'authors.create', 'publishers.index', 'publishers.create', 'book-copies.index', 'book-copies.create', 'library-members.index', 'library-members.create', 'library-transactions.index', 'library-transactions.create', 'library-renewals.index', 'library-renewals.create', 'library-reports.index'] as $route) {
             $this->asCollege($college, $user)->get(route($route))->assertOk();
         }
     }
