@@ -188,6 +188,10 @@ class InventoryReportController extends Controller
                 $items->where('item_type', InventoryItem::TYPE_ASSET);
             } elseif ($report === 'issues' || $report === 'low-stock') {
                 $items->where('item_type', InventoryItem::TYPE_CONSUMABLE);
+
+                if ($report === 'low-stock') {
+                    $items->where('status', InventoryItem::STATUS_ACTIVE);
+                }
             }
             if ($filters['item_type'] ?? null) {
                 $items->where('item_type', $filters['item_type']);
