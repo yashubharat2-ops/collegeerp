@@ -125,14 +125,6 @@ class CertificateController extends Controller
 
     public function reports(Request $request)
     {
-        $this->permit('certificate_reports.view');
-        $data = $request->validate(['certificate_type_id' => ['nullable', 'integer'], 'status' => ['nullable', Rule::in(['requested', 'generated', 'issued'])]]);
-        $query = Certificate::with(['type', 'student'])->latest('id');
-        if (! empty($data['certificate_type_id'])) {
-            CertificateType::findOrFail($data['certificate_type_id']);
-            $query->where('certificate_type_id', $data['certificate_type_id']);
-        }
-        if (! empty($data['status'])) $query->where('status', $data['status']);
-        return view('certificates.reports', ['certificates' => $query->paginate(30)->withQueryString(), 'types' => CertificateType::orderBy('name')->get()]);
+        return app(CertificateReportController::class)->index($request);
     }
 }

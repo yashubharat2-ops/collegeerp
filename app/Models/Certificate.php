@@ -10,6 +10,8 @@ class Certificate extends Model
 {
     use BelongsToCollege;
 
+    public const STATUSES = ['requested', 'generated', 'issued'];
+
     protected $guarded = ['id'];
 
     protected function casts(): array
@@ -22,6 +24,15 @@ class Certificate extends Model
     public function student(): BelongsTo { return $this->belongsTo(Student::class); }
     public function enrollment(): BelongsTo { return $this->belongsTo(StudentEnrollment::class, 'student_enrollment_id'); }
     public function transfer(): BelongsTo { return $this->belongsTo(StudentTransfer::class, 'student_transfer_id'); }
+    public function requester(): BelongsTo { return $this->belongsTo(User::class, 'requested_by'); }
+    public function generator(): BelongsTo { return $this->belongsTo(User::class, 'generated_by'); }
+    public function issuer(): BelongsTo { return $this->belongsTo(User::class, 'issued_by'); }
+    public function lastVerifier(): BelongsTo { return $this->belongsTo(User::class, 'last_verified_by'); }
+
+    public function isVerified(): bool
+    {
+        return (int) $this->verification_count > 0 || $this->last_verified_at !== null;
+    }
 
     /** Plain-text substitution only: never execute administrator-supplied PHP/Blade/HTML. */
     public function renderedBody(): string
