@@ -175,7 +175,7 @@
 <a class="nav-link" href="{{ route('transport-reports.index') }}">📊 <span>Transport Reports</span></a>
 @endif
 @endif
-@if(auth()->user()?->hasPermission('library_dashboard.view') || auth()->user()?->hasPermission('books.view') || auth()->user()?->hasPermission('book_categories.view') || auth()->user()?->hasPermission('authors.view') || auth()->user()?->hasPermission('publishers.view') || auth()->user()?->hasPermission('book_copies.view') || auth()->user()?->hasPermission('library_members.view') || auth()->user()?->hasPermission('library_transactions.view') || auth()->user()?->hasPermission('library_renewals.view') || auth()->user()?->hasPermission('library_fines.view') || auth()->user()?->hasPermission('library_reports.view'))
+@if(auth()->user()?->hasPermission('library_dashboard.view') || auth()->user()?->hasPermission('books.view') || auth()->user()?->hasPermission('book_categories.view') || auth()->user()?->hasPermission('authors.view') || auth()->user()?->hasPermission('publishers.view') || auth()->user()?->hasPermission('book_copies.view') || auth()->user()?->hasPermission('library_members.view') || auth()->user()?->hasPermission('library_transactions.view') || auth()->user()?->hasPermission('library_renewals.view') || auth()->user()?->hasPermission('library_fines.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Library Management</div>
 @if(auth()->user()?->hasPermission('library_dashboard.view'))
 <a class="nav-link" href="{{ route('library.dashboard') }}">📚 <span>Library Dashboard</span></a>
@@ -205,9 +205,6 @@
 @endif
 @if(auth()->user()?->hasPermission('library_fines.view'))
 <a class="nav-link" href="{{ route('library-fines.index') }}">💰 <span>Fines / Penalties</span></a>
-@endif
-@if(auth()->user()?->hasPermission('library_reports.view'))
-<a class="nav-link" href="{{ route('library-reports.index') }}">📊 <span>Library Reports</span></a>
 @endif
 @endif
 @if(auth()->user()?->hasPermission('hostel_dashboard.view') || auth()->user()?->hasPermission('hostels.view') || auth()->user()?->hasPermission('hostel_buildings.view') || auth()->user()?->hasPermission('hostel_rooms.view') || auth()->user()?->hasPermission('hostel_beds.view') || auth()->user()?->hasPermission('hostel_allocations.view') || auth()->user()?->hasPermission('hostel_fees.view') || auth()->user()?->hasPermission('hostel_attendance.view') || auth()->user()?->hasPermission('hostel_reports.view'))
@@ -321,7 +318,7 @@
 <a class="nav-link" href="{{ route('inventory-reports.index') }}">📊 <span>Inventory Reports</span></a>
 @endif
 @endif
-@if(auth()->user()?->hasPermission('student_reports.view') || auth()->user()?->hasPermission('academic_reports.view') || auth()->user()?->hasPermission('examination_reports.view') || auth()->user()?->hasPermission('finance_reports.view') || auth()->user()?->hasPermission('hr_reports.view'))
+@if(auth()->user()?->hasPermission('student_reports.view') || auth()->user()?->hasPermission('academic_reports.view') || auth()->user()?->hasPermission('examination_reports.view') || auth()->user()?->hasPermission('finance_reports.view') || auth()->user()?->hasPermission('hr_reports.view') || auth()->user()?->hasPermission('library_reports.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">REPORTS</div>
 @if(auth()->user()?->hasPermission('student_reports.view'))
 <a class="nav-link" href="{{ route('student-reports.index') }}">📊 <span>Student Reports</span></a>
@@ -337,6 +334,9 @@
 @endif
 @if(auth()->user()?->hasPermission('hr_reports.view'))
 <a class="nav-link" href="{{ route('hr-reports.index') }}">🧑‍💼 <span>HR Reports</span></a>
+@endif
+@if(auth()->user()?->hasPermission('library_reports.view'))
+<a class="nav-link" href="{{ route('library-reports.index') }}">📚 <span>Library Reports</span></a>
 @endif
 @endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Platform</div>

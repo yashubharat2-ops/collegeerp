@@ -154,7 +154,7 @@ class HrReportsTest extends TestCase
         $college = $this->makeCollege('HRRMENU');
         $user = $this->makeUserWithPermissions($college, [
             'inventory_dashboard.view', 'student_reports.view', 'academic_reports.view',
-            'examination_reports.view', 'finance_reports.view', 'hr_reports.view',
+            'examination_reports.view', 'finance_reports.view', 'hr_reports.view', 'library_reports.view',
             'faculties.view', 'departments.view', 'designations.view', 'employee_documents.view',
             'staff_attendance.view', 'leave_requests.view', 'salary_structures.view',
         ]);
@@ -167,19 +167,21 @@ class HrReportsTest extends TestCase
         $examination = strpos($html, 'href="'.route('examination-reports.index').'"');
         $finance = strpos($html, 'href="'.route('finance-reports.index').'"');
         $hr = strpos($html, 'href="'.route('hr-reports.index').'"');
+        $library = strpos($html, 'href="'.route('library-reports.index').'"');
         $platform = strpos($html, '>Platform<', (int) $reports);
         $this->assertNotFalse($inventory);
         $this->assertTrue(
             $inventory < $reports && $reports < $student && $student < $academic
-            && $academic < $examination && $examination < $finance && $finance < $hr && $hr < $platform
+            && $academic < $examination && $examination < $finance && $finance < $hr && $hr < $library && $library < $platform
         );
         $this->assertSame(1, substr_count($html, '>REPORTS<'));
 
-        // Five report links live between REPORTS and Platform; the HR Reports
-        // child is the last one and carries an HR / staff icon.
+        // Six report links live between REPORTS and Platform; HR Reports keeps
+        // its HR / staff icon and Library Reports follows it with a books icon.
         $menu = substr($html, $reports, $platform - $reports);
-        $this->assertSame(5, substr_count($menu, 'class="nav-link"'));
+        $this->assertSame(6, substr_count($menu, 'class="nav-link"'));
         $this->assertStringContainsString('🧑‍💼', $menu);
+        $this->assertStringContainsString('📚', $menu);
 
         // The REPORTS heading itself stays plain (no link, no reordering).
         $this->assertStringNotContainsString('<a', substr($html, $reports - 80, 80));

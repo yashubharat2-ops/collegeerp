@@ -280,8 +280,10 @@ class HostelNavigationTest extends TestCase
             $end - $after
         );
 
+        // The Library Management group keeps its nine operational entries;
+        // Library Reports lives in the REPORTS section instead.
         $this->assertSame(
-            10,
+            9,
             substr_count($library, 'class="nav-link"')
         );
 

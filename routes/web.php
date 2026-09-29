@@ -231,6 +231,11 @@ Route::middleware('auth')->group(function () {
         // payroll records. Aggregated live — no report tables, no write routes.
         Route::get('hr-reports', [HrReportController::class, 'index'])->name('hr-reports.index');
 
+        // REPORTS — Library Reports: read-only views over the existing Library
+        // records (catalogue, copies, members, circulation, renewals, fines).
+        // Aggregated live — no report tables, no write routes.
+        Route::get('library-reports', [LibraryReportController::class, 'index'])->name('library-reports.index');
+
         Route::get('admission-reports', [AdmissionReportController::class, 'index'])->name('admission-reports.index');
         // Academics is operational only: all master data remains in Platform/Students.
         Route::get('academics/subject-enrollments', [AcademicsController::class, 'subjectEnrollments'])->name('academic-subject-enrollments.index');
@@ -362,7 +367,6 @@ Route::middleware('auth')->group(function () {
         Route::get('library-fines', [LibraryFineController::class, 'index'])->name('library-fines.index');
         Route::post('library-fines', [LibraryFineController::class, 'store'])->name('library-fines.store');
         Route::post('library-fines/{library_fine}/pay', [LibraryFineController::class, 'pay'])->name('library-fines.pay');
-        Route::get('library-reports', [LibraryReportController::class, 'index'])->name('library-reports.index');
 
         // Transport Phase 1 — tenant-scoped masters only.
         Route::get('transport/dashboard', \App\Http\Controllers\Transport\TransportDashboardController::class)->name('transport.dashboard');
