@@ -44,7 +44,7 @@ class HostelReportTest extends TestCase
             'payments' => FeePayment::withoutGlobalScopes()->count(),
         ];
 
-        foreach (['occupancy', 'allocations', 'attendance', 'fees', 'bogus'] as $report) {
+        foreach (['hostels', 'occupancy', 'allocations', 'attendance', 'fees', 'vacated', 'summary', 'bogus'] as $report) {
             $this->asCollege($college, $viewer)
                 ->get(route('hostel-reports.index', ['report' => $report]))
                 ->assertOk();
@@ -55,6 +55,60 @@ class HostelReportTest extends TestCase
             'allocations' => HostelAllocation::withoutGlobalScopes()->count(),
             'payments' => FeePayment::withoutGlobalScopes()->count(),
         ]);
+    }
+
+    public function test_report_catalog_has_exact_names_and_order(): void
+    {
+        $college = $this->makeCollege('HRT00');
+        $viewer = $this->makeUserWithPermissions($college, ['hostel_reports.view']);
+        $expected = [
+            'hostels' => 'Hostel / Building Report',
+            'occupancy' => 'Room / Bed Occupancy Report',
+            'allocations' => 'Hostel Allocation Report',
+            'attendance' => 'Hostel Attendance Report',
+            'fees' => 'Hostel Fee Report',
+            'vacated' => 'Vacated Student Report',
+            'summary' => 'Hostel Summary',
+        ];
+
+        $response = $this->asCollege($college, $viewer)
+            ->get(route('hostel-reports.index'))
+            ->assertOk()
+            ->assertViewHas('reports', fn (array $reports) => $reports === $expected);
+
+        $html = $response->getContent();
+        $cursor = -1;
+        foreach ($expected as $label) {
+            $position = strpos($html, $label);
+            $this->assertNotFalse($position, "Missing Hostel Report tab: {$label}");
+            $this->assertGreaterThan($cursor, $position, "Hostel Report tab is out of order: {$label}");
+            $cursor = $position;
+        }
+    }
+
+    public function test_hostel_and_building_report_uses_live_scoped_hierarchy_counts(): void
+    {
+        $college = $this->makeCollege('HRT08');
+        $viewer = $this->makeUserWithPermissions($college, ['hostel_reports.view']);
+        $hostel = $this->makeHostel($college, ['name' => 'North House', 'code' => 'NORTH']);
+        $building = $this->makeHostelBuilding($college, $hostel, ['name' => 'Block A', 'code' => 'A']);
+        $room = $this->makeHostelRoom($college, $building, ['room_number' => '101']);
+        $this->makeHostelBed($college, $room, ['bed_number' => '1']);
+
+        $this->asCollege($college, $viewer)
+            ->get(route('hostel-reports.index', ['report' => 'hostels']))
+            ->assertOk()
+            ->assertSee('North House')
+            ->assertSee('Block A')
+            ->assertViewHas('hostels', fn ($rows) => $rows->total() === 1
+                && $rows->first()->id === $hostel->id
+                && $rows->first()->buildings_count === 1
+                && $rows->first()->rooms_count === 1
+                && $rows->first()->beds_count === 1)
+            ->assertViewHas('buildings', fn ($rows) => $rows->total() === 1
+                && $rows->first()->id === $building->id
+                && $rows->first()->rooms_count === 1
+                && $rows->first()->beds_count === 1);
     }
 
     public function test_occupancy_uses_allocations_as_the_source_of_truth(): void
@@ -77,28 +131,25 @@ class HostelReportTest extends TestCase
             ->get(route('hostel-reports.index', ['report' => 'occupancy']))
             ->assertOk()
             ->assertSee('Occupancy Summary')
-            ->assertSee('Hostel-wise occupancy')
             ->assertSee('Room occupancy')
-            ->assertViewHas('occupancy', function (array $report) use ($hostel, $building, $room) {
+            ->assertSee('Bed occupancy')
+            ->assertViewHas('occupancy', function (array $report) use ($room) {
                 $summary = $report['summary'];
-                if ($summary['beds'] !== 3 || $summary['occupied'] !== 1 || $summary['vacant'] !== 2) {
+                if ($summary['beds'] !== 3 || $summary['occupied'] !== 1 || $summary['available'] !== 2) {
                     return false;
                 }
                 if (abs(($summary['occupancy_percentage'] ?? 0) - 33.33) > 0.001) {
                     return false;
                 }
 
-                $north = collect($report['hostels'])->first(fn ($row) => $row['hostel']->id === $hostel->id);
-                $block = collect($report['buildings'])->first(fn ($row) => $row['building']->id === $building->id);
-                $roomRow = collect($report['rooms'])->first(fn ($row) => $row['room']->id === $room->id);
+                $roomRow = $report['rooms']->getCollection()->first(fn ($row) => $row->id === $room->id);
 
-                return $north['occupied'] === 1
-                    && $north['beds'] === 2
-                    && $north['occupancy_percentage'] === 50.0
-                    && $block['occupied'] === 1
-                    && $roomRow['occupied'] === 1
-                    && $roomRow['capacity'] === 2
-                    && $roomRow['vacant'] === 1;
+                return $roomRow !== null
+                    && $roomRow->occupied_beds_count === 1
+                    && $roomRow->total_beds_count === 2
+                    && $roomRow->available_beds_count === 1
+                    && $roomRow->capacity === 2
+                    && $roomRow->occupancy_status === 'Partially occupied';
             });
 
         $this->asCollege($college, $user)
@@ -279,6 +330,93 @@ class HostelReportTest extends TestCase
             });
     }
 
+    public function test_vacated_student_report_uses_vacated_allocation_history_and_date_filters(): void
+    {
+        $college = $this->makeCollege('HRT09');
+        $viewer = $this->makeUserWithPermissions($college, ['hostel_reports.view']);
+        $matching = $this->makeHostelAllocation($college, null, null, [
+            'status' => HostelAllocation::STATUS_VACATED,
+            'allocation_date' => '2026-09-01',
+            'vacated_date' => '2026-09-15',
+            'remarks' => 'Moved out at term end',
+        ]);
+        $outsideRange = $this->makeHostelAllocation($college, null, null, [
+            'status' => HostelAllocation::STATUS_VACATED,
+            'allocation_date' => '2026-08-01',
+            'vacated_date' => '2026-08-30',
+        ]);
+        $this->makeHostelAllocation($college, null, null, [
+            'status' => HostelAllocation::STATUS_CANCELLED,
+            'allocation_date' => '2026-09-10',
+        ]);
+
+        $this->asCollege($college, $viewer)
+            ->get(route('hostel-reports.index', [
+                'report' => 'vacated',
+                'from' => '2026-09-10',
+                'to' => '2026-09-20',
+            ]))
+            ->assertOk()
+            ->assertSee('Moved out at term end')
+            ->assertViewHas('vacatedReport', fn (array $report) => $report['count'] === 1
+                && $report['rows']->total() === 1
+                && $report['rows']->first()->id === $matching->id
+                && $report['rows']->first()->id !== $outsideRange->id);
+    }
+
+    public function test_hostel_summary_reuses_live_dashboard_attendance_and_fee_sources(): void
+    {
+        $college = $this->makeCollege('HRT10');
+        $viewer = $this->makeUserWithPermissions($college, ['hostel_reports.view']);
+        $hostel = $this->makeHostel($college, ['name' => 'Summary House', 'code' => 'SUM']);
+        $building = $this->makeHostelBuilding($college, $hostel);
+        $room = $this->makeHostelRoom($college, $building, ['capacity' => 2]);
+        $activeBed = $this->makeHostelBed($college, $room, ['bed_number' => '1']);
+        $vacatedBed = $this->makeHostelBed($college, $room, ['bed_number' => '2']);
+        $active = $this->makeHostelAllocation($college, null, $activeBed, ['allocation_date' => '2026-09-01']);
+        $vacated = $this->makeHostelAllocation($college, null, $vacatedBed, [
+            'status' => HostelAllocation::STATUS_VACATED,
+            'allocation_date' => '2026-08-01',
+            'vacated_date' => '2026-09-10',
+        ]);
+
+        foreach ([[$active, 'present'], [$vacated, 'absent']] as [$allocation, $status]) {
+            HostelAttendance::withoutGlobalScopes()->create([
+                'college_id' => $college->id,
+                'student_enrollment_id' => $allocation->student_enrollment_id,
+                'hostel_allocation_id' => $allocation->id,
+                'attendance_date' => '2026-09-15',
+                'attendance_status' => $status,
+                'marked_at' => now(),
+            ]);
+        }
+
+        $structure = $this->makeHostelFeeStructure($college, $active->academicYear, ['amount' => 1500]);
+        $this->makeHostelFeeAssignment($college, $active, $structure, ['assigned_amount' => 1500]);
+
+        $this->asCollege($college, $viewer)
+            ->get(route('hostel-reports.index', ['report' => 'summary']))
+            ->assertOk()
+            ->assertSee('Total hostels')
+            ->assertViewHas('summary', function (array $summary): bool {
+                return $summary['total_hostels'] === 1
+                    && $summary['total_buildings'] === 1
+                    && $summary['total_rooms'] === 1
+                    && $summary['total_beds'] === 2
+                    && $summary['occupied_beds'] === 1
+                    && $summary['available_beds'] === 1
+                    && $summary['active_allocations'] === 1
+                    && $summary['vacated_students'] === 1
+                    && $summary['attendance']['present'] === 1
+                    && $summary['attendance']['absent'] === 1
+                    && $summary['attendance']['total'] === 2
+                    && $summary['attendance']['attendance_percentage'] === 50.0
+                    && $summary['fees']['assignments'] === 1
+                    && (float) $summary['fees']['assigned'] === 1500.0
+                    && (float) $summary['fees']['outstanding'] === 1500.0;
+            });
+    }
+
     public function test_filters_narrow_occupancy_attendance_allocations_and_fees(): void
     {
         $college = $this->makeCollege('HRT06');
@@ -403,6 +541,12 @@ class HostelReportTest extends TestCase
         $user = $this->makeUserWithPermissions($collegeA, ['hostel_reports.view']);
 
         $foreignAllocation = $this->makeHostelAllocation($collegeB);
+        $foreignVacated = $this->makeHostelAllocation($collegeB, null, null, [
+            'status' => HostelAllocation::STATUS_VACATED,
+            'allocation_date' => '2026-08-01',
+            'vacated_date' => '2026-09-10',
+        ]);
+        $foreignEnrollment = StudentEnrollment::withoutGlobalScopes()->findOrFail($foreignAllocation->student_enrollment_id);
         HostelAttendance::withoutGlobalScopes()->create([
             'college_id' => $collegeB->id,
             'student_enrollment_id' => $foreignAllocation->student_enrollment_id,
@@ -416,20 +560,91 @@ class HostelReportTest extends TestCase
         $this->makeHostelFeeAssignment($collegeB, $foreignAllocation, $structure, ['assigned_amount' => 9999]);
 
         $this->asCollege($collegeA, $user)
-            ->get(route('hostel-reports.index', ['report' => 'occupancy']))
-            ->assertViewHas('occupancy', fn (array $report) => $report['summary']['occupied'] === 0 && $report['summary']['beds'] === 0);
+            ->get(route('hostel-reports.index', [
+                'report' => 'hostels',
+                'hostel_id' => $foreignAllocation->hostel_id,
+                'hostel_building_id' => $foreignAllocation->hostel_building_id,
+            ]))
+            ->assertViewHas('hostels', fn ($rows) => $rows->total() === 0)
+            ->assertViewHas('buildings', fn ($rows) => $rows->total() === 0)
+            ->assertViewHas('filterOptions', fn (array $options) => ! $options['hostels']->contains('id', $foreignAllocation->hostel_id)
+                && ! $options['buildings']->contains('id', $foreignAllocation->hostel_building_id));
 
         $this->asCollege($collegeA, $user)
-            ->get(route('hostel-reports.index', ['report' => 'allocations']))
-            ->assertViewHas('allocationReport', fn (array $report) => $report['counts']['total'] === 0);
+            ->get(route('hostel-reports.index', [
+                'report' => 'occupancy',
+                'academic_year_id' => $year->id,
+                'hostel_id' => $foreignAllocation->hostel_id,
+                'hostel_building_id' => $foreignAllocation->hostel_building_id,
+                'hostel_room_id' => $foreignAllocation->hostel_room_id,
+                'hostel_bed_id' => $foreignAllocation->hostel_bed_id,
+            ]))
+            ->assertViewHas('occupancy', fn (array $report) => $report['summary']['occupied'] === 0 && $report['summary']['beds'] === 0)
+            ->assertViewHas('rooms', fn ($rows) => $rows->total() === 0)
+            ->assertViewHas('beds', fn ($rows) => $rows->total() === 0)
+            ->assertViewHas('filterOptions', fn (array $options) => ! $options['hostels']->contains('id', $foreignAllocation->hostel_id)
+                && ! $options['buildings']->contains('id', $foreignAllocation->hostel_building_id)
+                && ! $options['rooms']->contains('id', $foreignAllocation->hostel_room_id)
+                && ! $options['beds']->contains('id', $foreignAllocation->hostel_bed_id)
+                && ! $options['years']->contains('id', $year->id));
 
         $this->asCollege($collegeA, $user)
-            ->get(route('hostel-reports.index', ['report' => 'attendance']))
+            ->get(route('hostel-reports.index', [
+                'report' => 'allocations',
+                'academic_year_id' => $year->id,
+                'hostel_id' => $foreignAllocation->hostel_id,
+                'hostel_building_id' => $foreignAllocation->hostel_building_id,
+                'hostel_room_id' => $foreignAllocation->hostel_room_id,
+                'hostel_bed_id' => $foreignAllocation->hostel_bed_id,
+                'student_id' => $foreignEnrollment->student_id,
+            ]))
+            ->assertViewHas('allocationReport', fn (array $report) => $report['counts']['total'] === 0)
+            ->assertViewHas('filterOptions', fn (array $options) => ! $options['students']->contains('id', $foreignEnrollment->student_id));
+
+        $this->asCollege($collegeA, $user)
+            ->get(route('hostel-reports.index', [
+                'report' => 'attendance',
+                'academic_year_id' => $year->id,
+                'hostel_id' => $foreignAllocation->hostel_id,
+                'hostel_building_id' => $foreignAllocation->hostel_building_id,
+                'hostel_room_id' => $foreignAllocation->hostel_room_id,
+                'hostel_bed_id' => $foreignAllocation->hostel_bed_id,
+                'student_id' => $foreignEnrollment->student_id,
+            ]))
             ->assertViewHas('attendanceReport', fn (array $report) => $report['summary']['total'] === 0);
 
         $this->asCollege($collegeA, $user)
-            ->get(route('hostel-reports.index', ['report' => 'fees', 'academic_year_id' => $year->id]))
+            ->get(route('hostel-reports.index', [
+                'report' => 'fees',
+                'academic_year_id' => $year->id,
+                'hostel_id' => $foreignAllocation->hostel_id,
+                'hostel_building_id' => $foreignAllocation->hostel_building_id,
+                'hostel_room_id' => $foreignAllocation->hostel_room_id,
+                'hostel_bed_id' => $foreignAllocation->hostel_bed_id,
+                'student_id' => $foreignEnrollment->student_id,
+            ]))
             ->assertViewHas('feeReport', fn (array $report) => $report['totals']['assignments'] === 0
-                && (float) $report['totals']['assigned'] === 0.0);
+                && (float) $report['totals']['assigned'] === 0.0)
+            ->assertViewHas('filterOptions', fn (array $options) => ! $options['students']->contains('id', $foreignEnrollment->student_id));
+
+        $this->asCollege($collegeA, $user)
+            ->get(route('hostel-reports.index', [
+                'report' => 'vacated',
+                'academic_year_id' => $foreignVacated->academic_year_id,
+                'hostel_id' => $foreignVacated->hostel_id,
+                'hostel_building_id' => $foreignVacated->hostel_building_id,
+                'hostel_room_id' => $foreignVacated->hostel_room_id,
+                'hostel_bed_id' => $foreignVacated->hostel_bed_id,
+            ]))
+            ->assertViewHas('vacatedReport', fn (array $report) => $report['count'] === 0
+                && $report['rows']->total() === 0);
+
+        $this->asCollege($collegeA, $user)
+            ->get(route('hostel-reports.index', ['report' => 'summary']))
+            ->assertViewHas('summary', fn (array $summary) => $summary['total_hostels'] === 0
+                && $summary['active_allocations'] === 0
+                && $summary['vacated_students'] === 0
+                && $summary['attendance']['total'] === 0
+                && $summary['fees']['assignments'] === 0);
     }
 }

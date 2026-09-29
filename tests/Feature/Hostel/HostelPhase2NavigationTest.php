@@ -51,10 +51,6 @@ class HostelPhase2NavigationTest extends TestCase
             'hostel_attendance.view',
             'hostel-attendance.index',
         ],
-        'Hostel Reports' => [
-            'hostel_reports.view',
-            'hostel-reports.index',
-        ],
     ];
 
     private const FUTURE_NOT_ALLOWED = [
@@ -94,6 +90,16 @@ class HostelPhase2NavigationTest extends TestCase
             : substr($html, $after, $end - $after);
     }
 
+    private function reportsNavGroup(string $html): string
+    {
+        $start = strpos($html, '>REPORTS</div>');
+        $this->assertNotFalse($start, 'The sidebar must have a REPORTS group.');
+        $after = $start + strlen('>REPORTS</div>');
+        $end = strpos($html, 'uppercase tracking-widest', $after);
+
+        return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
+    }
+
     private function allViewPermissions(): array
     {
         return array_values(
@@ -104,13 +110,13 @@ class HostelPhase2NavigationTest extends TestCase
         );
     }
 
-    public function test_hostel_navigation_has_exactly_nine_entries_after_phase_three(): void
+    public function test_hostel_navigation_keeps_eight_operational_entries_after_phase_three(): void
     {
         $college = $this->makeCollege('H2NAV1');
 
         $user = $this->makeUserWithPermissions(
             $college,
-            $this->allViewPermissions()
+            [...$this->allViewPermissions(), 'hostel_reports.view', 'transport_reports.view']
         );
 
         $html = $this->asCollege($college, $user)
@@ -127,9 +133,9 @@ class HostelPhase2NavigationTest extends TestCase
         $group = $this->hostelNavGroup($html);
 
         $this->assertSame(
-            9,
+            8,
             substr_count($group, 'class="nav-link"'),
-            'Must have exactly 9 entries after Phase 3.'
+            'Must keep exactly 8 Hostel Management operations.'
         );
 
         foreach (self::ENTRIES as $label => [$permission, $route]) {
@@ -153,6 +159,12 @@ class HostelPhase2NavigationTest extends TestCase
                 "{$future} must NOT appear."
             );
         }
+
+        $reports = $this->reportsNavGroup($html);
+        $this->assertSame(1, substr_count($html, '>REPORTS</div>'));
+        $this->assertStringNotContainsString(route('hostel-reports.index'), $group);
+        $this->assertStringContainsString(route('hostel-reports.index'), $reports);
+        $this->assertGreaterThan(strpos($reports, 'Transport Reports'), strpos($reports, 'Hostel Reports'));
     }
 
     public function test_each_phase2_entry_is_permission_gated(): void
@@ -201,7 +213,7 @@ class HostelPhase2NavigationTest extends TestCase
         $group = $this->hostelNavGroup($html);
 
         $this->assertSame(
-            9,
+            8,
             substr_count($group, 'class="nav-link"')
         );
 
@@ -210,10 +222,8 @@ class HostelPhase2NavigationTest extends TestCase
             $group
         );
 
-        $this->assertStringContainsString(
-            'Hostel Reports',
-            $group
-        );
+        $this->assertStringNotContainsString('Hostel Reports', $group);
+        $this->assertStringContainsString('Hostel Reports', $this->reportsNavGroup($html));
 
         foreach (self::FUTURE_NOT_ALLOWED as $future) {
             $this->assertStringNotContainsString(
@@ -224,7 +234,7 @@ class HostelPhase2NavigationTest extends TestCase
         }
     }
 
-    public function test_seeded_college_admin_sees_all_nine_and_can_open_screens(): void
+    public function test_seeded_college_admin_sees_hostel_operations_and_reports_link(): void
     {
         $college = College::query()
             ->where('code', 'DEMO')
@@ -261,6 +271,7 @@ class HostelPhase2NavigationTest extends TestCase
                 ->assertSee(route($route), false)
                 ->assertSee($label);
         }
+        $this->assertStringContainsString(route('hostel-reports.index'), $this->reportsNavGroup($response->getContent()));
 
         foreach ([
             'hostels.dashboard',

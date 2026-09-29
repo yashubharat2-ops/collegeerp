@@ -12,7 +12,7 @@ use Tests\TestCase;
  *
  * Guards the navigation invariants:
  * - one Hostel Management section;
- * - nine Phase 3 navigation entries;
+ * - eight Hostel operational navigation entries;
  * - each entry is gated by its own view permission;
  * - the section is hidden without hostel permissions;
  * - future hostel modules are not rendered.
@@ -59,10 +59,6 @@ class HostelNavigationTest extends TestCase
             'hostel_attendance.view',
             'hostel-attendance.index',
         ],
-        'Hostel Reports' => [
-            'hostel_reports.view',
-            'hostel-reports.index',
-        ],
     ];
 
     /**
@@ -100,13 +96,23 @@ class HostelNavigationTest extends TestCase
         );
     }
 
-    public function test_the_hostel_section_lists_exactly_the_nine_phase_three_entries(): void
+    private function reportsNavGroup(string $html): string
+    {
+        $start = strpos($html, '>REPORTS</div>');
+        $this->assertNotFalse($start, 'The sidebar must have a REPORTS group.');
+        $after = $start + strlen('>REPORTS</div>');
+        $end = strpos($html, 'uppercase tracking-widest', $after);
+
+        return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
+    }
+
+    public function test_the_hostel_section_has_eight_operations_and_hostel_reports_uses_reports_group(): void
     {
         $college = $this->makeCollege('HNAV1');
 
         $user = $this->makeUserWithPermissions(
             $college,
-            $this->allViewPermissions()
+            [...$this->allViewPermissions(), 'hostel_reports.view', 'transport_reports.view']
         );
 
         $html = $this->asCollege($college, $user)
@@ -129,9 +135,9 @@ class HostelNavigationTest extends TestCase
         $group = $this->hostelNavGroup($html);
 
         $this->assertSame(
-            9,
+            8,
             substr_count($group, 'class="nav-link"'),
-            'The Hostel Management group must list exactly the nine Phase 3 entries.'
+            'The Hostel Management group must keep its eight operational entries.'
         );
 
         foreach (self::ENTRIES as $label => [$permission, $route]) {
@@ -160,6 +166,12 @@ class HostelNavigationTest extends TestCase
                 "{$future} must not be rendered."
             );
         }
+
+        $reports = $this->reportsNavGroup($html);
+        $this->assertSame(1, substr_count($html, '>REPORTS</div>'));
+        $this->assertStringNotContainsString(route('hostel-reports.index'), $group);
+        $this->assertStringContainsString(route('hostel-reports.index'), $reports);
+        $this->assertGreaterThan(strpos($reports, 'Transport Reports'), strpos($reports, 'Hostel Reports'));
     }
 
     public function test_each_entry_is_gated_on_its_own_view_permission(): void
@@ -298,7 +310,7 @@ class HostelNavigationTest extends TestCase
         );
 
         $this->assertSame(
-            9,
+            8,
             substr_count(
                 $this->hostelNavGroup($html),
                 'class="nav-link"'
@@ -350,6 +362,8 @@ class HostelNavigationTest extends TestCase
                 ->assertSee(route($route), false)
                 ->assertSee($label);
         }
+        $this->assertStringContainsString(route('hostel-reports.index'), $this->reportsNavGroup($response->getContent()));
+        $this->assertStringNotContainsString(route('hostel-reports.index'), $this->hostelNavGroup($response->getContent()));
 
         foreach ([
             'hostels.dashboard',

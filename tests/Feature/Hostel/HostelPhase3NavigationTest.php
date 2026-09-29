@@ -10,9 +10,9 @@ use Tests\TestCase;
 /**
  * Hostel Management Phase 3 navigation.
  *
- * After Phase 3 the sidebar has exactly nine Hostel entries. Attendance and
- * Reports are individually gated. Visitors and every later hostel module stay
- * out. A seeded college admin can open all nine screens.
+ * Hostel operational navigation stays separate from the single REPORTS group.
+ * Hostel Reports is individually gated in REPORTS; operational links remain
+ * unchanged. Visitors and later modules stay out.
  */
 class HostelPhase3NavigationTest extends TestCase
 {
@@ -27,7 +27,6 @@ class HostelPhase3NavigationTest extends TestCase
         'Hostel Allocation' => ['hostel_allocations.view', 'hostel-allocations.index'],
         'Hostel Fees' => ['hostel_fees.view', 'hostel-fees.index'],
         'Hostel Attendance' => ['hostel_attendance.view', 'hostel-attendance.index'],
-        'Hostel Reports' => ['hostel_reports.view', 'hostel-reports.index'],
     ];
 
     private const FUTURE = [
@@ -50,16 +49,26 @@ class HostelPhase3NavigationTest extends TestCase
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
 
-    public function test_navigation_lists_exactly_nine_hostel_entries_and_no_future_modules(): void
+    private function reportsNavGroup(string $html): string
+    {
+        $start = strpos($html, '>REPORTS</div>');
+        $this->assertNotFalse($start, 'The sidebar must have one REPORTS group.');
+        $after = $start + strlen('>REPORTS</div>');
+        $end = strpos($html, 'uppercase tracking-widest', $after);
+
+        return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
+    }
+
+    public function test_navigation_lists_eight_hostel_operations_and_reports_in_reports_group(): void
     {
         $college = $this->makeCollege('H3NAV1');
-        $user = $this->makeUserWithPermissions($college, array_column(self::ENTRIES, 0));
+        $user = $this->makeUserWithPermissions($college, [...array_column(self::ENTRIES, 0), 'hostel_reports.view', 'transport_reports.view']);
 
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
         $group = $this->hostelNavGroup($html);
 
         $this->assertSame(1, substr_count($html, '>Hostel Management</div>'));
-        $this->assertSame(9, substr_count($group, 'class="nav-link"'));
+        $this->assertSame(8, substr_count($group, 'class="nav-link"'));
 
         $cursor = 0;
         foreach (self::ENTRIES as $label => [$permission, $route]) {
@@ -73,6 +82,13 @@ class HostelPhase3NavigationTest extends TestCase
         foreach (self::FUTURE as $future) {
             $this->assertStringNotContainsString($future, $group);
         }
+
+        $reports = $this->reportsNavGroup($html);
+        $this->assertSame(1, substr_count($html, '>REPORTS</div>'));
+        $this->assertStringNotContainsString(route('hostel-reports.index'), $group);
+        $this->assertStringContainsString(route('hostel-reports.index'), $reports);
+        $this->assertStringContainsString('Hostel Reports', $reports);
+        $this->assertGreaterThan(strpos($reports, 'Transport Reports'), strpos($reports, 'Hostel Reports'));
     }
 
     public function test_attendance_and_reports_are_individually_permission_gated(): void
@@ -87,10 +103,12 @@ class HostelPhase3NavigationTest extends TestCase
         $this->assertStringNotContainsString(route('hostel-fees.index'), $attendanceGroup);
 
         $reportsOnly = $this->makeUserWithPermissions($college, ['hostel_reports.view']);
-        $reportsGroup = $this->hostelNavGroup($this->asCollege($college, $reportsOnly)->get(route('dashboard'))->assertOk()->getContent());
+        $reportsHtml = $this->asCollege($college, $reportsOnly)->get(route('dashboard'))->assertOk()->getContent();
+        $reportsGroup = $this->reportsNavGroup($reportsHtml);
         $this->assertSame(1, substr_count($reportsGroup, 'class="nav-link"'));
         $this->assertStringContainsString(route('hostel-reports.index'), $reportsGroup);
         $this->assertStringNotContainsString(route('hostel-attendance.index'), $reportsGroup);
+        $this->assertStringNotContainsString('>Hostel Management</div>', $reportsHtml);
     }
 
     public function test_hostel_group_is_hidden_without_any_hostel_permission(): void
@@ -109,7 +127,7 @@ class HostelPhase3NavigationTest extends TestCase
             ->assertDontSee('Visitors');
     }
 
-    public function test_seeded_college_admin_can_open_all_nine_screens(): void
+    public function test_seeded_college_admin_can_open_hostel_operations_and_all_reports(): void
     {
         $college = College::query()->where('code', 'DEMO')->firstOrFail();
         $role = Role::query()->where('college_id', $college->id)->where('slug', 'college-admin')->firstOrFail();
@@ -138,7 +156,7 @@ class HostelPhase3NavigationTest extends TestCase
             $this->asCollege($college, $user)->get(route($route))->assertOk();
         }
 
-        foreach (['occupancy', 'allocations', 'attendance', 'fees'] as $report) {
+        foreach (['hostels', 'occupancy', 'allocations', 'attendance', 'fees', 'vacated', 'summary'] as $report) {
             $this->asCollege($college, $user)
                 ->get(route('hostel-reports.index', ['report' => $report]))
                 ->assertOk();
