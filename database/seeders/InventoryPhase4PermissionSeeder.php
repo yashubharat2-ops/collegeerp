@@ -6,7 +6,7 @@ use App\Models\Permission;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
-/** Five independent view-only permissions for the existing Inventory menu. */
+/** Five independent Phase 4 view permissions, including the shared Inventory / Asset Reports entry. */
 class InventoryPhase4PermissionSeeder extends Seeder
 {
     public const PERMISSIONS = [

@@ -258,7 +258,7 @@
 <a class="nav-link" href="{{ route('communication-reports.index') }}">📊 <span>Communication Reports</span></a>
 @endif
 @endif
-@if(auth()->user()?->hasPermission('inventory_dashboard.view') || auth()->user()?->hasPermission('inventory_categories.view') || auth()->user()?->hasPermission('inventory_items.view') || auth()->user()?->hasPermission('inventory_vendors.view') || auth()->user()?->hasPermission('inventory_purchase_orders.view') || auth()->user()?->hasPermission('inventory_goods_receipts.view') || auth()->user()?->hasPermission('inventory_stock_adjustments.view') || auth()->user()?->hasPermission('inventory_transactions.view') || auth()->user()?->hasPermission('inventory_stock.view') || auth()->user()?->hasPermission('inventory_issues.view') || auth()->user()?->hasPermission('inventory_assignments.view') || auth()->user()?->hasPermission('inventory_asset_returns.view') || auth()->user()?->hasPermission('inventory_maintenance.view') || auth()->user()?->hasPermission('inventory_current_stock.view') || auth()->user()?->hasPermission('inventory_low_stock.view') || auth()->user()?->hasPermission('inventory_asset_register.view') || auth()->user()?->hasPermission('inventory_stock_reports.view') || auth()->user()?->hasPermission('inventory_reports.view'))
+@if(auth()->user()?->hasPermission('inventory_dashboard.view') || auth()->user()?->hasPermission('inventory_categories.view') || auth()->user()?->hasPermission('inventory_items.view') || auth()->user()?->hasPermission('inventory_vendors.view') || auth()->user()?->hasPermission('inventory_purchase_orders.view') || auth()->user()?->hasPermission('inventory_goods_receipts.view') || auth()->user()?->hasPermission('inventory_stock_adjustments.view') || auth()->user()?->hasPermission('inventory_transactions.view') || auth()->user()?->hasPermission('inventory_stock.view') || auth()->user()?->hasPermission('inventory_issues.view') || auth()->user()?->hasPermission('inventory_assignments.view') || auth()->user()?->hasPermission('inventory_asset_returns.view') || auth()->user()?->hasPermission('inventory_maintenance.view') || auth()->user()?->hasPermission('inventory_current_stock.view') || auth()->user()?->hasPermission('inventory_low_stock.view') || auth()->user()?->hasPermission('inventory_asset_register.view') || auth()->user()?->hasPermission('inventory_stock_reports.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Inventory / Asset Management</div>
 @if(auth()->user()?->hasPermission('inventory_dashboard.view'))
 <a class="nav-link" href="{{ route('inventory.dashboard') }}">📦 <span>Inventory Dashboard</span></a>
@@ -308,11 +308,8 @@
 @if(auth()->user()?->hasPermission('inventory_stock_reports.view'))
 <a class="nav-link" href="{{ route('inventory-stock-reports.index') }}">📈 <span>Stock / Transaction Reports</span></a>
 @endif
-@if(auth()->user()?->hasPermission('inventory_reports.view'))
-<a class="nav-link" href="{{ route('inventory-reports.index') }}">📊 <span>Inventory Reports</span></a>
 @endif
-@endif
-@if(auth()->user()?->hasPermission('student_reports.view') || auth()->user()?->hasPermission('academic_reports.view') || auth()->user()?->hasPermission('examination_reports.view') || auth()->user()?->hasPermission('finance_reports.view') || auth()->user()?->hasPermission('hr_reports.view') || auth()->user()?->hasPermission('library_reports.view') || auth()->user()?->hasPermission('transport_reports.view') || auth()->user()?->hasPermission('hostel_reports.view'))
+@if(auth()->user()?->hasPermission('student_reports.view') || auth()->user()?->hasPermission('academic_reports.view') || auth()->user()?->hasPermission('examination_reports.view') || auth()->user()?->hasPermission('finance_reports.view') || auth()->user()?->hasPermission('inventory_reports.view') || auth()->user()?->hasPermission('hr_reports.view') || auth()->user()?->hasPermission('library_reports.view') || auth()->user()?->hasPermission('transport_reports.view') || auth()->user()?->hasPermission('hostel_reports.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">REPORTS</div>
 @if(auth()->user()?->hasPermission('student_reports.view'))
 <a class="nav-link" href="{{ route('student-reports.index') }}">📊 <span>Student Reports</span></a>
@@ -325,6 +322,9 @@
 @endif
 @if(auth()->user()?->hasPermission('finance_reports.view'))
 <a class="nav-link" href="{{ route('finance-reports.index') }}">💰 <span>Finance Reports</span></a>
+@endif
+@if(auth()->user()?->hasPermission('inventory_reports.view'))
+<a class="nav-link" href="{{ route('inventory-reports.index') }}">📦 <span>Inventory / Asset Reports</span></a>
 @endif
 @if(auth()->user()?->hasPermission('hr_reports.view'))
 <a class="nav-link" href="{{ route('hr-reports.index') }}">🧑‍💼 <span>HR Reports</span></a>

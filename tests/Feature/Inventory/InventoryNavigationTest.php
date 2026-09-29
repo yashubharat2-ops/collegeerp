@@ -11,7 +11,7 @@ use Tests\TestCase;
 /**
  * Sidebar navigation for the single Inventory / Asset Management section.
  *
- * The five read-only Phase 4 entries extend the existing twelve, in order:
+ * The 16 operational entries remain in their existing order:
  *   - Inventory Dashboard
  *   - Item Categories
  *   - Items / Assets
@@ -24,11 +24,13 @@ use Tests\TestCase;
  *   - Asset Assignment
  *   - Asset Return
  *   - Asset Maintenance
- *   - Current Stock, Low Stock, Asset Register, Stock / Transaction Reports,
- *     Inventory Reports
+ *   - Current Stock, Low Stock, Asset Register and Stock / Transaction Reports
+ *     remain under Inventory / Asset Management;
+ *   - Inventory / Asset Reports is a single separately permission-gated link
+ *     in the shared REPORTS section, after Finance Reports.
  *
- * There must be no separate "Purchase & Stock", "Reports", "Asset Management",
- * or "Phase 4" headings. Each entry has its own view permission.
+ * There must be no separate "Purchase & Stock", "Asset Management", or
+ * "Phase 4" headings. Each entry has its own view permission.
  */
 class InventoryNavigationTest extends TestCase
 {
@@ -51,7 +53,6 @@ class InventoryNavigationTest extends TestCase
         'Low Stock'               => ['inventory_low_stock.view',       'inventory-low-stock.index'],
         'Asset Register'          => ['inventory_asset_register.view',  'inventory-asset-register.index'],
         'Stock / Transaction Reports' => ['inventory_stock_reports.view', 'inventory-stock-reports.index'],
-        'Inventory Reports'       => ['inventory_reports.view',         'inventory-reports.index'],
     ];
 
     /** Permission slugs that gate the outer section (any one of these shows it). */
@@ -73,7 +74,6 @@ class InventoryNavigationTest extends TestCase
         'inventory_low_stock.view',
         'inventory_asset_register.view',
         'inventory_stock_reports.view',
-        'inventory_reports.view',
     ];
 
     /** Forbidden sub-headings that must NOT appear in the sidebar. */
@@ -116,7 +116,7 @@ class InventoryNavigationTest extends TestCase
         return substr($html, $after, $next[0][1] - $after);
     }
 
-    public function test_the_inventory_section_lists_exactly_the_17_entries_in_order(): void
+    public function test_the_inventory_section_lists_exactly_the_16_operational_entries_in_order(): void
     {
         $college = $this->makeCollege('INAV1');
         $user = $this->makeUserWithPermissions($college, array_column(self::ALL_ENTRIES, 0));
@@ -132,9 +132,9 @@ class InventoryNavigationTest extends TestCase
             $this->assertStringNotContainsString($bad, $html, "Forbidden heading must not appear: {$bad}");
         }
 
-        // 3. All 17 entries live inside that single section.
+        // 3. All 16 operational entries live inside that single section.
         $group = $this->inventoryGroup($html);
-        $this->assertSame(17, substr_count($group, 'class="nav-link"'), 'Inventory section must contain exactly 17 entries.');
+        $this->assertSame(16, substr_count($group, 'class="nav-link"'), 'Inventory section must contain exactly 16 entries.');
 
         // 4. Order matches spec.
         $cursor = -1;
@@ -193,6 +193,7 @@ class InventoryNavigationTest extends TestCase
         foreach (self::ALL_ENTRIES as $label => [$permission, $route]) {
             $response->assertDontSee($this->href($route), false);
         }
+        $response->assertDontSee($this->href('inventory-reports.index'), false);
 
         // Write/delete permissions alone (no *.view) must not surface the nav.
         $writer = $this->makeUserWithPermissions($college, ['inventory_items.create', 'inventory_vendors.delete']);
@@ -217,9 +218,9 @@ class InventoryNavigationTest extends TestCase
         $this->assertGreaterThan($communication, $inventory, 'Inventory must come after Communication.');
         $this->assertGreaterThan($inventory, $platform, 'Platform must come after Inventory.');
 
-        // Exactly one Inventory heading, exactly 17 entries in it.
+        // Exactly one Inventory heading, exactly 16 operational entries in it.
         $this->assertSame(1, substr_count($html, self::HEADING));
-        $this->assertSame(17, substr_count($this->inventoryGroup($html), 'class="nav-link"'));
+        $this->assertSame(16, substr_count($this->inventoryGroup($html), 'class="nav-link"'));
 
         foreach (self::FORBIDDEN_HEADINGS as $bad) {
             $this->assertStringNotContainsString($bad, $html, "Forbidden heading must be absent for super admin: {$bad}");
@@ -235,6 +236,40 @@ class InventoryNavigationTest extends TestCase
         foreach (['inventory_reports', 'assets'] as $table) {
             $this->assertFalse(Schema::hasTable($table), "{$table} must not be created for reports or assets.");
         }
+    }
+
+    public function test_inventory_asset_reports_is_in_the_shared_reports_section_after_finance(): void
+    {
+        $college = $this->makeCollege('INAV5');
+        $user = $this->makeUserWithPermissions($college, [
+            'finance_reports.view',
+            'inventory_reports.view',
+            'hr_reports.view',
+        ]);
+
+        $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString(self::HEADING, $html, 'The reports permission must not reveal operational Inventory navigation.');
+        $this->assertSame(1, substr_count($html, '>REPORTS</div>'), 'Keep one plain shared REPORTS heading.');
+        $this->assertSame(1, substr_count($html, $this->href('inventory-reports.index')));
+
+        $reportsHeading = strpos($html, '>REPORTS</div>');
+        $this->assertNotFalse($reportsHeading);
+        $afterHeading = $reportsHeading + strlen('>REPORTS</div>');
+        $matched = preg_match(self::SECTION_HEADING_PATTERN, $html, $next, PREG_OFFSET_CAPTURE, $afterHeading);
+        $this->assertSame(1, $matched, 'The Reports section must end at the next sidebar section.');
+        $reportsGroup = substr($html, $afterHeading, $next[0][1] - $afterHeading);
+
+        $finance = strpos($reportsGroup, $this->href('finance-reports.index'));
+        $inventory = strpos($reportsGroup, $this->href('inventory-reports.index'));
+        $hr = strpos($reportsGroup, $this->href('hr-reports.index'));
+        $this->assertNotFalse($finance);
+        $this->assertNotFalse($inventory);
+        $this->assertNotFalse($hr);
+        $this->assertGreaterThan($finance, $inventory, 'Inventory / Asset Reports must follow Finance Reports.');
+        $this->assertGreaterThan($inventory, $hr, 'Inventory / Asset Reports must precede HR Reports.');
+        $this->assertStringContainsString('Inventory / Asset Reports', $reportsGroup);
+        $this->assertSame(3, substr_count($reportsGroup, 'class="nav-link"'));
     }
 
     public function test_a_seeded_college_admin_sees_every_entry_and_can_open_each_screen(): void
@@ -258,6 +293,7 @@ class InventoryNavigationTest extends TestCase
         foreach (self::ALL_ENTRIES as $label => [$permission, $route]) {
             $response->assertSee($this->href($route), false)->assertSee($label);
         }
+        $response->assertSee($this->href('inventory-reports.index'), false)->assertSee('Inventory / Asset Reports');
 
         foreach (self::FORBIDDEN_HEADINGS as $bad) {
             $this->assertStringNotContainsString($bad, $response->getContent());
