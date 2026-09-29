@@ -1,0 +1,5 @@
+@if(isset($rows) && $rows->hasPages())
+<div class="border-t border-slate-100 px-4 py-3">
+    {{ $rows->links() }}
+</div>
+@endif

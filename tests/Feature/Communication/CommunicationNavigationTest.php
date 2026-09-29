@@ -8,23 +8,23 @@ use App\Models\User;
 use Tests\TestCase;
 
 /**
- * Sidebar navigation for Communication Management — Phases 1 + 2.
+ * Sidebar navigation for Communication Management and REPORTS → Communication Reports.
  *
- *   - a single "Communication Management" group, rendered exactly once;
- *   - EXACTLY eight entries: Communication Dashboard, Notices /
+ *   - a single "Communication Management" operational group, rendered once,
+ *     with the seven operational entries (Communication Dashboard, Notices /
  *     Announcements, Circulars, Notifications, SMS / Email Templates,
- *     SMS / Email Logs, Delivery / Read Tracking, Communication Reports —
- *     no other Communication module (WhatsApp or gateway screens);
- *   - the group appears only when the user holds at least one of the four
- *     view permissions; every entry is gated on its own permission;
- *   - Super Admin sees the entries through the centralized RBAC.
+ *     SMS / Email Logs, Delivery / Read Tracking);
+ *   - "Communication Reports" lives under the existing "REPORTS" sidebar
+ *     section, gated on `communication_reports.view`;
+ *   - Super Admin and College Admin see both the operational entries and the
+ *     REPORTS entry through the centralized RBAC.
  */
 class CommunicationNavigationTest extends TestCase
 {
     use CommunicationTestHelpers;
 
     /**
-     * label => [permission, route], in display order.
+     * Operational entries in Communication Management: label => [permission, route], in display order.
      *
      * @var array<string, array{0: string, 1: string}>
      */
@@ -36,19 +36,14 @@ class CommunicationNavigationTest extends TestCase
         'SMS / Email Templates' => ['communication_templates.view', 'communication-templates.index'],
         'SMS / Email Logs' => ['communication_logs.view', 'communication-logs.index'],
         'Delivery / Read Tracking' => ['communication_tracking.view', 'communication-tracking.index'],
-        'Communication Reports' => ['communication_reports.view', 'communication-reports.index'],
     ];
 
     private const FUTURE = ['WhatsApp', 'Email Gateway', 'SMS Gateway', 'Push Notifications'];
 
     private const HEADING = '>Communication Management</div>';
 
-    /**
-     * The exact href attribute of a nav entry. Matching the full attribute
-     * (instead of the bare URL) keeps assertions precise now that some
-     * Communication URLs are prefixes of others (/communication vs
-     * /communication-templates).
-     */
+    private const REPORTS_HEADING = '>REPORTS</div>';
+
     private function href(string $routeName): string
     {
         return 'href="'.route($routeName).'"';
@@ -65,18 +60,32 @@ class CommunicationNavigationTest extends TestCase
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
 
-    public function test_the_group_lists_exactly_the_eight_communication_entries_in_order(): void
+    private function reportsNavGroup(string $html): string
+    {
+        $start = strpos($html, self::REPORTS_HEADING);
+        $this->assertNotFalse($start, 'The sidebar must have a REPORTS section heading.');
+
+        $after = $start + strlen(self::REPORTS_HEADING);
+        $end = strpos($html, 'uppercase tracking-widest', $after);
+
+        return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
+    }
+
+    public function test_the_group_lists_the_seven_operational_communication_entries_and_places_reports_under_reports(): void
     {
         $college = $this->makeCollege('CNAV1');
-        $user = $this->makeUserWithPermissions($college, array_column(self::ENTRIES, 0));
+        $permissions = array_merge(array_column(self::ENTRIES, 0), ['communication_reports.view', 'hostel_reports.view']);
+        $user = $this->makeUserWithPermissions($college, $permissions);
 
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
 
         $this->assertSame(1, substr_count($html, self::HEADING), 'There must be exactly one Communication Management group.');
+        $this->assertSame(1, substr_count($html, self::REPORTS_HEADING), 'There must be a single REPORTS section.');
         $this->assertSame(1, substr_count($html, '<aside'), 'The layout keeps a single sidebar.');
 
         $group = $this->communicationNavGroup($html);
-        $this->assertSame(8, substr_count($group, 'class="nav-link"'), 'Exactly eight Communication entries.');
+        $this->assertSame(7, substr_count($group, 'class="nav-link"'), 'Exactly seven operational Communication entries.');
+        $this->assertStringNotContainsString($this->href('communication-reports.index'), $group, 'Communication Reports must not sit in the operational group.');
 
         $cursor = -1;
         foreach (self::ENTRIES as $label => [$permission, $route]) {
@@ -90,14 +99,26 @@ class CommunicationNavigationTest extends TestCase
         foreach (self::FUTURE as $future) {
             $this->assertStringNotContainsString($future, $group, "{$future} is a future phase and must not be rendered.");
         }
+
+        $reportsGroup = $this->reportsNavGroup($html);
+        $this->assertStringContainsString($this->href('communication-reports.index'), $reportsGroup);
+        $this->assertStringContainsString('Communication Reports', $reportsGroup);
+        $this->assertGreaterThan(
+            (int) strpos($reportsGroup, $this->href('hostel-reports.index')),
+            (int) strpos($reportsGroup, $this->href('communication-reports.index')),
+            'Communication Reports must appear after Hostel Reports in REPORTS.'
+        );
     }
 
-    public function test_the_group_appears_only_with_a_relevant_permission(): void
+    public function test_the_group_and_reports_entry_appear_only_with_relevant_permissions(): void
     {
         $college = $this->makeCollege('CNAV2');
 
         $stranger = $this->makeUserWithPermissions($college, ['students.view', 'hostels.view']);
-        $response = $this->asCollege($college, $stranger)->get(route('dashboard'))->assertOk()->assertDontSee(self::HEADING, false);
+        $response = $this->asCollege($college, $stranger)->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee(self::HEADING, false)
+            ->assertDontSee($this->href('communication-reports.index'), false);
 
         foreach (self::ENTRIES as $label => [$permission, $entryRoute]) {
             $response->assertDontSee($this->href($entryRoute), false);
@@ -105,14 +126,25 @@ class CommunicationNavigationTest extends TestCase
 
         // Write-only permissions open no screen, so they do not surface the group.
         $writer = $this->makeUserWithPermissions($college, ['notices.create', 'circulars.publish', 'notifications.create']);
-        $this->asCollege($college, $writer)->get(route('dashboard'))->assertOk()->assertDontSee(self::HEADING, false);
+        $this->asCollege($college, $writer)->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee(self::HEADING, false)
+            ->assertDontSee($this->href('communication-reports.index'), false);
 
         foreach (self::ENTRIES as $label => [$permission, $route]) {
             $user = $this->makeUserWithPermissions($college, [$permission]);
             $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
 
             $this->assertSame(1, substr_count($html, self::HEADING), "{$permission} alone must show the group.");
+            $this->assertStringNotContainsString($this->href('communication-reports.index'), $html);
         }
+
+        // communication_reports.view alone surfaces REPORTS -> Communication Reports without the operational group.
+        $reporter = $this->makeUserWithPermissions($college, ['communication_reports.view']);
+        $reportHtml = $this->asCollege($college, $reporter)->get(route('dashboard'))->assertOk()->getContent();
+        $this->assertSame(0, substr_count($reportHtml, self::HEADING));
+        $this->assertSame(1, substr_count($reportHtml, self::REPORTS_HEADING));
+        $this->assertStringContainsString($this->href('communication-reports.index'), $this->reportsNavGroup($reportHtml));
     }
 
     public function test_each_entry_is_gated_on_its_own_permission(): void
@@ -141,11 +173,13 @@ class CommunicationNavigationTest extends TestCase
 
         $html = $this->asCollege($college, $super)->get(route('dashboard'))->assertOk()->getContent();
         $group = $this->communicationNavGroup($html);
+        $reportsGroup = $this->reportsNavGroup($html);
 
-        $this->assertSame(8, substr_count($group, 'class="nav-link"'));
+        $this->assertSame(7, substr_count($group, 'class="nav-link"'));
         foreach (self::ENTRIES as $label => [$permission, $route]) {
             $this->assertStringContainsString($this->href($route), $group);
         }
+        $this->assertStringContainsString($this->href('communication-reports.index'), $reportsGroup);
 
         // The group sits after Hostel Management and before the closing Platform / Settings section.
         $communication = strpos($html, self::HEADING);
@@ -178,6 +212,7 @@ class CommunicationNavigationTest extends TestCase
         foreach (self::ENTRIES as $label => [$permission, $route]) {
             $response->assertSee($this->href($route), false)->assertSee($label);
         }
+        $response->assertSee($this->href('communication-reports.index'), false)->assertSee('Communication Reports');
 
         foreach ([
             'communication.dashboard', 'notices.index', 'notices.create', 'circulars.index', 'circulars.create',
