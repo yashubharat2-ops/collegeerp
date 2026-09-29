@@ -145,7 +145,7 @@
 <a class="nav-link" href="{{ route('fee-reports.index') }}">📊 <span>Fee Reports</span></a>
 @endif
 @endif
-@if(auth()->user()?->hasPermission('transport_dashboard.view') || auth()->user()?->hasPermission('vehicles.view') || auth()->user()?->hasPermission('vehicle_documents.view') || auth()->user()?->hasPermission('transport_drivers.view') || auth()->user()?->hasPermission('transport_routes.view') || auth()->user()?->hasPermission('student_transport_assignments.view') || auth()->user()?->hasPermission('transport_fees.view') || auth()->user()?->hasPermission('transport_reports.view'))
+@if(auth()->user()?->hasPermission('transport_dashboard.view') || auth()->user()?->hasPermission('vehicles.view') || auth()->user()?->hasPermission('vehicle_documents.view') || auth()->user()?->hasPermission('transport_drivers.view') || auth()->user()?->hasPermission('transport_routes.view') || auth()->user()?->hasPermission('student_transport_assignments.view') || auth()->user()?->hasPermission('transport_fees.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Transport Management</div>
 @if(auth()->user()?->hasPermission('transport_dashboard.view'))
 <a class="nav-link" href="{{ route('transport.dashboard') }}">🚌 <span>Transport Dashboard</span></a>
@@ -170,9 +170,6 @@
 @endif
 @if(auth()->user()?->hasPermission('transport_fees.view'))
 <a class="nav-link" href="{{ route('transport-fees.index') }}">💰 <span>Transport Fees</span></a>
-@endif
-@if(auth()->user()?->hasPermission('transport_reports.view'))
-<a class="nav-link" href="{{ route('transport-reports.index') }}">📊 <span>Transport Reports</span></a>
 @endif
 @endif
 @if(auth()->user()?->hasPermission('library_dashboard.view') || auth()->user()?->hasPermission('books.view') || auth()->user()?->hasPermission('book_categories.view') || auth()->user()?->hasPermission('authors.view') || auth()->user()?->hasPermission('publishers.view') || auth()->user()?->hasPermission('book_copies.view') || auth()->user()?->hasPermission('library_members.view') || auth()->user()?->hasPermission('library_transactions.view') || auth()->user()?->hasPermission('library_renewals.view') || auth()->user()?->hasPermission('library_fines.view'))
@@ -318,7 +315,7 @@
 <a class="nav-link" href="{{ route('inventory-reports.index') }}">📊 <span>Inventory Reports</span></a>
 @endif
 @endif
-@if(auth()->user()?->hasPermission('student_reports.view') || auth()->user()?->hasPermission('academic_reports.view') || auth()->user()?->hasPermission('examination_reports.view') || auth()->user()?->hasPermission('finance_reports.view') || auth()->user()?->hasPermission('hr_reports.view') || auth()->user()?->hasPermission('library_reports.view'))
+@if(auth()->user()?->hasPermission('student_reports.view') || auth()->user()?->hasPermission('academic_reports.view') || auth()->user()?->hasPermission('examination_reports.view') || auth()->user()?->hasPermission('finance_reports.view') || auth()->user()?->hasPermission('hr_reports.view') || auth()->user()?->hasPermission('library_reports.view') || auth()->user()?->hasPermission('transport_reports.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">REPORTS</div>
 @if(auth()->user()?->hasPermission('student_reports.view'))
 <a class="nav-link" href="{{ route('student-reports.index') }}">📊 <span>Student Reports</span></a>
@@ -337,6 +334,9 @@
 @endif
 @if(auth()->user()?->hasPermission('library_reports.view'))
 <a class="nav-link" href="{{ route('library-reports.index') }}">📚 <span>Library Reports</span></a>
+@endif
+@if(auth()->user()?->hasPermission('transport_reports.view'))
+<a class="nav-link" href="{{ route('transport-reports.index') }}">🚐 <span>Transport Reports</span></a>
 @endif
 @endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Platform</div>

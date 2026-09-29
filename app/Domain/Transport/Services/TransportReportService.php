@@ -2,237 +2,227 @@
 
 namespace App\Domain\Transport\Services;
 
-use App\Models\{StudentTransportAssignment, StudentTransportFeeAssignment, TransportDriver, TransportRoute, TransportStop, Vehicle, VehicleDocument};
+use App\Models\{StudentTransportAssignment, StudentTransportFeeAssignment, TransportDriver, TransportRoute, TransportStop, Vehicle};
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 /**
- * TransportReportService — READ-ONLY Transport reporting.
+ * TransportReportService — the READ side of the Transport Reports module.
  *
- * Every figure is aggregated live from the EXISTING Transport, Student and
- * Finance records (vehicles, vehicle_documents, transport_drivers,
- * transport_routes/stops, student_transport_assignments,
- * student_transport_fee_assignments and the shared fee_payments rows). There
- * are no report tables, no second copy of any business fact, and NOTHING in
- * this service writes.
+ * Six live reports over the EXISTING Transport, Student and Finance records:
  *
- * Fee figures reuse the same TransportFeeService ledger derivation (itself the
- * shared FeeLedger arithmetic over fee_payments / fee_refunds), so a report can
- * never disagree with the Transport Fees screen.
+ *   Vehicle Report                        → vehicles
+ *   Driver Report                         → transport_drivers + their existing staff record
+ *   Route / Stop Report                   → transport_routes + their existing stops
+ *   Student Transport Assignment Report   → student_transport_assignments + enrollment/student
+ *   Transport Fee Report                  → student_transport_fee_assignments + shared fee_payments
+ *   Transport Summary                     → live aggregates of all of the above
  *
- * All queries run through the tenant-scoped models (CollegeScope) with
- * deterministic ordering, and every aggregation uses plain COUNT / SUM /
- * GROUP BY / JOIN constructs that behave identically on SQLite and MySQL.
+ * There are no report tables, no snapshots and no second copy of any Transport
+ * fact: every row and every figure is read live from the records the
+ * operational Transport / Student / Finance modules already own. Nothing in
+ * this class writes and no Transport rule is re-implemented here — statuses,
+ * route → stop relationships and fee amounts are the ones the operational
+ * services stored (TransportMasterService, StudentTransportAssignmentService,
+ * TransportFeeService).
+ *
+ * Money reuses the same TransportFeeService ledger derivation (itself the
+ * shared FeeLedger arithmetic over the existing fee_payments / fee_refunds
+ * rows), so the report can never disagree with the Transport Fees screen. The
+ * balance shown is never recalculated here.
+ *
+ * Rules honoured by every method:
+ *
+ *  - Tenant safety — every root query starts from a model carrying
+ *    CollegeScope (BelongsToCollege), so a forged foreign filter id can only
+ *    ever produce an empty report.
+ *  - Deterministic pagination — 20 rows per page with a unique id tiebreak, so
+ *    pages never overlap or skip rows, and filters survive pagination.
+ *  - Constant query counts per page — counts and sums are SQL aggregates and
+ *    relations are eager loaded; the per-stop / per-route student counts of the
+ *    Route / Stop Report are pre-aggregated for the whole page in one query.
+ *  - Respect existing rules — soft-deleted masters never appear (SoftDeletes
+ *    on every Transport model) and inactive / completed / cancelled rows stay
+ *    visible exactly as the operational screens show their history.
+ *  - Read-only — nothing in this class writes.
+ *
+ * Filter vocabulary of the service (the controller normalises the query string
+ * into it): `status` is always the status of the row being listed (vehicle
+ * status, driver status, route status, assignment status, fee assignment
+ * status) and `from` / `to` always mean the date window of the selected
+ * report. `vehicle_type` is the stored vehicle type text.
  */
 class TransportReportService
 {
+    /** Rows per page, matching the other REPORTS modules. */
+    public const PER_PAGE = 20;
+
     public function __construct(private readonly TransportFeeService $fees)
     {
     }
 
     /**
-     * Report 1 — Vehicle Summary: every vehicle with its live document counts.
+     * Report 1 — Vehicle Report: every existing vehicle with the stored fleet
+     * details. Filters: vehicle, status, vehicle type.
      *
      * @param  array<string, mixed>  $filters
+     * @return array{rows: LengthAwarePaginator, totals: array<string, int>}
      */
-    public function vehicleSummary(array $filters): LengthAwarePaginator
+    public function vehicles(array $filters): array
     {
-        $query = Vehicle::query()
-            ->withCount(['documents as documents_count', 'documents as expiring_documents_count' => fn (Builder $q) => $q->whereNotNull('expiry_date')->whereBetween('expiry_date', [now()->toDateString(), now()->addDays(VehicleDocument::EXPIRING_SOON_DAYS)->toDateString()])])
-            ->when($filters['vehicle_id'] ?? null, fn (Builder $q, $value) => $q->whereKey($value))
-            ->when(in_array($filters['status'] ?? null, Vehicle::STATUSES, true), fn (Builder $q) => $q->where('status', $filters['status']))
-            // Deterministic pagination order.
-            ->orderBy('registration_number')
-            ->orderBy('id');
+        $query = $this->vehicleQuery($filters);
 
-        return $query->paginate(15)->withQueryString();
-    }
+        $rows = (clone $query)->paginate(self::PER_PAGE)->withQueryString();
 
-    /**
-     * Report 2 — Vehicle Status: live counts per vehicle status.
-     *
-     * @param  array<string, mixed>  $filters
-     * @return array<int, array{status: string, vehicles: int}>
-     */
-    public function vehicleStatus(array $filters): array
-    {
-        $rows = Vehicle::query()
-            ->reorder()
-            ->toBase()
-            ->select('status', DB::raw('COUNT(*) as vehicles'))
+        $byStatus = (clone $query)->reorder()->toBase()
+            ->select('status', DB::raw('COUNT(*) as total'))
             ->groupBy('status')
-            ->orderBy('status')
-            ->get();
+            ->pluck('total', 'status');
 
-        return array_map(fn ($row) => ['status' => (string) $row->status, 'vehicles' => (int) $row->vehicles], $rows->all());
+        $totals = [
+            'total' => (int) $byStatus->sum(),
+            'active' => (int) ($byStatus['active'] ?? 0),
+            'inactive' => (int) ($byStatus['inactive'] ?? 0),
+            'maintenance' => (int) ($byStatus['maintenance'] ?? 0),
+            'retired' => (int) ($byStatus['retired'] ?? 0),
+        ];
+
+        return ['rows' => $rows, 'totals' => $totals];
     }
 
     /**
-     * Report 3 — Vehicle Document Expiry: documents with an expiry date,
-     * nearest expiry first (expired ones included — they need attention).
+     * Report 2 — Driver Report: every existing driver with the contact and
+     * license details of the staff record it references. Filters: driver,
+     * status, license-expiry window.
      *
      * @param  array<string, mixed>  $filters
+     * @return array{rows: LengthAwarePaginator, totals: array<string, int>}
      */
-    public function vehicleDocumentExpiry(array $filters): LengthAwarePaginator
+    public function drivers(array $filters): array
     {
-        $query = VehicleDocument::query()
-            ->with(['vehicle:id,college_id,registration_number'])
-            ->whereNotNull('expiry_date')
-            ->when($filters['vehicle_id'] ?? null, fn (Builder $q, $value) => $q->where('vehicle_id', $value))
-            ->when(($filters['status'] ?? null) === 'expired', fn (Builder $q) => $q->where('expiry_date', '<', now()->toDateString()))
-            ->when(($filters['status'] ?? null) === 'expiring', fn (Builder $q) => $q->whereBetween('expiry_date', [now()->toDateString(), now()->addDays(VehicleDocument::EXPIRING_SOON_DAYS)->toDateString()]))
-            ->when(($filters['status'] ?? null) === 'active', fn (Builder $q) => $q->where('expiry_date', '>', now()->addDays(VehicleDocument::EXPIRING_SOON_DAYS)->toDateString()))
-            ->when($filters['from'] ?? null, fn (Builder $q, $value) => $q->whereDate('expiry_date', '>=', $value))
-            ->when($filters['to'] ?? null, fn (Builder $q, $value) => $q->whereDate('expiry_date', '<=', $value))
-            ->orderBy('expiry_date')
-            ->orderBy('id');
+        $query = $this->driverQuery($filters);
 
-        return $query->paginate(15)->withQueryString();
+        $rows = (clone $query)->paginate(self::PER_PAGE)->withQueryString();
+
+        $byStatus = (clone $query)->reorder()->toBase()
+            ->select('status', DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $totals = [
+            'total' => (int) $byStatus->sum(),
+            'active' => (int) ($byStatus['active'] ?? 0),
+            'inactive' => (int) ($byStatus['inactive'] ?? 0),
+        ];
+
+        return ['rows' => $rows, 'totals' => $totals];
     }
 
     /**
-     * Report 4 — Driver Summary: drivers with their existing staff records.
+     * Report 3 — Route / Stop Report: every existing route with its existing
+     * stops in their stored sequence (the route → stop relationship is the one
+     * Transport Management maintains). Filters: route, stop, route status.
      *
      * @param  array<string, mixed>  $filters
+     * @return array{
+     *     rows: LengthAwarePaginator,
+     *     routeCounts: array<int, array{active: int, total: int}>,
+     *     stopCounts: array<int, array{active: int, total: int}>,
+     *     totals: array<string, int>
+     * }
      */
-    public function driverSummary(array $filters): LengthAwarePaginator
+    public function routeStops(array $filters): array
     {
-        $query = TransportDriver::query()
-            ->with('faculty:id,first_name,middle_name,last_name,employee_code')
-            ->when(in_array($filters['status'] ?? null, TransportDriver::STATUSES, true), fn (Builder $q) => $q->where('status', $filters['status']))
-            ->when($filters['from'] ?? null, fn (Builder $q, $value) => $q->whereDate('license_expiry', '>=', $value))
-            ->when($filters['to'] ?? null, fn (Builder $q, $value) => $q->whereDate('license_expiry', '<=', $value))
-            ->orderBy('license_number')
-            ->orderBy('id');
-
-        return $query->paginate(15)->withQueryString();
-    }
-
-    /**
-     * Report 5 — Route Summary: routes with live stop and assignment counts.
-     *
-     * @param  array<string, mixed>  $filters
-     */
-    public function routeSummary(array $filters): array
-    {
-        return TransportRoute::query()
+        $rows = TransportRoute::query()
             ->withCount([
                 'stops',
                 'stops as active_stops_count' => fn (Builder $q) => $q->where('status', 'active'),
             ])
+            ->with('stops')
             ->when($filters['route_id'] ?? null, fn (Builder $q, $value) => $q->whereKey($value))
+            ->when($filters['stop_id'] ?? null, fn (Builder $q, $value) => $q->whereHas('stops', fn (Builder $sub) => $sub->whereKey($value)))
             ->when(in_array($filters['status'] ?? null, TransportRoute::STATUSES, true), fn (Builder $q) => $q->where('status', $filters['status']))
             ->orderBy('name')
             ->orderBy('id')
-            ->get()
-            ->map(fn (TransportRoute $route) => [
-                'route' => $route,
-                'students' => $this->assignmentCount(['route_id' => $route->id, 'status' => 'active']),
-            ])
-            ->all();
+            ->paginate(self::PER_PAGE)
+            ->withQueryString();
+
+        $routeIds = $rows->getCollection()->pluck('id')->all();
+        $stopIds = $rows->getCollection()->flatMap(fn (TransportRoute $route) => $route->stops->pluck('id'))->all();
+
+        return [
+            'rows' => $rows,
+            'routeCounts' => $this->assignmentCounts('transport_route_id', $routeIds),
+            'stopCounts' => $this->assignmentCounts('transport_stop_id', $stopIds),
+            'totals' => $this->routeStopTotals($filters),
+        ];
     }
 
     /**
-     * Report 6 — Stop-wise Student Count: per stop, how many students ride.
+     * Report 4 — Student Transport Assignment Report: the existing assignments
+     * with the student / enrollment / program / section and route / stop they
+     * reference. Filters: academic year, student, program (class), section,
+     * route, stop, status, start-date window.
      *
      * @param  array<string, mixed>  $filters
-     * @return array<int, array{stop: TransportStop, active_students: int, total_assignments: int}>
+     * @return array{rows: LengthAwarePaginator, totals: array<string, int>}
      */
-    public function stopWiseStudentCount(array $filters): array
+    public function assignments(array $filters): array
     {
-        $stops = TransportStop::query()
-            ->with('route:id,name,code')
-            ->when($filters['route_id'] ?? null, fn (Builder $q, $value) => $q->where('route_id', $value))
-            ->when($filters['stop_id'] ?? null, fn (Builder $q, $value) => $q->whereKey($value))
-            ->when(in_array($filters['status'] ?? null, TransportStop::STATUSES, true), fn (Builder $q) => $q->where('status', $filters['status']))
-            ->orderBy('route_id')
-            ->orderBy('sequence')
-            ->orderBy('id')
-            ->get();
+        $query = $this->assignmentQuery($filters);
 
-        return $stops->map(fn (TransportStop $stop) => [
-            'stop' => $stop,
-            'active_students' => $this->assignmentCount(['stop_id' => $stop->id, 'status' => 'active']),
-            'total_assignments' => $this->assignmentCount(['stop_id' => $stop->id]),
-        ])->all();
-    }
-
-    /**
-     * Report 7 — Student Transport Assignment Report (filterable, paginated).
-     *
-     * @param  array<string, mixed>  $filters
-     */
-    public function studentAssignmentReport(array $filters): LengthAwarePaginator
-    {
-        return $this->assignmentQuery($filters)
+        $rows = (clone $query)
             ->with([
-                'studentEnrollment.student:id,first_name,middle_name,last_name,student_number',
-                'studentEnrollment:id,student_id,enrollment_number,academic_year_id,program_id',
+                'studentEnrollment:id,student_id,academic_year_id,enrollment_number,program_id,section_id',
+                'studentEnrollment.student:id,student_number,first_name,middle_name,last_name',
+                'studentEnrollment.program:id,name,code',
+                'studentEnrollment.section:id,name,code',
                 'academicYear:id,name',
                 'transportRoute:id,name,code',
                 'transportStop:id,name,code,route_id,sequence',
             ])
-            ->paginate(15)
+            ->paginate(self::PER_PAGE)
             ->withQueryString();
-    }
 
-    /**
-     * Report 10 — Active / Inactive Transport Assignments: counts per status
-     * plus the filtered row list (status=active|inactive, where inactive means
-     * completed or cancelled).
-     *
-     * @param  array<string, mixed>  $filters
-     * @return array{counts: array<string, int>, rows: LengthAwarePaginator}
-     */
-    public function activeInactiveAssignments(array $filters): array
-    {
-        $counts = StudentTransportAssignment::query()
-            ->reorder()
-            ->toBase()
+        $byStatus = (clone $query)->reorder()->toBase()
             ->select('status', DB::raw('COUNT(*) as total'))
             ->groupBy('status')
-            ->orderBy('status')
-            ->pluck('total', 'status')
-            ->map(fn ($value) => (int) $value)
-            ->all();
+            ->pluck('total', 'status');
 
-        $rows = $this->assignmentQuery($filters)
-            ->with([
-                'studentEnrollment.student:id,first_name,middle_name,last_name,student_number',
-                'academicYear:id,name',
-                'transportRoute:id,name,code',
-                'transportStop:id,name,code,route_id',
-            ])
-            ->when(($filters['status'] ?? null) === 'active', fn (Builder $q) => $q->where('status', StudentTransportAssignment::STATUS_ACTIVE))
-            ->when(($filters['status'] ?? null) === 'inactive', fn (Builder $q) => $q->whereIn('status', [
-                StudentTransportAssignment::STATUS_COMPLETED,
-                StudentTransportAssignment::STATUS_CANCELLED,
-            ]))
-            ->paginate(15)
-            ->withQueryString();
+        $totals = [
+            'total' => (int) $byStatus->sum(),
+            'active' => (int) ($byStatus['active'] ?? 0),
+            'completed' => (int) ($byStatus['completed'] ?? 0),
+            'cancelled' => (int) ($byStatus['cancelled'] ?? 0),
+        ];
 
-        return ['counts' => $counts, 'rows' => $rows];
+        return ['rows' => $rows, 'totals' => $totals];
     }
 
     /**
-     * Report 8 — Transport Fee Summary: every fee assignment with its live
-     * ledger (assigned / collected / outstanding) from the shared Finance rows.
+     * Report 5 — Transport Fee Report: every existing transport fee assignment
+     * with its live ledger (assigned / collected / due) derived by the shared
+     * TransportFeeService from the existing Finance fee_payments / fee_refunds
+     * rows. Filters: academic year, student, route, stop, status, effective
+     * date window.
      *
      * @param  array<string, mixed>  $filters
      * @return array{rows: LengthAwarePaginator, totals: array<string, mixed>}
      */
-    public function transportFeeSummary(array $filters): array
+    public function fees(array $filters): array
     {
-        $query = $this->feeQuery($filters);
-        $rows = $query->clone()
+        $rows = $this->feeQuery($filters)
             ->with([
-                'studentTransportAssignment.studentEnrollment.student:id,first_name,middle_name,last_name,student_number',
-                'studentTransportAssignment:id,student_enrollment_id,transport_route_id,transport_stop_id',
+                'studentTransportAssignment:id,student_enrollment_id,academic_year_id,transport_route_id,transport_stop_id',
+                'studentTransportAssignment.studentEnrollment:id,student_id,enrollment_number',
+                'studentTransportAssignment.studentEnrollment.student:id,student_number,first_name,middle_name,last_name',
+                'studentTransportAssignment.transportRoute:id,name,code',
+                'studentTransportAssignment.transportStop:id,name,code,route_id',
                 'transportFeeStructure:id,name,code',
                 'academicYear:id,name',
             ])
-            ->paginate(15)
+            ->paginate(self::PER_PAGE)
             ->withQueryString();
 
         $ledger = $this->fees->ledgerFor($rows->getCollection());
@@ -244,32 +234,101 @@ class TransportReportService
     }
 
     /**
-     * Report 9 — Transport Fee Outstanding Summary: the full filtered set's
-     * money totals plus every assignment still carrying a balance, filtered in
-     * SQL so pagination stays honest.
+     * Report 6 — Transport Summary: the live transport position of the active
+     * college. Every figure is a plain COUNT / SUM or the shared fee ledger —
+     * nothing is invented and the summary has no filters.
      *
-     * @param  array<string, mixed>  $filters
-     * @return array{totals: array<string, mixed>, rows: LengthAwarePaginator}
+     * @return array<string, array<string, int|float>>
      */
-    public function transportFeeOutstandingSummary(array $filters): array
+    public function summary(): array
     {
-        $rows = $this->outstandingQuery($filters)
-            ->with([
-                'studentTransportAssignment.studentEnrollment.student:id,first_name,middle_name,last_name,student_number',
-                'academicYear:id,name',
-            ])
-            ->paginate(15)
-            ->withQueryString();
+        $count = fn (string $model, string $column = 'status'): array => collect(
+            $model::query()->reorder()->toBase()
+                ->select($column, DB::raw('COUNT(*) as total'))
+                ->groupBy($column)
+                ->pluck('total', $column)
+        )->map(fn ($value) => (int) $value)->all();
 
-        $ledger = $this->fees->ledgerFor($rows->getCollection());
-        $rows->getCollection()->each(function (StudentTransportFeeAssignment $assignment) use ($ledger): void {
-            $assignment->setAttribute('ledger', $ledger[$assignment->getKey()] ?? null);
-        });
+        $vehicles = $count(Vehicle::class);
+        $drivers = $count(TransportDriver::class);
+        $routes = $count(TransportRoute::class);
+        $stops = $count(TransportStop::class);
+        $assignments = $count(StudentTransportAssignment::class);
+        $feeStatuses = $count(StudentTransportFeeAssignment::class);
+        $feeTotals = $this->feeTotals([]);
 
-        return ['totals' => $this->feeTotals($filters), 'rows' => $rows];
+        return [
+            'vehicles' => [
+                'total' => array_sum($vehicles),
+                'active' => $vehicles['active'] ?? 0,
+                'inactive' => $vehicles['inactive'] ?? 0,
+                'maintenance' => $vehicles['maintenance'] ?? 0,
+                'retired' => $vehicles['retired'] ?? 0,
+            ],
+            'drivers' => [
+                'total' => array_sum($drivers),
+                'active' => $drivers['active'] ?? 0,
+                'inactive' => $drivers['inactive'] ?? 0,
+            ],
+            'routes' => [
+                'total' => array_sum($routes),
+                'active' => $routes['active'] ?? 0,
+                'inactive' => $routes['inactive'] ?? 0,
+            ],
+            'stops' => [
+                'total' => array_sum($stops),
+                'active' => $stops['active'] ?? 0,
+                'inactive' => $stops['inactive'] ?? 0,
+            ],
+            'assignments' => [
+                'total' => array_sum($assignments),
+                'active' => $assignments['active'] ?? 0,
+                'completed' => $assignments['completed'] ?? 0,
+                'cancelled' => $assignments['cancelled'] ?? 0,
+            ],
+            'fees' => [
+                'assignments' => array_sum($feeStatuses),
+                'active' => $feeStatuses[StudentTransportFeeAssignment::STATUS_ACTIVE] ?? 0,
+                'completed' => $feeStatuses[StudentTransportFeeAssignment::STATUS_COMPLETED] ?? 0,
+                'cancelled' => $feeStatuses[StudentTransportFeeAssignment::STATUS_CANCELLED] ?? 0,
+                'assigned' => $feeTotals['assigned'],
+                'net_collected' => $feeTotals['net_collected'],
+                'outstanding' => $feeTotals['outstanding'],
+                'outstanding_assignments' => $feeTotals['outstanding_assignments'],
+            ],
+        ];
     }
 
     // ------------------------------------------------------------- helpers
+
+    /**
+     * @param  array<string, mixed>  $filters
+     */
+    private function vehicleQuery(array $filters): Builder
+    {
+        return Vehicle::query()
+            ->when($filters['vehicle_id'] ?? null, fn (Builder $q, $value) => $q->whereKey($value))
+            ->when(in_array($filters['status'] ?? null, Vehicle::STATUSES, true), fn (Builder $q) => $q->where('status', $filters['status']))
+            ->when($filters['vehicle_type'] ?? null, fn (Builder $q, $value) => $q->where('vehicle_type', $value))
+            // Deterministic pagination order.
+            ->orderBy('registration_number')
+            ->orderBy('id');
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     */
+    private function driverQuery(array $filters): Builder
+    {
+        return TransportDriver::query()
+            ->with('faculty:id,employee_code,first_name,middle_name,last_name,email,phone')
+            ->when($filters['driver_id'] ?? null, fn (Builder $q, $value) => $q->whereKey($value))
+            ->when(in_array($filters['status'] ?? null, TransportDriver::STATUSES, true), fn (Builder $q) => $q->where('status', $filters['status']))
+            ->when($filters['from'] ?? null, fn (Builder $q, $value) => $q->whereDate('license_expiry', '>=', $value))
+            ->when($filters['to'] ?? null, fn (Builder $q, $value) => $q->whereDate('license_expiry', '<=', $value))
+            ->orderBy('license_number')
+            ->orderBy('id');
+    }
 
     /**
      * @param  array<string, mixed>  $filters
@@ -281,10 +340,13 @@ class TransportReportService
             ->when($filters['route_id'] ?? null, fn (Builder $q, $value) => $q->where('transport_route_id', $value))
             ->when($filters['stop_id'] ?? null, fn (Builder $q, $value) => $q->where('transport_stop_id', $value))
             ->when($filters['student_id'] ?? null, fn (Builder $q, $value) => $q->whereHas('studentEnrollment', fn (Builder $sub) => $sub->where('student_id', $value)))
+            ->when($filters['program_id'] ?? null, fn (Builder $q, $value) => $q->whereHas('studentEnrollment', fn (Builder $sub) => $sub->where('program_id', $value)))
+            ->when($filters['section_id'] ?? null, fn (Builder $q, $value) => $q->whereHas('studentEnrollment', fn (Builder $sub) => $sub->where('section_id', $value)))
             ->when(in_array($filters['status'] ?? null, StudentTransportAssignment::STATUSES, true), fn (Builder $q) => $q->where('status', $filters['status']))
             ->when($filters['from'] ?? null, fn (Builder $q, $value) => $q->whereDate('start_date', '>=', $value))
             ->when($filters['to'] ?? null, fn (Builder $q, $value) => $q->whereDate('start_date', '<=', $value))
             // Deterministic pagination order.
+            ->orderByDesc('start_date')
             ->orderByDesc('id');
     }
 
@@ -297,51 +359,18 @@ class TransportReportService
             ->when($filters['academic_year_id'] ?? null, fn (Builder $q, $value) => $q->where('academic_year_id', $value))
             ->when($filters['route_id'] ?? null, fn (Builder $q, $value) => $q->whereHas('studentTransportAssignment', fn (Builder $sub) => $sub->where('transport_route_id', $value)))
             ->when($filters['stop_id'] ?? null, fn (Builder $q, $value) => $q->whereHas('studentTransportAssignment', fn (Builder $sub) => $sub->where('transport_stop_id', $value)))
+            ->when($filters['student_id'] ?? null, fn (Builder $q, $value) => $q->whereHas('studentTransportAssignment.studentEnrollment', fn (Builder $sub) => $sub->where('student_id', $value)))
             ->when(in_array($filters['status'] ?? null, StudentTransportFeeAssignment::STATUSES, true), fn (Builder $q) => $q->where('status', $filters['status']))
             ->when($filters['from'] ?? null, fn (Builder $q, $value) => $q->whereDate('effective_from', '>=', $value))
             ->when($filters['to'] ?? null, fn (Builder $q, $value) => $q->whereDate('effective_from', '<=', $value))
+            ->orderByDesc('effective_from')
             ->orderByDesc('id');
     }
 
     /**
-     * The fee query restricted to assignments with a positive derived balance.
-     *
-     * The same formula as FeeLedger::outstanding() (transport has no
-     * concessions), expressed in portable SQL over the pre-aggregated Finance
-     * totals so the page count and the rows can never disagree with the ledger.
-     *
-     * @param  array<string, mixed>  $filters
-     */
-    private function outstandingQuery(array $filters): Builder
-    {
-        $collegeId = app(\App\Support\Tenancy\TenantContext::class)->id();
-
-        $payments = DB::table('fee_payments')
-            ->when($collegeId !== null, fn ($q) => $q->where('college_id', $collegeId))
-            ->whereNull('deleted_at')
-            ->where('status', \App\Models\FeePayment::STATUS_COMPLETED)
-            ->groupBy('transport_fee_assignment_id')
-            ->selectRaw('transport_fee_assignment_id as assignment_id, SUM(amount) as total');
-
-        $refunds = DB::table('fee_refunds')
-            ->join('fee_payments', 'fee_payments.id', '=', 'fee_refunds.fee_payment_id')
-            ->when($collegeId !== null, fn ($q) => $q->where('fee_refunds.college_id', $collegeId)->where('fee_payments.college_id', $collegeId))
-            ->whereNull('fee_payments.deleted_at')
-            ->where('fee_payments.status', \App\Models\FeePayment::STATUS_COMPLETED)
-            ->whereNotIn('fee_refunds.status', \App\Models\FeeRefund::INVALID_STATUSES)
-            ->groupBy('fee_payments.transport_fee_assignment_id')
-            ->selectRaw('fee_payments.transport_fee_assignment_id as assignment_id, SUM(fee_refunds.amount) as total');
-
-        return $this->feeQuery($filters)
-            ->select('student_transport_fee_assignments.*')
-            ->leftJoinSub($payments, 'ledger_payments', 'ledger_payments.assignment_id', '=', 'student_transport_fee_assignments.id')
-            ->leftJoinSub($refunds, 'ledger_refunds', 'ledger_refunds.assignment_id', '=', 'student_transport_fee_assignments.id')
-            ->whereRaw('(student_transport_fee_assignments.amount - COALESCE(ledger_payments.total, 0) + COALESCE(ledger_refunds.total, 0)) > 0');
-    }
-
-    /**
-     * Money totals across the whole filtered set (not just the page), computed
-     * from the same ledger derivation in bounded batches.
+     * Money totals across the whole filtered fee set (not just the page),
+     * derived by the shared TransportFeeService ledger in bounded batches —
+     * the report never recalculates a balance itself.
      *
      * @param  array<string, mixed>  $filters
      * @return array{assigned: float, net_collected: float, outstanding: float, assignments: int, outstanding_assignments: int}
@@ -380,13 +409,74 @@ class TransportReportService
         ];
     }
 
-    /** @param  array<string, mixed>  $filters */
-    private function assignmentCount(array $filters): int
+    /**
+     * Live student assignment counts (total + active) per route or stop for
+     * one page of the Route / Stop Report — one grouped query, never one per
+     * row.
+     *
+     * @param  array<int>  $ids
+     * @return array<int, array{active: int, total: int}>
+     */
+    private function assignmentCounts(string $column, array $ids): array
     {
-        return (int) StudentTransportAssignment::query()
-            ->when($filters['route_id'] ?? null, fn (Builder $q, $value) => $q->where('transport_route_id', $value))
-            ->when($filters['stop_id'] ?? null, fn (Builder $q, $value) => $q->where('transport_stop_id', $value))
-            ->when(($filters['status'] ?? null) !== null, fn (Builder $q) => $q->where('status', $filters['status']))
-            ->count();
+        if ($ids === []) {
+            return [];
+        }
+
+        $rows = StudentTransportAssignment::query()
+            ->whereIn($column, $ids)
+            ->reorder()
+            ->toBase()
+            ->select($column, 'status', DB::raw('COUNT(*) as total'))
+            ->groupBy($column, 'status')
+            ->get();
+
+        $counts = [];
+        foreach ($ids as $id) {
+            $counts[$id] = ['active' => 0, 'total' => 0];
+        }
+        foreach ($rows as $row) {
+            $counts[$row->{$column}]['total'] += (int) $row->total;
+            if ($row->status === StudentTransportAssignment::STATUS_ACTIVE) {
+                $counts[$row->{$column}]['active'] += (int) $row->total;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return array<string, int>
+     */
+    private function routeStopTotals(array $filters): array
+    {
+        $routeQuery = TransportRoute::query()
+            ->when($filters['route_id'] ?? null, fn (Builder $q, $value) => $q->whereKey($value))
+            ->when($filters['stop_id'] ?? null, fn (Builder $q, $value) => $q->whereHas('stops', fn (Builder $sub) => $sub->whereKey($value)))
+            ->when(in_array($filters['status'] ?? null, TransportRoute::STATUSES, true), fn (Builder $q) => $q->where('status', $filters['status']))
+            ->reorder();
+
+        $routeStatuses = (clone $routeQuery)->toBase()
+            ->select('status', DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $stopStatuses = TransportStop::query()
+            ->whereIn('route_id', (clone $routeQuery)->select('id'))
+            ->reorder()
+            ->toBase()
+            ->select('status', DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        return [
+            'routes' => (int) $routeStatuses->sum(),
+            'routes_active' => (int) ($routeStatuses['active'] ?? 0),
+            'routes_inactive' => (int) ($routeStatuses['inactive'] ?? 0),
+            'stops' => (int) $stopStatuses->sum(),
+            'stops_active' => (int) ($stopStatuses['active'] ?? 0),
+            'stops_inactive' => (int) ($stopStatuses['inactive'] ?? 0),
+        ];
     }
 }

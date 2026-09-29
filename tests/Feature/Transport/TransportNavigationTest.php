@@ -7,14 +7,16 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
- * Transport Phase 2 — Navigation: the Transport group shows exactly the nine
- * required entries in order, with Routes and Stops as SEPARATE items, each
+ * Transport Phase 2 — Navigation: the Transport group shows exactly the eight
+ * operational entries in order, with Routes and Stops as SEPARATE items, each
  * individually permission-gated, and the whole group hidden when the user has
- * none of the transport permissions.
+ * none of the transport permissions. The Transport Reports entry is not part
+ * of the operational group — it lives in the plain REPORTS sidebar section
+ * (after Library Reports), with the other report modules.
  */
 class TransportNavigationTest extends TestCase
 {
-    /** The nine entries in their exact required order: label => routes shown. */
+    /** The eight operational entries in their exact required order: label => routes shown. */
     private const ENTRIES = [
         'Transport Dashboard' => 'transport.dashboard',
         'Vehicles' => 'vehicles.index',
@@ -24,7 +26,6 @@ class TransportNavigationTest extends TestCase
         'Stops' => 'transport-stops.list',
         'Student Transport Assignment' => 'transport-assignments.index',
         'Transport Fees' => 'transport-fees.index',
-        'Transport Reports' => 'transport-reports.index',
     ];
 
     private const VIEW_PERMISSIONS = [
@@ -57,12 +58,12 @@ class TransportNavigationTest extends TestCase
     private function transportNavBlock(string $html): string
     {
         $this->assertStringContainsString('Transport Management', $html);
-        preg_match('/Transport Management<\/div>(.*?)>(Platform|Academics|Admissions|Examinations|Finance|HR|Library|Settings)/s', $html, $matches);
+        preg_match('/Transport Management<\/div>(.*?)>(Platform|Academics|Admissions|Examinations|Finance|HR|Library|Settings|REPORTS)/s', $html, $matches);
         $this->assertNotEmpty($matches, 'Transport nav block could not be located in the layout.');
         return $matches[1];
     }
 
-    public function test_transport_navigation_shows_exactly_nine_entries_in_order(): void
+    public function test_transport_navigation_shows_exactly_eight_entries_in_order(): void
     {
         $a = $this->college('NAV9');
         $this->login($a);
@@ -70,12 +71,24 @@ class TransportNavigationTest extends TestCase
         $block = $this->transportNavBlock($response->getContent());
 
         preg_match_all('/class="nav-link"/', $block, $hits);
-        $this->assertCount(9, $hits[0], 'The Transport group must contain exactly nine navigation entries.');
+        $this->assertCount(8, $hits[0], 'The Transport group must contain exactly eight operational entries.');
 
         $response->assertSeeInOrder(array_map(
             fn (string $route) => 'href="'.route($route).'"',
             array_values(self::ENTRIES),
         ), false);
+
+        // Transport Reports left the operational group: the entry now sits in
+        // the plain REPORTS sidebar section, after Library Reports.
+        $this->assertStringNotContainsString('href="'.route('transport-reports.index').'"', $block);
+        $html = $response->getContent();
+        $library = strpos($html, 'href="'.route('library-reports.index').'"');
+        $transport = strpos($html, 'href="'.route('transport-reports.index').'"');
+        $this->assertNotFalse($transport);
+        if ($library !== false) {
+            $this->assertLessThan($transport, $library, 'Transport Reports must follow Library Reports in REPORTS.');
+        }
+        $this->assertStringContainsString('>REPORTS<', $html);
     }
 
     public function test_routes_and_stops_are_separate_navigation_entries(): void
@@ -108,7 +121,6 @@ class TransportNavigationTest extends TestCase
             'transport_routes.view' => ['transport-routes.index', 'transport-stops.list'],
             'student_transport_assignments.view' => ['transport-assignments.index'],
             'transport_fees.view' => ['transport-fees.index'],
-            'transport_reports.view' => ['transport-reports.index'],
         ];
 
         foreach ($gates as $permission => $own) {
@@ -127,6 +139,20 @@ class TransportNavigationTest extends TestCase
                 $this->assertStringNotContainsString('href="'.route($entryRoute).'"', $block, "Leaked {$entryRoute} for {$permission}");
             }
         }
+
+        // transport_reports.view gates the REPORTS-section entry — never an
+        // operational group item. With only that permission the operational
+        // group disappears entirely.
+        $a = $this->college('NAVG-transport-reports-view');
+        $this->login($a, ['transport_reports.view']);
+        $response = $this->get(route('transport-reports.index'))->assertOk();
+        $html = $response->getContent();
+        $this->assertStringNotContainsString('Transport Management', $html);
+        foreach (self::ENTRIES as $entryRoute) {
+            $this->assertStringNotContainsString('href="'.route($entryRoute).'"', $html, "Leaked {$entryRoute} for transport_reports.view");
+        }
+        $response->assertSee('href="'.route('transport-reports.index').'"', false)
+            ->assertSee('>REPORTS<', false);
     }
 
     public function test_transport_group_is_hidden_without_any_transport_permission(): void
@@ -152,10 +178,14 @@ class TransportNavigationTest extends TestCase
         $response = $this->get(route('vehicles.index'))->assertOk();
         $block = $this->transportNavBlock($response->getContent());
         preg_match_all('/class="nav-link"/', $block, $hits);
-        $this->assertCount(9, $hits[0]);
+        $this->assertCount(8, $hits[0]);
         foreach (self::ENTRIES as $label => $route) {
             $this->assertStringContainsString('href="'.route($route).'"', $block);
             $this->assertStringContainsString('<span>'.$label.'</span>', $block);
         }
+
+        // The reports entry renders in REPORTS for the Super Admin, not in the group.
+        $this->assertStringNotContainsString('href="'.route('transport-reports.index').'"', $block);
+        $response->assertSee('href="'.route('transport-reports.index').'"', false);
     }
 }
