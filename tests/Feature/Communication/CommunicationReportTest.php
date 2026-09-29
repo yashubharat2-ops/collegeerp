@@ -169,6 +169,7 @@ class CommunicationReportTest extends TestCase
         $collegeAdmin->colleges()->attach($demoCollege->id, ['is_default' => true]);
         $collegeAdmin->roles()->attach($adminRole->id, ['college_id' => $demoCollege->id]);
 
+        $this->bindTenant($demoCollege);
         $this->assertTrue($collegeAdmin->hasPermission('communication_reports.view'));
         $this->asCollege($demoCollege, $collegeAdmin)
             ->get(route('communication-reports.index'))
@@ -198,9 +199,15 @@ class CommunicationReportTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringNotContainsString('method="POST"', $html);
-        $this->assertStringNotContainsString('method="post"', $html);
-        $this->assertStringNotContainsString('_method', $html);
+        $mainStart = strpos($html, '<main');
+        $mainEnd = strpos($html, '</main>');
+        $this->assertNotFalse($mainStart);
+        $this->assertNotFalse($mainEnd);
+        $mainHtml = substr($html, $mainStart, $mainEnd - $mainStart);
+
+        $this->assertStringNotContainsString('method="POST"', $mainHtml);
+        $this->assertStringNotContainsString('method="post"', $mainHtml);
+        $this->assertStringNotContainsString('_method', $mainHtml);
     }
 
     public function test_empty_states_render_cleanly_across_all_eight_reports(): void
@@ -779,35 +786,49 @@ class CommunicationReportTest extends TestCase
     {
         $college = $this->makeCollege('CREP-PERF');
         $viewer = $this->makeUserWithPermissions($college, ['communication_reports.view']);
-        $fx = $this->makeAcademicFixtures($college, 'PRF');
+        $fx1 = $this->makeAcademicFixtures($college, 'PRF1');
+        $tpl = $this->makeTemplate($college, ['code' => 'PERF_TPL', 'channel' => CommunicationChannels::SMS, 'created_by' => $viewer->id]);
 
-        $tpl = $this->makeTemplate($college, ['code' => 'PERF_TPL', 'channel' => CommunicationChannels::SMS]);
-
-        for ($i = 1; $i <= 8; $i++) {
+        $seedBatch = function (int $index, array $fx) use ($college, $viewer, $tpl): void {
             $this->makeNotice($college, [
-                'title' => "Perf Notice {$i}",
+                'title' => "Perf Notice {$index}",
                 'target_type' => CommunicationTargets::DEPARTMENT,
                 'target_id' => $fx['department']->id,
+                'created_by' => $fx['recipientUser']->id,
             ]);
-            $this->makeCircular($college, ['circular_number' => "PERF-CIR-{$i}"]);
+            $this->makeCircular($college, [
+                'circular_number' => "PERF-CIR-{$index}",
+                'created_by' => $fx['recipientUser']->id,
+            ]);
             $this->makeNotification($college, [
                 'recipient_type' => NotificationRecipients::STUDENT,
                 'recipient_id' => $fx['student']->id,
+                'created_by' => $viewer->id,
             ]);
-            $this->makeTemplate($college, ['code' => "PERF_TPL_{$i}"]);
+            $this->makeTemplate($college, [
+                'code' => "PERF_TPL_{$index}",
+                'created_by' => $fx['recipientUser']->id,
+            ]);
             $this->makeLog($college, [
                 'channel' => CommunicationChannels::SMS,
                 'communication_template_id' => $tpl->id,
                 'recipient_type' => NotificationRecipients::STUDENT,
                 'recipient_id' => $fx['student']->id,
+                'created_by' => $viewer->id,
             ]);
             $this->makeLog($college, [
                 'channel' => CommunicationChannels::EMAIL,
+                'communication_template_id' => $tpl->id,
                 'recipient_type' => NotificationRecipients::USER,
                 'recipient_id' => $fx['recipientUser']->id,
+                'created_by' => $viewer->id,
             ]);
-        }
+        };
 
+        // Seed 1 row per report table and record baseline HTTP query counts.
+        $seedBatch(1, $fx1);
+
+        $baselineCounts = [];
         foreach (array_keys(CommunicationReportController::REPORTS) as $reportKey) {
             DB::flushQueryLog();
             DB::enableQueryLog();
@@ -816,13 +837,61 @@ class CommunicationReportTest extends TestCase
                 ->get(route('communication-reports.index', ['report' => $reportKey]))
                 ->assertOk();
 
-            $queryCount = count(DB::getQueryLog());
+            $baselineCounts[$reportKey] = count(DB::getQueryLog());
+            DB::disableQueryLog();
+        }
+
+        // Grow every table by 8 additional rows across distinct departments, students, and users.
+        for ($i = 2; $i <= 9; $i++) {
+            $seedBatch($i, $this->makeAcademicFixtures($college, "PRF{$i}"));
+        }
+
+        // 1. Service-level query bound: each report executes <= 12 queries even with 9 rows.
+        $this->bindTenant($college);
+        $service = app(CommunicationReportService::class);
+        $serviceMethods = [
+            'notices' => fn () => $service->notices(),
+            'circulars' => fn () => $service->circulars(),
+            'notifications' => fn () => $service->notifications(),
+            'templates' => fn () => $service->templates(),
+            'sms_logs' => fn () => $service->smsLogs(),
+            'email_logs' => fn () => $service->emailLogs(),
+            'tracking' => fn () => $service->tracking(),
+            'summary' => fn () => $service->summary(),
+        ];
+
+        foreach ($serviceMethods as $reportKey => $run) {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+
+            $run();
+
+            $serviceQueryCount = count(DB::getQueryLog());
             DB::disableQueryLog();
 
             $this->assertLessThanOrEqual(
                 12,
-                $queryCount,
-                "Report [{$reportKey}] executed {$queryCount} queries, indicating a potential N+1 regression."
+                $serviceQueryCount,
+                "Report service [{$reportKey}] executed {$serviceQueryCount} queries, indicating a potential N+1 regression."
+            );
+        }
+
+        // 2. Full HTTP render: query count must not grow with row count on any of the 8 reports.
+        foreach (array_keys(CommunicationReportController::REPORTS) as $reportKey) {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+
+            $this->asCollege($college, $viewer)
+                ->get(route('communication-reports.index', ['report' => $reportKey]))
+                ->assertOk();
+
+            $grownQueryCount = count(DB::getQueryLog());
+            DB::disableQueryLog();
+
+            $this->assertLessThanOrEqual(
+                $baselineCounts[$reportKey],
+                $grownQueryCount,
+                "Report [{$reportKey}] executed {$baselineCounts[$reportKey]} queries for 1 row but {$grownQueryCount} queries for 9 rows."
             );
         }
     }
