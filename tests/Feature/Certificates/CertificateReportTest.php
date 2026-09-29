@@ -262,10 +262,20 @@ class CertificateReportTest extends TestCase
             ->assertDontSee((string) $foreignCert->number);
     }
 
+    private function extractTableHtml(string $html): string
+    {
+        if (preg_match('/<table\b.*?<\/table>/s', $html, $matches) === 1) {
+            return $matches[0];
+        }
+
+        $this->fail('Expected report response to contain a <table> element.');
+    }
+
     public function test_certificate_request_report_displays_details_and_filters(): void
     {
-        $year = $this->makeYear($this->college, ['name' => '2026-2027']);
-        $program = $this->makeProgram($this->college, ['name' => 'B.Tech Computer Science']);
+        $year = $this->makeYear($this->college, '2026', '2026-2027');
+        $program = $this->makeProgram($this->college, 'BTECH');
+        $program->update(['name' => 'B.Tech Computer Science']);
 
         $studentA = $this->makeStudent($this->college, ['first_name' => 'Aarav', 'last_name' => 'Sharma', 'student_number' => 'STU-REQ-01']);
         $enrollmentA = $this->makeEnrollment($this->college, $studentA, $year, $program, ['enrollment_number' => 'ENR-REQ-01']);
@@ -297,59 +307,74 @@ class CertificateReportTest extends TestCase
         );
 
         // Unfiltered view shows both requests with enrollment & academic year details
-        $this->asCollege($this->college, $this->viewer)
-            ->get(route('certificate-reports.index', ['report' => 'requests']))
-            ->assertOk()
-            ->assertSee('#' . $reqCert->id)
-            ->assertSee('Aarav Sharma')
-            ->assertSee('ENR-REQ-01')
-            ->assertSee('2026-2027')
-            ->assertSee('B.Tech Computer Science')
-            ->assertSee('Bonafide Certificate')
-            ->assertSee('Meera Nair')
-            ->assertSee((string) $issuedCert->number);
+        $unfilteredTable = $this->extractTableHtml(
+            $this->asCollege($this->college, $this->viewer)
+                ->get(route('certificate-reports.index', ['report' => 'requests']))
+                ->assertOk()
+                ->getContent()
+        );
+        $this->assertStringContainsString('#' . $reqCert->id, $unfilteredTable);
+        $this->assertStringContainsString('Aarav Sharma', $unfilteredTable);
+        $this->assertStringContainsString('ENR-REQ-01', $unfilteredTable);
+        $this->assertStringContainsString('2026-2027', $unfilteredTable);
+        $this->assertStringContainsString('B.Tech Computer Science', $unfilteredTable);
+        $this->assertStringContainsString('Bonafide Certificate', $unfilteredTable);
+        $this->assertStringContainsString('Meera Nair', $unfilteredTable);
+        $this->assertStringContainsString((string) $issuedCert->number, $unfilteredTable);
 
         // Filter by certificate_type_id
-        $this->asCollege($this->college, $this->viewer)
-            ->get(route('certificate-reports.index', [
-                'report' => 'requests',
-                'certificate_type_id' => $bonType->id,
-            ]))
-            ->assertOk()
-            ->assertSee('Aarav Sharma')
-            ->assertDontSee('Meera Nair');
+        $byTypeTable = $this->extractTableHtml(
+            $this->asCollege($this->college, $this->viewer)
+                ->get(route('certificate-reports.index', [
+                    'report' => 'requests',
+                    'certificate_type_id' => $bonType->id,
+                ]))
+                ->assertOk()
+                ->getContent()
+        );
+        $this->assertStringContainsString('Aarav Sharma', $byTypeTable);
+        $this->assertStringNotContainsString('Meera Nair', $byTypeTable);
 
         // Filter by status
-        $this->asCollege($this->college, $this->viewer)
-            ->get(route('certificate-reports.index', [
-                'report' => 'requests',
-                'status' => 'issued',
-            ]))
-            ->assertOk()
-            ->assertSee('Meera Nair')
-            ->assertSee((string) $issuedCert->number)
-            ->assertDontSee('Aarav Sharma');
+        $byStatusTable = $this->extractTableHtml(
+            $this->asCollege($this->college, $this->viewer)
+                ->get(route('certificate-reports.index', [
+                    'report' => 'requests',
+                    'status' => 'issued',
+                ]))
+                ->assertOk()
+                ->getContent()
+        );
+        $this->assertStringContainsString('Meera Nair', $byStatusTable);
+        $this->assertStringContainsString((string) $issuedCert->number, $byStatusTable);
+        $this->assertStringNotContainsString('Aarav Sharma', $byStatusTable);
 
         // Filter by date range
-        $this->asCollege($this->college, $this->viewer)
-            ->get(route('certificate-reports.index', [
-                'report' => 'requests',
-                'from' => '2026-09-01',
-                'to' => '2026-09-10',
-            ]))
-            ->assertOk()
-            ->assertSee('Aarav Sharma')
-            ->assertDontSee('Meera Nair');
+        $byDateTable = $this->extractTableHtml(
+            $this->asCollege($this->college, $this->viewer)
+                ->get(route('certificate-reports.index', [
+                    'report' => 'requests',
+                    'from' => '2026-09-01',
+                    'to' => '2026-09-10',
+                ]))
+                ->assertOk()
+                ->getContent()
+        );
+        $this->assertStringContainsString('Aarav Sharma', $byDateTable);
+        $this->assertStringNotContainsString('Meera Nair', $byDateTable);
 
         // Filter by search
-        $this->asCollege($this->college, $this->viewer)
-            ->get(route('certificate-reports.index', [
-                'report' => 'requests',
-                'search' => 'ENR-REQ-02',
-            ]))
-            ->assertOk()
-            ->assertSee('Meera Nair')
-            ->assertDontSee('Aarav Sharma');
+        $bySearchTable = $this->extractTableHtml(
+            $this->asCollege($this->college, $this->viewer)
+                ->get(route('certificate-reports.index', [
+                    'report' => 'requests',
+                    'search' => 'ENR-REQ-02',
+                ]))
+                ->assertOk()
+                ->getContent()
+        );
+        $this->assertStringContainsString('Meera Nair', $bySearchTable);
+        $this->assertStringNotContainsString('Aarav Sharma', $bySearchTable);
     }
 
     public function test_certificate_issuance_report_displays_issued_certificates_and_filters(): void
@@ -391,37 +416,46 @@ class CertificateReportTest extends TestCase
             Carbon::parse('2026-09-15 12:00:00')
         );
 
-        // Issuance report lists only issued certificates
-        $this->asCollege($this->college, $this->viewer)
-            ->get(route('certificate-reports.index', ['report' => 'issuance']))
-            ->assertOk()
-            ->assertSee((string) $issued1->number)
-            ->assertSee('Rohan Kulkarni')
-            ->assertSee((string) $issued2->number)
-            ->assertSee('Divya Menon')
-            ->assertDontSee('Pending Candidate');
+        // Issuance report lists only issued certificates in the report table
+        $unfilteredTable = $this->extractTableHtml(
+            $this->asCollege($this->college, $this->viewer)
+                ->get(route('certificate-reports.index', ['report' => 'issuance']))
+                ->assertOk()
+                ->getContent()
+        );
+        $this->assertStringContainsString((string) $issued1->number, $unfilteredTable);
+        $this->assertStringContainsString('Rohan Kulkarni', $unfilteredTable);
+        $this->assertStringContainsString((string) $issued2->number, $unfilteredTable);
+        $this->assertStringContainsString('Divya Menon', $unfilteredTable);
+        $this->assertStringNotContainsString('Pending Candidate', $unfilteredTable);
 
         // Filter by certificate_type_id
-        $this->asCollege($this->college, $this->viewer)
-            ->get(route('certificate-reports.index', [
-                'report' => 'issuance',
-                'certificate_type_id' => $migType->id,
-            ]))
-            ->assertOk()
-            ->assertSee('Divya Menon')
-            ->assertDontSee('Rohan Kulkarni');
+        $byTypeTable = $this->extractTableHtml(
+            $this->asCollege($this->college, $this->viewer)
+                ->get(route('certificate-reports.index', [
+                    'report' => 'issuance',
+                    'certificate_type_id' => $migType->id,
+                ]))
+                ->assertOk()
+                ->getContent()
+        );
+        $this->assertStringContainsString('Divya Menon', $byTypeTable);
+        $this->assertStringNotContainsString('Rohan Kulkarni', $byTypeTable);
 
         // Filter by date range and search
-        $this->asCollege($this->college, $this->viewer)
-            ->get(route('certificate-reports.index', [
-                'report' => 'issuance',
-                'from' => '2026-08-01',
-                'to' => '2026-08-31',
-                'search' => 'Rohan',
-            ]))
-            ->assertOk()
-            ->assertSee((string) $issued1->number)
-            ->assertDontSee((string) $issued2->number);
+        $byDateSearchTable = $this->extractTableHtml(
+            $this->asCollege($this->college, $this->viewer)
+                ->get(route('certificate-reports.index', [
+                    'report' => 'issuance',
+                    'from' => '2026-08-01',
+                    'to' => '2026-08-31',
+                    'search' => 'Rohan',
+                ]))
+                ->assertOk()
+                ->getContent()
+        );
+        $this->assertStringContainsString((string) $issued1->number, $byDateSearchTable);
+        $this->assertStringNotContainsString((string) $issued2->number, $byDateSearchTable);
     }
 
     public function test_certificate_verification_report_displays_verification_status_and_filters(): void
@@ -458,36 +492,45 @@ class CertificateReportTest extends TestCase
             Carbon::parse('2026-09-02 09:00:00')
         );
 
-        // Verification report shows both and their verification status/count
-        $this->asCollege($this->college, $this->viewer)
-            ->get(route('certificate-reports.index', ['report' => 'verification']))
-            ->assertOk()
-            ->assertSee((string) $verifiedCert->number)
-            ->assertSee('Vikram Rao')
-            ->assertSee('Verified')
-            ->assertSee((string) $unverifiedCert->number)
-            ->assertSee('Sneha Iyer')
-            ->assertSee('Unverified');
+        // Verification report shows both and their verification status/count in the report table
+        $unfilteredTable = $this->extractTableHtml(
+            $this->asCollege($this->college, $this->viewer)
+                ->get(route('certificate-reports.index', ['report' => 'verification']))
+                ->assertOk()
+                ->getContent()
+        );
+        $this->assertStringContainsString((string) $verifiedCert->number, $unfilteredTable);
+        $this->assertStringContainsString('Vikram Rao', $unfilteredTable);
+        $this->assertStringContainsString('Verified', $unfilteredTable);
+        $this->assertStringContainsString((string) $unverifiedCert->number, $unfilteredTable);
+        $this->assertStringContainsString('Sneha Iyer', $unfilteredTable);
+        $this->assertStringContainsString('Unverified', $unfilteredTable);
 
         // Filter by verification_status = verified
-        $this->asCollege($this->college, $this->viewer)
-            ->get(route('certificate-reports.index', [
-                'report' => 'verification',
-                'verification_status' => 'verified',
-            ]))
-            ->assertOk()
-            ->assertSee('Vikram Rao')
-            ->assertDontSee('Sneha Iyer');
+        $verifiedOnlyTable = $this->extractTableHtml(
+            $this->asCollege($this->college, $this->viewer)
+                ->get(route('certificate-reports.index', [
+                    'report' => 'verification',
+                    'verification_status' => 'verified',
+                ]))
+                ->assertOk()
+                ->getContent()
+        );
+        $this->assertStringContainsString('Vikram Rao', $verifiedOnlyTable);
+        $this->assertStringNotContainsString('Sneha Iyer', $verifiedOnlyTable);
 
         // Filter by verification_status = unverified
-        $this->asCollege($this->college, $this->viewer)
-            ->get(route('certificate-reports.index', [
-                'report' => 'verification',
-                'verification_status' => 'unverified',
-            ]))
-            ->assertOk()
-            ->assertSee('Sneha Iyer')
-            ->assertDontSee('Vikram Rao');
+        $unverifiedOnlyTable = $this->extractTableHtml(
+            $this->asCollege($this->college, $this->viewer)
+                ->get(route('certificate-reports.index', [
+                    'report' => 'verification',
+                    'verification_status' => 'unverified',
+                ]))
+                ->assertOk()
+                ->getContent()
+        );
+        $this->assertStringContainsString('Sneha Iyer', $unverifiedOnlyTable);
+        $this->assertStringNotContainsString('Vikram Rao', $unverifiedOnlyTable);
     }
 
     public function test_certificate_type_wise_report_aggregates_counts_by_existing_certificate_type(): void
