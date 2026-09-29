@@ -39,7 +39,7 @@
                     <th class="px-4 py-3">Sent At</th>
                     <th class="px-4 py-3">Delivered At</th>
                     <th class="px-4 py-3">Read At</th>
-                    <th class="px-4 py-3">Attempts &amp; Error</th>
+                    <th class="px-4 py-3">Created By</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -52,7 +52,7 @@
                 <tr class="hover:bg-slate-50/80">
                     <td class="px-4 py-3">
                         <div class="font-semibold text-slate-900">{{ $notification->title }}</div>
-                        <div class="text-xs text-slate-500">{{ $notification->typeLabel() }} · {{ $notification->priorityLabel() }}</div>
+                        <div class="text-xs text-slate-500">{{ $notification->typeLabel() }} · {{ \App\Domain\Communication\Support\CommunicationPriority::label($notification->priority) }}</div>
                     </td>
                     <td class="px-4 py-3">
                         <div class="font-medium text-slate-900">{{ $recipientLabel }}</div>
@@ -67,12 +67,7 @@
                     <td class="px-4 py-3 text-xs text-slate-600">{{ $notification->sent_at?->format('Y-m-d H:i') ?? '—' }}</td>
                     <td class="px-4 py-3 text-xs text-slate-600">{{ $notification->delivered_at?->format('Y-m-d H:i') ?? '—' }}</td>
                     <td class="px-4 py-3 text-xs text-slate-600">{{ $notification->read_at?->format('Y-m-d H:i') ?? '—' }}</td>
-                    <td class="px-4 py-3 text-xs text-slate-600">
-                        <div>Attempts: {{ (int) $notification->delivery_attempts }}</div>
-                        @if($notification->last_error)
-                            <div class="text-rose-700">{{ $notification->last_error }}</div>
-                        @endif
-                    </td>
+                    <td class="px-4 py-3 text-xs text-slate-600">{{ $notification->creator?->name ?? '—' }}</td>
                 </tr>
                 @empty
                 <tr>

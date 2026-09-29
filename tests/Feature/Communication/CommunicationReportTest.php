@@ -15,17 +15,71 @@ use App\Http\Controllers\Communication\CommunicationReportController;
 use App\Models\College;
 use App\Models\CommunicationLog;
 use App\Models\CommunicationNotification;
+use App\Models\Department;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class CommunicationReportTest extends TestCase
 {
-    use CommunicationTestHelpers;
+    use CommunicationTestHelpers {
+        makeNotification as makeBaseNotification;
+    }
+
+    /**
+     * @return array{department: Department, student: \App\Models\Student, faculty: \App\Models\Faculty, recipientUser: User}
+     */
+    private function makeAcademicFixtures(College $college, string $suffix): array
+    {
+        return [
+            'department' => Department::withoutGlobalScopes()->create([
+                'college_id' => $college->id,
+                'name' => "Department {$suffix}",
+                'code' => 'DEPT-'.Str::upper($suffix),
+                'status' => 'active',
+            ]),
+            'student' => $this->makeStudent($college, "Student{$suffix}"),
+            'faculty' => $this->makeStaff($college, "Faculty{$suffix}"),
+            'recipientUser' => $this->makeMember($college, "Recipient {$suffix}"),
+        ];
+    }
+
+    private function bindTenant(College $college): void
+    {
+        app(TenantContext::class)->set($college);
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeNotification(
+        College $college,
+        string|array $recipientType = NotificationRecipients::USER,
+        ?int $recipientId = null,
+        array $overrides = []
+    ): CommunicationNotification {
+        if (is_array($recipientType)) {
+            $overrides = $recipientType;
+            $recipientType = (string) ($overrides['recipient_type'] ?? NotificationRecipients::USER);
+            $recipientId = isset($overrides['recipient_id']) ? (int) $overrides['recipient_id'] : null;
+        }
+
+        if ($recipientId === null) {
+            $recipientId = match ($recipientType) {
+                NotificationRecipients::STUDENT => $this->makeStudent($college)->id,
+                NotificationRecipients::STAFF => $this->makeStaff($college)->id,
+                default => $this->makeMember($college)->id,
+            };
+        }
+
+        return $this->makeBaseNotification($college, $recipientType, $recipientId, $overrides);
+    }
 
     public function test_reports_constant_and_tabs_follow_exact_eight_report_order(): void
     {
@@ -196,7 +250,7 @@ class CommunicationReportTest extends TestCase
 
         $pubExamNotice = $this->makeNotice($collegeA, [
             'title' => 'Alpha Semester Exam Schedule',
-            'notice_type' => CommunicationTypes::EXAMINATION,
+            'notice_type' => 'examination',
             'priority' => CommunicationPriority::URGENT,
             'target_type' => CommunicationTargets::DEPARTMENT,
             'target_id' => $FixturesA['department']->id,
@@ -206,7 +260,7 @@ class CommunicationReportTest extends TestCase
 
         $draftGeneralNotice = $this->makeNotice($collegeA, [
             'title' => 'Alpha Holiday Draft',
-            'notice_type' => CommunicationTypes::HOLIDAY,
+            'notice_type' => 'holiday',
             'priority' => CommunicationPriority::NORMAL,
             'target_type' => CommunicationTargets::ALL,
             'status' => PublicationWorkflow::DRAFT,
@@ -215,7 +269,7 @@ class CommunicationReportTest extends TestCase
 
         $foreignNotice = $this->makeNotice($collegeB, [
             'title' => 'Bravo Foreign Secret Notice',
-            'notice_type' => CommunicationTypes::EXAMINATION,
+            'notice_type' => 'examination',
             'priority' => CommunicationPriority::URGENT,
             'target_type' => CommunicationTargets::DEPARTMENT,
             'target_id' => $FixturesB['department']->id,
@@ -238,7 +292,7 @@ class CommunicationReportTest extends TestCase
         $this->asCollege($collegeA, $viewerA)
             ->get(route('communication-reports.index', [
                 'report' => 'notices',
-                'notice_type' => CommunicationTypes::EXAMINATION,
+                'notice_type' => 'examination',
                 'priority' => CommunicationPriority::URGENT,
                 'status' => PublicationWorkflow::PUBLISHED,
                 'department_id' => $FixturesA['department']->id,
@@ -280,7 +334,7 @@ class CommunicationReportTest extends TestCase
         $archivedCircular = $this->makeCircular($collegeA, [
             'circular_number' => 'CIR-A-102',
             'title' => 'Alpha Old Fee Circular',
-            'target_type' => CommunicationTargets::PARENTS,
+            'target_type' => CommunicationTargets::STAFF,
             'issue_date' => '2026-08-01',
             'status' => PublicationWorkflow::ARCHIVED,
         ]);
@@ -319,8 +373,8 @@ class CommunicationReportTest extends TestCase
 
         $unreadStudentNotif = $this->makeNotification($collegeA, [
             'title' => 'Alpha Fee Due Alert',
-            'notification_type' => CommunicationTypes::FEE,
-            'priority' => CommunicationPriority::HIGH,
+            'notification_type' => 'reminder',
+            'priority' => CommunicationPriority::IMPORTANT,
             'recipient_type' => NotificationRecipients::STUDENT,
             'recipient_id' => $fxA['student']->id,
             'read_at' => null,
@@ -328,7 +382,7 @@ class CommunicationReportTest extends TestCase
 
         $readStaffNotif = $this->makeNotification($collegeA, [
             'title' => 'Alpha Faculty Meeting Note',
-            'notification_type' => CommunicationTypes::GENERAL,
+            'notification_type' => 'general',
             'priority' => CommunicationPriority::NORMAL,
             'recipient_type' => NotificationRecipients::STAFF,
             'recipient_id' => $fxA['faculty']->id,
@@ -339,8 +393,8 @@ class CommunicationReportTest extends TestCase
 
         $foreignNotif = $this->makeNotification($collegeB, [
             'title' => 'Bravo Foreign Notification',
-            'notification_type' => CommunicationTypes::FEE,
-            'priority' => CommunicationPriority::HIGH,
+            'notification_type' => 'reminder',
+            'priority' => CommunicationPriority::IMPORTANT,
             'recipient_type' => NotificationRecipients::STUDENT,
             'recipient_id' => $fxB['student']->id,
         ]);
@@ -348,14 +402,14 @@ class CommunicationReportTest extends TestCase
         $this->asCollege($collegeA, $viewerA)
             ->get(route('communication-reports.index', [
                 'report' => 'notifications',
-                'notification_type' => CommunicationTypes::FEE,
+                'notification_type' => 'reminder',
                 'recipient_type' => NotificationRecipients::STUDENT,
                 'student_id' => $fxA['student']->id,
                 'status' => 'unread',
             ]))
             ->assertOk()
             ->assertSee($unreadStudentNotif->title)
-            ->assertSee($fxA['student']->admission_no)
+            ->assertSee($fxA['student']->student_number)
             ->assertDontSee($readStaffNotif->title)
             ->assertDontSee($foreignNotif->title)
             ->assertViewHas('totals', fn (array $t) => $t['total'] === 1 && $t['unread'] === 1);

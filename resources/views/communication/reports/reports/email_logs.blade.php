@@ -41,6 +41,9 @@
                         ? ($log->recipient_type . ':' . $log->recipient_id)
                         : null;
                     $linkedLabel = $recipientKey ? ($recipientLabels[$recipientKey] ?? null) : null;
+                    $recipientTypeLabel = $log->recipient_type
+                        ? (\App\Domain\Communication\Support\NotificationRecipients::TYPES[$log->recipient_type] ?? ucfirst((string) $log->recipient_type))
+                        : null;
                 @endphp
                 <tr class="hover:bg-slate-50/80">
                     <td class="px-4 py-3 text-xs text-slate-600">
@@ -52,9 +55,9 @@
                     <td class="px-4 py-3">
                         <div class="font-mono text-xs font-semibold text-slate-900">{{ $log->recipient }}</div>
                         @if($linkedLabel)
-                            <div class="text-xs text-slate-500">{{ $linkedLabel }} ({{ $log->recipientTypeLabel() }})</div>
-                        @elseif($log->recipient_type)
-                            <div class="text-xs text-slate-500">{{ $log->recipientTypeLabel() }}</div>
+                            <div class="text-xs text-slate-500">{{ $linkedLabel }} ({{ $recipientTypeLabel }})</div>
+                        @elseif($recipientTypeLabel)
+                            <div class="text-xs text-slate-500">{{ $recipientTypeLabel }}</div>
                         @endif
                     </td>
                     <td class="px-4 py-3">

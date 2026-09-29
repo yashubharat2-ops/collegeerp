@@ -49,8 +49,8 @@
                     <td class="px-4 py-3 text-slate-700">{{ $notification->typeLabel() }}</td>
                     <td class="px-4 py-3">
                         <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold
-                            {{ $notification->priority === 'urgent' ? 'bg-rose-100 text-rose-800' : ($notification->priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700') }}">
-                            {{ $notification->priorityLabel() }}
+                            {{ $notification->priority === 'urgent' ? 'bg-rose-100 text-rose-800' : ($notification->priority === 'important' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700') }}">
+                            {{ \App\Domain\Communication\Support\CommunicationPriority::label($notification->priority) }}
                         </span>
                     </td>
                     <td class="px-4 py-3">

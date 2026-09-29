@@ -143,7 +143,7 @@
                 <option value="">All Students</option>
                 @foreach($students as $student)
                     <option value="{{ $student->id }}" @selected(($filters['student_id'] ?? null) === $student->id)>
-                        {{ trim($student->first_name . ' ' . $student->last_name) }} ({{ $student->admission_no }})
+                        {{ trim($student->first_name . ' ' . $student->last_name) }} ({{ $student->student_number }})
                     </option>
                 @endforeach
             </select>

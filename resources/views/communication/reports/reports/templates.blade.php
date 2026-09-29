@@ -59,7 +59,7 @@
                     <td class="px-4 py-3">
                         <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold
                             {{ $template->status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700' }}">
-                            {{ $template->statusLabel() }}
+                            {{ ucfirst($template->status) }}
                         </span>
                     </td>
                     <td class="px-4 py-3 text-xs text-slate-700">

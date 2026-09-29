@@ -117,26 +117,26 @@ class CommunicationReportController extends Controller
         }
 
         $targetOptions = $report === 'circulars'
-            ? CommunicationTargets::CIRCULAR_ALL
-            : CommunicationTargets::NOTICE_ALL;
+            ? array_keys(CommunicationTargets::forCirculars())
+            : array_keys(CommunicationTargets::forNotices());
 
         return [
-            'search' => CommunicationFilters::search($request->query('search')),
-            'notice_type' => CommunicationFilters::option($request->query('notice_type'), CommunicationTypes::NOTICE_ALL),
-            'notification_type' => CommunicationFilters::option($request->query('notification_type'), CommunicationTypes::NOTIFICATION_ALL),
-            'priority' => CommunicationFilters::option($request->query('priority'), CommunicationPriority::ALL),
-            'target_type' => CommunicationFilters::option($request->query('target_type'), $targetOptions),
-            'target_id' => CommunicationFilters::positiveInt($request->query('target_id')),
-            'department_id' => CommunicationFilters::positiveInt($request->query('department_id')),
-            'program_id' => CommunicationFilters::positiveInt($request->query('program_id')),
-            'section_id' => CommunicationFilters::positiveInt($request->query('section_id')),
-            'recipient_type' => CommunicationFilters::option($request->query('recipient_type'), NotificationRecipients::ALL),
-            'recipient_id' => CommunicationFilters::positiveInt($request->query('recipient_id')),
-            'student_id' => CommunicationFilters::positiveInt($request->query('student_id')),
-            'faculty_id' => CommunicationFilters::positiveInt($request->query('faculty_id')),
-            'user_id' => CommunicationFilters::positiveInt($request->query('user_id')),
-            'channel' => CommunicationFilters::option($request->query('channel'), CommunicationChannels::ALL),
-            'template_id' => CommunicationFilters::positiveInt($request->query('template_id')),
+            'search' => CommunicationFilters::text($request->query('search')),
+            'notice_type' => CommunicationFilters::type($request->query('notice_type')),
+            'notification_type' => CommunicationFilters::type($request->query('notification_type')),
+            'priority' => CommunicationFilters::choice($request->query('priority'), CommunicationPriority::ALL),
+            'target_type' => CommunicationFilters::choice($request->query('target_type'), $targetOptions),
+            'target_id' => $this->positiveInt($request->query('target_id')),
+            'department_id' => $this->positiveInt($request->query('department_id')),
+            'program_id' => $this->positiveInt($request->query('program_id')),
+            'section_id' => $this->positiveInt($request->query('section_id')),
+            'recipient_type' => CommunicationFilters::choice($request->query('recipient_type'), array_keys(NotificationRecipients::TYPES)),
+            'recipient_id' => $this->positiveInt($request->query('recipient_id')),
+            'student_id' => $this->positiveInt($request->query('student_id')),
+            'faculty_id' => $this->positiveInt($request->query('faculty_id')),
+            'user_id' => $this->positiveInt($request->query('user_id')),
+            'channel' => CommunicationFilters::choice($request->query('channel'), CommunicationChannels::all()),
+            'template_id' => $this->positiveInt($request->query('template_id')),
             'status' => $this->resolveStatusFilter($request, $report),
             'from' => $from?->toDateString(),
             'to' => $to?->toDateString(),
@@ -145,19 +145,30 @@ class CommunicationReportController extends Controller
         ];
     }
 
+    private function positiveInt(mixed $value): ?int
+    {
+        if (! is_scalar($value) || ! is_numeric($value)) {
+            return null;
+        }
+
+        $int = (int) $value;
+
+        return $int > 0 ? $int : null;
+    }
+
     private function resolveStatusFilter(Request $request, string $report): ?string
     {
         return match ($report) {
-            'notices', 'circulars' => CommunicationFilters::option($request->query('status'), PublicationWorkflow::STATUSES),
-            'notifications' => CommunicationFilters::option(
+            'notices', 'circulars' => CommunicationFilters::choice($request->query('status'), PublicationWorkflow::STATUSES),
+            'notifications' => CommunicationFilters::choice(
                 $request->query('status') ?? $request->query('read_status'),
                 ['read', 'unread']
             ),
-            'templates' => CommunicationFilters::option($request->query('status'), CommunicationTemplate::STATUSES),
-            'sms_logs', 'email_logs' => CommunicationFilters::option($request->query('status'), CommunicationLogStatus::ALL),
-            'tracking' => CommunicationFilters::option(
+            'templates' => CommunicationFilters::choice($request->query('status'), CommunicationTemplate::STATUSES),
+            'sms_logs', 'email_logs' => CommunicationFilters::choice($request->query('status'), CommunicationLogStatus::ALL),
+            'tracking' => CommunicationFilters::choice(
                 $request->query('status') ?? $request->query('state'),
-                DeliveryStates::ALL
+                DeliveryStates::all()
             ),
             default => null,
         };
@@ -180,15 +191,20 @@ class CommunicationReportController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'code', 'channel']);
 
+        $priorities = [];
+        foreach (CommunicationPriority::ALL as $priority) {
+            $priorities[$priority] = CommunicationPriority::label($priority);
+        }
+
         return [
             'statusOptions' => $this->statusOptionsFor($report),
-            'noticeTypes' => CommunicationTypes::NOTICE_LABELS,
-            'notificationTypes' => CommunicationTypes::NOTIFICATION_LABELS,
-            'priorities' => CommunicationPriority::LABELS,
+            'noticeTypes' => CommunicationTypes::NOTICE_TYPES,
+            'notificationTypes' => CommunicationTypes::NOTIFICATION_TYPES,
+            'priorities' => $priorities,
             'targetTypes' => $report === 'circulars'
-                ? CommunicationTargets::CIRCULAR_LABELS
-                : CommunicationTargets::NOTICE_LABELS,
-            'recipientTypes' => NotificationRecipients::LABELS,
+                ? CommunicationTargets::forCirculars()
+                : CommunicationTargets::forNotices(),
+            'recipientTypes' => NotificationRecipients::TYPES,
             'channels' => CommunicationChannels::LABELS,
             'departments' => in_array('department_id', $activeFilters, true)
                 ? Department::query()->orderBy('name')->get(['id', 'name', 'code'])
@@ -211,7 +227,7 @@ class CommunicationReportController extends Controller
                     ->orderBy('first_name')
                     ->orderBy('last_name')
                     ->limit($limit)
-                    ->get(['id', 'admission_no', 'first_name', 'last_name'])
+                    ->get(['id', 'student_number', 'first_name', 'last_name'])
                 : collect(),
             'facultyList' => in_array('faculty_id', $activeFilters, true)
                 ? Faculty::query()
@@ -234,14 +250,29 @@ class CommunicationReportController extends Controller
      */
     private function statusOptionsFor(string $report): array
     {
+        $publicationStatuses = [];
+        foreach (PublicationWorkflow::STATUSES as $status) {
+            $publicationStatuses[$status] = PublicationWorkflow::label($status);
+        }
+
+        $templateStatuses = [];
+        foreach (CommunicationTemplate::STATUSES as $status) {
+            $templateStatuses[$status] = ucfirst($status);
+        }
+
+        $logStatuses = [];
+        foreach (CommunicationLogStatus::ALL as $status) {
+            $logStatuses[$status] = CommunicationLogStatus::label($status);
+        }
+
         return match ($report) {
-            'notices', 'circulars' => PublicationWorkflow::LABELS,
+            'notices', 'circulars' => $publicationStatuses,
             'notifications' => [
                 'unread' => 'Unread',
                 'read' => 'Read',
             ],
-            'templates' => CommunicationTemplate::STATUS_LABELS,
-            'sms_logs', 'email_logs' => CommunicationLogStatus::LABELS,
+            'templates' => $templateStatuses,
+            'sms_logs', 'email_logs' => $logStatuses,
             'tracking' => DeliveryStates::LABELS,
             default => [],
         };

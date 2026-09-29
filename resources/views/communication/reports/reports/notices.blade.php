@@ -45,8 +45,8 @@
                     <td class="px-4 py-3 text-slate-700">{{ $notice->typeLabel() }}</td>
                     <td class="px-4 py-3">
                         <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold
-                            {{ $notice->priority === 'urgent' ? 'bg-rose-100 text-rose-800' : ($notice->priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700') }}">
-                            {{ $notice->priorityLabel() }}
+                            {{ $notice->priority === 'urgent' ? 'bg-rose-100 text-rose-800' : ($notice->priority === 'important' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700') }}">
+                            {{ \App\Domain\Communication\Support\CommunicationPriority::label($notice->priority) }}
                         </span>
                     </td>
                     <td class="px-4 py-3 text-slate-700">
@@ -59,7 +59,7 @@
                     <td class="px-4 py-3">
                         <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold
                             {{ $notice->status === 'published' ? 'bg-emerald-100 text-emerald-800' : ($notice->status === 'draft' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700') }}">
-                            {{ $notice->statusLabel() }}
+                            {{ \App\Domain\Communication\Support\PublicationWorkflow::label($notice->status) }}
                         </span>
                     </td>
                     <td class="px-4 py-3 text-slate-600">{{ $notice->creator?->name ?? '—' }}</td>
