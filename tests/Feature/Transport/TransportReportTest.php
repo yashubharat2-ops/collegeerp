@@ -338,10 +338,12 @@ class TransportReportTest extends TestCase
     {
         $college = $this->makeCollege('TRPDRV');
         $ravi = $this->driver($college, 'Ravi', 'Driver', 'DL-1', [
-            'email' => 'ravi@example.test', 'phone' => '9000000001', 'license_type' => 'LMV',
-            'license_expiry' => '2027-01-15', 'joining_date' => '2026-01-01', 'status' => 'active',
+            'email' => 'ravi@example.test', 'phone' => '9000000001',
+        ], [
+            'license_type' => 'LMV', 'license_expiry' => '2027-01-15',
+            'joining_date' => '2026-01-01', 'status' => 'active',
         ]);
-        $amina = $this->driver($college, 'Amina', 'Driver', 'DL-2', ['status' => 'inactive', 'license_expiry' => '2026-10-10']);
+        $amina = $this->driver($college, 'Amina', 'Driver', 'DL-2', [], ['status' => 'inactive', 'license_expiry' => '2026-10-10']);
         $archived = $this->driver($college, 'Gone', 'Driver', 'DL-3');
         $archived->delete();
         $this->makeUserWithPermissions($college, self::VIEW);
@@ -623,7 +625,7 @@ class TransportReportTest extends TestCase
         $keptVehicle = $this->vehicle($college, 'KA-77 KE-1111', ['status' => 'inactive']);
         $hiddenVehicle = $this->vehicle($college, 'KA-77 HI-2222');
         $hiddenVehicle->delete();
-        $keptDriver = $this->driver($college, 'Kept', 'Driver', 'SDL-1', ['status' => 'inactive']);
+        $keptDriver = $this->driver($college, 'Kept', 'Driver', 'SDL-1', [], ['status' => 'inactive']);
         $hiddenDriver = $this->driver($college, 'Hidden', 'Driver', 'SDL-2');
         $hiddenDriver->delete();
 
@@ -825,6 +827,11 @@ class TransportReportTest extends TestCase
     }
 
     /**
+     * Driver fixture: $staff are the referenced staff record's fields (contact
+     * details …), $overrides the driver record's fields (license / joining /
+     * status …). The schema keeps drivers and staff as separate records, so
+     * the two sets are never mixed — and $overrides always wins.
+     *
      * @param  array<string, mixed>  $staff
      * @param  array<string, mixed>  $overrides
      */
@@ -837,7 +844,7 @@ class TransportReportTest extends TestCase
 
         return $this->fixture(TransportDriver::class, $college, array_merge([
             'faculty_id' => $faculty->id, 'license_number' => $license, 'status' => 'active',
-        ], array_diff_key($staff, ['email' => true, 'phone' => true]) + $overrides));
+        ], $overrides));
     }
 
     /**
@@ -919,9 +926,9 @@ class TransportReportTest extends TestCase
         $hidden = $this->vehicle($college, "KA-90 {$prefix}V-4444");
         $hidden->delete();
 
-        $driver = $this->driver($college, 'World', 'Driver'.$prefix, "WDL-{$prefix}1", ['status' => 'active']);
-        $this->driver($college, 'Rest', 'Driver'.$prefix, "WDL-{$prefix}2", ['status' => 'inactive']);
-        $this->driver($college, 'Extra', 'Driver'.$prefix, "WDL-{$prefix}3", ['status' => 'active']);
+        $driver = $this->driver($college, 'World', 'Driver'.$prefix, "WDL-{$prefix}1", [], ['status' => 'active']);
+        $this->driver($college, 'Rest', 'Driver'.$prefix, "WDL-{$prefix}2", [], ['status' => 'inactive']);
+        $this->driver($college, 'Extra', 'Driver'.$prefix, "WDL-{$prefix}3", [], ['status' => 'active']);
         $hidden = $this->driver($college, 'Hidden', 'Driver'.$prefix, "WDL-{$prefix}4");
         $hidden->delete();
 
