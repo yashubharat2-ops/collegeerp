@@ -474,6 +474,9 @@ Route::middleware('auth')->group(function () {
         // Read-only Communication Reports (live aggregates, no report tables).
         Route::get('communication-reports', [\App\Http\Controllers\Communication\CommunicationReportController::class, 'index'])->name('communication-reports.index');
 
+        // Read-only Certificate Reports (live aggregates over existing certificates, no report tables).
+        Route::get('certificate-reports', [\App\Http\Controllers\CertificateReportController::class, 'index'])->name('certificate-reports.index');
+
         // Inventory / Asset Management — Phase 1. The dashboard is read-only
         // and aggregated live (no dashboard tables). Items and assets share
         // one master.

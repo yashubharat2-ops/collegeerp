@@ -28,6 +28,8 @@ class AuthServiceProvider extends ServiceProvider
         \App\Models\CommunicationLog::class => \App\Policies\CommunicationLogPolicy::class,
         \App\Models\CommunicationTracking::class => \App\Policies\CommunicationTrackingPolicy::class,
         \App\Models\CommunicationReport::class => \App\Policies\CommunicationReportPolicy::class,
+        // Certificate Management — read-only Certificate Reports.
+        \App\Models\CertificateReport::class => \App\Policies\CertificateReportPolicy::class,
         // Hostel Management — Phase 1 masters, Phase 2 allocations/fees, Phase 3 attendance/reports.
         \App\Models\HostelDashboard::class => \App\Policies\HostelDashboardPolicy::class,
         \App\Models\Hostel::class => \App\Policies\HostelPolicy::class,
