@@ -77,29 +77,103 @@ class HostelReportService
      * existing occupancy source of truth), not a second status calculation.
      *
      * @param  array<string, mixed>  $filters
-     * @return array{summary: array<string, int|float|null>, rooms: LengthAwarePaginator, beds: LengthAwarePaginator}
+     * @return array{
+     *     summary: array<string, int|float|null>,
+     *     hostels: array<int, array<string, mixed>>,
+     *     buildings: array<int, array<string, mixed>>,
+     *     rooms: LengthAwarePaginator,
+     *     beds: LengthAwarePaginator
+     * }
      */
     public function occupancy(array $filters): array
     {
         $this->collegeId();
 
-        $bedTotals = $this->bedQuery($filters)
+        $bedCounts = $this->bedQuery($filters)
             ->reorder()
             ->toBase()
+            ->select('hostel_beds.hostel_id', 'hostel_beds.building_id')
             ->selectRaw('COUNT(*) as total_beds')
             ->selectRaw(
                 'SUM(CASE WHEN hostel_beds.status = ? THEN 1 ELSE 0 END) as inactive_beds',
                 [HostelBed::STATUS_INACTIVE]
             )
-            ->first();
-        $totalBeds = (int) ($bedTotals->total_beds ?? 0);
-        $totalInactive = (int) ($bedTotals->inactive_beds ?? 0);
-        $totalOccupied = (int) $this->residencyQuery($filters)
+            ->groupBy('hostel_beds.hostel_id', 'hostel_beds.building_id')
+            ->get();
+        $occupiedByBuilding = $this->residencyQuery($filters)
             ->whereIn('hostel_allocations.hostel_bed_id', $this->bedQuery($filters)->select('hostel_beds.id'))
             ->reorder()
             ->toBase()
+            ->select('hostel_allocations.hostel_building_id')
             ->selectRaw('COUNT(DISTINCT hostel_allocations.hostel_bed_id) as occupied_beds')
-            ->value('occupied_beds');
+            ->groupBy('hostel_allocations.hostel_building_id')
+            ->pluck('occupied_beds', 'hostel_building_id');
+
+        $hostelRollup = [];
+        $buildingRollup = [];
+        $totalBeds = 0;
+        $totalOccupied = 0;
+        $totalInactive = 0;
+
+        foreach ($bedCounts as $row) {
+            $hostelId = (int) $row->hostel_id;
+            $buildingId = (int) $row->building_id;
+            $bedsInBuilding = (int) $row->total_beds;
+            $inactiveInBuilding = (int) $row->inactive_beds;
+            $occupiedInBuilding = (int) ($occupiedByBuilding[$buildingId] ?? 0);
+
+            $totalBeds += $bedsInBuilding;
+            $totalInactive += $inactiveInBuilding;
+            $totalOccupied += $occupiedInBuilding;
+
+            $hostelRollup[$hostelId] ??= ['beds' => 0, 'inactive' => 0, 'occupied' => 0];
+            $hostelRollup[$hostelId]['beds'] += $bedsInBuilding;
+            $hostelRollup[$hostelId]['inactive'] += $inactiveInBuilding;
+            $hostelRollup[$hostelId]['occupied'] += $occupiedInBuilding;
+
+            $buildingRollup[$buildingId] = [
+                'beds' => $bedsInBuilding,
+                'inactive' => $inactiveInBuilding,
+                'occupied' => $occupiedInBuilding,
+            ];
+        }
+
+        $hostels = $this->hostelQuery($filters)
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get(['id', 'name', 'code', 'status']);
+        $buildings = $this->buildingQuery($filters)
+            ->with('hostel:id,name,code')
+            ->orderBy('hostel_id')
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get(['id', 'hostel_id', 'name', 'code', 'status']);
+        $hostelRows = $hostels->map(function (Hostel $hostel) use ($hostelRollup): array {
+            $counts = $hostelRollup[$hostel->id] ?? ['beds' => 0, 'inactive' => 0, 'occupied' => 0];
+
+            return [
+                'hostel' => $hostel,
+                'beds' => $counts['beds'],
+                'inactive_beds' => $counts['inactive'],
+                'occupied' => $counts['occupied'],
+                'available' => max(0, $counts['beds'] - $counts['inactive'] - $counts['occupied']),
+                'vacant' => max(0, $counts['beds'] - $counts['occupied']),
+                'occupancy_percentage' => $this->percentage($counts['occupied'], $counts['beds']),
+            ];
+        })->all();
+        $buildingRows = $buildings->map(function (HostelBuilding $building) use ($buildingRollup): array {
+            $counts = $buildingRollup[$building->id] ?? ['beds' => 0, 'inactive' => 0, 'occupied' => 0];
+
+            return [
+                'building' => $building,
+                'beds' => $counts['beds'],
+                'inactive_beds' => $counts['inactive'],
+                'occupied' => $counts['occupied'],
+                'available' => max(0, $counts['beds'] - $counts['inactive'] - $counts['occupied']),
+                'vacant' => max(0, $counts['beds'] - $counts['occupied']),
+                'occupancy_percentage' => $this->percentage($counts['occupied'], $counts['beds']),
+            ];
+        })->all();
 
         $rooms = $this->roomQuery($filters)
             ->with(['hostel:id,name,code', 'building:id,hostel_id,name,code'])
@@ -197,19 +271,25 @@ class HostelReportService
 
         return [
             'summary' => [
+                'hostels' => $hostels->count(),
+                'buildings' => $buildings->count(),
+                'rooms' => $rooms->total(),
                 'beds' => $totalBeds,
                 'occupied' => $totalOccupied,
                 'available' => max(0, $usableBeds - $totalOccupied),
+                'vacant' => max(0, $totalBeds - $totalOccupied),
                 'inactive_beds' => $totalInactive,
                 'occupancy_percentage' => $this->percentage($totalOccupied, $totalBeds),
             ],
+            'hostels' => $hostelRows,
+            'buildings' => $buildingRows,
             'rooms' => $rooms,
             'beds' => $beds,
         ];
     }
 
     /**
-     * Full allocation register, including active, vacated and cancelled rows.
+     * Active allocation rows with status counts for the selected register.
      *
      * @param  array<string, mixed>  $filters
      * @return array{counts: array<string, int>, rows: LengthAwarePaginator}
@@ -229,6 +309,7 @@ class HostelReportService
             ->pluck('total', 'status');
 
         $rows = $query
+            ->where('hostel_allocations.status', HostelAllocation::STATUS_ACTIVE)
             ->with($this->allocationRelations())
             ->orderByDesc('allocation_date')
             ->orderByDesc('id')

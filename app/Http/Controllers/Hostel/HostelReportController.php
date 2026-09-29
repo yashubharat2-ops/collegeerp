@@ -86,7 +86,7 @@ class HostelReportController extends Controller
         $filters = $this->filters($request, $report);
 
         $data = match ($report) {
-            'occupancy' => $this->reports->occupancy($filters),
+            'occupancy' => $this->occupancyViewData($filters),
             'allocations' => ['allocationReport' => $this->reports->allocations($filters)],
             'attendance' => ['attendanceReport' => $this->reports->attendance($filters)],
             'fees' => ['feeReport' => $this->reports->fees($filters)],
@@ -104,6 +104,14 @@ class HostelReportController extends Controller
             'dateLabel' => self::DATE_LABELS[$report] ?? 'Date',
             'statusOptions' => $this->statusOptions($report),
         ]));
+    }
+
+    /** Preserve the occupancy partial's flat data while exposing its report contract. */
+    private function occupancyViewData(array $filters): array
+    {
+        $occupancy = $this->reports->occupancy($filters);
+
+        return array_merge($occupancy, ['occupancy' => $occupancy]);
     }
 
     /** Validate only filters used by the selected report; foreign-tenant IDs
