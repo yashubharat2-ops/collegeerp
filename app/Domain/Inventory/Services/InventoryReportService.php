@@ -12,6 +12,7 @@ use App\Models\InventoryPurchaseOrderItem;
 use App\Models\InventoryStockMovement;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
 
@@ -62,6 +63,10 @@ class InventoryReportService
     public function lowStock(array $filters): LengthAwarePaginator
     {
         $query = $this->stock->lowStock($filters['threshold'])
+            // Keep the report's lifecycle rule explicit: only active consumables
+            // are low-stock candidates. The item query retains SoftDeletes' scope.
+            ->where('inventory_items.item_type', InventoryItem::TYPE_CONSUMABLE)
+            ->where('inventory_items.status', InventoryItem::STATUS_ACTIVE)
             ->with('category:id,name,code');
 
         $this->applyItemFilters($query, $filters);
@@ -143,8 +148,8 @@ class InventoryReportService
         $query = InventoryPurchaseOrderItem::query()
             ->with([
                 'purchaseOrder.vendor',
-                'item' => fn (Builder $item) => $item->withTrashed()->with([
-                    'category' => fn (Builder $category) => $category->withTrashed(),
+                'item' => fn (BelongsTo $item) => $item->withTrashed()->with([
+                    'category' => fn (BelongsTo $category) => $category->withTrashed(),
                 ]),
             ])
             ->whereHas('purchaseOrder', function (Builder $order) use ($filters): void {
@@ -202,8 +207,8 @@ class InventoryReportService
     public function issues(array $filters): LengthAwarePaginator
     {
         $query = InventoryIssue::query()->with([
-            'item' => fn (Builder $item) => $item->withTrashed()->with([
-                'category' => fn (Builder $category) => $category->withTrashed(),
+            'item' => fn (BelongsTo $item) => $item->withTrashed()->with([
+                'category' => fn (BelongsTo $category) => $category->withTrashed(),
             ]),
             'recipient',
             'creator:id,name',
@@ -274,8 +279,8 @@ class InventoryReportService
     {
         $query = InventoryAssignment::query()
             ->with([
-                'item' => fn (Builder $item) => $item->withTrashed()->with([
-                    'category' => fn (Builder $category) => $category->withTrashed(),
+                'item' => fn (BelongsTo $item) => $item->withTrashed()->with([
+                    'category' => fn (BelongsTo $category) => $category->withTrashed(),
                 ]),
                 'assignee',
                 'returner:id,name',
@@ -315,8 +320,8 @@ class InventoryReportService
         $query = InventoryAssignment::query()
             ->returned()
             ->with([
-                'item' => fn (Builder $item) => $item->withTrashed()->with([
-                    'category' => fn (Builder $category) => $category->withTrashed(),
+                'item' => fn (BelongsTo $item) => $item->withTrashed()->with([
+                    'category' => fn (BelongsTo $category) => $category->withTrashed(),
                 ]),
                 'assignee',
                 'returner:id,name',
@@ -349,10 +354,10 @@ class InventoryReportService
     {
         $query = InventoryMaintenance::query()
             ->with([
-                'item' => fn (Builder $item) => $item->withTrashed()->with([
-                    'category' => fn (Builder $category) => $category->withTrashed(),
+                'item' => fn (BelongsTo $item) => $item->withTrashed()->with([
+                    'category' => fn (BelongsTo $category) => $category->withTrashed(),
                 ]),
-                'vendor' => fn (Builder $vendor) => $vendor->withTrashed(),
+                'vendor' => fn (BelongsTo $vendor) => $vendor->withTrashed(),
                 'creator:id,name',
             ])
             ->whereHas('item', fn (Builder $item) => $item->withTrashed()->where('item_type', InventoryItem::TYPE_ASSET));
@@ -552,11 +557,11 @@ class InventoryReportService
     private function movementRelations(): array
     {
         return [
-            'item' => fn (Builder $item) => $item->withTrashed()->with([
-                'category' => fn (Builder $category) => $category->withTrashed(),
+            'item' => fn (BelongsTo $item) => $item->withTrashed()->with([
+                'category' => fn (BelongsTo $category) => $category->withTrashed(),
             ]),
-            'purchaseOrder' => fn (Builder $order) => $order->withTrashed()->with([
-                'vendor' => fn (Builder $vendor) => $vendor->withTrashed(),
+            'purchaseOrder' => fn (BelongsTo $order) => $order->withTrashed()->with([
+                'vendor' => fn (BelongsTo $vendor) => $vendor->withTrashed(),
             ]),
             'creator:id,name',
         ];
