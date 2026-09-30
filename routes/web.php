@@ -477,6 +477,14 @@ Route::middleware('auth')->group(function () {
         // Read-only Certificate Reports (live aggregates over existing certificates, no report tables).
         Route::get('certificate-reports', [\App\Http\Controllers\CertificateReportController::class, 'index'])->name('certificate-reports.index');
 
+        // REPORTS — Consolidated Reports: one tenant-scoped, read-only screen that
+        // presents the college-wide summaries of the existing modules (Student,
+        // Academic, Examination, Finance, HR, Library, Transport, Hostel,
+        // Inventory, Communication, Certificate). Every figure is delegated to the
+        // report service that already owns it, so there are no report tables, no
+        // snapshots and no write routes here — GET only.
+        Route::get('consolidated-reports', [\App\Http\Controllers\ConsolidatedReportController::class, 'index'])->name('consolidated-reports.index');
+
         // Inventory / Asset Management — Phase 1. The dashboard is read-only
         // and aggregated live (no dashboard tables). Items and assets share
         // one master.

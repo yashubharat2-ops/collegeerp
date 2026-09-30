@@ -73,6 +73,9 @@ class DatabaseSeeder extends Seeder
             'examination_reports.view',
             // REPORTS — Finance Reports (read-only, separate from operational Finance / Fees permissions).
             'finance_reports.view',
+            // REPORTS — Consolidated Reports (read-only cross-module summaries; separate from every
+            // operational permission and from the individual report modules it consolidates).
+            'consolidated_reports.view',
             'admission_reports.view',
             'settings.view', 'settings.update',
             'academic_subject_enrollments.view','academic_subject_enrollments.create','academic_subject_enrollments.update','academic_subject_enrollments.delete',

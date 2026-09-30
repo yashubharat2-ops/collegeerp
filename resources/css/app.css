@@ -6,6 +6,7 @@
 @theme { --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; }
 @layer components {
     .nav-link { @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-300 transition hover:bg-white/10 hover:text-white; }
+    .nav-sublink { @apply block rounded-lg px-2 py-1.5 text-xs text-slate-400 transition hover:bg-white/10 hover:text-white; }
     .label { @apply mb-2 block text-sm font-medium text-slate-700; }
     .input { @apply w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100; }
     .button { @apply rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300; }
