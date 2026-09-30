@@ -35,18 +35,20 @@ class SidebarNavigationTest extends TestCase
             $this->assertGreaterThan(0, $xpath->query('./div[@data-sidebar-links]//a[@href]', $section)->length);
         }
         $this->assertSame([
-            'Platform', 'HR / Staff Management', 'Admissions', 'Students', 'CERTIFICATE MANAGEMENT (EC)',
+            'Platform', 'HR / Staff Management', 'Admissions', 'Students', 'Certificate Management (EC)',
             'Academics', 'Examinations', 'Finance / Fees', 'Transport Management', 'Library Management',
-            'Hostel Management', 'Communication Management', 'Inventory / Asset Management', 'REPORTS',
-            'ADMINISTRATION / SETTINGS',
+            'Hostel Management', 'Communication Management', 'Inventory / Asset Management', 'Reports',
+            'Administration / Settings',
         ], $titles);
-        $this->assertSame(1, substr_count($html, 'CERTIFICATE MANAGEMENT (EC)'), 'A section title must not be repeated in a tooltip attribute.');
+        $this->assertSame(1, substr_count($html, 'Certificate Management (EC)'), 'A section title must not be repeated in a tooltip attribute.');
         $this->assertStringContainsString('<script type="module" src="/js/sidebar.js">', $html);
         $this->assertSame(2, $xpath->query('//button[@data-sidebar-toggle and @aria-controls="app-sidebar" and @type="button"]')->length);
         $this->assertSame(1, $xpath->query('//aside[@id="app-sidebar"]/nav[contains(@class, "overflow-y-auto")]')->length);
-        $this->assertSame(1, $xpath->query('//aside/nav/a[@href="'.route('dashboard').'" and @aria-current="page"]')->length);
+        $this->assertSame(1, $xpath->query('//aside//a[@href="'.route('dashboard').'" and @aria-current="page"]')->length);
+        $this->assertSame(1, $xpath->query('//aside//*[@data-sidebar-search and @type="search"]')->length);
+        $this->assertSame(1, $xpath->query('//aside//*[contains(@class, "sidebar-profile-info")]')->length);
         $this->assertSame(1, $xpath->query('//aside/nav/details[summary/div="Students"]//a[@href="'.route('students.index').'"]')->length);
-        $this->assertSame(1, $xpath->query('//aside/nav/details[summary/div="REPORTS"]//a[@href="'.route('student-reports.index').'"]')->length);
+        $this->assertSame(1, $xpath->query('//aside/nav/details[summary/div="Reports"]//a[@href="'.route('student-reports.index').'"]')->length);
     }
 
     public function test_administration_active_link_is_preserved_for_named_and_legacy_settings_pages(): void
@@ -56,7 +58,7 @@ class SidebarNavigationTest extends TestCase
         foreach ([route('admin.institution-settings.index'), route('settings.index')] as $url) {
             $html = $this->asCollege($college, $user)->get($url)->assertOk()->getContent();
             $xpath = $this->sidebar($html);
-            $this->assertSame(1, $xpath->query('//aside/nav/details[summary/div="ADMINISTRATION / SETTINGS"]//a[@aria-current="page" and @href="'.route('admin.institution-settings.index').'"]')->length);
+            $this->assertSame(1, $xpath->query('//aside/nav/details[summary/div="Administration / Settings"]//a[@aria-current="page" and @href="'.route('admin.institution-settings.index').'"]')->length);
         }
     }
 
@@ -68,7 +70,7 @@ class SidebarNavigationTest extends TestCase
         $xpath = $this->sidebar($html);
         $this->assertSame(1, $xpath->query('//aside/nav/details[summary/div="Examinations"]//a[@href="'.route('exam-marks.index').'"]')->length);
         $this->assertSame(0, $xpath->query('//aside/nav/details[summary/div="Examinations"]//a[@href="'.route('results.index').'"]')->length);
-        foreach (['Finance / Fees', 'Library Management', 'REPORTS', 'ADMINISTRATION / SETTINGS'] as $title) {
+        foreach (['Finance / Fees', 'Library Management', 'Reports', 'Administration / Settings'] as $title) {
             $this->assertSame(0, $xpath->query('//aside/nav/details[summary/div="'.$title.'"]')->length);
         }
     }

@@ -81,7 +81,7 @@ class HostelPhase2NavigationTest extends TestCase
 
         $end = strpos(
             $html,
-            'uppercase tracking-widest',
+            'sidebar-section-label',
             $after
         );
 
@@ -92,10 +92,10 @@ class HostelPhase2NavigationTest extends TestCase
 
     private function reportsNavGroup(string $html): string
     {
-        $start = strpos($html, '>REPORTS</div>');
+        $start = strpos($html, '>Reports</div>/div>');
         $this->assertNotFalse($start, 'The sidebar must have a REPORTS group.');
-        $after = $start + strlen('>REPORTS</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $after = $start + strlen('>Reports</div>/div>');
+        $end = strpos($html, 'sidebar-section-label', $after);
 
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
@@ -161,7 +161,7 @@ class HostelPhase2NavigationTest extends TestCase
         }
 
         $reports = $this->reportsNavGroup($html);
-        $this->assertSame(1, substr_count($html, '>REPORTS</div>'));
+        $this->assertSame(1, substr_count($html, '>Reports</div>/div>'));
         $this->assertStringNotContainsString(route('hostel-reports.index'), $group);
         $this->assertStringContainsString(route('hostel-reports.index'), $reports);
         $this->assertGreaterThan(strpos($reports, 'Transport Reports'), strpos($reports, 'Hostel Reports'));

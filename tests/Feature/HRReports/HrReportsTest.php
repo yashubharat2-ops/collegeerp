@@ -73,7 +73,7 @@ class HrReportsTest extends TestCase
         }
         $this->asCollege($college, $operator)->get(route('employees.index'))->assertOk()
             ->assertDontSee('href="'.route('hr-reports.index').'"', false)
-            ->assertDontSee('>REPORTS<', false);
+            ->assertDontSee('>Reports</div>', false);
 
         // The report permission alone opens every report but no operational page.
         $reporter = $this->reporter($college);
@@ -162,21 +162,21 @@ class HrReportsTest extends TestCase
         $html = $this->asCollege($college, $user)->get(route('hr-reports.index'))->assertOk()->getContent();
 
         $inventory = strpos($html, '>Inventory / Asset Management<');
-        $reports = strpos($html, '>REPORTS<');
+        $reports = strpos($html, '>Reports</div>');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
         $examination = strpos($html, 'href="'.route('examination-reports.index').'"');
         $finance = strpos($html, 'href="'.route('finance-reports.index').'"');
         $hr = strpos($html, 'href="'.route('hr-reports.index').'"');
         $library = strpos($html, 'href="'.route('library-reports.index').'"');
-        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = strpos($html, '>Administration / Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue(
             $inventory < $reports && $reports < $student && $student < $academic
             && $academic < $examination && $examination < $finance && $finance < $hr && $hr < $library && $library < $platform
         );
-        $this->assertSame(1, substr_count($html, '>REPORTS<'));
+        $this->assertSame(1, substr_count($html, '>Reports</div>'));
 
         // Six report links live between REPORTS and Administration / Settings; HR Reports keeps
         // its HR / staff icon and Library Reports follows it with a books icon.
@@ -192,7 +192,7 @@ class HrReportsTest extends TestCase
         // seven operational entries and no longer mentions HR Reports.
         $hrStart = strpos($html, '>HR / Staff Management</div>');
         $this->assertNotFalse($hrStart);
-        $hrEnd = strpos($html, 'uppercase tracking-widest', $hrStart + 1);
+        $hrEnd = strpos($html, 'sidebar-section-label', $hrStart + 1);
         $group = substr($html, $hrStart, $hrEnd === false ? null : $hrEnd - $hrStart);
         $this->assertSame(7, substr_count($group, 'class="nav-link"'));
         $this->assertStringNotContainsString('HR Reports', $group);
@@ -204,7 +204,7 @@ class HrReportsTest extends TestCase
         // holding only hr_reports.view sees REPORTS and the HR link.
         $solo = $this->makeUserWithPermissions($college, self::VIEW);
         $soloHtml = $this->asCollege($college, $solo)->get(route('hr-reports.index'))->assertOk()->getContent();
-        $this->assertStringContainsString('>REPORTS<', $soloHtml);
+        $this->assertStringContainsString('>Reports</div>', $soloHtml);
         $this->assertStringContainsString('href="'.route('hr-reports.index').'"', $soloHtml);
         $this->assertStringNotContainsString('>HR / Staff Management</div>', $soloHtml);
     }

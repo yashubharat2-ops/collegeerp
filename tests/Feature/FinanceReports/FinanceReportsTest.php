@@ -146,19 +146,19 @@ class FinanceReportsTest extends TestCase
         $html = $this->asCollege($college, $user)->get(route('finance-reports.index'))->assertOk()->getContent();
 
         $inventory = strpos($html, '>Inventory / Asset Management<');
-        $reports = strpos($html, '>REPORTS<');
+        $reports = strpos($html, '>Reports</div>');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
         $examination = strpos($html, 'href="'.route('examination-reports.index').'"');
         $finance = strpos($html, 'href="'.route('finance-reports.index').'"');
-        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = strpos($html, '>Administration / Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue(
             $inventory < $reports && $reports < $student && $student < $academic
             && $academic < $examination && $examination < $finance && $finance < $platform
         );
-        $this->assertSame(1, substr_count($html, '>REPORTS<'));
+        $this->assertSame(1, substr_count($html, '>Reports</div>'));
 
         // Four report links live between REPORTS and Administration / Settings — the Finance
         // Reports child is the last one.

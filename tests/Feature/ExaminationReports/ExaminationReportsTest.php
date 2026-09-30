@@ -95,7 +95,7 @@ class ExaminationReportsTest extends TestCase
         ]);
         $this->asCollege($college, $operator)->get(route('examinations.index'))->assertOk()
             ->assertDontSee('href="'.route('examination-reports.index').'"', false)
-            ->assertDontSee('>REPORTS<', false);
+            ->assertDontSee('>Reports</div>', false);
         foreach (array_keys(ExaminationReportController::REPORTS) as $report) {
             $this->asCollege($college, $operator)->get(route('examination-reports.index', ['report' => $report]))->assertForbidden();
         }
@@ -108,7 +108,7 @@ class ExaminationReportsTest extends TestCase
                 ->assertOk()->assertViewHas('report', $key)->assertSee($label);
         }
         $this->get(route('examination-reports.index'))->assertOk()
-            ->assertSee('>REPORTS<', false)
+            ->assertSee('>Reports</div>', false)
             ->assertSee('href="'.route('examination-reports.index').'"', false)
             ->assertDontSee('href="'.route('academic-reports.index').'"', false)
             ->assertDontSee('href="'.route('student-reports.index').'"', false);
@@ -118,7 +118,7 @@ class ExaminationReportsTest extends TestCase
         $legacyOnly = $this->makeUserWithPermissions($college, ['exam_reports.view']);
         $this->asCollege($college, $legacyOnly)->get(route('exam-reports.index'))->assertOk()
             ->assertDontSee('href="'.route('examination-reports.index').'"', false)
-            ->assertDontSee('>REPORTS<', false);
+            ->assertDontSee('>Reports</div>', false);
         $this->asCollege($college, $legacyOnly)->get(route('examination-reports.index'))->assertForbidden();
 
         // Student Reports keeps its own permission too.
@@ -144,15 +144,15 @@ class ExaminationReportsTest extends TestCase
         $html = $this->asCollege($college, $user)->get(route('examination-reports.index'))->assertOk()->getContent();
 
         $inventory = strpos($html, '>Inventory / Asset Management<');
-        $reports = strpos($html, '>REPORTS<');
+        $reports = strpos($html, '>Reports</div>');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
         $examination = strpos($html, 'href="'.route('examination-reports.index').'"');
-        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = strpos($html, '>Administration / Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue($inventory < $reports && $reports < $student && $student < $academic && $academic < $examination && $examination < $platform);
-        $this->assertSame(1, substr_count($html, '>REPORTS<'));
+        $this->assertSame(1, substr_count($html, '>Reports</div>'));
 
         // Exactly three report links live between REPORTS and Administration / Settings.
         $menu = substr($html, $reports, $platform - $reports);

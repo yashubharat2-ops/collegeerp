@@ -82,7 +82,7 @@ class TransportReportTest extends TestCase
         }
         $this->asCollege($college, $operator)->get(route('vehicles.index'))->assertOk()
             ->assertDontSee('href="'.route('transport-reports.index').'"', false)
-            ->assertDontSee('>REPORTS<', false);
+            ->assertDontSee('>Reports</div>', false);
 
         // The report permission alone opens every report but no operational page.
         $reporter = $this->makeUserWithPermissions($college, self::VIEW);
@@ -216,7 +216,7 @@ class TransportReportTest extends TestCase
         $html = $this->asCollege($college, $user)->get(route('transport-reports.index'))->assertOk()->getContent();
 
         $inventory = strpos($html, '>Inventory / Asset Management<');
-        $reports = strpos($html, '>REPORTS<');
+        $reports = strpos($html, '>Reports</div>');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
         $examination = strpos($html, 'href="'.route('examination-reports.index').'"');
@@ -224,7 +224,7 @@ class TransportReportTest extends TestCase
         $hr = strpos($html, 'href="'.route('hr-reports.index').'"');
         $library = strpos($html, 'href="'.route('library-reports.index').'"');
         $transport = strpos($html, 'href="'.route('transport-reports.index').'"');
-        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = strpos($html, '>Administration / Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue(
@@ -232,7 +232,7 @@ class TransportReportTest extends TestCase
             && $academic < $examination && $examination < $finance && $finance < $hr
             && $hr < $library && $library < $transport && $transport < $platform
         );
-        $this->assertSame(1, substr_count($html, '>REPORTS<'));
+        $this->assertSame(1, substr_count($html, '>Reports</div>'));
 
         // The report links live between REPORTS and Administration / Settings and Transport
         // Reports carries a transport / vehicle icon.
@@ -247,7 +247,7 @@ class TransportReportTest extends TestCase
         // only its operational entries and no longer mentions the reports.
         $groupStart = strpos($html, '>Transport Management</div>');
         $this->assertNotFalse($groupStart);
-        $groupEnd = strpos($html, 'uppercase tracking-widest', $groupStart + 1);
+        $groupEnd = strpos($html, 'sidebar-section-label', $groupStart + 1);
         $group = substr($html, $groupStart, $groupEnd === false ? null : $groupEnd - $groupStart);
         $this->assertStringNotContainsString('Transport Reports', $group);
         $this->assertStringNotContainsString(route('transport-reports.index'), $group);
@@ -259,7 +259,7 @@ class TransportReportTest extends TestCase
         // link, but no Transport Management group at all.
         $solo = $this->makeUserWithPermissions($college, self::VIEW);
         $soloHtml = $this->asCollege($college, $solo)->get(route('transport-reports.index'))->assertOk()->getContent();
-        $this->assertStringContainsString('>REPORTS<', $soloHtml);
+        $this->assertStringContainsString('>Reports</div>', $soloHtml);
         $this->assertStringContainsString('href="'.route('transport-reports.index').'"', $soloHtml);
         $this->assertStringNotContainsString('>Transport Management</div>', $soloHtml);
     }

@@ -168,9 +168,9 @@ class CertificateReportTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $reportsHeaderPos = strpos($visibleHtml, '>REPORTS</div>');
+        $reportsHeaderPos = strpos($visibleHtml, '>Reports</div>/div>');
         $certReportsLinkPos = strpos($visibleHtml, route('certificate-reports.index'));
-        $platformFooterPos = strrpos($visibleHtml, '>ADMINISTRATION / SETTINGS</div>');
+        $platformFooterPos = strrpos($visibleHtml, '>Administration / Settings</div>');
 
         $this->assertNotFalse($reportsHeaderPos);
         $this->assertNotFalse($certReportsLinkPos);

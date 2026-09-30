@@ -85,7 +85,7 @@ class InventoryNavigationTest extends TestCase
         'Inventory Operations',
         'Stock Management',
         '>Asset Management</div>',
-        '>Reports</div>',
+        '>Reports</div>/div>',
         '>Phase 3</div>',
         '>Phase 4</div>',
     ];
@@ -93,7 +93,7 @@ class InventoryNavigationTest extends TestCase
     private const HEADING = '>Inventory / Asset Management</div>';
 
     /** Any sidebar section heading (they share the uppercase heading styling). */
-    private const SECTION_HEADING_PATTERN = '/<div class="[^"]*\buppercase tracking-widest\b[^"]*">/';
+    private const SECTION_HEADING_PATTERN = '/<div class="[^"]*\bsidebar-section-label\b[^"]*">/';
 
     private function href(string $routeName): string
     {
@@ -211,7 +211,7 @@ class InventoryNavigationTest extends TestCase
 
         $communication = strpos($html, '>Communication Management</div>');
         $inventory = strpos($html, self::HEADING);
-        $platform = strrpos($html, '>ADMINISTRATION / SETTINGS</div>');
+        $platform = strrpos($html, '>Administration / Settings</div>');
 
         $this->assertNotFalse($communication);
         $this->assertNotFalse($inventory);
@@ -251,12 +251,12 @@ class InventoryNavigationTest extends TestCase
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
 
         $this->assertStringNotContainsString(self::HEADING, $html, 'The reports permission must not reveal operational Inventory navigation.');
-        $this->assertSame(1, substr_count($html, '>REPORTS</div>'), 'Keep one plain shared REPORTS heading.');
+        $this->assertSame(1, substr_count($html, '>Reports</div>/div>'), 'Keep one plain shared REPORTS heading.');
         $this->assertSame(1, substr_count($html, $this->href('inventory-reports.index')));
 
-        $reportsHeading = strpos($html, '>REPORTS</div>');
+        $reportsHeading = strpos($html, '>Reports</div>/div>');
         $this->assertNotFalse($reportsHeading);
-        $afterHeading = $reportsHeading + strlen('>REPORTS</div>');
+        $afterHeading = $reportsHeading + strlen('>Reports</div>/div>');
         $matched = preg_match(self::SECTION_HEADING_PATTERN, $html, $next, PREG_OFFSET_CAPTURE, $afterHeading);
         $end = $matched === 1 ? $next[0][1] : strpos($html, '</nav>', $afterHeading);
         $this->assertNotFalse($end, 'Reports must end at another section or the sidebar boundary.');

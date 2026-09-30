@@ -12,7 +12,7 @@
         || ($link[0] === 'Audit Logs' && Illuminate\Support\Facades\Gate::allows('viewPlatform', App\Models\AuditLog::class)));
 @endphp
 @if($administrationLinks->isNotEmpty())
-<x-sidebar-section title="ADMINISTRATION / SETTINGS" icon="settings">
+<x-sidebar-section title="Administration / Settings" icon="settings">
 <div data-navigation="administration-settings">
     @foreach($administrationLinks as [$label, $icon, $route, $pattern])
         @php($active = request()->routeIs($pattern) || ($label === 'Institution Settings' && request()->routeIs('settings.index')))

@@ -57,7 +57,7 @@ class AcademicReportsTest extends TestCase
             'academic_attendance.view', 'academic_calendar.view', 'academic_workload.view', 'faculty_subject_assignments.view',
         ]);
         $this->asCollege($college, $operator)->get(route('academic-timetables.index'))->assertOk()
-            ->assertDontSee('href="'.route('academic-reports.index').'"', false)->assertDontSee('>REPORTS<', false);
+            ->assertDontSee('href="'.route('academic-reports.index').'"', false)->assertDontSee('>Reports</div>', false);
         foreach (array_keys(AcademicReportController::REPORTS) as $report) {
             $this->asCollege($college, $operator)->get(route('academic-reports.index', ['report' => $report]))->assertForbidden();
         }
@@ -70,7 +70,7 @@ class AcademicReportsTest extends TestCase
                 ->assertOk()->assertViewHas('report', $key)->assertSee($label);
         }
         $this->get(route('academic-reports.index'))->assertOk()
-            ->assertSee('>REPORTS<', false)
+            ->assertSee('>Reports</div>', false)
             ->assertSee('href="'.route('academic-reports.index').'"', false)
             ->assertDontSee('href="'.route('student-reports.index').'"', false);
 
@@ -94,14 +94,14 @@ class AcademicReportsTest extends TestCase
         $html = $this->asCollege($college, $user)->get(route('academic-reports.index'))->assertOk()->getContent();
 
         $inventory = strpos($html, '>Inventory / Asset Management<');
-        $reports = strpos($html, '>REPORTS<');
+        $reports = strpos($html, '>Reports</div>');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
-        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = strpos($html, '>Administration / Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue($inventory < $reports && $reports < $student && $student < $academic && $academic < $platform);
-        $this->assertSame(1, substr_count($html, '>REPORTS<'));
+        $this->assertSame(1, substr_count($html, '>Reports</div>'));
 
         // Only the two report links live between REPORTS and Administration / Settings.
         $menu = substr($html, $reports, $platform - $reports);

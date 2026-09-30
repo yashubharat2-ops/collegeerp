@@ -76,7 +76,7 @@ class StudentReportsTest extends TestCase
                 ->assertOk()->assertViewHas('report', $key)->assertSee($label);
         }
         $this->get(route('student-reports.index'))
-            ->assertOk()->assertSee('REPORTS')->assertSee('href="'.route('student-reports.index').'"', false);
+            ->assertOk()->assertSee('Reports')->assertSee('href="'.route('student-reports.index').'"', false);
         $this->get(route('student-reports.profile', $student))->assertOk()->assertSee('No enrollments recorded.');
         $this->get(route('student-reports.history', $student))->assertOk()->assertSee('Student record created');
     }

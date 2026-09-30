@@ -25,6 +25,8 @@ function section(urls, currentLink = null, label = 'Module') {
         const attributes = new Map(currentLink === href ? [['aria-current', 'page']] : []);
         return {
             href: `https://erp.test${href}`,
+            textContent: href.replace(/[/?=-]/g, ' '),
+            hidden: false,
             getAttribute: (key) => attributes.get(key) ?? null,
             hasAttribute: (key) => attributes.has(key),
             setAttribute: (key, value) => attributes.set(key, value),
@@ -34,7 +36,7 @@ function section(urls, currentLink = null, label = 'Module') {
     return {
         open: false, links, summary,
         querySelectorAll: () => links,
-        querySelector: () => summary,
+        querySelector: (selector) => selector === 'summary' ? summary : { textContent: label },
         setAttribute: (key, value) => attrs.set(key, value),
         removeAttribute: (key) => attrs.delete(key),
         hasAttribute: (key) => attrs.has(key),
@@ -56,6 +58,9 @@ function load(path, sections, { isDesktop = true } = {}) {
     const sidebar = { hidden: true, classList: classes(), addEventListener: (key, callback) => { handlers[`sidebar-${key}`] = callback; } };
     const backdrop = { hidden: true, addEventListener: (key, callback) => { handlers[`backdrop-${key}`] = callback; } };
     const desktop = { matches: isDesktop, addEventListener: (key, callback) => { handlers[`desktop-${key}`] = callback; } };
+    const search = { value: '', addEventListener: (key, callback) => { handlers[`search-${key}`] = callback; } };
+    const dashboard = { hidden: false, textContent: 'Dashboard' };
+    const noResults = { hidden: true };
     vm.runInNewContext(script, {
         URL,
         window: {
@@ -66,11 +71,16 @@ function load(path, sections, { isDesktop = true } = {}) {
         document: {
             querySelectorAll: (selector) => selector === '[data-sidebar-toggle]' ? [toggle] : sections,
             getElementById: () => sidebar,
-            querySelector: () => backdrop,
+            querySelector: (selector) => ({
+                '[data-sidebar-backdrop]': backdrop,
+                '[data-sidebar-search]': search,
+                '.sidebar-dashboard': dashboard,
+                '[data-sidebar-no-results]': noResults,
+            })[selector] ?? null,
             body: { classList: classes() },
         },
     });
-    return { handlers, toggle, sidebar, backdrop, desktop, text };
+    return { handlers, toggle, sidebar, backdrop, desktop, text, search, dashboard, noResults };
 }
 
 test('dashboard starts closed, even if the browser restores old open states', () => {
@@ -175,4 +185,30 @@ test('mobile drawer toggles, backdrop and Escape close it, shortcut remains acce
     assert.equal(sidebar.classList.contains('is-mobile-open'), false);
     assert.equal(sidebar.inert, false);
     assert.equal(toggle.getAttribute('aria-label'), 'Collapse sidebar');
+});
+
+test('menu search filters only rendered links, opens matching modules, and resets on clear', () => {
+    const platform = section(['/campuses', '/programs'], null, 'Platform');
+    const students = section(['/students', '/student-history'], null, 'Students');
+    const { handlers, search, dashboard, noResults } = load('/dashboard', [platform, students]);
+    search.value = 'campuses';
+    handlers['search-input']();
+    assert.equal(platform.hidden, false);
+    assert.equal(platform.open, true);
+    assert.equal(platform.links[0].hidden, false);
+    assert.equal(platform.links[1].hidden, true);
+    assert.equal(students.hidden, true);
+    assert.equal(dashboard.hidden, true);
+    search.value = 'missing';
+    handlers['search-input']();
+    assert.equal(noResults.hidden, false);
+    handlers.pageshow(); // Browser back/forward also clears stale search and opens the active parent.
+    assert.equal(search.value, '');
+    assert.equal(platform.hidden, false);
+    search.value = '';
+    handlers['search-input']();
+    assert.equal(platform.hidden, false);
+    assert.equal(platform.open, false);
+    assert.equal(students.hidden, false);
+    assert.equal(dashboard.hidden, false);
 });

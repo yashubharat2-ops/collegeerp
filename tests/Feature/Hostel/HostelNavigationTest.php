@@ -74,7 +74,7 @@ class HostelNavigationTest extends TestCase
         );
 
         $after = $start + strlen('>Hostel Management</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $end = strpos($html, 'sidebar-section-label', $after);
 
         return $end === false
             ? substr($html, $after)
@@ -98,10 +98,10 @@ class HostelNavigationTest extends TestCase
 
     private function reportsNavGroup(string $html): string
     {
-        $start = strpos($html, '>REPORTS</div>');
+        $start = strpos($html, '>Reports</div>/div>');
         $this->assertNotFalse($start, 'The sidebar must have a REPORTS group.');
-        $after = $start + strlen('>REPORTS</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $after = $start + strlen('>Reports</div>/div>');
+        $end = strpos($html, 'sidebar-section-label', $after);
 
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
@@ -168,7 +168,7 @@ class HostelNavigationTest extends TestCase
         }
 
         $reports = $this->reportsNavGroup($html);
-        $this->assertSame(1, substr_count($html, '>REPORTS</div>'));
+        $this->assertSame(1, substr_count($html, '>Reports</div>/div>'));
         $this->assertStringNotContainsString(route('hostel-reports.index'), $group);
         $this->assertStringContainsString(route('hostel-reports.index'), $reports);
         $this->assertGreaterThan(strpos($reports, 'Transport Reports'), strpos($reports, 'Hostel Reports'));
@@ -282,7 +282,7 @@ class HostelNavigationTest extends TestCase
         $after = $libraryStart + strlen('>Library Management</div>');
         $end = strpos(
             $html,
-            'uppercase tracking-widest',
+            'sidebar-section-label',
             $after
         );
 
@@ -319,7 +319,7 @@ class HostelNavigationTest extends TestCase
 
         $this->assertGreaterThan(
             $hostelStart,
-            (int) strrpos($html, '>ADMINISTRATION / SETTINGS</div>')
+            (int) strrpos($html, '>Administration / Settings</div>')
         );
     }
 

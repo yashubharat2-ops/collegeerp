@@ -248,15 +248,15 @@ class ConsolidatedReportsTest extends TestCase
 
         // REPORTS exists exactly once and Consolidated Reports is its last entry,
         // immediately before the next sidebar section.
-        $this->assertSame(1, substr_count($sidebar, '>REPORTS<'));
-        $reports = strpos($sidebar, '>REPORTS<');
+        $this->assertSame(1, substr_count($sidebar, '>Reports</div>'));
+        $reports = strpos($sidebar, '>Reports</div>');
         $entry = strpos($sidebar, route('consolidated-reports.index'), (int) $reports);
         $this->assertNotFalse($entry, 'The REPORTS section must link Consolidated Reports.');
         $this->assertStringContainsString('<span>Consolidated Reports</span>', substr($sidebar, $entry, 220));
         $this->assertStringContainsString('class="nav-link"', substr($sidebar, max(0, $entry - 60), 60));
 
         $entryEnd = strpos($sidebar, '</a>', (int) $entry) + 4;
-        $platform = strpos($sidebar, '>ADMINISTRATION / SETTINGS<', $entryEnd);
+        $platform = strpos($sidebar, '>Administration / Settings<', $entryEnd);
         $platform = $platform === false ? strpos($sidebar, '</nav>', $entryEnd) : $platform;
         $this->assertNotFalse($platform, 'REPORTS must end at Administration / Settings or the sidebar boundary.');
         $this->assertStringNotContainsString('class="nav-link"', substr($sidebar, $entryEnd, $platform - $entryEnd));
@@ -294,7 +294,7 @@ class ConsolidatedReportsTest extends TestCase
         // with the single module entry.
         $solo = $this->makeUserWithPermissions($college, self::VIEW);
         $soloSidebar = $this->sidebar($this->asCollege($college, $solo)->get(route('consolidated-reports.index'))->assertOk()->getContent());
-        $this->assertStringContainsString('>REPORTS<', $soloSidebar);
+        $this->assertStringContainsString('>Reports</div>', $soloSidebar);
         $this->assertSame(1, substr_count($soloSidebar, route('consolidated-reports.index')));
         $this->assertSame(0, substr_count($soloSidebar, 'report='));
     }

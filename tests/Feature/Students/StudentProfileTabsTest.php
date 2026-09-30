@@ -247,7 +247,7 @@ class StudentProfileTabsTest extends TestCase
         $this->assertNotFalse($start, 'The sidebar must have a Students group heading.');
 
         $after = $start + strlen('>Students</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $end = strpos($html, 'sidebar-section-label', $after);
 
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }

@@ -54,6 +54,9 @@
     const sidebar = document.getElementById('app-sidebar');
     const toggles = document.querySelectorAll('[data-sidebar-toggle]');
     const backdrop = document.querySelector('[data-sidebar-backdrop]');
+    const search = document.querySelector('[data-sidebar-search]');
+    const dashboard = document.querySelector('.sidebar-dashboard');
+    const noResults = document.querySelector('[data-sidebar-no-results]');
     const desktop = window.matchMedia('(min-width: 1024px)');
     let collapsed = false;
     let mobileOpen = false;
@@ -90,16 +93,39 @@
         }
     }
 
+    function filterMenu() {
+        if (!search) return;
+        const query = search.value.trim().toLocaleLowerCase();
+        let matches = 0;
+        for (const section of document.querySelectorAll('aside nav details[data-sidebar-section]')) {
+            const parentMatches = section.querySelector('.sidebar-section-label').textContent.toLocaleLowerCase().includes(query);
+            let childMatches = 0;
+            for (const link of section.querySelectorAll('a.nav-link[href]')) {
+                link.hidden = !!query && !parentMatches && !link.textContent.toLocaleLowerCase().includes(query);
+                if (!link.hidden) childMatches++;
+            }
+            section.hidden = !!query && childMatches === 0;
+            if (!section.hidden) matches++;
+            if (query && !section.hidden) section.open = true;
+        }
+        if (dashboard) dashboard.hidden = !!query && !dashboard.textContent.toLocaleLowerCase().includes(query);
+        if (noResults) noResults.hidden = !query || matches > 0 || (dashboard && !dashboard.hidden);
+        if (!query) openCurrentSection();
+    }
+
     function toggleSidebar() {
         if (desktop.matches) collapsed = !collapsed;
         else mobileOpen = !mobileOpen;
+        if (collapsed && search?.value) { search.value = ''; filterMenu(); }
         syncSidebar();
     }
 
+    search?.addEventListener('input', filterMenu);
     openCurrentSection();
     syncSidebar();
     window.addEventListener('pageshow', () => {
-        openCurrentSection();
+        if (search) { search.value = ''; filterMenu(); }
+        else openCurrentSection();
         mobileOpen = false;
         syncSidebar();
     });

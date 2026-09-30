@@ -42,7 +42,7 @@ class CommunicationNavigationTest extends TestCase
 
     private const HEADING = '>Communication Management</div>';
 
-    private const REPORTS_HEADING = '>REPORTS</div>';
+    private const REPORTS_HEADING = '>Reports</div>/div>';
 
     private function href(string $routeName): string
     {
@@ -55,7 +55,7 @@ class CommunicationNavigationTest extends TestCase
         $this->assertNotFalse($start, 'The sidebar must have a Communication Management group heading.');
 
         $after = $start + strlen(self::HEADING);
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $end = strpos($html, 'sidebar-section-label', $after);
 
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
@@ -66,7 +66,7 @@ class CommunicationNavigationTest extends TestCase
         $this->assertNotFalse($start, 'The sidebar must have a REPORTS section heading.');
 
         $after = $start + strlen(self::REPORTS_HEADING);
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $end = strpos($html, 'sidebar-section-label', $after);
 
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
@@ -184,7 +184,7 @@ class CommunicationNavigationTest extends TestCase
         // The group sits after Hostel Management and before the closing Administration / Settings section.
         $communication = strpos($html, self::HEADING);
         $this->assertGreaterThan((int) strpos($html, '>Hostel Management</div>'), $communication);
-        $this->assertGreaterThan($communication, (int) strrpos($html, '>ADMINISTRATION / SETTINGS</div>'));
+        $this->assertGreaterThan($communication, (int) strrpos($html, '>Administration / Settings</div>'));
 
         // …and its screens open for the super admin.
         foreach ([
