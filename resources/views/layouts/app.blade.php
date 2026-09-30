@@ -306,7 +306,7 @@
 <a class="nav-link" href="{{ route('inventory-stock-reports.index') }}">📈 <span>Stock / Transaction Reports</span></a>
 @endif
 @endif
-@if(auth()->user()?->hasPermission('student_reports.view') || auth()->user()?->hasPermission('academic_reports.view') || auth()->user()?->hasPermission('examination_reports.view') || auth()->user()?->hasPermission('finance_reports.view') || auth()->user()?->hasPermission('inventory_reports.view') || auth()->user()?->hasPermission('hr_reports.view') || auth()->user()?->hasPermission('library_reports.view') || auth()->user()?->hasPermission('transport_reports.view') || auth()->user()?->hasPermission('hostel_reports.view') || auth()->user()?->hasPermission('communication_reports.view') || auth()->user()?->hasPermission('certificate_reports.view'))
+@if(auth()->user()?->hasPermission('student_reports.view') || auth()->user()?->hasPermission('academic_reports.view') || auth()->user()?->hasPermission('examination_reports.view') || auth()->user()?->hasPermission('finance_reports.view') || auth()->user()?->hasPermission('inventory_reports.view') || auth()->user()?->hasPermission('hr_reports.view') || auth()->user()?->hasPermission('library_reports.view') || auth()->user()?->hasPermission('transport_reports.view') || auth()->user()?->hasPermission('hostel_reports.view') || auth()->user()?->hasPermission('communication_reports.view') || auth()->user()?->hasPermission('certificate_reports.view') || auth()->user()?->hasPermission('consolidated_reports.view'))
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">REPORTS</div>
 @if(auth()->user()?->hasPermission('student_reports.view'))
 <a class="nav-link" href="{{ route('student-reports.index') }}">📊 <span>Student Reports</span></a>
@@ -340,6 +340,9 @@
 @endif
 @if(auth()->user()?->hasPermission('certificate_reports.view'))
 <a class="nav-link" href="{{ route('certificate-reports.index') }}">📜 <span>Certificate Reports</span></a>
+@endif
+@if(auth()->user()?->hasPermission('consolidated_reports.view'))
+<a class="nav-link" href="{{ route('consolidated-reports.index') }}">🗂️ <span>Consolidated Reports</span></a>
 @endif
 @endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Platform</div>
