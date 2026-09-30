@@ -342,24 +342,7 @@
 <a class="nav-link" href="{{ route('certificate-reports.index') }}">📜 <span>Certificate Reports</span></a>
 @endif
 @if(auth()->user()?->hasPermission('consolidated_reports.view'))
-<div class="mt-2 rounded-xl bg-white/5 px-3 py-2" data-nav-group="consolidated-reports">
-    <p class="px-1 pb-1 text-xs font-semibold uppercase tracking-widest text-slate-400">Consolidated Reports</p>
-    <div class="space-y-0.5 border-l border-white/10 pl-2">
-        <a class="nav-sublink" href="{{ route('consolidated-reports.index', ['report' => 'dashboard']) }}"><span>College Dashboard Summary</span></a>
-        <a class="nav-sublink" href="{{ route('consolidated-reports.index', ['report' => 'student_strength']) }}"><span>Student Strength Summary</span></a>
-        <a class="nav-sublink" href="{{ route('consolidated-reports.index', ['report' => 'academic']) }}"><span>Academic Summary</span></a>
-        <a class="nav-sublink" href="{{ route('consolidated-reports.index', ['report' => 'examination']) }}"><span>Examination Summary</span></a>
-        <a class="nav-sublink" href="{{ route('consolidated-reports.index', ['report' => 'finance']) }}"><span>Fee / Finance Summary</span></a>
-        <a class="nav-sublink" href="{{ route('consolidated-reports.index', ['report' => 'hr']) }}"><span>HR Summary</span></a>
-        <a class="nav-sublink" href="{{ route('consolidated-reports.index', ['report' => 'library']) }}"><span>Library Summary</span></a>
-        <a class="nav-sublink" href="{{ route('consolidated-reports.index', ['report' => 'transport']) }}"><span>Transport Summary</span></a>
-        <a class="nav-sublink" href="{{ route('consolidated-reports.index', ['report' => 'hostel']) }}"><span>Hostel Summary</span></a>
-        <a class="nav-sublink" href="{{ route('consolidated-reports.index', ['report' => 'inventory']) }}"><span>Inventory / Asset Summary</span></a>
-        <a class="nav-sublink" href="{{ route('consolidated-reports.index', ['report' => 'communication']) }}"><span>Communication Summary</span></a>
-        <a class="nav-sublink" href="{{ route('consolidated-reports.index', ['report' => 'certificate']) }}"><span>Certificate Summary</span></a>
-        <a class="nav-sublink" href="{{ route('consolidated-reports.index', ['report' => 'management']) }}"><span>Management / MIS Reports</span></a>
-    </div>
-</div>
+<a class="nav-link" href="{{ route('consolidated-reports.index') }}">🗂️ <span>Consolidated Reports</span></a>
 @endif
 @endif
 <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Platform</div>

@@ -17,7 +17,8 @@ use Tests\TestCase;
  * Covers: the exact thirteen reports and their order, the per-report filter
  * vocabulary, the dedicated `consolidated_reports.view` permission and its RBAC
  * independence from every operational and module-report permission, the seeded
- * admin grants, the sidebar group with its thirteen children, the report
+ * admin grants, the single sidebar entry for the module (its thirteen reports
+ * live in the page's own report switcher, never in the sidebar), the
  * switcher's active tab, the GET-only read path and the fallback behaviour of
  * the `report` parameter.
  */
@@ -192,10 +193,10 @@ class ConsolidatedReportsTest extends TestCase
                 ->assertForbidden();
         }
         $this->asCollege($college, $operator)->get(route('students.index'))->assertOk()
-            ->assertDontSee('data-nav-group="consolidated-reports"', false)
+            ->assertDontSee(route('consolidated-reports.index'), false)
             ->assertDontSee('Consolidated Reports');
         $this->asCollege($college, $operator)->get(route('library-reports.index'))->assertOk()
-            ->assertDontSee('data-nav-group="consolidated-reports"', false);
+            ->assertDontSee(route('consolidated-reports.index'), false);
 
         // The consolidated permission alone opens every consolidated view but
         // neither an operational screen nor any module report screen.
@@ -237,48 +238,73 @@ class ConsolidatedReportsTest extends TestCase
      * Sidebar placement
      * \* ------------------------------------------------------------------ */
 
-    public function test_the_reports_section_lists_the_consolidated_group_with_its_thirteen_children(): void
+    public function test_the_reports_section_lists_one_consolidated_entry_without_the_child_links(): void
     {
         $college = $this->makeCollege('CREPMENU');
         $user = $this->makeUserWithPermissions($college, [...self::VIEW, 'library_reports.view']);
         $html = $this->asCollege($college, $user)->get(route('consolidated-reports.index'))->assertOk()->getContent();
 
-        $reports = strpos($html, '>REPORTS<');
-        $this->assertNotFalse($reports, 'The REPORTS section must be present.');
-        $this->assertSame(1, substr_count($html, '>REPORTS<'));
+        $sidebar = $this->sidebar($html);
 
-        $group = strpos($html, 'data-nav-group="consolidated-reports"', (int) $reports);
-        $this->assertNotFalse($group, 'The Consolidated Reports group must live inside the REPORTS section.');
-        $this->assertStringContainsString('Consolidated Reports', substr($html, $group, 400));
+        // REPORTS exists exactly once and Consolidated Reports is its last entry,
+        // immediately before the next sidebar section.
+        $this->assertSame(1, substr_count($sidebar, '>REPORTS<'));
+        $reports = strpos($sidebar, '>REPORTS<');
+        $entry = strpos($sidebar, route('consolidated-reports.index'), (int) $reports);
+        $this->assertNotFalse($entry, 'The REPORTS section must link Consolidated Reports.');
+        $this->assertStringContainsString('<span>Consolidated Reports</span>', substr($sidebar, $entry, 220));
+        $this->assertStringContainsString('class="nav-link"', substr($sidebar, max(0, $entry - 60), 60));
 
-        // All thirteen children, each linking its report, in the exact order.
-        $cursor = $group;
+        $entryEnd = strpos($sidebar, '</a>', (int) $entry) + 4;
+        $platform = strpos($sidebar, '>Platform<', $entryEnd);
+        $this->assertNotFalse($platform, 'The Platform section must follow REPORTS.');
+        $this->assertStringNotContainsString('class="nav-link"', substr($sidebar, $entryEnd, $platform - $entryEnd));
+
+        // The module is ONE sidebar entry: none of the thirteen reports is
+        // linked (or even named) in the sidebar.
+        $this->assertSame(0, substr_count($sidebar, 'report='), 'The sidebar must not link a single consolidated report.');
+        $this->assertSame(1, substr_count($sidebar, 'Consolidated Reports'));
         foreach (self::EXPECTED_REPORTS as $key => $label) {
-            $href = route('consolidated-reports.index', ['report' => $key]);
-            $position = strpos($html, $href, $cursor);
-            $this->assertNotFalse($position, "The sidebar must link {$label}.");
-            $this->assertGreaterThan($cursor, $position, "{$label} must keep its exact sidebar position.");
-            $this->assertStringContainsString($label, substr($html, $position, 160));
-            $cursor = $position;
+            $this->assertStringNotContainsString($label, $sidebar, "The sidebar must not list {$label}.");
+            $this->assertStringNotContainsString("report={$key}", $sidebar);
         }
-        $this->assertSame(13, substr_count($html, 'class="nav-sublink"'));
 
-        // The group closes before the next section, and a user without the
-        // permission never sees it — not even the label.
-        $nextSection = strpos($html, 'uppercase tracking-widest', $cursor);
-        $this->assertNotFalse($nextSection);
-        $this->assertStringNotContainsString('data-nav-group="consolidated-reports"', substr($html, $nextSection));
+        // The thirteen reports stay available inside the page: the report
+        // switcher still carries all of them, in the required order.
+        $switcherStart = strpos($html, 'aria-label="Consolidated report views"');
+        $this->assertNotFalse($switcherStart, 'The in-page report switcher must be present.');
+        $switcher = substr($html, $switcherStart, strpos($html, '</nav>', $switcherStart) - $switcherStart);
+        $this->assertSame(13, substr_count($switcher, 'report='));
+        $previous = -1;
+        foreach (self::EXPECTED_REPORTS as $key => $label) {
+            $position = strpos($switcher, $label);
+            $this->assertNotFalse($position, "The switcher must offer {$label}.");
+            $this->assertGreaterThan($previous, $position, "{$label} must keep its exact position.");
+            $previous = $position;
+        }
 
+        // A user without the permission never sees the module — not even the label.
         $without = $this->makeUserWithPermissions($college, ['library_reports.view']);
         $plain = $this->asCollege($college, $without)->get(route('library-reports.index'))->assertOk()->getContent();
-        $this->assertStringNotContainsString('data-nav-group="consolidated-reports"', $plain);
+        $this->assertStringNotContainsString(route('consolidated-reports.index'), $plain);
         $this->assertStringNotContainsString('Consolidated Reports', $plain);
 
-        // A user holding only the consolidated permission still sees REPORTS.
+        // A user holding only the consolidated permission still sees REPORTS,
+        // with the single module entry.
         $solo = $this->makeUserWithPermissions($college, self::VIEW);
-        $soloHtml = $this->asCollege($college, $solo)->get(route('consolidated-reports.index'))->assertOk()->getContent();
-        $this->assertStringContainsString('>REPORTS<', $soloHtml);
-        $this->assertStringContainsString('data-nav-group="consolidated-reports"', $soloHtml);
+        $soloSidebar = $this->sidebar($this->asCollege($college, $solo)->get(route('consolidated-reports.index'))->assertOk()->getContent());
+        $this->assertStringContainsString('>REPORTS<', $soloSidebar);
+        $this->assertSame(1, substr_count($soloSidebar, route('consolidated-reports.index')));
+        $this->assertSame(0, substr_count($soloSidebar, 'report='));
+    }
+
+    /** The rendered sidebar, so module-entry assertions are scoped to it. */
+    private function sidebar(string $html): string
+    {
+        $start = strpos($html, '<aside');
+        $this->assertNotFalse($start, 'The layout must render a sidebar.');
+
+        return substr($html, $start, strpos($html, '</aside>', $start) - $start);
     }
 
     /* ------------------------------------------------------------------ *\
