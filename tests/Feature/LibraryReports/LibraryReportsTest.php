@@ -4,7 +4,6 @@ namespace Tests\Feature\LibraryReports;
 
 use App\Http\Controllers\LibraryReportController;
 use App\Models\Book;
-use App\Models\BookCategory;
 use App\Models\BookCopy;
 use App\Models\College;
 use App\Models\LibraryFine;
@@ -192,7 +191,8 @@ class LibraryReportsTest extends TestCase
         $finance = strpos($html, 'href="'.route('finance-reports.index').'"');
         $hr = strpos($html, 'href="'.route('hr-reports.index').'"');
         $library = strpos($html, 'href="'.route('library-reports.index').'"');
-        $platform = strpos($html, '>Platform<', (int) $reports);
+        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue(
             $inventory < $reports && $reports < $student && $student < $academic
@@ -200,7 +200,7 @@ class LibraryReportsTest extends TestCase
         );
         $this->assertSame(1, substr_count($html, '>REPORTS<'));
 
-        // Six report links live between REPORTS and Platform; the Library
+        // Six report links live between REPORTS and Administration / Settings; the Library
         // Reports child is the last one and carries a library / books icon.
         $menu = substr($html, $reports, $platform - $reports);
         $this->assertSame(6, substr_count($menu, 'class="nav-link"'));

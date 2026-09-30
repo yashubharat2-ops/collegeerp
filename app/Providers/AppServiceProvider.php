@@ -4,22 +4,29 @@ namespace App\Providers;
 
 use App\Models\Faculty;
 use App\Models\Student;
+use App\Services\Settings\InstitutionalSettingsService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->scoped(TenantContext::class, fn () => new TenantContext());
+        $this->app->scoped(TenantContext::class, fn () => new TenantContext);
     }
 
     public function boot(): void
     {
+        // Only explicitly safe branding values are shared with application chrome.
+        View::composer('layouts.app', function ($view): void {
+            $view->with('institutionBrand', app(InstitutionalSettingsService::class)->branding());
+        });
+
         // Phase 3 (Inventory / Asset Management) stores short recipient keys
         // ("student", "faculty") on the issue and assignment morphs and resolves
         // them back to models through this map. The map is additive (not

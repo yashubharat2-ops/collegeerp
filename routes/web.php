@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\AcademicReportController;
-use App\Http\Controllers\ExaminationReportController;
 use App\Http\Controllers\AcademicsController;
 use App\Http\Controllers\AcademicTermController;
 use App\Http\Controllers\AcademicYearController;
@@ -19,18 +18,34 @@ use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\ResetPasswordController;
+use App\Http\Controllers\AuthorController;
+use App\Http\Controllers\BookCategoryController;
+use App\Http\Controllers\BookController;
+use App\Http\Controllers\BookCopyController;
 use App\Http\Controllers\CampusController;
+use App\Http\Controllers\CertificateController;
+use App\Http\Controllers\CertificateReportController;
 use App\Http\Controllers\CollegeSwitchController;
+use App\Http\Controllers\Communication\CircularController;
+use App\Http\Controllers\Communication\CommunicationDashboardController;
+use App\Http\Controllers\Communication\CommunicationLogController;
+use App\Http\Controllers\Communication\CommunicationNotificationController;
+use App\Http\Controllers\Communication\CommunicationReportController;
+use App\Http\Controllers\Communication\CommunicationTemplateController;
+use App\Http\Controllers\Communication\CommunicationTrackingController;
+use App\Http\Controllers\Communication\NoticeController;
+use App\Http\Controllers\ConsolidatedReportController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DesignationController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeDocumentController;
-use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExamAttendanceController;
 use App\Http\Controllers\ExaminationController;
+use App\Http\Controllers\ExaminationReportController;
 use App\Http\Controllers\ExamMarkController;
-use App\Http\Controllers\ExamScheduleController;
 use App\Http\Controllers\ExamReportController;
+use App\Http\Controllers\ExamScheduleController;
 use App\Http\Controllers\FacultyController;
 use App\Http\Controllers\FacultySubjectAssignmentController;
 use App\Http\Controllers\FeeCategoryController;
@@ -40,47 +55,81 @@ use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\FeeReceiptController;
 use App\Http\Controllers\FeeRefundController;
 use App\Http\Controllers\FeeReportController;
-use App\Http\Controllers\FinanceReportController;
 use App\Http\Controllers\FeeStructureController;
-use App\Http\Controllers\StudentFeeAssignmentController;
+use App\Http\Controllers\FinanceReportController;
 use App\Http\Controllers\GradeCardController;
 use App\Http\Controllers\GradeScaleController;
-use App\Http\Controllers\InstitutionalSettingController;
-use App\Http\Controllers\StaffAttendanceController;
-use App\Http\Controllers\LeaveTypeController;
-use App\Http\Controllers\LeaveRequestController;
-use App\Http\Controllers\SalaryStructureController;
-use App\Http\Controllers\SalaryComponentController;
-use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\Hostel\HostelAllocationController;
+use App\Http\Controllers\Hostel\HostelAttendanceController;
+use App\Http\Controllers\Hostel\HostelBedController;
+use App\Http\Controllers\Hostel\HostelBuildingController;
+use App\Http\Controllers\Hostel\HostelController;
+use App\Http\Controllers\Hostel\HostelDashboardController;
+use App\Http\Controllers\Hostel\HostelFeeController;
+use App\Http\Controllers\Hostel\HostelFeeStructureController;
+use App\Http\Controllers\Hostel\HostelReportController;
+use App\Http\Controllers\Hostel\HostelRoomController;
 use App\Http\Controllers\HrReportController;
-use App\Http\Controllers\AuthorController;
-use App\Http\Controllers\BookCategoryController;
-use App\Http\Controllers\BookController;
-use App\Http\Controllers\BookCopyController;
+use App\Http\Controllers\InstitutionalSettingController;
+use App\Http\Controllers\Inventory\InventoryAssetRegisterController;
+use App\Http\Controllers\Inventory\InventoryAssetReturnController;
+use App\Http\Controllers\Inventory\InventoryAssignmentController;
+use App\Http\Controllers\Inventory\InventoryCategoryController;
+use App\Http\Controllers\Inventory\InventoryCurrentStockController;
+use App\Http\Controllers\Inventory\InventoryDashboardController;
+use App\Http\Controllers\Inventory\InventoryGoodsReceiptController;
+use App\Http\Controllers\Inventory\InventoryIssueController;
+use App\Http\Controllers\Inventory\InventoryItemController;
+use App\Http\Controllers\Inventory\InventoryLowStockController;
+use App\Http\Controllers\Inventory\InventoryMaintenanceController;
+use App\Http\Controllers\Inventory\InventoryPurchaseOrderController;
+use App\Http\Controllers\Inventory\InventoryReportController;
+use App\Http\Controllers\Inventory\InventoryStockAdjustmentController;
+use App\Http\Controllers\Inventory\InventoryStockController;
+use App\Http\Controllers\Inventory\InventoryStockReportController;
+use App\Http\Controllers\Inventory\InventoryTransactionController;
+use App\Http\Controllers\Inventory\InventoryVendorController;
+use App\Http\Controllers\LeaveRequestController;
+use App\Http\Controllers\LeaveTypeController;
 use App\Http\Controllers\LibraryDashboardController;
-use App\Http\Controllers\LibraryMemberController;
 use App\Http\Controllers\LibraryFineController;
-use App\Http\Controllers\LibraryReportController;
+use App\Http\Controllers\LibraryMemberController;
 use App\Http\Controllers\LibraryRenewalController;
+use App\Http\Controllers\LibraryReportController;
 use App\Http\Controllers\LibraryTransactionController;
-use App\Http\Controllers\PublisherController;
 use App\Http\Controllers\MarksheetController;
+use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ProgramController;
+use App\Http\Controllers\PublisherController;
 use App\Http\Controllers\ResultCalculationController;
 use App\Http\Controllers\ResultController;
 use App\Http\Controllers\ResultPublishingController;
+use App\Http\Controllers\SalaryComponentController;
+use App\Http\Controllers\SalaryStructureController;
 use App\Http\Controllers\SectionController;
-use App\Http\Controllers\SubjectController;
-use App\Http\Controllers\StudentController;
+use App\Http\Controllers\StaffAttendanceController;
 use App\Http\Controllers\StudentAcademicRecordController;
+use App\Http\Controllers\StudentController;
 use App\Http\Controllers\StudentDocumentController;
 use App\Http\Controllers\StudentEnrollmentController;
+use App\Http\Controllers\StudentFeeAssignmentController;
 use App\Http\Controllers\StudentHistoryController;
 use App\Http\Controllers\StudentIdCardController;
 use App\Http\Controllers\StudentPromotionController;
 use App\Http\Controllers\StudentReportController;
 use App\Http\Controllers\StudentResultHistoryController;
 use App\Http\Controllers\StudentTransferController;
+use App\Http\Controllers\SubjectController;
+use App\Http\Controllers\Transport\StudentTransportAssignmentController;
+use App\Http\Controllers\Transport\TransportDashboardController;
+use App\Http\Controllers\Transport\TransportDriverController;
+use App\Http\Controllers\Transport\TransportFeeController;
+use App\Http\Controllers\Transport\TransportFeeStructureController;
+use App\Http\Controllers\Transport\TransportReportController;
+use App\Http\Controllers\Transport\TransportRouteController;
+use App\Http\Controllers\Transport\TransportStopController;
+use App\Http\Controllers\Transport\VehicleController;
+use App\Http\Controllers\Transport\VehicleDocumentController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('dashboard'))->name('home');
@@ -99,7 +148,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', DashboardController::class)->middleware('tenant')->name('dashboard');
     Route::post('/college-context', CollegeSwitchController::class)->name('college-context.switch');
     Route::middleware(['tenant', 'tenant.access'])->group(function () {
-        Route::prefix('certificates')->name('certificates.')->controller(\App\Http\Controllers\CertificateController::class)->group(function () {
+        Route::prefix('certificates')->name('certificates.')->controller(CertificateController::class)->group(function () {
             Route::get('/', 'index')->name('index');
             // Shared, type-filtered workflow entry points; legacy URLs remain available.
             foreach (['requests', 'generation', 'issuance', 'verification'] as $stage) {
@@ -369,11 +418,11 @@ Route::middleware('auth')->group(function () {
         Route::post('library-fines/{library_fine}/pay', [LibraryFineController::class, 'pay'])->name('library-fines.pay');
 
         // Transport Phase 1 — tenant-scoped masters only.
-        Route::get('transport/dashboard', \App\Http\Controllers\Transport\TransportDashboardController::class)->name('transport.dashboard');
-        Route::resource('vehicles', \App\Http\Controllers\Transport\VehicleController::class)->except('show')->parameters(['vehicles' => 'record']);
-        Route::resource('transport-drivers', \App\Http\Controllers\Transport\TransportDriverController::class)->except('show')->parameters(['transport-drivers' => 'record']);
-        Route::resource('transport-routes', \App\Http\Controllers\Transport\TransportRouteController::class)->except('show')->parameters(['transport-routes' => 'record']);
-        Route::resource('transport-routes.transport-stops', \App\Http\Controllers\Transport\TransportStopController::class)->except('show')->parameters(['transport-stops' => 'record'])->names([
+        Route::get('transport/dashboard', TransportDashboardController::class)->name('transport.dashboard');
+        Route::resource('vehicles', VehicleController::class)->except('show')->parameters(['vehicles' => 'record']);
+        Route::resource('transport-drivers', TransportDriverController::class)->except('show')->parameters(['transport-drivers' => 'record']);
+        Route::resource('transport-routes', TransportRouteController::class)->except('show')->parameters(['transport-routes' => 'record']);
+        Route::resource('transport-routes.transport-stops', TransportStopController::class)->except('show')->parameters(['transport-stops' => 'record'])->names([
             'index' => 'transport-stops.index',
             'create' => 'transport-stops.create',
             'store' => 'transport-stops.store',
@@ -384,98 +433,98 @@ Route::middleware('auth')->group(function () {
 
         // Transport Phase 2 — flat cross-route stop listing for the "Stops"
         // navigation entry (per-route stop management stays nested above).
-        Route::get('transport-stops', [\App\Http\Controllers\Transport\TransportStopController::class, 'indexAll'])->name('transport-stops.list');
+        Route::get('transport-stops', [TransportStopController::class, 'indexAll'])->name('transport-stops.list');
 
         // Transport Phase 2 — Vehicle Documents (secure private files).
-        Route::get('vehicle-documents/{vehicle_document}/download', [\App\Http\Controllers\Transport\VehicleDocumentController::class, 'download'])->name('vehicle-documents.download');
-        Route::resource('vehicle-documents', \App\Http\Controllers\Transport\VehicleDocumentController::class)->except('show')->parameters(['vehicle-documents' => 'vehicle_document']);
+        Route::get('vehicle-documents/{vehicle_document}/download', [VehicleDocumentController::class, 'download'])->name('vehicle-documents.download');
+        Route::resource('vehicle-documents', VehicleDocumentController::class)->except('show')->parameters(['vehicle-documents' => 'vehicle_document']);
 
         // Transport Phase 2 — Student Transport Assignment (existing enrollments
         // onto existing routes/stops; no duplicate masters).
-        Route::resource('transport-assignments', \App\Http\Controllers\Transport\StudentTransportAssignmentController::class)->except('show')->parameters(['transport-assignments' => 'transport_assignment']);
+        Route::resource('transport-assignments', StudentTransportAssignmentController::class)->except('show')->parameters(['transport-assignments' => 'transport_assignment']);
 
         // Transport Phase 2 — Transport Fees. Collections reuse the existing
         // Finance fee_payments rows (see FeeCollectionService::collectTransportFee).
-        Route::post('transport-fees/{transport_fee}/collect', [\App\Http\Controllers\Transport\TransportFeeController::class, 'collect'])->name('transport-fees.collect');
-        Route::resource('transport-fees', \App\Http\Controllers\Transport\TransportFeeController::class)->except('show')->parameters(['transport-fees' => 'transport_fee']);
-        Route::resource('transport-fee-structures', \App\Http\Controllers\Transport\TransportFeeStructureController::class)->except('show')->parameters(['transport-fee-structures' => 'transport_fee_structure']);
+        Route::post('transport-fees/{transport_fee}/collect', [TransportFeeController::class, 'collect'])->name('transport-fees.collect');
+        Route::resource('transport-fees', TransportFeeController::class)->except('show')->parameters(['transport-fees' => 'transport_fee']);
+        Route::resource('transport-fee-structures', TransportFeeStructureController::class)->except('show')->parameters(['transport-fee-structures' => 'transport_fee_structure']);
 
         // Transport Phase 2 — Transport Reports (read-only).
-        Route::get('transport-reports', [\App\Http\Controllers\Transport\TransportReportController::class, 'index'])->name('transport-reports.index');
+        Route::get('transport-reports', [TransportReportController::class, 'index'])->name('transport-reports.index');
 
         // Hostel Management — Phase 1 masters + Phase 2 allocations and fees.
         // The dashboard is read-only and aggregated live (no dashboard tables).
-        Route::get('hostels/dashboard', \App\Http\Controllers\Hostel\HostelDashboardController::class)->name('hostels.dashboard');
-        Route::resource('hostels', \App\Http\Controllers\Hostel\HostelController::class)->except('show')->parameters(['hostels' => 'hostel']);
-        Route::resource('hostel-buildings', \App\Http\Controllers\Hostel\HostelBuildingController::class)->except('show')->parameters(['hostel-buildings' => 'building']);
-        Route::resource('hostel-rooms', \App\Http\Controllers\Hostel\HostelRoomController::class)->except('show')->parameters(['hostel-rooms' => 'room']);
-        Route::resource('hostel-beds', \App\Http\Controllers\Hostel\HostelBedController::class)->except('show')->parameters(['hostel-beds' => 'bed']);
+        Route::get('hostels/dashboard', HostelDashboardController::class)->name('hostels.dashboard');
+        Route::resource('hostels', HostelController::class)->except('show')->parameters(['hostels' => 'hostel']);
+        Route::resource('hostel-buildings', HostelBuildingController::class)->except('show')->parameters(['hostel-buildings' => 'building']);
+        Route::resource('hostel-rooms', HostelRoomController::class)->except('show')->parameters(['hostel-rooms' => 'room']);
+        Route::resource('hostel-beds', HostelBedController::class)->except('show')->parameters(['hostel-beds' => 'bed']);
 
         // Hostel Management Phase 2 — Hostel Allocation (existing enrollments to existing beds).
-        Route::post('hostel-allocations/{allocation}/vacate', [\App\Http\Controllers\Hostel\HostelAllocationController::class, 'vacate'])->name('hostel-allocations.vacate');
-        Route::post('hostel-allocations/{allocation}/cancel', [\App\Http\Controllers\Hostel\HostelAllocationController::class, 'cancel'])->name('hostel-allocations.cancel');
-        Route::resource('hostel-allocations', \App\Http\Controllers\Hostel\HostelAllocationController::class)->parameters(['hostel-allocations' => 'allocation']);
+        Route::post('hostel-allocations/{allocation}/vacate', [HostelAllocationController::class, 'vacate'])->name('hostel-allocations.vacate');
+        Route::post('hostel-allocations/{allocation}/cancel', [HostelAllocationController::class, 'cancel'])->name('hostel-allocations.cancel');
+        Route::resource('hostel-allocations', HostelAllocationController::class)->parameters(['hostel-allocations' => 'allocation']);
 
         // Hostel Management Phase 2 — Hostel Fees. Collections reuse existing Finance fee_payments rows.
-        Route::post('hostel-fees/{fee}/collect', [\App\Http\Controllers\Hostel\HostelFeeController::class, 'collect'])->name('hostel-fees.collect');
-        Route::resource('hostel-fees', \App\Http\Controllers\Hostel\HostelFeeController::class)->except('show')->parameters(['hostel-fees' => 'fee']);
-        Route::resource('hostel-fee-structures', \App\Http\Controllers\Hostel\HostelFeeStructureController::class)->except('show')->parameters(['hostel-fee-structures' => 'fee_structure']);
+        Route::post('hostel-fees/{fee}/collect', [HostelFeeController::class, 'collect'])->name('hostel-fees.collect');
+        Route::resource('hostel-fees', HostelFeeController::class)->except('show')->parameters(['hostel-fees' => 'fee']);
+        Route::resource('hostel-fee-structures', HostelFeeStructureController::class)->except('show')->parameters(['hostel-fee-structures' => 'fee_structure']);
 
         // Hostel Management Phase 3 — Hostel Attendance. Bulk routes are
         // registered before the resource so "bulk" is not captured as an id.
-        Route::get('hostel-attendance/bulk', [\App\Http\Controllers\Hostel\HostelAttendanceController::class, 'bulk'])->name('hostel-attendance.bulk');
-        Route::post('hostel-attendance/bulk', [\App\Http\Controllers\Hostel\HostelAttendanceController::class, 'storeBulk'])->name('hostel-attendance.bulk.store');
-        Route::resource('hostel-attendance', \App\Http\Controllers\Hostel\HostelAttendanceController::class)->except('show')->parameters(['hostel-attendance' => 'hostel_attendance']);
+        Route::get('hostel-attendance/bulk', [HostelAttendanceController::class, 'bulk'])->name('hostel-attendance.bulk');
+        Route::post('hostel-attendance/bulk', [HostelAttendanceController::class, 'storeBulk'])->name('hostel-attendance.bulk.store');
+        Route::resource('hostel-attendance', HostelAttendanceController::class)->except('show')->parameters(['hostel-attendance' => 'hostel_attendance']);
 
         // Hostel Management Phase 3 — Hostel Reports (read-only; GET only).
-        Route::get('hostel-reports', [\App\Http\Controllers\Hostel\HostelReportController::class, 'index'])->name('hostel-reports.index');
+        Route::get('hostel-reports', [HostelReportController::class, 'index'])->name('hostel-reports.index');
 
         // Communication Management — Phase 1 (internal only: no SMS / e-mail /
         // WhatsApp gateways, templates, delivery logs or reports). The
         // dashboard is read-only and aggregated live (no dashboard tables).
-        Route::get('communication', \App\Http\Controllers\Communication\CommunicationDashboardController::class)->name('communication.dashboard');
+        Route::get('communication', CommunicationDashboardController::class)->name('communication.dashboard');
 
         // Notices / Announcements — status only changes through the workflow
         // actions (notices.publish); attachments stream from the private disk.
-        Route::post('notices/{notice}/publish', [\App\Http\Controllers\Communication\NoticeController::class, 'publish'])->name('notices.publish');
-        Route::post('notices/{notice}/unpublish', [\App\Http\Controllers\Communication\NoticeController::class, 'unpublish'])->name('notices.unpublish');
-        Route::post('notices/{notice}/archive', [\App\Http\Controllers\Communication\NoticeController::class, 'archive'])->name('notices.archive');
-        Route::get('notices/{notice}/attachment', [\App\Http\Controllers\Communication\NoticeController::class, 'attachment'])->name('notices.attachment');
-        Route::resource('notices', \App\Http\Controllers\Communication\NoticeController::class);
+        Route::post('notices/{notice}/publish', [NoticeController::class, 'publish'])->name('notices.publish');
+        Route::post('notices/{notice}/unpublish', [NoticeController::class, 'unpublish'])->name('notices.unpublish');
+        Route::post('notices/{notice}/archive', [NoticeController::class, 'archive'])->name('notices.archive');
+        Route::get('notices/{notice}/attachment', [NoticeController::class, 'attachment'])->name('notices.attachment');
+        Route::resource('notices', NoticeController::class);
 
         // Circulars — a separate module with its own numbering (circulars.publish).
-        Route::post('circulars/{circular}/publish', [\App\Http\Controllers\Communication\CircularController::class, 'publish'])->name('circulars.publish');
-        Route::post('circulars/{circular}/unpublish', [\App\Http\Controllers\Communication\CircularController::class, 'unpublish'])->name('circulars.unpublish');
-        Route::post('circulars/{circular}/archive', [\App\Http\Controllers\Communication\CircularController::class, 'archive'])->name('circulars.archive');
-        Route::get('circulars/{circular}/attachment', [\App\Http\Controllers\Communication\CircularController::class, 'attachment'])->name('circulars.attachment');
-        Route::resource('circulars', \App\Http\Controllers\Communication\CircularController::class);
+        Route::post('circulars/{circular}/publish', [CircularController::class, 'publish'])->name('circulars.publish');
+        Route::post('circulars/{circular}/unpublish', [CircularController::class, 'unpublish'])->name('circulars.unpublish');
+        Route::post('circulars/{circular}/archive', [CircularController::class, 'archive'])->name('circulars.archive');
+        Route::get('circulars/{circular}/attachment', [CircularController::class, 'attachment'])->name('circulars.attachment');
+        Route::resource('circulars', CircularController::class);
 
         // Internal (in-app) notifications. "read-all" is registered before the
         // resource so it is never captured as a notification id.
-        Route::post('notifications/read-all', [\App\Http\Controllers\Communication\CommunicationNotificationController::class, 'markAllRead'])->name('notifications.read-all');
-        Route::post('notifications/{notification}/read', [\App\Http\Controllers\Communication\CommunicationNotificationController::class, 'markRead'])->name('notifications.read');
-        Route::post('notifications/{notification}/unread', [\App\Http\Controllers\Communication\CommunicationNotificationController::class, 'markUnread'])->name('notifications.unread');
-        Route::resource('notifications', \App\Http\Controllers\Communication\CommunicationNotificationController::class);
+        Route::post('notifications/read-all', [CommunicationNotificationController::class, 'markAllRead'])->name('notifications.read-all');
+        Route::post('notifications/{notification}/read', [CommunicationNotificationController::class, 'markRead'])->name('notifications.read');
+        Route::post('notifications/{notification}/unread', [CommunicationNotificationController::class, 'markUnread'])->name('notifications.unread');
+        Route::resource('notifications', CommunicationNotificationController::class);
 
         // Communication Management — Phase 2 (templates, logs, delivery /
         // read tracking, reports). Still no external SMS / e-mail gateway:
         // templates are reusable definitions and logs only record what
         // happened to a message.
-        Route::resource('communication-templates', \App\Http\Controllers\Communication\CommunicationTemplateController::class);
+        Route::resource('communication-templates', CommunicationTemplateController::class);
 
         // SMS / Email logs are immutable from the UI: read-only routes only.
-        Route::get('communication-logs', [\App\Http\Controllers\Communication\CommunicationLogController::class, 'index'])->name('communication-logs.index');
-        Route::get('communication-logs/{communicationLog}', [\App\Http\Controllers\Communication\CommunicationLogController::class, 'show'])->name('communication-logs.show');
+        Route::get('communication-logs', [CommunicationLogController::class, 'index'])->name('communication-logs.index');
+        Route::get('communication-logs/{communicationLog}', [CommunicationLogController::class, 'show'])->name('communication-logs.show');
 
         // Delivery / read tracking of the existing notification flow.
-        Route::get('communication-tracking', [\App\Http\Controllers\Communication\CommunicationTrackingController::class, 'index'])->name('communication-tracking.index');
-        Route::post('communication-tracking/{notification}/delivered', [\App\Http\Controllers\Communication\CommunicationTrackingController::class, 'markDelivered'])->name('communication-tracking.delivered');
+        Route::get('communication-tracking', [CommunicationTrackingController::class, 'index'])->name('communication-tracking.index');
+        Route::post('communication-tracking/{notification}/delivered', [CommunicationTrackingController::class, 'markDelivered'])->name('communication-tracking.delivered');
 
         // Read-only Communication Reports (live aggregates, no report tables).
-        Route::get('communication-reports', [\App\Http\Controllers\Communication\CommunicationReportController::class, 'index'])->name('communication-reports.index');
+        Route::get('communication-reports', [CommunicationReportController::class, 'index'])->name('communication-reports.index');
 
         // Read-only Certificate Reports (live aggregates over existing certificates, no report tables).
-        Route::get('certificate-reports', [\App\Http\Controllers\CertificateReportController::class, 'index'])->name('certificate-reports.index');
+        Route::get('certificate-reports', [CertificateReportController::class, 'index'])->name('certificate-reports.index');
 
         // REPORTS — Consolidated Reports: one tenant-scoped, read-only screen that
         // presents the college-wide summaries of the existing modules (Student,
@@ -483,15 +532,15 @@ Route::middleware('auth')->group(function () {
         // Inventory, Communication, Certificate). Every figure is delegated to the
         // report service that already owns it, so there are no report tables, no
         // snapshots and no write routes here — GET only.
-        Route::get('consolidated-reports', [\App\Http\Controllers\ConsolidatedReportController::class, 'index'])->name('consolidated-reports.index');
+        Route::get('consolidated-reports', [ConsolidatedReportController::class, 'index'])->name('consolidated-reports.index');
 
         // Inventory / Asset Management — Phase 1. The dashboard is read-only
         // and aggregated live (no dashboard tables). Items and assets share
         // one master.
-        Route::get('inventory/dashboard', \App\Http\Controllers\Inventory\InventoryDashboardController::class)->name('inventory.dashboard');
-        Route::resource('inventory-categories', \App\Http\Controllers\Inventory\InventoryCategoryController::class)->except('show')->parameters(['inventory-categories' => 'inventory_category']);
-        Route::resource('inventory-items', \App\Http\Controllers\Inventory\InventoryItemController::class)->except('show')->parameters(['inventory-items' => 'inventory_item']);
-        Route::resource('inventory-vendors', \App\Http\Controllers\Inventory\InventoryVendorController::class)->except('show')->parameters(['inventory-vendors' => 'inventory_vendor']);
+        Route::get('inventory/dashboard', InventoryDashboardController::class)->name('inventory.dashboard');
+        Route::resource('inventory-categories', InventoryCategoryController::class)->except('show')->parameters(['inventory-categories' => 'inventory_category']);
+        Route::resource('inventory-items', InventoryItemController::class)->except('show')->parameters(['inventory-items' => 'inventory_item']);
+        Route::resource('inventory-vendors', InventoryVendorController::class)->except('show')->parameters(['inventory-vendors' => 'inventory_vendor']);
 
         // Inventory / Asset Management — Phase 2 final structure.
         // Final sidebar: Purchase & Stock → Purchase Orders, Goods Receipt / Stock In,
@@ -502,33 +551,33 @@ Route::middleware('auth')->group(function () {
         // cancelling can be granted separately. Issue / allocation, asset
         // assignment, asset return and maintenance are Phase 3 (below);
         // the read-only reporting screens are registered below.
-        Route::post('inventory-purchase-orders/{purchase_order}/submit', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'submit'])->name('inventory-purchase-orders.submit');
-        Route::post('inventory-purchase-orders/{purchase_order}/cancel', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'cancel'])->name('inventory-purchase-orders.cancel');
-        Route::get('inventory-purchase-orders/{purchase_order}/receive', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'receiveForm'])->name('inventory-purchase-orders.receive.create');
-        Route::post('inventory-purchase-orders/{purchase_order}/receive', [\App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class, 'receive'])->name('inventory-purchase-orders.receive.store');
-        Route::resource('inventory-purchase-orders', \App\Http\Controllers\Inventory\InventoryPurchaseOrderController::class)->parameters(['inventory-purchase-orders' => 'purchase_order']);
+        Route::post('inventory-purchase-orders/{purchase_order}/submit', [InventoryPurchaseOrderController::class, 'submit'])->name('inventory-purchase-orders.submit');
+        Route::post('inventory-purchase-orders/{purchase_order}/cancel', [InventoryPurchaseOrderController::class, 'cancel'])->name('inventory-purchase-orders.cancel');
+        Route::get('inventory-purchase-orders/{purchase_order}/receive', [InventoryPurchaseOrderController::class, 'receiveForm'])->name('inventory-purchase-orders.receive.create');
+        Route::post('inventory-purchase-orders/{purchase_order}/receive', [InventoryPurchaseOrderController::class, 'receive'])->name('inventory-purchase-orders.receive.store');
+        Route::resource('inventory-purchase-orders', InventoryPurchaseOrderController::class)->parameters(['inventory-purchase-orders' => 'purchase_order']);
 
         // Goods Receipt / Stock In — incoming stock (purchase_receipt + stock_in).
         // Manual stock_in is recorded here; PO receipts are booked via PO receive
         // but listed here as well.
-        Route::get('inventory-goods-receipts', [\App\Http\Controllers\Inventory\InventoryGoodsReceiptController::class, 'index'])->name('inventory-goods-receipts.index');
-        Route::get('inventory-goods-receipts/create', [\App\Http\Controllers\Inventory\InventoryGoodsReceiptController::class, 'create'])->name('inventory-goods-receipts.create');
-        Route::post('inventory-goods-receipts', [\App\Http\Controllers\Inventory\InventoryGoodsReceiptController::class, 'store'])->name('inventory-goods-receipts.store');
+        Route::get('inventory-goods-receipts', [InventoryGoodsReceiptController::class, 'index'])->name('inventory-goods-receipts.index');
+        Route::get('inventory-goods-receipts/create', [InventoryGoodsReceiptController::class, 'create'])->name('inventory-goods-receipts.create');
+        Route::post('inventory-goods-receipts', [InventoryGoodsReceiptController::class, 'store'])->name('inventory-goods-receipts.store');
 
         // Stock Adjustment — corrections and stock_out, each generating a transaction.
-        Route::get('inventory-stock-adjustments', [\App\Http\Controllers\Inventory\InventoryStockAdjustmentController::class, 'index'])->name('inventory-stock-adjustments.index');
-        Route::get('inventory-stock-adjustments/create', [\App\Http\Controllers\Inventory\InventoryStockAdjustmentController::class, 'create'])->name('inventory-stock-adjustments.create');
-        Route::post('inventory-stock-adjustments', [\App\Http\Controllers\Inventory\InventoryStockAdjustmentController::class, 'store'])->name('inventory-stock-adjustments.store');
+        Route::get('inventory-stock-adjustments', [InventoryStockAdjustmentController::class, 'index'])->name('inventory-stock-adjustments.index');
+        Route::get('inventory-stock-adjustments/create', [InventoryStockAdjustmentController::class, 'create'])->name('inventory-stock-adjustments.create');
+        Route::post('inventory-stock-adjustments', [InventoryStockAdjustmentController::class, 'store'])->name('inventory-stock-adjustments.store');
 
         // Inventory Transactions — immutable ledger (refactored Stock Movements).
-        Route::get('inventory-transactions', [\App\Http\Controllers\Inventory\InventoryTransactionController::class, 'index'])->name('inventory-transactions.index');
+        Route::get('inventory-transactions', [InventoryTransactionController::class, 'index'])->name('inventory-transactions.index');
 
         // Backward compatibility: old Stock Movements routes still work via the
         // original controller, but are removed from the sidebar (see layout).
         // New modules use the refactored controllers above.
-        Route::get('inventory-stock', [\App\Http\Controllers\Inventory\InventoryStockController::class, 'index'])->name('inventory-stock.index');
-        Route::get('inventory-stock/create', [\App\Http\Controllers\Inventory\InventoryStockController::class, 'create'])->name('inventory-stock.create');
-        Route::post('inventory-stock', [\App\Http\Controllers\Inventory\InventoryStockController::class, 'store'])->name('inventory-stock.store');
+        Route::get('inventory-stock', [InventoryStockController::class, 'index'])->name('inventory-stock.index');
+        Route::get('inventory-stock/create', [InventoryStockController::class, 'create'])->name('inventory-stock.create');
+        Route::post('inventory-stock', [InventoryStockController::class, 'store'])->name('inventory-stock.store');
 
         // Inventory / Asset Management — Phase 3. Four modules, each gated by
         // its OWN permission family, all inside the single existing
@@ -543,32 +592,36 @@ Route::middleware('auth')->group(function () {
         //     (history preserved); a re-assignment is a new row.
         //   - Asset Maintenance: work orders always linked to an existing
         //     asset; optional vendor reuses the Phase 1 vendor master.
-        Route::get('inventory-issues', [\App\Http\Controllers\Inventory\InventoryIssueController::class, 'index'])->name('inventory-issues.index');
-        Route::get('inventory-issues/create', [\App\Http\Controllers\Inventory\InventoryIssueController::class, 'create'])->name('inventory-issues.create');
-        Route::post('inventory-issues', [\App\Http\Controllers\Inventory\InventoryIssueController::class, 'store'])->name('inventory-issues.store');
+        Route::get('inventory-issues', [InventoryIssueController::class, 'index'])->name('inventory-issues.index');
+        Route::get('inventory-issues/create', [InventoryIssueController::class, 'create'])->name('inventory-issues.create');
+        Route::post('inventory-issues', [InventoryIssueController::class, 'store'])->name('inventory-issues.store');
 
-        Route::get('inventory-assignments', [\App\Http\Controllers\Inventory\InventoryAssignmentController::class, 'index'])->name('inventory-assignments.index');
-        Route::get('inventory-assignments/create', [\App\Http\Controllers\Inventory\InventoryAssignmentController::class, 'create'])->name('inventory-assignments.create');
-        Route::post('inventory-assignments', [\App\Http\Controllers\Inventory\InventoryAssignmentController::class, 'store'])->name('inventory-assignments.store');
+        Route::get('inventory-assignments', [InventoryAssignmentController::class, 'index'])->name('inventory-assignments.index');
+        Route::get('inventory-assignments/create', [InventoryAssignmentController::class, 'create'])->name('inventory-assignments.create');
+        Route::post('inventory-assignments', [InventoryAssignmentController::class, 'store'])->name('inventory-assignments.store');
 
-        Route::get('inventory-asset-returns', [\App\Http\Controllers\Inventory\InventoryAssetReturnController::class, 'index'])->name('inventory-asset-returns.index');
-        Route::post('inventory-asset-returns', [\App\Http\Controllers\Inventory\InventoryAssetReturnController::class, 'store'])->name('inventory-asset-returns.store');
+        Route::get('inventory-asset-returns', [InventoryAssetReturnController::class, 'index'])->name('inventory-asset-returns.index');
+        Route::post('inventory-asset-returns', [InventoryAssetReturnController::class, 'store'])->name('inventory-asset-returns.store');
 
-        Route::get('inventory-maintenances', [\App\Http\Controllers\Inventory\InventoryMaintenanceController::class, 'index'])->name('inventory-maintenances.index');
-        Route::get('inventory-maintenances/create', [\App\Http\Controllers\Inventory\InventoryMaintenanceController::class, 'create'])->name('inventory-maintenances.create');
-        Route::post('inventory-maintenances', [\App\Http\Controllers\Inventory\InventoryMaintenanceController::class, 'store'])->name('inventory-maintenances.store');
-        Route::get('inventory-maintenances/{maintenance}/edit', [\App\Http\Controllers\Inventory\InventoryMaintenanceController::class, 'edit'])->name('inventory-maintenances.edit');
-        Route::put('inventory-maintenances/{maintenance}', [\App\Http\Controllers\Inventory\InventoryMaintenanceController::class, 'update'])->name('inventory-maintenances.update');
+        Route::get('inventory-maintenances', [InventoryMaintenanceController::class, 'index'])->name('inventory-maintenances.index');
+        Route::get('inventory-maintenances/create', [InventoryMaintenanceController::class, 'create'])->name('inventory-maintenances.create');
+        Route::post('inventory-maintenances', [InventoryMaintenanceController::class, 'store'])->name('inventory-maintenances.store');
+        Route::get('inventory-maintenances/{maintenance}/edit', [InventoryMaintenanceController::class, 'edit'])->name('inventory-maintenances.edit');
+        Route::put('inventory-maintenances/{maintenance}', [InventoryMaintenanceController::class, 'update'])->name('inventory-maintenances.update');
 
         // Phase 4: five independent, read-only views on the existing ledger,
         // item/asset master, assignment/return history and maintenance rows.
-        Route::get('inventory-current-stock', [\App\Http\Controllers\Inventory\InventoryCurrentStockController::class, 'index'])->name('inventory-current-stock.index');
-        Route::get('inventory-low-stock', [\App\Http\Controllers\Inventory\InventoryLowStockController::class, 'index'])->name('inventory-low-stock.index');
-        Route::get('inventory-asset-register', [\App\Http\Controllers\Inventory\InventoryAssetRegisterController::class, 'index'])->name('inventory-asset-register.index');
-        Route::get('inventory-stock-reports', [\App\Http\Controllers\Inventory\InventoryStockReportController::class, 'index'])->name('inventory-stock-reports.index');
-        Route::get('inventory-reports', [\App\Http\Controllers\Inventory\InventoryReportController::class, 'index'])->name('inventory-reports.index');
+        Route::get('inventory-current-stock', [InventoryCurrentStockController::class, 'index'])->name('inventory-current-stock.index');
+        Route::get('inventory-low-stock', [InventoryLowStockController::class, 'index'])->name('inventory-low-stock.index');
+        Route::get('inventory-asset-register', [InventoryAssetRegisterController::class, 'index'])->name('inventory-asset-register.index');
+        Route::get('inventory-stock-reports', [InventoryStockReportController::class, 'index'])->name('inventory-stock-reports.index');
+        Route::get('inventory-reports', [InventoryReportController::class, 'index'])->name('inventory-reports.index');
 
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
+
     });
 });
+
+// Reuse the same auth / tenant middleware and resource policies.
+require __DIR__.'/administration.php';

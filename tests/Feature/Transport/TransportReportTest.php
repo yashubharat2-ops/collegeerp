@@ -3,7 +3,24 @@
 namespace Tests\Feature\Transport;
 
 use App\Http\Controllers\Transport\TransportReportController;
-use App\Models\{AcademicYear, College, Faculty, FeePayment, Permission, Program, Role, Section, Student, StudentEnrollment, StudentTransportAssignment, StudentTransportFeeAssignment, TransportDriver, TransportFeeStructure, TransportRoute, TransportStop, User, Vehicle};
+use App\Models\AcademicYear;
+use App\Models\College;
+use App\Models\Faculty;
+use App\Models\FeePayment;
+use App\Models\Permission;
+use App\Models\Program;
+use App\Models\Role;
+use App\Models\Section;
+use App\Models\Student;
+use App\Models\StudentEnrollment;
+use App\Models\StudentTransportAssignment;
+use App\Models\StudentTransportFeeAssignment;
+use App\Models\TransportDriver;
+use App\Models\TransportFeeStructure;
+use App\Models\TransportRoute;
+use App\Models\TransportStop;
+use App\Models\User;
+use App\Models\Vehicle;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Feature\ExamAttendance\ExamAttendanceTestHelpers;
@@ -207,7 +224,8 @@ class TransportReportTest extends TestCase
         $hr = strpos($html, 'href="'.route('hr-reports.index').'"');
         $library = strpos($html, 'href="'.route('library-reports.index').'"');
         $transport = strpos($html, 'href="'.route('transport-reports.index').'"');
-        $platform = strpos($html, '>Platform<', (int) $reports);
+        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue(
             $inventory < $reports && $reports < $student && $student < $academic
@@ -216,7 +234,7 @@ class TransportReportTest extends TestCase
         );
         $this->assertSame(1, substr_count($html, '>REPORTS<'));
 
-        // The report links live between REPORTS and Platform and Transport
+        // The report links live between REPORTS and Administration / Settings and Transport
         // Reports carries a transport / vehicle icon.
         $menu = substr($html, $reports, $platform - $reports);
         $this->assertStringContainsString('🚐', $menu);
@@ -396,6 +414,7 @@ class TransportReportTest extends TestCase
         $response->assertViewHas('rows', fn ($rows) => $rows->pluck('name')->all() === ['North', 'South']);
         $response->assertViewHas('rows', function ($rows) {
             $north = $rows->firstWhere('name', 'North');
+
             return $north->stops->pluck('code')->all() === ['GATE', 'MALL'] // soft-deleted stop hidden
                 && $north->stops_count === 2 && $north->active_stops_count === 1;
         });
@@ -447,6 +466,7 @@ class TransportReportTest extends TestCase
             && $rows->pluck('id')->all() === [$assignment->id, $done->id]);
         $response->assertViewHas('rows', function ($rows) use ($student, $enrollment, $route, $stop) {
             $row = $rows->first();
+
             return $row->studentEnrollment->student->id === $student->id
                 && $row->studentEnrollment->id === $enrollment->id
                 && $row->studentEnrollment->program->code === 'PRG-AS'

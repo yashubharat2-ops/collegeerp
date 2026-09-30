@@ -181,10 +181,10 @@ class CommunicationNavigationTest extends TestCase
         }
         $this->assertStringContainsString($this->href('communication-reports.index'), $reportsGroup);
 
-        // The group sits after Hostel Management and before the closing Platform / Settings section.
+        // The group sits after Hostel Management and before the closing Administration / Settings section.
         $communication = strpos($html, self::HEADING);
         $this->assertGreaterThan((int) strpos($html, '>Hostel Management</div>'), $communication);
-        $this->assertGreaterThan($communication, (int) strrpos($html, '>Platform</div>'));
+        $this->assertGreaterThan($communication, (int) strrpos($html, '>ADMINISTRATION / SETTINGS</div>'));
 
         // …and its screens open for the super admin.
         foreach ([

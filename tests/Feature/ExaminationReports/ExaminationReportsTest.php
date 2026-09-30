@@ -6,13 +6,14 @@ use App\Http\Controllers\ExaminationReportController;
 use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\Department;
-use App\Models\Examination;
 use App\Models\ExamAttendance;
+use App\Models\Examination;
 use App\Models\ExamResult;
 use App\Models\ExamSchedule;
 use App\Models\Faculty;
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\Feature\Phase4\Phase4TestHelpers;
@@ -147,12 +148,13 @@ class ExaminationReportsTest extends TestCase
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
         $examination = strpos($html, 'href="'.route('examination-reports.index').'"');
-        $platform = strpos($html, '>Platform<', (int) $reports);
+        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue($inventory < $reports && $reports < $student && $student < $academic && $academic < $examination && $examination < $platform);
         $this->assertSame(1, substr_count($html, '>REPORTS<'));
 
-        // Exactly three report links live between REPORTS and Platform.
+        // Exactly three report links live between REPORTS and Administration / Settings.
         $menu = substr($html, $reports, $platform - $reports);
         $this->assertSame(3, substr_count($menu, 'class="nav-link"'));
 
@@ -657,7 +659,7 @@ class ExaminationReportsTest extends TestCase
 
     /* ----------------------------------------------------------------- helpers */
 
-    private function reporter(College $college): \App\Models\User
+    private function reporter(College $college): User
     {
         $user = $this->makeUserWithPermissions($college, self::VIEW);
         $this->asCollege($college, $user);

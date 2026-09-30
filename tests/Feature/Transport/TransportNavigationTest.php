@@ -2,7 +2,10 @@
 
 namespace Tests\Feature\Transport;
 
-use App\Models\{College, Permission, Role, User};
+use App\Models\College;
+use App\Models\Permission;
+use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -45,6 +48,7 @@ class TransportNavigationTest extends TestCase
         $role = Role::create(['college_id' => $college->id, 'name' => 'Nav', 'slug' => (string) Str::uuid(), 'is_active' => true]);
         $role->permissions()->sync(Permission::whereIn('slug', $permissions ?? self::VIEW_PERMISSIONS)->pluck('id'));
         $user->roles()->attach($role->id, ['college_id' => $college->id]);
+
         return $user;
     }
 
@@ -52,15 +56,20 @@ class TransportNavigationTest extends TestCase
     {
         $user = $this->user($college, $permissions);
         $this->actingAs($user)->withSession(['active_college_id' => $college->id]);
+
         return $user;
     }
 
     private function transportNavBlock(string $html): string
     {
         $this->assertStringContainsString('Transport Management', $html);
-        preg_match('/Transport Management<\/div>(.*?)>(Platform|Academics|Admissions|Examinations|Finance|HR|Library|Settings|REPORTS)/s', $html, $matches);
-        $this->assertNotEmpty($matches, 'Transport nav block could not be located in the layout.');
-        return $matches[1];
+        $start = strpos($html, '>Transport Management</div>') + strlen('>Transport Management</div>');
+        $navEnd = strpos($html, '</nav>', $start);
+        $this->assertNotFalse($navEnd, 'Transport must remain inside the sidebar.');
+        $matched = preg_match('/<div class="[^"]*\buppercase tracking-widest\b[^"]*">/', $html, $next, PREG_OFFSET_CAPTURE, $start);
+        $end = $matched === 1 ? min($next[0][1], $navEnd) : $navEnd;
+
+        return substr($html, $start, $end - $start);
     }
 
     public function test_transport_navigation_shows_exactly_eight_entries_in_order(): void
