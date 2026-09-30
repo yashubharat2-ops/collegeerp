@@ -12,12 +12,14 @@
         || ($link[0] === 'Audit Logs' && Illuminate\Support\Facades\Gate::allows('viewPlatform', App\Models\AuditLog::class)));
 @endphp
 @if($administrationLinks->isNotEmpty())
+<x-sidebar-section title="ADMINISTRATION / SETTINGS">
 <div data-navigation="administration-settings">
-    <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">ADMINISTRATION / SETTINGS</div>
     @foreach($administrationLinks as [$label, $icon, $route, $pattern])
-        <a class="nav-link {{ request()->routeIs($pattern) ? 'bg-white/10 text-white' : '' }}" href="{{ route($route, $label === 'Audit Logs' && ! app(\App\Support\Tenancy\TenantContext::class)->has() ? ['scope' => 'platform'] : []) }}" @if(request()->routeIs($pattern)) aria-current="page" @endif>
+        @php($active = request()->routeIs($pattern) || ($label === 'Institution Settings' && request()->routeIs('settings.index')))
+        <a class="nav-link {{ $active ? 'bg-white/10 text-white' : '' }}" href="{{ route($route, $label === 'Audit Logs' && ! app(\App\Support\Tenancy\TenantContext::class)->has() ? ['scope' => 'platform'] : []) }}" @if($active) aria-current="page" @endif>
             <span aria-hidden="true">{{ $icon }}</span><span>{{ $label }}</span>
         </a>
     @endforeach
 </div>
+</x-sidebar-section>
 @endif
