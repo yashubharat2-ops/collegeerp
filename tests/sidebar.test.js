@@ -21,39 +21,84 @@ function section(urls, currentLink = null) {
 }
 
 function load(path, sections) {
+    const handlers = {};
+    const attributes = new Map();
+    const label = { textContent: 'Hide sidebar' };
+    const toggle = {
+        setAttribute: (key, value) => attributes.set(key, value),
+        getAttribute: (key) => attributes.get(key),
+        querySelector: () => label,
+        addEventListener: (key, callback) => { handlers[`toggle-${key}`] = callback; },
+        focus: () => { toggle.focused = true; },
+    };
+    const sidebar = { hidden: false };
     vm.runInNewContext(script, {
         URL,
-        window: { location: { href: `https://erp.test${path}` } },
-        document: { querySelectorAll: () => sections },
+        window: {
+            location: { href: `https://erp.test${path}` },
+            addEventListener: (key, callback) => { handlers[key] = callback; },
+        },
+        document: {
+            querySelectorAll: () => sections,
+            getElementById: () => sidebar,
+            querySelector: () => toggle,
+        },
     });
+    return { handlers, toggle, sidebar, label };
 }
 
-test('dashboard has all sections closed; active route opens only its parent on refresh', () => {
-    const students = section(['/students', '/student-enrollments']);
-    const reports = section(['/student-reports', '/finance-reports']);
-    load('/dashboard', [students, reports]);
+test('dashboard starts closed, even if the browser restores old open states', () => {
+    const students = section(['/students']);
+    const hostel = section(['/hostels/dashboard']);
+    students.open = true;
+    hostel.open = true;
+    const { handlers } = load('/dashboard', [students, hostel]);
     assert.equal(students.open, false);
-    assert.equal(reports.open, false);
-    load('/student-reports?status=active', [students, reports]);
-    assert.equal(students.open, false);
-    assert.equal(reports.open, true);
-    assert.equal(reports.links[0].getAttribute('aria-current'), 'page');
-    assert.ok(reports.links[0].classList.contains('bg-white/10'));
+    assert.equal(hostel.open, false);
+    hostel.open = true; // Native browser state restoration can occur after deferred JS.
+    handlers.pageshow();
+    assert.equal(hostel.open, false);
 });
 
-test('detail pages use the closest child URL and preserve existing active styling', () => {
-    const students = section(['/students', '/student-enrollments']);
+test('administration opens alone; a restored Hostel state never remains open', () => {
+    const hostel = section(['/hostels/dashboard']);
+    const reports = section(['/hostel-reports']);
     const admin = section(['/admin/users', '/admin/roles'], '/admin/roles');
-    load('/students/42/edit', [students]);
-    assert.equal(students.open, true);
-    assert.equal(students.links[0].getAttribute('aria-current'), 'page');
-    load('/admin/roles/3/edit', [admin]);
+    hostel.open = true;
+    reports.open = true;
+    const { handlers } = load('/admin/roles/3/edit', [hostel, reports, admin]);
     assert.equal(admin.open, true);
+    assert.equal(hostel.open, false);
+    assert.equal(reports.open, false);
     assert.equal(admin.links[1].getAttribute('aria-current'), 'page');
-    assert.equal(admin.links[1].classList.contains('bg-white/10'), false); // Server styling is untouched.
+    assert.equal(admin.links[1].classList.contains('bg-white/10'), false); // Preserve server styling.
+    hostel.open = true; // BFCache/native details restoration.
+    handlers.pageshow();
+    assert.equal(hostel.open, false);
+    assert.equal(admin.open, true);
 });
 
-test('filtered certificate links select the matching child and unlinked detail opens its group', () => {
+test('only the new route parent opens on navigation, and clicks do not close other sections', () => {
+    const students = section(['/students']);
+    const reports = section(['/student-reports', '/finance-reports']);
+    load('/students/42/edit', [students, reports]);
+    assert.equal(students.open, true);
+    assert.equal(reports.open, false);
+    reports.open = true; // User clicks Reports summary (native details toggle).
+    assert.equal(students.open, true); // No JS accordion closes it on click.
+    assert.equal(reports.links.length, 2);
+
+    // A new navigation renders fresh sections; the previous module is closed.
+    const nextStudents = section(['/students']);
+    const nextReports = section(['/student-reports', '/finance-reports']);
+    load('/student-reports?status=active', [nextStudents, nextReports]);
+    assert.equal(nextStudents.open, false);
+    assert.equal(nextReports.open, true);
+    assert.equal(nextReports.links[0].getAttribute('aria-current'), 'page');
+    assert.ok(nextReports.links[0].classList.contains('bg-white/10'));
+});
+
+test('filtered certificate links select the matching child, unlinked detail opens only its parent', () => {
     const certs = section(['/certificates/requests?type=TC', '/certificates/requests?type=BON']);
     load('/certificates/requests?type=BON&status=pending', [certs]);
     assert.equal(certs.open, true);
@@ -69,13 +114,20 @@ test('filtered certificate links select the matching child and unlinked detail o
     assert.equal(unfiltered.links[0].hasAttribute('aria-current'), false);
 });
 
-test('opening a section does not close another or invent RBAC-hidden links', () => {
-    const platform = section(['/campuses']);
-    const exams = section(['/exam-marks']); // Exam results are hidden by RBAC.
-    platform.open = true; // Native details user interaction, independent of the script.
-    load('/exam-marks', [platform, exams]);
-    assert.equal(platform.open, true);
+test('hidden RBAC sections stay absent, and the styled toggle works with click and shortcut', () => {
+    const exams = section(['/exam-marks']); // Exam results/Hostel are not rendered for this user.
+    const { handlers, sidebar, toggle, label } = load('/exam-marks', [exams]);
     assert.equal(exams.open, true);
     assert.equal(exams.links.length, 1);
-    assert.equal(exams.links[0].getAttribute('aria-current'), 'page');
+    handlers['toggle-click']();
+    assert.equal(sidebar.hidden, true);
+    assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+    assert.equal(toggle.getAttribute('aria-label'), 'Show sidebar');
+    assert.equal(label.textContent, 'Show sidebar');
+    let prevented = false;
+    handlers.keydown({ altKey: true, ctrlKey: true, key: 'z', preventDefault: () => { prevented = true; } });
+    assert.equal(prevented, true);
+    assert.equal(sidebar.hidden, false);
+    assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+    assert.equal(toggle.focused, true);
 });

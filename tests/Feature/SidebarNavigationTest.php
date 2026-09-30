@@ -31,6 +31,7 @@ class SidebarNavigationTest extends TestCase
             $titles[] = trim($xpath->query('./summary/div', $section)->item(0)->textContent);
             $this->assertFalse($section->hasAttribute('open'), 'Sections start closed on the dashboard.');
             $this->assertSame(1, $xpath->query('./summary', $section)->length, 'Native summary is keyboard accessible.');
+            $this->assertSame(1, $xpath->query('./summary/svg', $section)->length, 'Each module has the same custom chevron.');
             $this->assertGreaterThan(0, $xpath->query('./div[@data-sidebar-links]//a[@href]', $section)->length);
         }
         $this->assertSame([
@@ -40,6 +41,7 @@ class SidebarNavigationTest extends TestCase
             'ADMINISTRATION / SETTINGS',
         ], $titles);
         $this->assertStringContainsString('js/sidebar.js', $html);
+        $this->assertSame(1, $xpath->query('//button[@data-sidebar-toggle and @aria-controls="app-sidebar" and @type="button"]')->length);
         $this->assertSame(1, $xpath->query('//aside/nav/a[@href="'.route('dashboard').'"]')->length);
         $this->assertSame(1, $xpath->query('//aside/nav/details[summary/div="Students"]//a[@href="'.route('students.index').'"]')->length);
         $this->assertSame(1, $xpath->query('//aside/nav/details[summary/div="REPORTS"]//a[@href="'.route('student-reports.index').'"]')->length);

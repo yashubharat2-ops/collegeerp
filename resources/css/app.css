@@ -24,9 +24,10 @@
     .alert-error { @apply mb-5 rounded-xl bg-rose-50 p-4 text-sm text-rose-700; }
 }
 
+/* Compact module rows, with a little separation after the Dashboard shortcut. */
+#app-sidebar nav > a.nav-link { margin-bottom: .5rem; }
 /* Hide the native marker; the section component provides its own chevron. */
 .sidebar-section > summary { list-style: none; }
-.sidebar-section > summary > div { padding-top: .75rem; padding-bottom: .75rem; }
 .sidebar-section > summary::-webkit-details-marker { display: none; }
 
 /*
