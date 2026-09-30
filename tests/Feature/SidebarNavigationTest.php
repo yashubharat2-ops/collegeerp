@@ -40,7 +40,8 @@ class SidebarNavigationTest extends TestCase
             'Hostel Management', 'Communication Management', 'Inventory / Asset Management', 'REPORTS',
             'ADMINISTRATION / SETTINGS',
         ], $titles);
-        $this->assertStringContainsString('js/sidebar.js', $html);
+        $this->assertSame(1, substr_count($html, 'CERTIFICATE MANAGEMENT (EC)'), 'A section title must not be repeated in a tooltip attribute.');
+        $this->assertStringContainsString('<script type="module" src="/js/sidebar.js">', $html);
         $this->assertSame(2, $xpath->query('//button[@data-sidebar-toggle and @aria-controls="app-sidebar" and @type="button"]')->length);
         $this->assertSame(1, $xpath->query('//aside[@id="app-sidebar"]/nav[contains(@class, "overflow-y-auto")]')->length);
         $this->assertSame(1, $xpath->query('//aside/nav/a[@href="'.route('dashboard').'" and @aria-current="page"]')->length);

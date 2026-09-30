@@ -14,8 +14,13 @@ function classes() {
     };
 }
 
-function section(urls, currentLink = null) {
+function section(urls, currentLink = null, label = 'Module') {
     const attrs = new Map();
+    const summary = {
+        title: '',
+        querySelector: () => ({ textContent: label }),
+        removeAttribute: (key) => { if (key === 'title') summary.title = ''; },
+    };
     const links = urls.map((href) => {
         const attributes = new Map(currentLink === href ? [['aria-current', 'page']] : []);
         return {
@@ -27,8 +32,9 @@ function section(urls, currentLink = null) {
         };
     });
     return {
-        open: false, links,
+        open: false, links, summary,
         querySelectorAll: () => links,
+        querySelector: () => summary,
         setAttribute: (key, value) => attrs.set(key, value),
         removeAttribute: (key) => attrs.delete(key),
         hasAttribute: (key) => attrs.has(key),
@@ -126,11 +132,13 @@ test('filtered certificate links choose the matching child without mis-highlight
 });
 
 test('desktop collapse keeps modules available; clicking an icon expands its child links', () => {
-    const exams = section(['/exam-marks']); // Other RBAC-hidden sections are not present.
+    const exams = section(['/exam-marks'], null, 'Examinations'); // Other RBAC-hidden sections are not present.
     const { handlers, sidebar, toggle, text } = load('/exam-marks', [exams]);
+    assert.equal(exams.summary.title, '');
     handlers['toggle-click']();
     assert.equal(sidebar.hidden, false); // Clear legacy persisted [hidden] state.
     assert.equal(sidebar.classList.contains('is-collapsed'), true);
+    assert.equal(exams.summary.title, 'Examinations');
     assert.equal(exams.links.length, 1);
     assert.equal(toggle.getAttribute('aria-expanded'), 'false');
     assert.equal(text.textContent, 'Expand sidebar');
@@ -139,6 +147,7 @@ test('desktop collapse keeps modules available; clicking an icon expands its chi
     handlers['sidebar-click']({ target: { closest: () => summary }, preventDefault: () => { prevented = true; } });
     assert.equal(prevented, true);
     assert.equal(sidebar.classList.contains('is-collapsed'), false);
+    assert.equal(exams.summary.title, '');
     assert.equal(exams.open, true);
 });
 

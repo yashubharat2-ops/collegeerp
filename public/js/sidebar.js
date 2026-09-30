@@ -64,6 +64,14 @@
         // Older versions used [hidden] for the whole sidebar; do not restore it.
         sidebar.hidden = false;
         sidebar.classList.toggle('is-collapsed', !isMobile && collapsed);
+        // Tooltips are needed only when the labels are hidden. Keep the
+        // server-rendered heading text in one place, not duplicated in HTML.
+        for (const section of document.querySelectorAll('aside nav details[data-sidebar-section]')) {
+            const summary = section.querySelector('summary');
+            if (!summary) continue;
+            if (!isMobile && collapsed) summary.title = summary.querySelector('.sidebar-section-label').textContent.trim();
+            else summary.removeAttribute('title');
+        }
         sidebar.classList.toggle('is-mobile-open', isMobile && mobileOpen);
         sidebar.inert = isMobile && !mobileOpen;
         if (backdrop) backdrop.hidden = !isMobile || !mobileOpen;
