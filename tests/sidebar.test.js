@@ -212,3 +212,13 @@ test('menu search filters only rendered links, opens matching modules, and reset
     assert.equal(students.hidden, false);
     assert.equal(dashboard.hidden, false);
 });
+
+test('sidebar retains navy background and 16px search icon without a Vite build', () => {
+    const css = readFileSync(new URL('../public/css/sidebar.css', import.meta.url), 'utf8');
+    const layout = readFileSync(new URL('../resources/views/layouts/app.blade.php', import.meta.url), 'utf8');
+    assert.match(css, /#app-sidebar\s*\{[^}]*background:\s*#111c30/s);
+    assert.match(css, /#app-sidebar \.sidebar-search svg\s*\{[^}]*width:\s*16px;\s*height:\s*16px/s);
+    assert.match(css, /#app-sidebar \.sidebar-search input\s*\{[^}]*height:\s*40px/s);
+    assert.match(layout, /@endif<link rel="stylesheet" href="\/css\/sidebar\.css">/);
+    assert.doesNotMatch(css, /(?:^|\})\s*svg\s*\{/);
+});
