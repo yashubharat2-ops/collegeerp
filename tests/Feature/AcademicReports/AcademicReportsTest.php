@@ -97,12 +97,13 @@ class AcademicReportsTest extends TestCase
         $reports = strpos($html, '>REPORTS<');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
-        $platform = strpos($html, '>Platform<', (int) $reports);
+        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue($inventory < $reports && $reports < $student && $student < $academic && $academic < $platform);
         $this->assertSame(1, substr_count($html, '>REPORTS<'));
 
-        // Only the two report links live between REPORTS and Platform.
+        // Only the two report links live between REPORTS and Administration / Settings.
         $menu = substr($html, $reports, $platform - $reports);
         $this->assertSame(2, substr_count($menu, 'class="nav-link"'));
     }

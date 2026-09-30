@@ -319,7 +319,7 @@ class HostelNavigationTest extends TestCase
 
         $this->assertGreaterThan(
             $hostelStart,
-            (int) strrpos($html, '>Platform</div>')
+            (int) strrpos($html, '>ADMINISTRATION / SETTINGS</div>')
         );
     }
 

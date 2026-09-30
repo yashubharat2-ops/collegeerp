@@ -9,7 +9,6 @@ use App\Models\CertificateType;
 use App\Models\College;
 use App\Models\Permission;
 use App\Models\Role;
-use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\User;
 use App\Services\Certificates\CertificateCatalog;
@@ -17,6 +16,7 @@ use App\Services\Certificates\CertificateWorkflow;
 use App\Support\Tenancy\TenantContext;
 use Database\Seeders\CertificateManagementSeeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -28,6 +28,7 @@ class CertificateReportTest extends TestCase
     use StudentTestHelpers;
 
     private College $college;
+
     private User $viewer;
 
     protected function setUp(): void
@@ -60,7 +61,7 @@ class CertificateReportTest extends TestCase
 
         if (in_array($targetStatus, ['generated', 'issued'], true)) {
             $template = CertificateTemplate::query()->firstOrCreate(
-                ['certificate_type_id' => $type->id, 'name' => $type->code . ' Standard Template'],
+                ['certificate_type_id' => $type->id, 'name' => $type->code.' Standard Template'],
                 ['body' => 'Certificate {{ certificate_number }} for {{ student_name }} ({{ enrollment_number }})']
             );
             $workflow->generate($certificate->id, $template->id);
@@ -169,7 +170,7 @@ class CertificateReportTest extends TestCase
 
         $reportsHeaderPos = strpos($visibleHtml, '>REPORTS</div>');
         $certReportsLinkPos = strpos($visibleHtml, route('certificate-reports.index'));
-        $platformFooterPos = strrpos($visibleHtml, '>Platform</div>');
+        $platformFooterPos = strrpos($visibleHtml, '>ADMINISTRATION / SETTINGS</div>');
 
         $this->assertNotFalse($reportsHeaderPos);
         $this->assertNotFalse($certReportsLinkPos);
@@ -313,7 +314,7 @@ class CertificateReportTest extends TestCase
                 ->assertOk()
                 ->getContent()
         );
-        $this->assertStringContainsString('#' . $reqCert->id, $unfilteredTable);
+        $this->assertStringContainsString('#'.$reqCert->id, $unfilteredTable);
         $this->assertStringContainsString('Aarav Sharma', $unfilteredTable);
         $this->assertStringContainsString('ENR-REQ-01', $unfilteredTable);
         $this->assertStringContainsString('2026-2027', $unfilteredTable);
@@ -552,7 +553,7 @@ class CertificateReportTest extends TestCase
             ->get(route('certificate-reports.index', ['report' => 'types']))
             ->assertOk();
 
-        /** @var \Illuminate\Support\Collection<int, CertificateType> $typeRows */
+        /** @var Collection<int, CertificateType> $typeRows */
         $typeRows = $response->viewData('typeRows');
         $bonRow = $typeRows->firstWhere('code', 'BON');
         $charRow = $typeRows->firstWhere('code', 'CHAR');
@@ -644,7 +645,7 @@ class CertificateReportTest extends TestCase
         $this->assertSame(18, $paginator->total());
         $nextUrl = (string) $paginator->nextPageUrl();
         $this->assertStringContainsString('report=requests', $nextUrl);
-        $this->assertStringContainsString('certificate_type_id=' . $bonType->id, $nextUrl);
+        $this->assertStringContainsString('certificate_type_id='.$bonType->id, $nextUrl);
     }
 
     public function test_reports_avoid_n_plus_one_queries(): void

@@ -37,21 +37,21 @@ class InventoryNavigationTest extends TestCase
     use InventoryTestHelpers;
 
     private const ALL_ENTRIES = [
-        'Inventory Dashboard'     => ['inventory_dashboard.view',       'inventory.dashboard'],
-        'Item Categories'         => ['inventory_categories.view',      'inventory-categories.index'],
-        'Items / Assets'          => ['inventory_items.view',           'inventory-items.index'],
-        'Vendors'                 => ['inventory_vendors.view',         'inventory-vendors.index'],
-        'Purchase Orders'         => ['inventory_purchase_orders.view', 'inventory-purchase-orders.index'],
-        'Goods Receipt / Stock In'=> ['inventory_goods_receipts.view',  'inventory-goods-receipts.index'],
-        'Stock Adjustment'        => ['inventory_stock_adjustments.view','inventory-stock-adjustments.index'],
-        'Inventory Transactions'  => ['inventory_transactions.view',    'inventory-transactions.index'],
+        'Inventory Dashboard' => ['inventory_dashboard.view',       'inventory.dashboard'],
+        'Item Categories' => ['inventory_categories.view',      'inventory-categories.index'],
+        'Items / Assets' => ['inventory_items.view',           'inventory-items.index'],
+        'Vendors' => ['inventory_vendors.view',         'inventory-vendors.index'],
+        'Purchase Orders' => ['inventory_purchase_orders.view', 'inventory-purchase-orders.index'],
+        'Goods Receipt / Stock In' => ['inventory_goods_receipts.view',  'inventory-goods-receipts.index'],
+        'Stock Adjustment' => ['inventory_stock_adjustments.view', 'inventory-stock-adjustments.index'],
+        'Inventory Transactions' => ['inventory_transactions.view',    'inventory-transactions.index'],
         'Item Issue / Allocation' => ['inventory_issues.view',          'inventory-issues.index'],
-        'Asset Assignment'        => ['inventory_assignments.view',     'inventory-assignments.index'],
-        'Asset Return'            => ['inventory_asset_returns.view',   'inventory-asset-returns.index'],
-        'Asset Maintenance'       => ['inventory_maintenance.view',     'inventory-maintenances.index'],
-        'Current Stock'           => ['inventory_current_stock.view',   'inventory-current-stock.index'],
-        'Low Stock'               => ['inventory_low_stock.view',       'inventory-low-stock.index'],
-        'Asset Register'          => ['inventory_asset_register.view',  'inventory-asset-register.index'],
+        'Asset Assignment' => ['inventory_assignments.view',     'inventory-assignments.index'],
+        'Asset Return' => ['inventory_asset_returns.view',   'inventory-asset-returns.index'],
+        'Asset Maintenance' => ['inventory_maintenance.view',     'inventory-maintenances.index'],
+        'Current Stock' => ['inventory_current_stock.view',   'inventory-current-stock.index'],
+        'Low Stock' => ['inventory_low_stock.view',       'inventory-low-stock.index'],
+        'Asset Register' => ['inventory_asset_register.view',  'inventory-asset-register.index'],
         'Stock / Transaction Reports' => ['inventory_stock_reports.view', 'inventory-stock-reports.index'],
     ];
 
@@ -108,12 +108,13 @@ class InventoryNavigationTest extends TestCase
 
         $after = $start + strlen(self::HEADING);
         // The group ends at the NEXT sidebar section heading, whichever it is
-        // (e.g. REPORTS, when the user may see it, or Platform). Slicing up to
-        // Platform would wrongly count the REPORTS links as Inventory entries.
+        // (e.g. REPORTS or Administration / Settings, when authorized).
+        // Slicing to the last group would wrongly count the REPORTS links as Inventory entries.
         $matched = preg_match(self::SECTION_HEADING_PATTERN, $html, $next, PREG_OFFSET_CAPTURE, $after);
-        $this->assertSame(1, $matched, 'Another sidebar section must follow Inventory.');
+        $end = $matched === 1 ? $next[0][1] : strpos($html, '</nav>', $after);
+        $this->assertNotFalse($end, 'Inventory must end at another section or the sidebar boundary.');
 
-        return substr($html, $after, $next[0][1] - $after);
+        return substr($html, $after, $end - $after);
     }
 
     public function test_the_inventory_section_lists_exactly_the_16_operational_entries_in_order(): void
@@ -209,14 +210,14 @@ class InventoryNavigationTest extends TestCase
         $html = $this->asCollege($college, $super)->get(route('dashboard'))->assertOk()->getContent();
 
         $communication = strpos($html, '>Communication Management</div>');
-        $inventory     = strpos($html, self::HEADING);
-        $platform      = strrpos($html, '>Platform</div>');
+        $inventory = strpos($html, self::HEADING);
+        $platform = strrpos($html, '>ADMINISTRATION / SETTINGS</div>');
 
         $this->assertNotFalse($communication);
         $this->assertNotFalse($inventory);
         $this->assertNotFalse($platform);
         $this->assertGreaterThan($communication, $inventory, 'Inventory must come after Communication.');
-        $this->assertGreaterThan($inventory, $platform, 'Platform must come after Inventory.');
+        $this->assertGreaterThan($inventory, $platform, 'Administration / Settings must come after Inventory.');
 
         // Exactly one Inventory heading, exactly 16 operational entries in it.
         $this->assertSame(1, substr_count($html, self::HEADING));
@@ -257,8 +258,9 @@ class InventoryNavigationTest extends TestCase
         $this->assertNotFalse($reportsHeading);
         $afterHeading = $reportsHeading + strlen('>REPORTS</div>');
         $matched = preg_match(self::SECTION_HEADING_PATTERN, $html, $next, PREG_OFFSET_CAPTURE, $afterHeading);
-        $this->assertSame(1, $matched, 'The Reports section must end at the next sidebar section.');
-        $reportsGroup = substr($html, $afterHeading, $next[0][1] - $afterHeading);
+        $end = $matched === 1 ? $next[0][1] : strpos($html, '</nav>', $afterHeading);
+        $this->assertNotFalse($end, 'Reports must end at another section or the sidebar boundary.');
+        $reportsGroup = substr($html, $afterHeading, $end - $afterHeading);
 
         $finance = strpos($reportsGroup, $this->href('finance-reports.index'));
         $inventory = strpos($reportsGroup, $this->href('inventory-reports.index'));

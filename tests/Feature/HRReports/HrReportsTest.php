@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\HRReports;
 
+use App\Domain\HR\Services\HrReportService;
 use App\Http\Controllers\HrReportController;
 use App\Models\AdmissionDocumentType;
 use App\Models\AuditLog;
@@ -168,7 +169,8 @@ class HrReportsTest extends TestCase
         $finance = strpos($html, 'href="'.route('finance-reports.index').'"');
         $hr = strpos($html, 'href="'.route('hr-reports.index').'"');
         $library = strpos($html, 'href="'.route('library-reports.index').'"');
-        $platform = strpos($html, '>Platform<', (int) $reports);
+        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue(
             $inventory < $reports && $reports < $student && $student < $academic
@@ -176,7 +178,7 @@ class HrReportsTest extends TestCase
         );
         $this->assertSame(1, substr_count($html, '>REPORTS<'));
 
-        // Six report links live between REPORTS and Platform; HR Reports keeps
+        // Six report links live between REPORTS and Administration / Settings; HR Reports keeps
         // its HR / staff icon and Library Reports follows it with a books icon.
         $menu = substr($html, $reports, $platform - $reports);
         $this->assertSame(6, substr_count($menu, 'class="nav-link"'));
@@ -406,7 +408,7 @@ class HrReportsTest extends TestCase
             ->assertSee('PAN Card')->assertSee('Passport')->assertSee('Expired')->assertSee('Expiring');
 
         $row = $this->get(route('hr-reports.index', ['report' => 'documents']))->viewData('rows')->firstWhere('id', $valid->id);
-        $this->assertSame('Valid', ucfirst(\App\Domain\HR\Services\HrReportService::documentStatus($row)));
+        $this->assertSame('Valid', ucfirst(HrReportService::documentStatus($row)));
         $this->assertSame($pan->id, $row->documentTypeMaster->id);
         $this->assertSame($staff->id, $row->employee->id);
 
@@ -880,5 +882,4 @@ class HrReportsTest extends TestCase
             DB::disableQueryLog();
         }
     }
-
 }

@@ -200,8 +200,8 @@ class LibraryNavigationTest extends TestCase
         $this->assertGreaterThan($start, $libraryStart);
         $this->assertSame(9, substr_count($this->libraryNavGroup($html), 'class="nav-link"'));
 
-        // …and Platform / Settings still closes the sidebar after it.
-        $this->assertGreaterThan($libraryStart, (int) strrpos($html, '>Platform</div>'));
+        // …and Administration / Settings still closes the sidebar after it.
+        $this->assertGreaterThan($libraryStart, (int) strrpos($html, '>ADMINISTRATION / SETTINGS</div>'));
     }
 
     public function test_a_seeded_college_admin_sees_every_library_entry_and_can_open_each_screen(): void

@@ -2,7 +2,10 @@
 
 namespace Database\Seeders;
 
-use App\Models\{College, Permission, Role, User};
+use App\Models\College;
+use App\Models\Permission;
+use App\Models\Role;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -12,6 +15,7 @@ class DatabaseSeeder extends Seeder
     {
         $college = College::firstOrCreate(['code' => 'DEMO'], ['name' => 'Demo College', 'slug' => 'demo-college', 'status' => 'active']);
         $permissions = collect([
+            ...AdministrationPermissionSeeder::PERMISSIONS,
             ...TransportPermissionSeeder::PERMISSIONS,
             ...CertificateManagementSeeder::PERMISSIONS,
             // Hostel Management permissions (masters, allocation, fees, attendance, reports).
@@ -77,12 +81,11 @@ class DatabaseSeeder extends Seeder
             // operational permission and from the individual report modules it consolidates).
             'consolidated_reports.view',
             'admission_reports.view',
-            'settings.view', 'settings.update',
-            'academic_subject_enrollments.view','academic_subject_enrollments.create','academic_subject_enrollments.update','academic_subject_enrollments.delete',
-            'academic_sections.view','academic_sections.manage',
-            'academic_timetables.view','academic_timetables.create','academic_timetables.update','academic_timetables.delete',
-            'academic_attendance.view','academic_attendance.create','academic_attendance.update',
-            'academic_calendar.view','academic_calendar.create','academic_calendar.update','academic_calendar.delete',
+            'academic_subject_enrollments.view', 'academic_subject_enrollments.create', 'academic_subject_enrollments.update', 'academic_subject_enrollments.delete',
+            'academic_sections.view', 'academic_sections.manage',
+            'academic_timetables.view', 'academic_timetables.create', 'academic_timetables.update', 'academic_timetables.delete',
+            'academic_attendance.view', 'academic_attendance.create', 'academic_attendance.update',
+            'academic_calendar.view', 'academic_calendar.create', 'academic_calendar.update', 'academic_calendar.delete',
             'academic_workload.view',
             'examinations.view', 'examinations.create', 'examinations.update', 'examinations.delete',
             'exam_schedules.view', 'exam_schedules.create', 'exam_schedules.update', 'exam_schedules.delete',
@@ -135,8 +138,6 @@ class DatabaseSeeder extends Seeder
             // Library Management Phase 2 — Renewals (append-only due-date history).
             'library_renewals.view', 'library_renewals.create',
             'library_fines.view', 'library_fines.create', 'library_fines.update', 'library_fines.pay', 'library_reports.view',
-            'roles.view', 'roles.update',
-            'permissions.view',
         ])->mapWithKeys(fn ($slug) => [$slug => Permission::firstOrCreate(['slug' => $slug], ['name' => Str::headline($slug), 'module' => Str::before($slug, '.'), 'action' => Str::after($slug, '.')])]);
         $super = Role::firstOrCreate(['college_id' => null, 'slug' => 'super-admin'], ['name' => 'Super Admin', 'is_system' => true]);
         $admin = Role::firstOrCreate(['college_id' => $college->id, 'slug' => 'college-admin'], ['name' => 'College Admin', 'is_system' => true]);

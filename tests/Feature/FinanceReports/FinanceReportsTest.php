@@ -12,11 +12,9 @@ use App\Http\Controllers\FinanceReportController;
 use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\Department;
-use App\Models\FeeCategory;
 use App\Models\FeeConcession;
 use App\Models\FeePayment;
 use App\Models\FeeRefund;
-use App\Models\FeeStructure;
 use App\Models\FeeStructureItem;
 use App\Models\Hostel;
 use App\Models\HostelAllocation;
@@ -153,7 +151,8 @@ class FinanceReportsTest extends TestCase
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
         $examination = strpos($html, 'href="'.route('examination-reports.index').'"');
         $finance = strpos($html, 'href="'.route('finance-reports.index').'"');
-        $platform = strpos($html, '>Platform<', (int) $reports);
+        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue(
             $inventory < $reports && $reports < $student && $student < $academic
@@ -161,7 +160,7 @@ class FinanceReportsTest extends TestCase
         );
         $this->assertSame(1, substr_count($html, '>REPORTS<'));
 
-        // Four report links live between REPORTS and Platform — the Finance
+        // Four report links live between REPORTS and Administration / Settings — the Finance
         // Reports child is the last one.
         $menu = substr($html, $reports, $platform - $reports);
         $this->assertSame(4, substr_count($menu, 'class="nav-link"'));
@@ -421,7 +420,7 @@ class FinanceReportsTest extends TestCase
         // discounts, the refunds and the transport / hostel charges.
         $this->get(route('finance-reports.index', ['report' => 'summary']))
             ->assertOk()
-            ->assertViewHas('summary', function (array $summary) use ($totals, $world): bool {
+            ->assertViewHas('summary', function (array $summary) use ($totals): bool {
                 $reconciliation = $summary['reconciliation'];
 
                 return $summary['student_fees'] == $totals

@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\HR;
 
-use App\Models\{Department, Designation, Faculty};
+use App\Models\Department;
+use App\Models\Designation;
+use App\Models\Faculty;
 use Tests\TestCase;
 
 class HRManagementTest extends TestCase
@@ -148,12 +150,12 @@ class HRManagementTest extends TestCase
         // other report links stay behind their own view permissions.
         $reports = strpos($html, '>REPORTS<');
         $this->assertNotFalse($reports);
-        $platform = strpos($html, '>Platform<', (int) $reports);
+        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $menu = substr($html, $reports, $platform - $reports);
         $this->assertSame(1, substr_count($menu, 'class="nav-link"'));
         $this->assertStringContainsString('HR Reports', $menu);
         $this->assertStringNotContainsString('Finance Reports', $menu);
         $this->assertStringNotContainsString('Student Reports', $menu);
     }
-
 }
