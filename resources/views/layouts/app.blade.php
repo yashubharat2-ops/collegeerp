@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="{{ csrf_token() }}"><title>@yield('title', 'Dashboard') · {{ config('app.name', 'College ERP') }}</title>{{-- Link compiled assets only when a build (public/build/manifest.json) or a running dev server (public/hot) exists, so a page render never depends on running npm. --}}@if(is_file(public_path('build/manifest.json')) || is_file(public_path('hot')))@vite(['resources/css/app.css','resources/js/app.js'])@endif</head><body class="bg-slate-100 text-slate-900"><div class="min-h-screen lg:flex"><aside id="app-sidebar" class="no-print w-full bg-slate-950 text-white lg:min-h-screen lg:w-72"><div class="border-b border-white/10 px-5 pb-5 pt-5"><div class="flex items-center gap-3">@if($institutionBrand['has_logo'] ?? false)<img class="h-9 w-9 rounded-lg bg-white object-contain" src="{{ route('admin.institution-settings.logo') }}" alt="Institution logo">@endif<p class="max-w-48 truncate text-xs font-semibold uppercase tracking-widest text-indigo-300">{{ $institutionBrand['short_name'] ?? config('app.name', 'College ERP') }}</p></div><p class="mt-1 text-lg font-bold">Administration</p></div><nav class="space-y-0.5 px-4 pb-6 pt-3"><a class="nav-link" href="{{ route('dashboard') }}">▦ <span>Dashboard</span></a><x-sidebar-section title="Platform">
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="{{ csrf_token() }}"><title>@yield('title', 'Dashboard') · {{ config('app.name', 'College ERP') }}</title>{{-- Link compiled assets only when a build (public/build/manifest.json) or a running dev server (public/hot) exists, so a page render never depends on running npm. --}}@if(is_file(public_path('build/manifest.json')) || is_file(public_path('hot')))@vite(['resources/css/app.css','resources/js/app.js'])@endif</head><body class="bg-slate-100 text-slate-900"><div class="min-h-screen lg:flex"><aside id="app-sidebar" class="no-print flex h-dvh w-[280px] shrink-0 flex-col bg-slate-950 text-white"><div class="sidebar-brand flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-4 py-4"><div class="flex min-w-0 items-center gap-3">@if($institutionBrand['has_logo'] ?? false)<img class="sidebar-brand-mark h-9 w-9 shrink-0 rounded-lg bg-white object-contain" src="{{ route('admin.institution-settings.logo') }}" alt="Institution logo">@else<span class="sidebar-brand-mark grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-indigo-600 text-sm font-bold text-white" aria-hidden="true">{{ strtoupper(substr($institutionBrand['short_name'] ?? config('app.name', 'College ERP'), 0, 1)) }}</span>@endif<div class="sidebar-brand-info min-w-0"><p class="truncate text-xs font-semibold uppercase tracking-wider text-indigo-300">{{ $institutionBrand['short_name'] ?? config('app.name', 'College ERP') }}</p><p class="truncate text-sm font-semibold text-white">Administration</p></div></div><button type="button" data-sidebar-header-toggle data-sidebar-toggle aria-controls="app-sidebar" aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar (Alt+Ctrl+Z)" class="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-400"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></svg></button></div><nav class="sidebar-nav min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain px-2 pb-5 pt-3" aria-label="Main navigation"><a class="nav-link sidebar-dashboard {{ request()->routeIs('dashboard') ? 'bg-indigo-600 text-white' : '' }}" href="{{ route('dashboard') }}" title="Dashboard" @if(request()->routeIs('dashboard')) aria-current="page" @endif><x-sidebar-icon name="dashboard" class="sidebar-dashboard-icon text-slate-300" /><span class="sidebar-dashboard-label">Dashboard</span></a><x-sidebar-section title="Platform" icon="grid">
 <a class="nav-link" href="{{ route('campuses.index') }}">▣ <span>Campuses</span></a>
 <a class="nav-link" href="{{ route('programs.index') }}">▥ <span>Programs</span></a>
 <a class="nav-link" href="{{ route('academic-years.index') }}">◫ <span>Academic years</span></a>
@@ -8,7 +8,7 @@
 <a class="nav-link" href="{{ route('faculty-subject-assignments.index') }}">🔗 <span>Faculty–Subject Assignments</span></a>
 </x-sidebar-section>
 @if(auth()->user()?->hasPermission('faculties.view') || auth()->user()?->hasPermission('departments.view') || auth()->user()?->hasPermission('designations.view') || auth()->user()?->hasPermission('employee_documents.view') || auth()->user()?->hasPermission('staff_attendance.view') || auth()->user()?->hasPermission('leave_types.view') || auth()->user()?->hasPermission('leave_requests.view') || auth()->user()?->hasPermission('salary_structures.view') || auth()->user()?->hasPermission('salary_components.view') || auth()->user()?->hasPermission('payrolls.view'))
-<x-sidebar-section title="HR / Staff Management">
+<x-sidebar-section title="HR / Staff Management" icon="people">
 @if(auth()->user()?->hasPermission('faculties.view'))
 <a class="nav-link" href="{{ route('employees.index') }}">👥 <span>Staff / Employee</span></a>
 @endif
@@ -32,7 +32,7 @@
 @endif
 </x-sidebar-section>
 @endif
-<x-sidebar-section title="Admissions">
+<x-sidebar-section title="Admissions" icon="admissions">
 <a class="nav-link" href="{{ route('admission.dashboard') }}">📊 <span>Dashboard</span></a>
 <a class="nav-link" href="{{ route('admission-applicants.index') }}">👤 <span>Applicants</span></a>
 <a class="nav-link" href="{{ route('admission-enquiries.index') }}">❓ <span>Enquiries</span></a>
@@ -43,7 +43,7 @@
  <a class="nav-link" href="{{ route('admissions.index') }}">🎓 <span>Admissions</span></a>
 <a class="nav-link" href="{{ route('admission-reports.index') }}">📈 <span>Reports</span></a>
 </x-sidebar-section>
-<x-sidebar-section title="Students">
+<x-sidebar-section title="Students" icon="students">
 <a class="nav-link" href="{{ route('students.index') }}">🧑 <span>Students</span></a>
 <a class="nav-link" href="{{ route('student-enrollments.index') }}">🗂 <span>Enrollments</span></a>
 <a class="nav-link" href="{{ route('student-academic-records.index') }}">📚 <span>Academic Records</span></a>
@@ -54,7 +54,7 @@
 <a class="nav-link" href="{{ route('student-history.index') }}">🕘 <span>Student History</span></a>
 </x-sidebar-section>
 @if(auth()->user()?->hasPermission('certificates.view') || auth()->user()?->hasPermission('certificate_types.manage') || auth()->user()?->hasPermission('certificate_templates.manage') || auth()->user()?->hasPermission('certificate_reports.view'))
-<x-sidebar-section title="CERTIFICATE MANAGEMENT (EC)">
+<x-sidebar-section title="CERTIFICATE MANAGEMENT (EC)" icon="certificate">
 @if(auth()->user()->hasPermission('certificates.view'))
 <a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'TC']) }}">📜 <span>Transfer Certificate (TC)</span></a>
 <a class="nav-link" href="{{ route('certificates.requests.index', ['type' => 'BON']) }}">📜 <span>Bonafide Certificate</span></a>
@@ -74,7 +74,7 @@
 @endif
 </x-sidebar-section>
 @endif
-<x-sidebar-section title="Academics">
+<x-sidebar-section title="Academics" icon="book">
 <a class="nav-link" href="{{ route('academic-subject-enrollments.index') }}">📚 <span>Student Subject Enrollment</span></a>
 <a class="nav-link" href="{{ route('academic-sections.index') }}">🏫 <span>Class / Section Management</span></a>
 <a class="nav-link" href="{{ route('academic-timetables.index') }}">🗓 <span>Timetable</span></a>
@@ -83,7 +83,7 @@
 <a class="nav-link" href="{{ route('academic-workload.index') }}">👨‍🏫 <span>Faculty Workload</span></a>
 </x-sidebar-section>
 @if(auth()->user()?->hasPermission('examinations.view') || auth()->user()?->hasPermission('exam_schedules.view') || auth()->user()?->hasPermission('exam_attendance.view') || auth()->user()?->hasPermission('exam_marks.view') || auth()->user()?->hasPermission('results.view') || auth()->user()?->hasPermission('result_calculation.view') || auth()->user()?->hasPermission('grade_scales.view') || auth()->user()?->hasPermission('result_publishing.view') || auth()->user()?->hasPermission('marksheets.view') || auth()->user()?->hasPermission('grade_cards.view') || auth()->user()?->hasPermission('exam_reports.view') || auth()->user()?->hasPermission('student_result_history.view'))
-<x-sidebar-section title="Examinations">
+<x-sidebar-section title="Examinations" icon="exam">
 @if(auth()->user()?->hasPermission('examinations.view'))
 <a class="nav-link" href="{{ route('examinations.index') }}">📝 <span>Examinations</span></a>
 @endif
@@ -123,7 +123,7 @@
 </x-sidebar-section>
 @endif
 @if(auth()->user()?->hasPermission('fee_structures.view') || auth()->user()?->hasPermission('fee_categories.view') || auth()->user()?->hasPermission('student_fee_assignments.view') || auth()->user()?->hasPermission('fee_collections.view') || auth()->user()?->hasPermission('receipts.view') || auth()->user()?->hasPermission('fee_dues.view') || auth()->user()?->hasPermission('fee_concessions.view') || auth()->user()?->hasPermission('refunds.view') || auth()->user()?->hasPermission('fee_reports.view'))
-<x-sidebar-section title="Finance / Fees">
+<x-sidebar-section title="Finance / Fees" icon="finance">
 @if(auth()->user()?->hasPermission('fee_structures.view'))
 <a class="nav-link" href="{{ route('fee-structures.index') }}">💰 <span>Fee Structures</span></a>
 @endif
@@ -154,7 +154,7 @@
 </x-sidebar-section>
 @endif
 @if(auth()->user()?->hasPermission('transport_dashboard.view') || auth()->user()?->hasPermission('vehicles.view') || auth()->user()?->hasPermission('vehicle_documents.view') || auth()->user()?->hasPermission('transport_drivers.view') || auth()->user()?->hasPermission('transport_routes.view') || auth()->user()?->hasPermission('student_transport_assignments.view') || auth()->user()?->hasPermission('transport_fees.view'))
-<x-sidebar-section title="Transport Management">
+<x-sidebar-section title="Transport Management" icon="transport">
 @if(auth()->user()?->hasPermission('transport_dashboard.view'))
 <a class="nav-link" href="{{ route('transport.dashboard') }}">🚌 <span>Transport Dashboard</span></a>
 @endif
@@ -182,7 +182,7 @@
 </x-sidebar-section>
 @endif
 @if(auth()->user()?->hasPermission('library_dashboard.view') || auth()->user()?->hasPermission('books.view') || auth()->user()?->hasPermission('book_categories.view') || auth()->user()?->hasPermission('authors.view') || auth()->user()?->hasPermission('publishers.view') || auth()->user()?->hasPermission('book_copies.view') || auth()->user()?->hasPermission('library_members.view') || auth()->user()?->hasPermission('library_transactions.view') || auth()->user()?->hasPermission('library_renewals.view') || auth()->user()?->hasPermission('library_fines.view'))
-<x-sidebar-section title="Library Management">
+<x-sidebar-section title="Library Management" icon="library">
 @if(auth()->user()?->hasPermission('library_dashboard.view'))
 <a class="nav-link" href="{{ route('library.dashboard') }}">📚 <span>Library Dashboard</span></a>
 @endif
@@ -215,7 +215,7 @@
 </x-sidebar-section>
 @endif
 @if(auth()->user()?->hasPermission('hostel_dashboard.view') || auth()->user()?->hasPermission('hostels.view') || auth()->user()?->hasPermission('hostel_buildings.view') || auth()->user()?->hasPermission('hostel_rooms.view') || auth()->user()?->hasPermission('hostel_beds.view') || auth()->user()?->hasPermission('hostel_allocations.view') || auth()->user()?->hasPermission('hostel_fees.view') || auth()->user()?->hasPermission('hostel_attendance.view'))
-<x-sidebar-section title="Hostel Management">
+<x-sidebar-section title="Hostel Management" icon="hostel">
 @if(auth()->user()?->hasPermission('hostel_dashboard.view'))
 <a class="nav-link" href="{{ route('hostels.dashboard') }}">🏨 <span>Hostel Dashboard</span></a>
 @endif
@@ -243,7 +243,7 @@
 </x-sidebar-section>
 @endif
 @if(auth()->user()?->hasPermission('communication_dashboard.view') || auth()->user()?->hasPermission('notices.view') || auth()->user()?->hasPermission('circulars.view') || auth()->user()?->hasPermission('notifications.view') || auth()->user()?->hasPermission('communication_templates.view') || auth()->user()?->hasPermission('communication_logs.view') || auth()->user()?->hasPermission('communication_tracking.view'))
-<x-sidebar-section title="Communication Management">
+<x-sidebar-section title="Communication Management" icon="communication">
 @if(auth()->user()?->hasPermission('communication_dashboard.view'))
 <a class="nav-link" href="{{ route('communication.dashboard') }}">📡 <span>Communication Dashboard</span></a>
 @endif
@@ -268,7 +268,7 @@
 </x-sidebar-section>
 @endif
 @if(auth()->user()?->hasPermission('inventory_dashboard.view') || auth()->user()?->hasPermission('inventory_categories.view') || auth()->user()?->hasPermission('inventory_items.view') || auth()->user()?->hasPermission('inventory_vendors.view') || auth()->user()?->hasPermission('inventory_purchase_orders.view') || auth()->user()?->hasPermission('inventory_goods_receipts.view') || auth()->user()?->hasPermission('inventory_stock_adjustments.view') || auth()->user()?->hasPermission('inventory_transactions.view') || auth()->user()?->hasPermission('inventory_stock.view') || auth()->user()?->hasPermission('inventory_issues.view') || auth()->user()?->hasPermission('inventory_assignments.view') || auth()->user()?->hasPermission('inventory_asset_returns.view') || auth()->user()?->hasPermission('inventory_maintenance.view') || auth()->user()?->hasPermission('inventory_current_stock.view') || auth()->user()?->hasPermission('inventory_low_stock.view') || auth()->user()?->hasPermission('inventory_asset_register.view') || auth()->user()?->hasPermission('inventory_stock_reports.view'))
-<x-sidebar-section title="Inventory / Asset Management">
+<x-sidebar-section title="Inventory / Asset Management" icon="inventory">
 @if(auth()->user()?->hasPermission('inventory_dashboard.view'))
 <a class="nav-link" href="{{ route('inventory.dashboard') }}">📦 <span>Inventory Dashboard</span></a>
 @endif
@@ -320,7 +320,7 @@
 </x-sidebar-section>
 @endif
 @if(auth()->user()?->hasPermission('student_reports.view') || auth()->user()?->hasPermission('academic_reports.view') || auth()->user()?->hasPermission('examination_reports.view') || auth()->user()?->hasPermission('finance_reports.view') || auth()->user()?->hasPermission('inventory_reports.view') || auth()->user()?->hasPermission('hr_reports.view') || auth()->user()?->hasPermission('library_reports.view') || auth()->user()?->hasPermission('transport_reports.view') || auth()->user()?->hasPermission('hostel_reports.view') || auth()->user()?->hasPermission('communication_reports.view') || auth()->user()?->hasPermission('certificate_reports.view') || auth()->user()?->hasPermission('consolidated_reports.view'))
-<x-sidebar-section title="REPORTS">
+<x-sidebar-section title="REPORTS" icon="reports">
 @if(auth()->user()?->hasPermission('student_reports.view'))
 <a class="nav-link" href="{{ route('student-reports.index') }}">📊 <span>Student Reports</span></a>
 @endif
@@ -359,4 +359,4 @@
 @endif
 </x-sidebar-section>
 @endif
-@include('administration.partials.navigation')</nav></aside><section class="min-w-0 flex-1"><header class="no-print flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4"><div><div class="flex items-center gap-3"><button type="button" data-sidebar-toggle aria-controls="app-sidebar" aria-expanded="true" aria-label="Hide sidebar" title="Hide sidebar (Alt+Ctrl+Z)" class="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></svg><span data-sidebar-toggle-label class="hidden sm:inline">Hide sidebar</span></button><p class="text-sm text-slate-500">{{ app(\App\Support\Tenancy\TenantContext::class)->college()?->name ?? 'Platform' }}</p>@isset($colleges) @if($colleges->count() > 1)<form method="POST" action="{{ route('college-context.switch') }}">@csrf<select class="rounded-lg border-slate-300 text-xs" name="college_id" onchange="this.form.submit()">@foreach($colleges as $college)<option value="{{ $college->id }}" @selected(app(\App\Support\Tenancy\TenantContext::class)->id() === $college->id)>{{ $college->name }}</option>@endforeach</select></form>@endif @endisset</div><h1 class="text-xl font-semibold">@yield('title', 'Dashboard')</h1></div><div class="flex items-center gap-4"><button class="relative text-slate-500" aria-label="Notifications">♢<span class="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-indigo-500"></span></button><div class="flex items-center gap-3"><div class="grid h-9 w-9 place-items-center rounded-full bg-indigo-100 font-bold text-indigo-700">{{ strtoupper(substr(auth()->user()->name, 0, 1)) }}</div><div class="hidden text-sm sm:block"><p class="font-semibold">{{ auth()->user()->name }}</p><p class="text-slate-500">{{ auth()->user()->email }}</p></div><form method="POST" action="{{ route('logout') }}">@csrf<button class="text-sm text-slate-500 hover:text-rose-600" type="submit">Logout</button></form></div></div></header><main class="p-6">@if(session('success'))<div class="alert-success">{{ session('success') }}</div>@endif @if($errors->any())<div class="alert-error">{{ $errors->first() }}</div>@endif @yield('content')</main></section></div><script src="{{ asset('js/sidebar.js') }}" defer></script>@stack('scripts')</body></html>
+@include('administration.partials.navigation')</nav></aside><div data-sidebar-backdrop hidden class="no-print fixed inset-0 z-40 bg-slate-950/60 lg:hidden"></div><section class="min-w-0 flex-1"><header class="no-print sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4"><div><div class="flex items-center gap-3"><button type="button" data-sidebar-toggle aria-controls="app-sidebar" aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar (Alt+Ctrl+Z)" class="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></svg><span data-sidebar-toggle-label class="hidden sm:inline">Collapse sidebar</span></button><p class="text-sm text-slate-500">{{ app(\App\Support\Tenancy\TenantContext::class)->college()?->name ?? 'Platform' }}</p>@isset($colleges) @if($colleges->count() > 1)<form method="POST" action="{{ route('college-context.switch') }}">@csrf<select class="rounded-lg border-slate-300 text-xs" name="college_id" onchange="this.form.submit()">@foreach($colleges as $college)<option value="{{ $college->id }}" @selected(app(\App\Support\Tenancy\TenantContext::class)->id() === $college->id)>{{ $college->name }}</option>@endforeach</select></form>@endif @endisset</div><h1 class="text-xl font-semibold">@yield('title', 'Dashboard')</h1></div><div class="flex items-center gap-4"><button class="relative text-slate-500" aria-label="Notifications">♢<span class="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-indigo-500"></span></button><div class="flex items-center gap-3"><div class="grid h-9 w-9 place-items-center rounded-full bg-indigo-100 font-bold text-indigo-700">{{ strtoupper(substr(auth()->user()->name, 0, 1)) }}</div><div class="hidden text-sm sm:block"><p class="font-semibold">{{ auth()->user()->name }}</p><p class="text-slate-500">{{ auth()->user()->email }}</p></div><form method="POST" action="{{ route('logout') }}">@csrf<button class="text-sm text-slate-500 hover:text-rose-600" type="submit">Logout</button></form></div></div></header><main class="p-6">@if(session('success'))<div class="alert-success">{{ session('success') }}</div>@endif @if($errors->any())<div class="alert-error">{{ $errors->first() }}</div>@endif @yield('content')</main></section></div><script src="{{ asset('js/sidebar.js') }}" defer></script>@stack('scripts')</body></html>
