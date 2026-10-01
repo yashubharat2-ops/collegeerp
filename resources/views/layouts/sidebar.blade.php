@@ -2,9 +2,12 @@
     /**
      * College ERP — the application sidebar, as a single component.
      *
-     * Structure, top to bottom (the first four blocks stay put, only the module
-     * list scrolls): brand header · signed-in user · menu search · Dashboard ·
-     * module navigation.
+     * Structure, top to bottom (the first three blocks stay put, only the module
+     * list scrolls): brand header · menu search · Dashboard · module navigation.
+     *
+     * The signed-in user is NOT part of this component any more: the account area
+     * lives in the header (<x-user.menu />), so the same name, e-mail and avatar
+     * are no longer rendered twice.
      *
      * Everything here is presentation. The module tree, its permission gates and
      * its URLs are exactly the ones the previous flat layout carried: they were
@@ -16,19 +19,12 @@
      * resources/views/layouts/app.blade.php — not through @vite — so the sidebar
      * keeps its look and its interactions even when no frontend build exists.
      */
-    $navUser = auth()->user();
     $navBrand = $institutionBrand ?? ['short_name' => null, 'has_logo' => false];
     $navBrandName = trim((string) ($navBrand['short_name'] ?? '')) ?: 'College ERP';
     $navBrandProduct = $navBrandName === 'College ERP' ? 'Student Management' : 'College ERP';
     $navBrandMark = $navBrandName === 'College ERP'
         ? 'ERP'
         : mb_strtoupper(mb_substr(preg_replace('/[^\p{L}\p{N}]/u', '', $navBrandName) ?: 'ERP', 0, 3));
-
-    $navWords = preg_split('/\s+/u', trim((string) ($navUser?->name ?? '')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-    $navInitials = mb_strtoupper(implode('', array_map(
-        fn (string $word): string => mb_substr($word, 0, 1),
-        array_slice($navWords, 0, 2)
-    ))) ?: 'U';
 @endphp
 
 <aside class="erp-sidebar no-print" id="erp-sidebar" data-rail="false" aria-label="College ERP navigation">
@@ -53,16 +49,7 @@
         </button>
     </div>
 
-    {{-- 2 · Signed-in user (64px): real account data, kept compact and legible. --}}
-    <div class="erp-nav-user">
-        <span class="erp-nav-user__avatar" aria-hidden="true">{{ $navInitials }}</span>
-        <div class="erp-nav-user__text">
-            <p class="erp-nav-user__name">{{ $navUser?->name }}</p>
-            <p class="erp-nav-user__email">{{ $navUser?->email }}</p>
-        </div>
-    </div>
-
-    {{-- 3 · Menu search (40px field): filters the module list, never the routes. --}}
+    {{-- 2 · Menu search (40px field): filters the module list, never the routes. --}}
     <div class="erp-nav-search">
         <div class="erp-nav-search__field">
             <span class="erp-nav-search__icon"><x-nav.icon name="search" :size="16" /></span>
@@ -73,7 +60,7 @@
         </div>
     </div>
 
-    {{-- 4 · Dashboard: a navigation row in its own right, not a section heading. --}}
+    {{-- 3 · Dashboard: a navigation row in its own right, not a section heading. --}}
     <div class="erp-nav-primary">
         <a class="nav-dashboard" href="{{ route('dashboard') }}"@if (request()->routeIs('dashboard')) aria-current="page"@endif>
             <span class="nav-dashboard__icon"><x-nav.icon name="home" :size="18" /></span>
@@ -81,7 +68,7 @@
         </a>
     </div>
 
-    {{-- 5 · Module navigation: the only scrollable region of the sidebar. --}}
+    {{-- 4 · Module navigation: the only scrollable region of the sidebar. --}}
     <nav class="erp-nav" id="erp-nav" aria-label="College ERP modules">
         <p class="erp-nav__section-label" id="erp-nav-section-label">Navigation</p>
         <div class="erp-nav__scroll">

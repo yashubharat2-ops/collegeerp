@@ -23,8 +23,12 @@
          * ETag headers, so the browser revalidates the file on its own.
          */
         $erpSidebarCssVersion = filemtime(public_path('css/erp-sidebar.css')) ?: null;
+        $erpUserMenuCssVersion = filemtime(public_path('css/erp-user-menu.css')) ?: null;
     @endphp
     <link rel="stylesheet" href="{{ asset('css/erp-sidebar.css') }}@if ($erpSidebarCssVersion)?v={{ $erpSidebarCssVersion }}@endif">
+    {{-- The signed-in user panel in the header is its own component with its own
+         stylesheet, so the sidebar file stays authoritative for the sidebar only. --}}
+    <link rel="stylesheet" href="{{ asset('css/erp-user-menu.css') }}@if ($erpUserMenuCssVersion)?v={{ $erpUserMenuCssVersion }}@endif">
 
     {{-- Application-wide styling is still built by Vite; link it only when a build (public/build/manifest.json) or a running dev server (public/hot) exists, so a page render never depends on running npm. --}}
     @if (is_file(public_path('build/manifest.json')) || is_file(public_path('hot')))
@@ -63,17 +67,10 @@
                     <button class="relative text-slate-500" aria-label="Notifications">
                         ♢<span class="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-indigo-500"></span>
                     </button>
-                    <div class="flex items-center gap-3">
-                        <div class="grid h-9 w-9 place-items-center rounded-full bg-indigo-100 font-bold text-indigo-700">{{ strtoupper(substr(auth()->user()->name, 0, 1)) }}</div>
-                        <div class="hidden text-sm sm:block">
-                            <p class="font-semibold">{{ auth()->user()->name }}</p>
-                            <p class="text-slate-500">{{ auth()->user()->email }}</p>
-                        </div>
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-                            <button class="text-sm text-slate-500 hover:text-rose-600" type="submit">Logout</button>
-                        </form>
-                    </div>
+                    {{-- The account area lives here only: the sidebar no longer
+                         duplicates it. Avatar, name, e-mail and every entry of the
+                         panel are defined once, in <x-user.menu>. --}}
+                    <x-user.menu />
                 </div>
             </header>
 
@@ -94,6 +91,9 @@
          `type="module"` is the form this layout allows for external scripts. The file is
          already a strict-mode IIFE, so module semantics need no other change. --}}
     <script type="module" src="{{ asset('js/erp-sidebar.js') }}"></script>
+    {{-- Same loading rules as the sidebar script: external module script, no inline
+         code, and a src that ends in `.js` (see ProgramNameEscapeTest). --}}
+    <script type="module" src="{{ asset('js/erp-user-menu.js') }}"></script>
     @stack('scripts')
 </body>
 </html>
