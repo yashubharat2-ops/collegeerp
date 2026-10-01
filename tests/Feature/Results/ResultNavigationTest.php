@@ -54,7 +54,7 @@ class ResultNavigationTest extends TestCase
         $this->assertNotFalse($start, 'The sidebar must have an Examinations group heading.');
 
         $after = $start + strlen('>Examinations</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $end = strpos($html, 'nav-group__head', $after);
 
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }

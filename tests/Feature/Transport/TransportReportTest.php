@@ -82,7 +82,7 @@ class TransportReportTest extends TestCase
         }
         $this->asCollege($college, $operator)->get(route('vehicles.index'))->assertOk()
             ->assertDontSee('href="'.route('transport-reports.index').'"', false)
-            ->assertDontSee('>REPORTS<', false);
+            ->assertDontSee('nav-group__label">Reports<', false);
 
         // The report permission alone opens every report but no operational page.
         $reporter = $this->makeUserWithPermissions($college, self::VIEW);
@@ -215,8 +215,8 @@ class TransportReportTest extends TestCase
         ]);
         $html = $this->asCollege($college, $user)->get(route('transport-reports.index'))->assertOk()->getContent();
 
-        $inventory = strpos($html, '>Inventory / Asset Management<');
-        $reports = strpos($html, '>REPORTS<');
+        $inventory = strpos($html, '>Inventory<');
+        $reports = strpos($html, 'nav-group__label">Reports<');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
         $examination = strpos($html, 'href="'.route('examination-reports.index').'"');
@@ -224,7 +224,7 @@ class TransportReportTest extends TestCase
         $hr = strpos($html, 'href="'.route('hr-reports.index').'"');
         $library = strpos($html, 'href="'.route('library-reports.index').'"');
         $transport = strpos($html, 'href="'.route('transport-reports.index').'"');
-        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = strpos($html, 'nav-group__label">Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue(
@@ -232,22 +232,25 @@ class TransportReportTest extends TestCase
             && $academic < $examination && $examination < $finance && $finance < $hr
             && $hr < $library && $library < $transport && $transport < $platform
         );
-        $this->assertSame(1, substr_count($html, '>REPORTS<'));
+        $this->assertSame(1, substr_count($html, 'nav-group__label">Reports<'));
 
-        // The report links live between REPORTS and Administration / Settings and Transport
-        // Reports carries a transport / vehicle icon.
+        // The report links live between the Reports heading and Administration /
+        // Settings, and Transport Reports follows Library Reports.
         $menu = substr($html, $reports, $platform - $reports);
-        $this->assertStringContainsString('🚐', $menu);
-        $this->assertStringContainsString('📚', $menu, 'Library Reports must stay in the section, before Transport Reports.');
+        $this->assertGreaterThan(
+            (int) strpos($menu, route('library-reports.index')),
+            (int) strpos($menu, route('transport-reports.index')),
+            'Library Reports must stay in the section, before Transport Reports.'
+        );
 
         // The REPORTS heading itself stays plain (no link, no reordering).
         $this->assertStringNotContainsString('<a', substr($html, $reports - 80, 80));
 
         // Transport Reports left the Transport Management group: the group keeps
         // only its operational entries and no longer mentions the reports.
-        $groupStart = strpos($html, '>Transport Management</div>');
+        $groupStart = strpos($html, '>Transport</div>');
         $this->assertNotFalse($groupStart);
-        $groupEnd = strpos($html, 'uppercase tracking-widest', $groupStart + 1);
+        $groupEnd = strpos($html, 'nav-group__head', $groupStart + 1);
         $group = substr($html, $groupStart, $groupEnd === false ? null : $groupEnd - $groupStart);
         $this->assertStringNotContainsString('Transport Reports', $group);
         $this->assertStringNotContainsString(route('transport-reports.index'), $group);
@@ -259,9 +262,9 @@ class TransportReportTest extends TestCase
         // link, but no Transport Management group at all.
         $solo = $this->makeUserWithPermissions($college, self::VIEW);
         $soloHtml = $this->asCollege($college, $solo)->get(route('transport-reports.index'))->assertOk()->getContent();
-        $this->assertStringContainsString('>REPORTS<', $soloHtml);
+        $this->assertStringContainsString('nav-group__label">Reports<', $soloHtml);
         $this->assertStringContainsString('href="'.route('transport-reports.index').'"', $soloHtml);
-        $this->assertStringNotContainsString('>Transport Management</div>', $soloHtml);
+        $this->assertStringNotContainsString('>Transport</div>', $soloHtml);
     }
 
     /* ------------------------------------------------------------------ *\

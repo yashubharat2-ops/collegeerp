@@ -112,9 +112,9 @@ class HRManagementTest extends TestCase
         ]);
 
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
-        $start = strpos($html, '>HR / Staff Management</div>');
+        $start = strpos($html, '>Human Resource (HR)</div>');
         $this->assertNotFalse($start);
-        $end = strpos($html, 'uppercase tracking-widest', $start + 1);
+        $end = strpos($html, 'nav-group__head', $start + 1);
         $group = substr($html, $start, $end === false ? null : $end - $start);
 
         $this->assertSame(4, substr_count($group, 'class="nav-link"'));
@@ -132,9 +132,9 @@ class HRManagementTest extends TestCase
         ]);
 
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
-        $start = strpos($html, '>HR / Staff Management</div>');
+        $start = strpos($html, '>Human Resource (HR)</div>');
         $this->assertNotFalse($start);
-        $end = strpos($html, 'uppercase tracking-widest', $start + 1);
+        $end = strpos($html, 'nav-group__head', $start + 1);
         $group = substr($html, $start, $end === false ? null : $end - $start);
 
         // HR Reports lives under REPORTS (after Finance Reports), so the HR
@@ -148,9 +148,9 @@ class HRManagementTest extends TestCase
 
         // The REPORTS section now carries HR Reports, and only that entry: the
         // other report links stay behind their own view permissions.
-        $reports = strpos($html, '>REPORTS<');
+        $reports = strpos($html, 'nav-group__label">Reports<');
         $this->assertNotFalse($reports);
-        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = strpos($html, 'nav-group__label">Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $menu = substr($html, $reports, $platform - $reports);
         $this->assertSame(1, substr_count($menu, 'class="nav-link"'));

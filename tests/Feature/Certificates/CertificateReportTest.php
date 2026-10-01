@@ -13,6 +13,7 @@ use App\Models\StudentEnrollment;
 use App\Models\User;
 use App\Services\Certificates\CertificateCatalog;
 use App\Services\Certificates\CertificateWorkflow;
+use App\Services\Settings\UserPreferenceService;
 use App\Support\Tenancy\TenantContext;
 use Database\Seeders\CertificateManagementSeeder;
 use Illuminate\Support\Carbon;
@@ -168,9 +169,9 @@ class CertificateReportTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $reportsHeaderPos = strpos($visibleHtml, '>REPORTS</div>');
+        $reportsHeaderPos = strpos($visibleHtml, '>Reports</div>');
         $certReportsLinkPos = strpos($visibleHtml, route('certificate-reports.index'));
-        $platformFooterPos = strrpos($visibleHtml, '>ADMINISTRATION / SETTINGS</div>');
+        $platformFooterPos = strrpos($visibleHtml, '>Settings</div>');
 
         $this->assertNotFalse($reportsHeaderPos);
         $this->assertNotFalse($certReportsLinkPos);
@@ -662,6 +663,9 @@ class CertificateReportTest extends TestCase
             $this->createWorkflowCertificate($this->college, $bonType, $enrollment, 'issued', 1);
         }
 
+        // Warm the chrome's one cached read before measuring, so the baseline and the
+        // expanded run differ by nothing but the rows they were built to differ by.
+        $this->primeChromeCache();
         DB::flushQueryLog();
         DB::enableQueryLog();
         $this->asCollege($this->college, $this->viewer)
@@ -675,6 +679,7 @@ class CertificateReportTest extends TestCase
             $this->createWorkflowCertificate($this->college, $bonType, $enrollment, 'issued', 1);
         }
 
+        $this->primeChromeCache();
         DB::flushQueryLog();
         $this->asCollege($this->college, $this->viewer)
             ->get(route('certificate-reports.index', ['report' => 'requests']))
@@ -683,5 +688,17 @@ class CertificateReportTest extends TestCase
         DB::disableQueryLog();
 
         $this->assertSame($baselineCount, $expandedCount, 'Certificate Request Report should not execute extra queries as row count grows.');
+    }
+
+    /**
+     * UserPreferenceService::resolved() — read once per render by the sidebar — caches
+     * per user, so the first page a test renders costs one SELECT that later pages skip.
+     * That query is chrome, not report, and it would otherwise decide which of the two
+     * measurements above is one query heavier. Warming it leaves the row count alone
+     * responsible for the difference, and the assertion stays exact equality.
+     */
+    private function primeChromeCache(): void
+    {
+        app(UserPreferenceService::class)->resolved($this->viewer);
     }
 }

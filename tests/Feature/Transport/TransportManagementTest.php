@@ -268,7 +268,7 @@ class TransportManagementTest extends TestCase
         $items = ['transport_dashboard.view' => 'transport.dashboard', 'vehicles.view' => 'vehicles.index', 'transport_drivers.view' => 'transport-drivers.index', 'transport_routes.view' => 'transport-routes.index'];
         foreach ($items as $permission => $route) {
             $this->login($a, [$permission]);
-            $response = $this->get(route($route))->assertOk()->assertSee('Transport Management');
+            $response = $this->get(route($route))->assertOk()->assertSee('nav-group__label">Transport<', false);
             foreach ($items as $other => $target) {
                 if ($other !== $permission) {
                     $response->assertDontSee('href="'.route($target).'"', false);

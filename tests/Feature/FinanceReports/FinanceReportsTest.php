@@ -145,26 +145,43 @@ class FinanceReportsTest extends TestCase
         ]);
         $html = $this->asCollege($college, $user)->get(route('finance-reports.index'))->assertOk()->getContent();
 
-        $inventory = strpos($html, '>Inventory / Asset Management<');
-        $reports = strpos($html, '>REPORTS<');
+        $inventory = strpos($html, '>Inventory<');
+        $reports = strpos($html, 'nav-group__label">Reports<');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
         $examination = strpos($html, 'href="'.route('examination-reports.index').'"');
         $finance = strpos($html, 'href="'.route('finance-reports.index').'"');
-        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = strpos($html, 'nav-group__label">Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue(
             $inventory < $reports && $reports < $student && $student < $academic
             && $academic < $examination && $examination < $finance && $finance < $platform
         );
-        $this->assertSame(1, substr_count($html, '>REPORTS<'));
+        $this->assertSame(1, substr_count($html, 'nav-group__label">Reports<'));
 
-        // Four report links live between REPORTS and Administration / Settings — the Finance
-        // Reports child is the last one.
+        // Four report links live between the Reports group heading and Administration /
+        // Settings, and the Finance Reports child is the last one. Rows inside a module
+        // are text-only in this sidebar (the 18px icons belong to the module rows), so
+        // what is pinned is the nav-group structure plus the row, not an emoji glyph.
         $menu = substr($html, $reports, $platform - $reports);
         $this->assertSame(4, substr_count($menu, 'class="nav-link"'));
-        $this->assertStringContainsString('💰', $menu);
+        $this->assertStringStartsWith('nav-group__label">Reports</div>', $menu, 'Reports is a collapsible module group heading, not a link.');
+        $this->assertStringContainsString('>Finance Reports</span>', $menu, 'Finance Reports keeps its row in the Reports group.');
+        $this->assertStringNotContainsString(
+            'class="nav-link"',
+            substr($menu, (int) strpos($menu, 'href="'.route('finance-reports.index').'"') + 1),
+            'Finance Reports is the last row of the section.'
+        );
+        $this->assertStringContainsString('id="nav-items-reports"', $html, 'The group owns a nav-items container.');
+        $head = strrpos($html, '<button type="button" class="nav-group__head" id="nav-head-reports"');
+        $this->assertNotFalse($head, 'The heading is rendered by a nav-group head button.');
+        $this->assertLessThan($reports, (int) $head, 'The head button precedes its label inside the same group.');
+        $this->assertMatchesRegularExpression(
+            '/<li class="nav-group"[^>]*data-nav-group="reports"[^>]*data-nav-open="true"[^>]*data-nav-active="true"[^>]*>/',
+            $html,
+            'The group that owns the current route renders open and active.'
+        );
 
         // The REPORTS heading itself stays plain (no link, no reordering).
         $this->assertStringNotContainsString('<a', substr($html, $reports - 80, 80));

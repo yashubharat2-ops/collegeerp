@@ -4,6 +4,9 @@ use App\Http\Controllers\AcademicReportController;
 use App\Http\Controllers\AcademicsController;
 use App\Http\Controllers\AcademicTermController;
 use App\Http\Controllers\AcademicYearController;
+use App\Http\Controllers\Account\PasswordController as AccountPasswordController;
+use App\Http\Controllers\Account\PreferenceController as AccountPreferenceController;
+use App\Http\Controllers\Account\ProfileController as AccountProfileController;
 use App\Http\Controllers\AdmissionApplicantController;
 use App\Http\Controllers\AdmissionApplicationController;
 use App\Http\Controllers\AdmissionController;
@@ -147,6 +150,25 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', LogoutController::class)->name('logout');
     Route::get('/dashboard', DashboardController::class)->middleware('tenant')->name('dashboard');
     Route::post('/college-context', CollegeSwitchController::class)->name('college-context.switch');
+
+    // The account panel's own screens. `auth` plus the same `tenant` middleware /dashboard
+    // uses — no permission gate and no `tenant.access`: each screen acts on the record of
+    // the person holding the session and takes no identifier in its URL, so there is no
+    // other user to reach, and what a user may not change about themselves is refused by
+    // the FormRequest (`prohibited` on status, roles, permissions, college membership and
+    // password) rather than by a policy — those policies stay in the Administration module.
+    // `tenant` is here because it is what populates TenantContext: the audit rows these
+    // writes produce carry the college the person was actually working in, exactly like
+    // every other audited change in the ERP. Nothing tenant-owned is stored by them:
+    // preferences are keyed by user alone.
+    Route::middleware('tenant')->group(function (): void {
+        Route::get('/profile', [AccountProfileController::class, 'edit'])->name('profile.edit');
+        Route::put('/profile', [AccountProfileController::class, 'update'])->name('profile.update');
+        Route::get('/password/change', [AccountPasswordController::class, 'edit'])->name('password.change.edit');
+        Route::put('/password/change', [AccountPasswordController::class, 'store'])->name('password.change.store');
+        Route::get('/preferences', [AccountPreferenceController::class, 'edit'])->name('preferences.edit');
+        Route::put('/preferences', [AccountPreferenceController::class, 'update'])->name('preferences.update');
+    });
     Route::middleware(['tenant', 'tenant.access'])->group(function () {
         Route::prefix('certificates')->name('certificates.')->controller(CertificateController::class)->group(function () {
             Route::get('/', 'index')->name('index');

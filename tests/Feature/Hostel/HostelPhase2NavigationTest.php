@@ -67,7 +67,7 @@ class HostelPhase2NavigationTest extends TestCase
     {
         $start = strpos(
             $html,
-            '>Hostel Management</div>'
+            '>Hostel</div>'
         );
 
         $this->assertNotFalse(
@@ -76,12 +76,12 @@ class HostelPhase2NavigationTest extends TestCase
         );
 
         $after = $start + strlen(
-            '>Hostel Management</div>'
+            '>Hostel</div>'
         );
 
         $end = strpos(
             $html,
-            'uppercase tracking-widest',
+            'nav-group__head',
             $after
         );
 
@@ -92,10 +92,10 @@ class HostelPhase2NavigationTest extends TestCase
 
     private function reportsNavGroup(string $html): string
     {
-        $start = strpos($html, '>REPORTS</div>');
+        $start = strpos($html, '>Reports</div>');
         $this->assertNotFalse($start, 'The sidebar must have a REPORTS group.');
-        $after = $start + strlen('>REPORTS</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $after = $start + strlen('>Reports</div>');
+        $end = strpos($html, 'nav-group__head', $after);
 
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
@@ -126,7 +126,7 @@ class HostelPhase2NavigationTest extends TestCase
 
         $this->assertSame(
             1,
-            substr_count($html, '>Hostel Management</div>'),
+            substr_count($html, '>Hostel</div>'),
             'Exactly one Hostel Management section.'
         );
 
@@ -161,7 +161,7 @@ class HostelPhase2NavigationTest extends TestCase
         }
 
         $reports = $this->reportsNavGroup($html);
-        $this->assertSame(1, substr_count($html, '>REPORTS</div>'));
+        $this->assertSame(1, substr_count($html, '>Reports</div>'));
         $this->assertStringNotContainsString(route('hostel-reports.index'), $group);
         $this->assertStringContainsString(route('hostel-reports.index'), $reports);
         $this->assertGreaterThan(strpos($reports, 'Transport Reports'), strpos($reports, 'Hostel Reports'));

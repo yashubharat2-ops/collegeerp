@@ -49,11 +49,11 @@ class LibraryNavigationTest extends TestCase
      */
     private function libraryNavGroup(string $html): string
     {
-        $start = strpos($html, '>Library Management</div>');
+        $start = strpos($html, '>Library</div>');
         $this->assertNotFalse($start, 'The sidebar must have a Library Management group heading.');
 
-        $after = $start + strlen('>Library Management</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $after = $start + strlen('>Library</div>');
+        $end = strpos($html, 'nav-group__head', $after);
 
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
@@ -73,7 +73,7 @@ class LibraryNavigationTest extends TestCase
 
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
 
-        $this->assertSame(1, substr_count($html, '>Library Management</div>'), 'There must be exactly one Library Management section.');
+        $this->assertSame(1, substr_count($html, '>Library</div>'), 'There must be exactly one Library Management section.');
         $this->assertSame(1, substr_count($html, '<aside'), 'The layout must keep one sidebar.');
 
         $group = $this->libraryNavGroup($html);
@@ -156,8 +156,8 @@ class LibraryNavigationTest extends TestCase
         // Library Management group is not rendered at all for that user.
         $reportsOnly = $this->makeUserWithPermissions($college, ['library_reports.view']);
         $reportsHtml = $this->asCollege($college, $reportsOnly)->get(route('dashboard'))->assertOk()->getContent();
-        $this->assertStringNotContainsString('>Library Management</div>', $reportsHtml);
-        $this->assertStringContainsString('>REPORTS<', $reportsHtml);
+        $this->assertStringNotContainsString('>Library</div>', $reportsHtml);
+        $this->assertStringContainsString('nav-group__label">Reports<', $reportsHtml);
         $this->assertStringContainsString('Library Reports', $reportsHtml);
         $this->assertStringContainsString(route('library-reports.index'), $reportsHtml);
     }
@@ -170,7 +170,7 @@ class LibraryNavigationTest extends TestCase
         $this->asCollege($college, $stranger)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertDontSee('>Library Management</div>', false)
+            ->assertDontSee('>Library</div>', false)
             ->assertDontSee(route('library.dashboard'), false)
             ->assertDontSee(route('books.index'), false)
             ->assertDontSee('Library Dashboard')
@@ -185,23 +185,23 @@ class LibraryNavigationTest extends TestCase
         $html = $this->asCollege($college, $super)->get(route('dashboard'))->assertOk()->getContent();
 
         // The Finance / Fees group keeps its nine entries…
-        $start = strpos($html, '>Finance / Fees</div>');
+        $start = strpos($html, '>Fees</div>');
         $this->assertNotFalse($start);
 
-        $after = $start + strlen('>Finance / Fees</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $after = $start + strlen('>Fees</div>');
+        $end = strpos($html, 'nav-group__head', $after);
         $finance = substr($html, $after, $end - $after);
 
         $this->assertSame(9, substr_count($finance, 'class="nav-link"'));
-        $this->assertSame(1, substr_count($html, '>Finance / Fees</div>'));
+        $this->assertSame(1, substr_count($html, '>Fees</div>'));
 
         // …the Library Management section sits after it, fully populated…
-        $libraryStart = (int) strpos($html, '>Library Management</div>');
+        $libraryStart = (int) strpos($html, '>Library</div>');
         $this->assertGreaterThan($start, $libraryStart);
         $this->assertSame(9, substr_count($this->libraryNavGroup($html), 'class="nav-link"'));
 
         // …and Administration / Settings still closes the sidebar after it.
-        $this->assertGreaterThan($libraryStart, (int) strrpos($html, '>ADMINISTRATION / SETTINGS</div>'));
+        $this->assertGreaterThan($libraryStart, (int) strrpos($html, '>Settings</div>'));
     }
 
     public function test_a_seeded_college_admin_sees_every_library_entry_and_can_open_each_screen(): void
@@ -228,7 +228,7 @@ class LibraryNavigationTest extends TestCase
 
         // Library Reports moved to the REPORTS section; the seeded college
         // admin still sees the entry and can open the screen.
-        $response->assertSee('>REPORTS<', false);
+        $response->assertSee('nav-group__label">Reports<', false);
         $this->assertStringContainsString(route('library-reports.index'), $response->getContent());
 
         foreach (['library.dashboard', 'books.index', 'books.create', 'book-categories.index', 'book-categories.create', 'authors.index', 'authors.create', 'publishers.index', 'publishers.create', 'book-copies.index', 'book-copies.create', 'library-members.index', 'library-members.create', 'library-transactions.index', 'library-transactions.create', 'library-renewals.index', 'library-renewals.create', 'library-reports.index'] as $route) {

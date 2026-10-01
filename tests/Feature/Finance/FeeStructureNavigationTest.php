@@ -45,11 +45,11 @@ class FeeStructureNavigationTest extends TestCase
      */
     private function financeNavGroup(string $html): string
     {
-        $start = strpos($html, '>Finance / Fees</div>');
+        $start = strpos($html, '>Fees</div>');
         $this->assertNotFalse($start, 'The sidebar must have a Finance / Fees group heading.');
 
-        $after = $start + strlen('>Finance / Fees</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $after = $start + strlen('>Fees</div>');
+        $end = strpos($html, 'nav-group__head', $after);
 
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
@@ -69,7 +69,7 @@ class FeeStructureNavigationTest extends TestCase
 
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
 
-        $this->assertSame(1, substr_count($html, '>Finance / Fees</div>'), 'There must be exactly one Finance / Fees section.');
+        $this->assertSame(1, substr_count($html, '>Fees</div>'), 'There must be exactly one Finance / Fees section.');
         $this->assertSame(1, substr_count($html, '<aside'), 'The layout must keep one sidebar.');
 
         $group = $this->financeNavGroup($html);
@@ -105,7 +105,7 @@ class FeeStructureNavigationTest extends TestCase
         $this->asCollege($college, $stranger)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertDontSee('>Finance / Fees</div>', false)
+            ->assertDontSee('>Fees</div>', false)
             ->assertDontSee(route('fee-structures.index'), false)
             ->assertDontSee('Fee Structures');
     }
@@ -122,14 +122,14 @@ class FeeStructureNavigationTest extends TestCase
         $this->assertNotFalse($start);
 
         $after = $start + strlen('>Examinations</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $end = strpos($html, 'nav-group__head', $after);
         $examinations = substr($html, $after, $end - $after);
 
         $this->assertSame(12, substr_count($examinations, 'class="nav-link"'));
         $this->assertSame(1, substr_count($html, '>Examinations</div>'));
 
         // …and the Finance / Fees section sits after it, fully populated.
-        $this->assertGreaterThan($start, (int) strpos($html, '>Finance / Fees</div>'));
+        $this->assertGreaterThan($start, (int) strpos($html, '>Fees</div>'));
         $this->assertSame(count(self::ENTRIES), substr_count($this->financeNavGroup($html), 'class="nav-link"'));
     }
 

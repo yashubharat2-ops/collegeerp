@@ -66,15 +66,15 @@ class HostelNavigationTest extends TestCase
      */
     private function hostelNavGroup(string $html): string
     {
-        $start = strpos($html, '>Hostel Management</div>');
+        $start = strpos($html, '>Hostel</div>');
 
         $this->assertNotFalse(
             $start,
             'The sidebar must have a Hostel Management group heading.'
         );
 
-        $after = $start + strlen('>Hostel Management</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $after = $start + strlen('>Hostel</div>');
+        $end = strpos($html, 'nav-group__head', $after);
 
         return $end === false
             ? substr($html, $after)
@@ -98,10 +98,10 @@ class HostelNavigationTest extends TestCase
 
     private function reportsNavGroup(string $html): string
     {
-        $start = strpos($html, '>REPORTS</div>');
+        $start = strpos($html, '>Reports</div>');
         $this->assertNotFalse($start, 'The sidebar must have a REPORTS group.');
-        $after = $start + strlen('>REPORTS</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $after = $start + strlen('>Reports</div>');
+        $end = strpos($html, 'nav-group__head', $after);
 
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
@@ -122,7 +122,7 @@ class HostelNavigationTest extends TestCase
 
         $this->assertSame(
             1,
-            substr_count($html, '>Hostel Management</div>'),
+            substr_count($html, '>Hostel</div>'),
             'There must be exactly one Hostel Management section.'
         );
 
@@ -168,7 +168,7 @@ class HostelNavigationTest extends TestCase
         }
 
         $reports = $this->reportsNavGroup($html);
-        $this->assertSame(1, substr_count($html, '>REPORTS</div>'));
+        $this->assertSame(1, substr_count($html, '>Reports</div>'));
         $this->assertStringNotContainsString(route('hostel-reports.index'), $group);
         $this->assertStringContainsString(route('hostel-reports.index'), $reports);
         $this->assertGreaterThan(strpos($reports, 'Transport Reports'), strpos($reports, 'Hostel Reports'));
@@ -247,7 +247,7 @@ class HostelNavigationTest extends TestCase
         $this->asCollege($college, $stranger)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertDontSee('>Hostel Management</div>', false)
+            ->assertDontSee('>Hostel</div>', false)
             ->assertDontSee(route('hostels.dashboard'), false)
             ->assertDontSee(route('hostels.index'), false)
             ->assertDontSee('Hostel Dashboard')
@@ -269,20 +269,20 @@ class HostelNavigationTest extends TestCase
 
         $libraryStart = strpos(
             $html,
-            '>Library Management</div>'
+            '>Library</div>'
         );
 
         $this->assertNotFalse($libraryStart);
 
         $this->assertSame(
             1,
-            substr_count($html, '>Library Management</div>')
+            substr_count($html, '>Library</div>')
         );
 
-        $after = $libraryStart + strlen('>Library Management</div>');
+        $after = $libraryStart + strlen('>Library</div>');
         $end = strpos(
             $html,
-            'uppercase tracking-widest',
+            'nav-group__head',
             $after
         );
 
@@ -301,7 +301,7 @@ class HostelNavigationTest extends TestCase
 
         $hostelStart = (int) strpos(
             $html,
-            '>Hostel Management</div>'
+            '>Hostel</div>'
         );
 
         $this->assertGreaterThan(
@@ -319,7 +319,7 @@ class HostelNavigationTest extends TestCase
 
         $this->assertGreaterThan(
             $hostelStart,
-            (int) strrpos($html, '>ADMINISTRATION / SETTINGS</div>')
+            (int) strrpos($html, '>Settings</div>')
         );
     }
 

@@ -62,11 +62,11 @@ class TransportNavigationTest extends TestCase
 
     private function transportNavBlock(string $html): string
     {
-        $this->assertStringContainsString('Transport Management', $html);
-        $start = strpos($html, '>Transport Management</div>') + strlen('>Transport Management</div>');
+        $this->assertStringContainsString('nav-group__label">Transport<', $html);
+        $start = strpos($html, '>Transport</div>') + strlen('>Transport</div>');
         $navEnd = strpos($html, '</nav>', $start);
         $this->assertNotFalse($navEnd, 'Transport must remain inside the sidebar.');
-        $matched = preg_match('/<div class="[^"]*\buppercase tracking-widest\b[^"]*">/', $html, $next, PREG_OFFSET_CAPTURE, $start);
+        $matched = preg_match('/<button type="button" class="nav-group__head"[^>]*>/', $html, $next, PREG_OFFSET_CAPTURE, $start);
         $end = $matched === 1 ? min($next[0][1], $navEnd) : $navEnd;
 
         return substr($html, $start, $end - $start);
@@ -97,7 +97,7 @@ class TransportNavigationTest extends TestCase
         if ($library !== false) {
             $this->assertLessThan($transport, $library, 'Transport Reports must follow Library Reports in REPORTS.');
         }
-        $this->assertStringContainsString('>REPORTS<', $html);
+        $this->assertStringContainsString('nav-group__label">Reports<', $html);
     }
 
     public function test_routes_and_stops_are_separate_navigation_entries(): void
@@ -156,12 +156,12 @@ class TransportNavigationTest extends TestCase
         $this->login($a, ['transport_reports.view']);
         $response = $this->get(route('transport-reports.index'))->assertOk();
         $html = $response->getContent();
-        $this->assertStringNotContainsString('Transport Management', $html);
+        $this->assertStringNotContainsString('nav-group__label">Transport<', $html);
         foreach (self::ENTRIES as $entryRoute) {
             $this->assertStringNotContainsString('href="'.route($entryRoute).'"', $html, "Leaked {$entryRoute} for transport_reports.view");
         }
         $response->assertSee('href="'.route('transport-reports.index').'"', false)
-            ->assertSee('>REPORTS<', false);
+            ->assertSee('nav-group__label">Reports<', false);
     }
 
     public function test_transport_group_is_hidden_without_any_transport_permission(): void
@@ -170,7 +170,7 @@ class TransportNavigationTest extends TestCase
         // A user with a non-transport permission sees none of the group.
         $this->login($a, ['books.view']);
         $response = $this->get(route('books.index'))->assertOk();
-        $this->assertStringNotContainsString('Transport Management', $response->getContent());
+        $this->assertStringNotContainsString('nav-group__label">Transport<', $response->getContent());
         foreach (self::ENTRIES as $route) {
             $this->assertStringNotContainsString('href="'.route($route).'"', $response->getContent());
         }

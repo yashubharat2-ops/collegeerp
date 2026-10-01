@@ -14,6 +14,7 @@ use App\Models\Faculty;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Settings\UserPreferenceService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\Feature\Phase4\Phase4TestHelpers;
@@ -95,7 +96,7 @@ class ExaminationReportsTest extends TestCase
         ]);
         $this->asCollege($college, $operator)->get(route('examinations.index'))->assertOk()
             ->assertDontSee('href="'.route('examination-reports.index').'"', false)
-            ->assertDontSee('>REPORTS<', false);
+            ->assertDontSee('nav-group__label">Reports<', false);
         foreach (array_keys(ExaminationReportController::REPORTS) as $report) {
             $this->asCollege($college, $operator)->get(route('examination-reports.index', ['report' => $report]))->assertForbidden();
         }
@@ -108,7 +109,7 @@ class ExaminationReportsTest extends TestCase
                 ->assertOk()->assertViewHas('report', $key)->assertSee($label);
         }
         $this->get(route('examination-reports.index'))->assertOk()
-            ->assertSee('>REPORTS<', false)
+            ->assertSee('nav-group__label">Reports<', false)
             ->assertSee('href="'.route('examination-reports.index').'"', false)
             ->assertDontSee('href="'.route('academic-reports.index').'"', false)
             ->assertDontSee('href="'.route('student-reports.index').'"', false);
@@ -118,7 +119,7 @@ class ExaminationReportsTest extends TestCase
         $legacyOnly = $this->makeUserWithPermissions($college, ['exam_reports.view']);
         $this->asCollege($college, $legacyOnly)->get(route('exam-reports.index'))->assertOk()
             ->assertDontSee('href="'.route('examination-reports.index').'"', false)
-            ->assertDontSee('>REPORTS<', false);
+            ->assertDontSee('nav-group__label">Reports<', false);
         $this->asCollege($college, $legacyOnly)->get(route('examination-reports.index'))->assertForbidden();
 
         // Student Reports keeps its own permission too.
@@ -143,16 +144,16 @@ class ExaminationReportsTest extends TestCase
         ]);
         $html = $this->asCollege($college, $user)->get(route('examination-reports.index'))->assertOk()->getContent();
 
-        $inventory = strpos($html, '>Inventory / Asset Management<');
-        $reports = strpos($html, '>REPORTS<');
+        $inventory = strpos($html, '>Inventory<');
+        $reports = strpos($html, 'nav-group__label">Reports<');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
         $examination = strpos($html, 'href="'.route('examination-reports.index').'"');
-        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = strpos($html, 'nav-group__label">Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue($inventory < $reports && $reports < $student && $student < $academic && $academic < $examination && $examination < $platform);
-        $this->assertSame(1, substr_count($html, '>REPORTS<'));
+        $this->assertSame(1, substr_count($html, 'nav-group__label">Reports<'));
 
         // Exactly three report links live between REPORTS and Administration / Settings.
         $menu = substr($html, $reports, $platform - $reports);
@@ -669,6 +670,8 @@ class ExaminationReportsTest extends TestCase
 
     private function queriesFor(string $url): int
     {
+        $this->primeChromeCache();
+
         DB::enableQueryLog();
         try {
             DB::flushQueryLog();
@@ -677,6 +680,26 @@ class ExaminationReportsTest extends TestCase
             return count(DB::getQueryLog());
         } finally {
             DB::disableQueryLog();
+        }
+    }
+
+    /**
+     * Warm the one cached read the page chrome performs.
+     *
+     * layouts/sidebar.blade.php asks UserPreferenceService for the signed-in account's
+     * interface preferences, and that service wraps its lookup in Cache::remember: the
+     * FIRST render for a given user in a test costs one extra SELECT and every later one
+     * costs none. That query belongs to the chrome, not to a report, and it lands on
+     * whichever measurement happens to come first in a file. Warming it here leaves the
+     * row count as the only variable between the two measurements of a report, and the
+     * comparison stays the strict equality it was written as.
+     */
+    private function primeChromeCache(): void
+    {
+        $user = auth()->user();
+
+        if ($user instanceof User) {
+            app(UserPreferenceService::class)->resolved($user);
         }
     }
 

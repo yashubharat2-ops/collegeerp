@@ -22,6 +22,7 @@ use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\Subject;
 use App\Models\User;
+use App\Services\Settings\UserPreferenceService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\Feature\Students\StudentTestHelpers;
@@ -57,7 +58,7 @@ class AcademicReportsTest extends TestCase
             'academic_attendance.view', 'academic_calendar.view', 'academic_workload.view', 'faculty_subject_assignments.view',
         ]);
         $this->asCollege($college, $operator)->get(route('academic-timetables.index'))->assertOk()
-            ->assertDontSee('href="'.route('academic-reports.index').'"', false)->assertDontSee('>REPORTS<', false);
+            ->assertDontSee('href="'.route('academic-reports.index').'"', false)->assertDontSee('nav-group__label">Reports<', false);
         foreach (array_keys(AcademicReportController::REPORTS) as $report) {
             $this->asCollege($college, $operator)->get(route('academic-reports.index', ['report' => $report]))->assertForbidden();
         }
@@ -70,7 +71,7 @@ class AcademicReportsTest extends TestCase
                 ->assertOk()->assertViewHas('report', $key)->assertSee($label);
         }
         $this->get(route('academic-reports.index'))->assertOk()
-            ->assertSee('>REPORTS<', false)
+            ->assertSee('nav-group__label">Reports<', false)
             ->assertSee('href="'.route('academic-reports.index').'"', false)
             ->assertDontSee('href="'.route('student-reports.index').'"', false);
 
@@ -93,15 +94,15 @@ class AcademicReportsTest extends TestCase
         $user = $this->makeUserWithPermissions($college, ['inventory_dashboard.view', 'student_reports.view', 'academic_reports.view']);
         $html = $this->asCollege($college, $user)->get(route('academic-reports.index'))->assertOk()->getContent();
 
-        $inventory = strpos($html, '>Inventory / Asset Management<');
-        $reports = strpos($html, '>REPORTS<');
+        $inventory = strpos($html, '>Inventory<');
+        $reports = strpos($html, 'nav-group__label">Reports<');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
-        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = strpos($html, 'nav-group__label">Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue($inventory < $reports && $reports < $student && $student < $academic && $academic < $platform);
-        $this->assertSame(1, substr_count($html, '>REPORTS<'));
+        $this->assertSame(1, substr_count($html, 'nav-group__label">Reports<'));
 
         // Only the two report links live between REPORTS and Administration / Settings.
         $menu = substr($html, $reports, $platform - $reports);
@@ -507,6 +508,8 @@ class AcademicReportsTest extends TestCase
 
     private function queriesFor(string $url): int
     {
+        $this->primeChromeCache();
+
         DB::enableQueryLog();
         try {
             DB::flushQueryLog();
@@ -515,6 +518,26 @@ class AcademicReportsTest extends TestCase
             return count(DB::getQueryLog());
         } finally {
             DB::disableQueryLog();
+        }
+    }
+
+    /**
+     * Warm the one cached read the page chrome performs.
+     *
+     * layouts/sidebar.blade.php asks UserPreferenceService for the signed-in account's
+     * interface preferences, and that service wraps its lookup in Cache::remember: the
+     * FIRST render for a given user in a test costs one extra SELECT and every later one
+     * costs none. That query belongs to the chrome, not to a report, and it lands on
+     * whichever measurement happens to come first in a file. Warming it here leaves the
+     * row count as the only variable between the two measurements of a report, and the
+     * comparison stays the strict equality it was written as.
+     */
+    private function primeChromeCache(): void
+    {
+        $user = auth()->user();
+
+        if ($user instanceof User) {
+            app(UserPreferenceService::class)->resolved($user);
         }
     }
 

@@ -73,7 +73,7 @@ class HrReportsTest extends TestCase
         }
         $this->asCollege($college, $operator)->get(route('employees.index'))->assertOk()
             ->assertDontSee('href="'.route('hr-reports.index').'"', false)
-            ->assertDontSee('>REPORTS<', false);
+            ->assertDontSee('nav-group__label">Reports<', false);
 
         // The report permission alone opens every report but no operational page.
         $reporter = $this->reporter($college);
@@ -161,38 +161,42 @@ class HrReportsTest extends TestCase
         ]);
         $html = $this->asCollege($college, $user)->get(route('hr-reports.index'))->assertOk()->getContent();
 
-        $inventory = strpos($html, '>Inventory / Asset Management<');
-        $reports = strpos($html, '>REPORTS<');
+        $inventory = strpos($html, '>Inventory<');
+        $reports = strpos($html, 'nav-group__label">Reports<');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
         $examination = strpos($html, 'href="'.route('examination-reports.index').'"');
         $finance = strpos($html, 'href="'.route('finance-reports.index').'"');
         $hr = strpos($html, 'href="'.route('hr-reports.index').'"');
         $library = strpos($html, 'href="'.route('library-reports.index').'"');
-        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = strpos($html, 'nav-group__label">Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue(
             $inventory < $reports && $reports < $student && $student < $academic
             && $academic < $examination && $examination < $finance && $finance < $hr && $hr < $library && $library < $platform
         );
-        $this->assertSame(1, substr_count($html, '>REPORTS<'));
+        $this->assertSame(1, substr_count($html, 'nav-group__label">Reports<'));
 
-        // Six report links live between REPORTS and Administration / Settings; HR Reports keeps
-        // its HR / staff icon and Library Reports follows it with a books icon.
+        // Six report links live between the Reports heading and Administration /
+        // Settings. Rows inside a module are text-only in this sidebar (the 18px
+        // icons belong to the module rows), so the row order is what is pinned.
         $menu = substr($html, $reports, $platform - $reports);
         $this->assertSame(6, substr_count($menu, 'class="nav-link"'));
-        $this->assertStringContainsString('🧑‍💼', $menu);
-        $this->assertStringContainsString('📚', $menu);
+        $this->assertLessThan(
+            (int) strpos($menu, route('library-reports.index')),
+            (int) strpos($menu, route('hr-reports.index')),
+            'HR Reports must stay in the section, before Library Reports.'
+        );
 
         // The REPORTS heading itself stays plain (no link, no reordering).
         $this->assertStringNotContainsString('<a', substr($html, $reports - 80, 80));
 
         // HR Reports left the HR / Staff Management group: the group keeps its
         // seven operational entries and no longer mentions HR Reports.
-        $hrStart = strpos($html, '>HR / Staff Management</div>');
+        $hrStart = strpos($html, '>Human Resource (HR)</div>');
         $this->assertNotFalse($hrStart);
-        $hrEnd = strpos($html, 'uppercase tracking-widest', $hrStart + 1);
+        $hrEnd = strpos($html, 'nav-group__head', $hrStart + 1);
         $group = substr($html, $hrStart, $hrEnd === false ? null : $hrEnd - $hrStart);
         $this->assertSame(7, substr_count($group, 'class="nav-link"'));
         $this->assertStringNotContainsString('HR Reports', $group);
@@ -204,9 +208,9 @@ class HrReportsTest extends TestCase
         // holding only hr_reports.view sees REPORTS and the HR link.
         $solo = $this->makeUserWithPermissions($college, self::VIEW);
         $soloHtml = $this->asCollege($college, $solo)->get(route('hr-reports.index'))->assertOk()->getContent();
-        $this->assertStringContainsString('>REPORTS<', $soloHtml);
+        $this->assertStringContainsString('nav-group__label">Reports<', $soloHtml);
         $this->assertStringContainsString('href="'.route('hr-reports.index').'"', $soloHtml);
-        $this->assertStringNotContainsString('>HR / Staff Management</div>', $soloHtml);
+        $this->assertStringNotContainsString('>Human Resource (HR)</div>', $soloHtml);
     }
 
     /* ------------------------------------------------------------------ *\

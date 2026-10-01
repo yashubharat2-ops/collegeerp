@@ -71,7 +71,7 @@ class LibraryReportsTest extends TestCase
         }
         $this->asCollege($college, $operator)->get(route('books.index'))->assertOk()
             ->assertDontSee('href="'.route('library-reports.index').'"', false)
-            ->assertDontSee('>REPORTS<', false);
+            ->assertDontSee('nav-group__label">Reports<', false);
 
         // The report permission alone opens every report but no operational page.
         $reporter = $this->reporter($college);
@@ -183,38 +183,46 @@ class LibraryReportsTest extends TestCase
         ]);
         $html = $this->asCollege($college, $user)->get(route('library-reports.index'))->assertOk()->getContent();
 
-        $inventory = strpos($html, '>Inventory / Asset Management<');
-        $reports = strpos($html, '>REPORTS<');
+        $inventory = strpos($html, '>Inventory<');
+        $reports = strpos($html, 'nav-group__label">Reports<');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
         $examination = strpos($html, 'href="'.route('examination-reports.index').'"');
         $finance = strpos($html, 'href="'.route('finance-reports.index').'"');
         $hr = strpos($html, 'href="'.route('hr-reports.index').'"');
         $library = strpos($html, 'href="'.route('library-reports.index').'"');
-        $platform = strpos($html, '>ADMINISTRATION / SETTINGS<', (int) $reports);
+        $platform = strpos($html, 'nav-group__label">Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue(
             $inventory < $reports && $reports < $student && $student < $academic
             && $academic < $examination && $examination < $finance && $finance < $hr && $hr < $library && $library < $platform
         );
-        $this->assertSame(1, substr_count($html, '>REPORTS<'));
+        $this->assertSame(1, substr_count($html, 'nav-group__label">Reports<'));
 
-        // Six report links live between REPORTS and Administration / Settings; the Library
-        // Reports child is the last one and carries a library / books icon.
+        // Six report links live between the Reports heading and Administration /
+        // Settings, with Library Reports as the last one of the six.
         $menu = substr($html, $reports, $platform - $reports);
         $this->assertSame(6, substr_count($menu, 'class="nav-link"'));
-        $this->assertStringContainsString('📚', $menu);
-        $this->assertStringContainsString('🧑‍💼', $menu, 'HR Reports must stay in the section, before Library Reports.');
+        $this->assertGreaterThan(
+            (int) strpos($menu, route('hr-reports.index')),
+            (int) strpos($menu, route('library-reports.index')),
+            'HR Reports must stay in the section, before Library Reports.'
+        );
+        $this->assertStringNotContainsString(
+            'class="nav-link"',
+            substr($menu, (int) strpos($menu, route('library-reports.index'))),
+            'Library Reports is the last row of the section.'
+        );
 
         // The REPORTS heading itself stays plain (no link, no reordering).
         $this->assertStringNotContainsString('<a', substr($html, $reports - 80, 80));
 
         // Library Reports left the Library Management group: the group keeps its
         // nine operational entries and no longer mentions the reports.
-        $libraryStart = strpos($html, '>Library Management</div>');
+        $libraryStart = strpos($html, '>Library</div>');
         $this->assertNotFalse($libraryStart);
-        $libraryEnd = strpos($html, 'uppercase tracking-widest', $libraryStart + 1);
+        $libraryEnd = strpos($html, 'nav-group__head', $libraryStart + 1);
         $group = substr($html, $libraryStart, $libraryEnd === false ? null : $libraryEnd - $libraryStart);
         $this->assertSame(2, substr_count($group, 'class="nav-link"'), 'Only the two permitted operational entries may render.');
         $this->assertStringContainsString('Library Dashboard', $group);
@@ -227,9 +235,9 @@ class LibraryReportsTest extends TestCase
         // but no Library Management group at all.
         $solo = $this->makeUserWithPermissions($college, self::VIEW);
         $soloHtml = $this->asCollege($college, $solo)->get(route('library-reports.index'))->assertOk()->getContent();
-        $this->assertStringContainsString('>REPORTS<', $soloHtml);
+        $this->assertStringContainsString('nav-group__label">Reports<', $soloHtml);
         $this->assertStringContainsString('href="'.route('library-reports.index').'"', $soloHtml);
-        $this->assertStringNotContainsString('>Library Management</div>', $soloHtml);
+        $this->assertStringNotContainsString('>Library</div>', $soloHtml);
     }
 
     /* ------------------------------------------------------------------ *\

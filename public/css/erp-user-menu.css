@@ -1,0 +1,356 @@
+/* =============================================================================
+ * College ERP — signed-in user panel (top-right of the header)
+ * =============================================================================
+ *
+ * Authoritative styling for resources/views/components/user/menu.blade.php, the
+ * account entry point that replaced the user block previously duplicated in the
+ * left sidebar. It is a static asset under `public/`, linked directly by
+ * resources/views/layouts/app.blade.php, so the panel keeps its shape with no
+ * Vite build and no dev server, exactly like the sidebar stylesheet.
+ *
+ * Rules of the house (same as public/css/erp-sidebar.css):
+ *   - every selector is scoped to `.erp-user-menu`, so nothing leaks into pages;
+ *   - no global `svg { … }` rule: icon geometry comes from each <svg>'s own
+ *     width/height attributes and is only nudged by the scoped classes below;
+ *   - the panel is a light surface because it hangs off the white header, while
+ *     its accents reuse the navy/indigo language of the shell;
+ *   - sizes stay compact: 34px trigger, 30px rows, 268px panel.
+ */
+
+.erp-user-menu {
+    /* Palette, mirroring the sidebar's tokens so the two never drift apart. */
+    --erp-user-navy: #07111f;
+    --erp-user-text: #0f172a;
+    --erp-user-muted: #64748b;
+    --erp-user-line: #e2e8f0;
+    --erp-user-surface: #ffffff;
+    --erp-user-hover: #f1f5f9;
+    --erp-user-accent: #4f46e5;
+    --erp-user-accent-ink: #4338ca;
+    --erp-user-accent-soft: #eef2ff;
+    --erp-user-danger: #be123c;
+    --erp-user-radius: 12px;
+    --erp-user-row-h: 30px;
+    --erp-user-icon: 16px;
+
+    position: relative;
+    flex: 0 0 auto;
+}
+
+/* -----------------------------------------------------------------------------
+ * 1 · Trigger: avatar + name/email, indigo on hover and while the menu is open
+ * -------------------------------------------------------------------------- */
+/* The trigger is a <summary>: the disclosure works before any script runs, so the
+ * marker is removed by hand and the panel keeps its own visual state. */
+.erp-user-menu__trigger {
+    display: flex;
+    list-style: none;
+    -webkit-appearance: none;
+    appearance: none;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    max-width: 260px;
+    height: 34px;
+    padding: 0 8px 0 4px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: none;
+    color: var(--erp-user-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color .14s ease, border-color .14s ease;
+}
+
+.erp-user-menu__trigger::-webkit-details-marker {
+    display: none;
+}
+
+.erp-user-menu__trigger:hover {
+    background-color: var(--erp-user-hover);
+    border-color: var(--erp-user-line);
+}
+
+.erp-user-menu__trigger:focus-visible {
+    outline: 2px solid var(--erp-user-accent);
+    outline-offset: 1px;
+}
+
+.erp-user-menu[open] .erp-user-menu__trigger {
+    background-color: var(--erp-user-accent-soft);
+    border-color: #c7d2fe;
+}
+
+.erp-user-menu__avatar {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background-color: var(--erp-user-accent-soft);
+    color: var(--erp-user-accent-ink);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .01em;
+}
+
+.erp-user-menu__avatar--lg {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+}
+
+.erp-user-menu__id {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.15;
+}
+
+.erp-user-menu__name,
+.erp-user-menu__email {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.erp-user-menu__name {
+    color: var(--erp-user-text);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.erp-user-menu__email {
+    color: var(--erp-user-muted);
+    font-size: 11.5px;
+}
+
+.erp-user-menu__caret {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 14px;
+    height: 14px;
+    overflow: hidden;
+    color: var(--erp-user-muted);
+    transition: transform .14s ease;
+}
+
+.erp-user-menu[open] .erp-user-menu__caret {
+    transform: rotate(180deg);
+    color: var(--erp-user-accent-ink);
+}
+
+.erp-user-menu__trigger svg,
+.erp-user-menu__caret svg {
+    display: block;
+}
+
+/* -----------------------------------------------------------------------------
+ * 2 · Panel
+ * -------------------------------------------------------------------------- */
+.erp-user-menu__panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    width: 268px;
+    max-width: calc(100vw - 20px);
+    max-height: min(70vh, 420px);
+    overflow: hidden auto;
+    padding: 6px;
+    border: 1px solid var(--erp-user-line);
+    border-radius: var(--erp-user-radius);
+    background-color: var(--erp-user-surface);
+    box-shadow: 0 12px 32px -12px rgba(15, 23, 42, .28), 0 1px 2px rgba(15, 23, 42, .06);
+}
+
+/* While closed the browser already hides everything but the summary; this only
+ * guards the panel if a stylesheet ever lands next to an open disclosure. */
+.erp-user-menu:not([open]) .erp-user-menu__panel {
+    display: none;
+}
+
+.erp-user-menu__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 8px 10px;
+    border-bottom: 1px solid var(--erp-user-line);
+}
+
+.erp-user-menu__head-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.erp-user-menu__head-name,
+.erp-user-menu__head-email {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.erp-user-menu__head-name {
+    color: var(--erp-user-navy);
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.erp-user-menu__head-email {
+    margin-top: 1px;
+    color: var(--erp-user-muted);
+    font-size: 12px;
+}
+
+.erp-user-menu__list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 0 2px;
+}
+
+.erp-user-menu__separator {
+    height: 1px;
+    margin: 4px 6px;
+    background-color: var(--erp-user-line);
+}
+
+.erp-user-menu__logout {
+    margin: 0;
+}
+
+/* -----------------------------------------------------------------------------
+ * 3 · Rows — one anatomy for links, disabled entries and the logout button
+ * -------------------------------------------------------------------------- */
+.erp-user-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: var(--erp-user-row-h);
+    padding: 0 8px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--erp-user-text);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.3;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.erp-user-menu__item:hover {
+    background-color: var(--erp-user-hover);
+}
+
+.erp-user-menu__item:focus-visible {
+    outline: 2px solid var(--erp-user-accent);
+    outline-offset: -2px;
+}
+
+/* Rows carry a 16px icon in a fixed box; the glyph can never outgrow it (the
+ * <svg> also carries its own width/height, as in the sidebar stylesheet). */
+.erp-user-menu .nav-icon {
+    display: block;
+    flex: 0 0 auto;
+}
+
+.erp-user-menu__icon {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: var(--erp-user-icon);
+    height: var(--erp-user-icon);
+    overflow: hidden;
+    color: var(--erp-user-muted);
+}
+
+.erp-user-menu__item:hover .erp-user-menu__icon {
+    color: var(--erp-user-accent-ink);
+}
+
+.erp-user-menu__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* No route exists for these in this application: present, but not clickable. */
+.erp-user-menu__item--muted {
+    color: var(--erp-user-muted);
+    cursor: default;
+}
+
+.erp-user-menu__item--muted:hover {
+    background: none;
+}
+
+.erp-user-menu__item--muted:hover .erp-user-menu__icon {
+    color: var(--erp-user-muted);
+}
+
+.erp-user-menu__item--danger {
+    color: var(--erp-user-danger);
+}
+
+.erp-user-menu__item--danger .erp-user-menu__icon {
+    color: var(--erp-user-danger);
+}
+
+.erp-user-menu__item--danger:hover {
+    background-color: #fff1f2;
+}
+
+/* -----------------------------------------------------------------------------
+ * 4 · Small screens: the trigger keeps the avatar, the panel stays on-screen
+ * -------------------------------------------------------------------------- */
+@media (max-width: 639.98px) {
+    .erp-user-menu__id,
+    .erp-user-menu__caret {
+        display: none;
+    }
+
+    .erp-user-menu__trigger {
+        gap: 0;
+        padding: 0 4px;
+    }
+
+    .erp-user-menu__avatar {
+        width: 28px;
+        height: 28px;
+    }
+
+    .erp-user-menu__panel {
+        right: -4px;
+    }
+}
+
+/* While the sidebar drawer is open the header sits behind the scrim, so the
+ * account panel must never float above it. */
+html[data-nav-drawer="open"] .erp-user-menu__panel {
+    z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .erp-user-menu__trigger,
+    .erp-user-menu__caret {
+        transition: none;
+    }
+}
+
+@media print {
+    .erp-user-menu,
+    .erp-user-menu__panel {
+        display: none !important;
+    }
+}

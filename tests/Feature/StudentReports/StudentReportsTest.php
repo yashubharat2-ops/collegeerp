@@ -75,8 +75,16 @@ class StudentReportsTest extends TestCase
             $this->get(route('student-reports.index', ['report' => $key]))
                 ->assertOk()->assertViewHas('report', $key)->assertSee($label);
         }
-        $this->get(route('student-reports.index'))
-            ->assertOk()->assertSee('REPORTS')->assertSee('href="'.route('student-reports.index').'"', false);
+        // The sidebar shows the Reports module group to a reporter: the heading is a
+        // nav-group label in title case (the old uppercase section caption is gone), and
+        // the Student Reports row is a plain child link of that group, marked current.
+        $sidebar = $this->get(route('student-reports.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('nav-group__label">Reports</div>', $sidebar);
+        $this->assertStringContainsString(
+            '<a class="nav-link" href="'.route('student-reports.index').'" aria-current="page"><span>Student Reports</span></a>',
+            $sidebar
+        );
+        $this->assertStringNotContainsString('>REPORTS<', $sidebar, 'Module groups are title case; the uppercase section caption must not come back.');
         $this->get(route('student-reports.profile', $student))->assertOk()->assertSee('No enrollments recorded.');
         $this->get(route('student-reports.history', $student))->assertOk()->assertSee('Student record created');
     }

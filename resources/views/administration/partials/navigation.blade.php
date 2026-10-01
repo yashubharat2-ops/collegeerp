@@ -1,23 +1,38 @@
 @php
+    /**
+     * Administration / Settings — the last module of the sidebar.
+     *
+     * Kept as its own partial because its rows are gated by policies
+     * (Gate::allows + model class) rather than by the `permission.slug` checks
+     * every other module uses. Which entries exist, in which order, and which
+     * URL each one points at is unchanged; only the row markup now comes from
+     * the shared sidebar components.
+     *
+     * The items container keeps `data-navigation="administration-settings"`,
+     * the hook tests and tooling use to read this module's entries.
+     */
     $administrationLinks = collect([
-        ['Users', '👥', 'admin.users.index', 'admin.users.*', 'viewAny', App\Models\User::class],
-        ['Roles', '🛡', 'admin.roles.index', 'admin.roles.*', 'viewAny', App\Models\Role::class],
-        ['Permissions', '🔑', 'admin.permissions.index', 'admin.permissions.*', 'viewAny', App\Models\Permission::class],
-        ['Academic Configuration', '📚', 'admin.academic-config.index', 'admin.academic-config.*', 'viewAcademicConfiguration', App\Models\InstitutionalSetting::class],
-        ['Institution Settings', '🏛', 'admin.institution-settings.index', 'admin.institution-settings.*', 'viewAny', App\Models\InstitutionalSetting::class],
-        ['Notification Settings', '🔔', 'admin.notification-settings.index', 'admin.notification-settings.*', 'viewNotifications', App\Models\InstitutionalSetting::class],
-        ['Audit Logs', '🗒', 'admin.audit-logs.index', 'admin.audit-logs.*', 'viewAny', App\Models\AuditLog::class],
-        ['System Settings', '⚙', 'admin.system-settings.index', 'admin.system-settings.*', 'viewSystem', App\Models\InstitutionalSetting::class],
-    ])->filter(fn ($link) => Illuminate\Support\Facades\Gate::allows($link[4], $link[5])
-        || ($link[0] === 'Audit Logs' && Illuminate\Support\Facades\Gate::allows('viewPlatform', App\Models\AuditLog::class)));
+        ['label' => 'Users', 'route' => 'admin.users.index', 'pattern' => 'admin.users.*', 'ability' => 'viewAny', 'model' => App\Models\User::class],
+        ['label' => 'Roles', 'route' => 'admin.roles.index', 'pattern' => 'admin.roles.*', 'ability' => 'viewAny', 'model' => App\Models\Role::class],
+        ['label' => 'Permissions', 'route' => 'admin.permissions.index', 'pattern' => 'admin.permissions.*', 'ability' => 'viewAny', 'model' => App\Models\Permission::class],
+        ['label' => 'Academic Configuration', 'route' => 'admin.academic-config.index', 'pattern' => 'admin.academic-config.*', 'ability' => 'viewAcademicConfiguration', 'model' => App\Models\InstitutionalSetting::class],
+        ['label' => 'Institution Settings', 'route' => 'admin.institution-settings.index', 'pattern' => 'admin.institution-settings.*', 'ability' => 'viewAny', 'model' => App\Models\InstitutionalSetting::class],
+        ['label' => 'Notification Settings', 'route' => 'admin.notification-settings.index', 'pattern' => 'admin.notification-settings.*', 'ability' => 'viewNotifications', 'model' => App\Models\InstitutionalSetting::class],
+        ['label' => 'Audit Logs', 'route' => 'admin.audit-logs.index', 'pattern' => 'admin.audit-logs.*', 'ability' => 'viewAny', 'model' => App\Models\AuditLog::class],
+        ['label' => 'System Settings', 'route' => 'admin.system-settings.index', 'pattern' => 'admin.system-settings.*', 'ability' => 'viewSystem', 'model' => App\Models\InstitutionalSetting::class],
+    ])->filter(fn (array $link): bool => Illuminate\Support\Facades\Gate::allows($link['ability'], $link['model'])
+        || ($link['label'] === 'Audit Logs' && Illuminate\Support\Facades\Gate::allows('viewPlatform', App\Models\AuditLog::class)));
 @endphp
-@if($administrationLinks->isNotEmpty())
-<div data-navigation="administration-settings">
-    <div class="px-3 pb-2 pt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">ADMINISTRATION / SETTINGS</div>
-    @foreach($administrationLinks as [$label, $icon, $route, $pattern])
-        <a class="nav-link {{ request()->routeIs($pattern) ? 'bg-white/10 text-white' : '' }}" href="{{ route($route, $label === 'Audit Logs' && ! app(\App\Support\Tenancy\TenantContext::class)->has() ? ['scope' => 'platform'] : []) }}" @if(request()->routeIs($pattern)) aria-current="page" @endif>
-            <span aria-hidden="true">{{ $icon }}</span><span>{{ $label }}</span>
-        </a>
-    @endforeach
-</div>
+
+@if ($administrationLinks->isNotEmpty())
+    <x-nav.group id="administration-settings" label="Settings" icon="cog" navigation="administration-settings">
+        @foreach ($administrationLinks as $administrationLink)
+            <x-nav.link
+                :label="$administrationLink['label']"
+                :route="$administrationLink['route']"
+                :pattern="$administrationLink['pattern']"
+                :params="$administrationLink['label'] === 'Audit Logs' && ! app(App\Support\Tenancy\TenantContext::class)->has() ? ['scope' => 'platform'] : []"
+            />
+        @endforeach
+    </x-nav.group>
 @endif
