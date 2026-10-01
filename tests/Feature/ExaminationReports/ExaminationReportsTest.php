@@ -14,6 +14,7 @@ use App\Models\Faculty;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Settings\UserPreferenceService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\Feature\Phase4\Phase4TestHelpers;
@@ -669,6 +670,8 @@ class ExaminationReportsTest extends TestCase
 
     private function queriesFor(string $url): int
     {
+        $this->primeChromeCache();
+
         DB::enableQueryLog();
         try {
             DB::flushQueryLog();
@@ -677,6 +680,26 @@ class ExaminationReportsTest extends TestCase
             return count(DB::getQueryLog());
         } finally {
             DB::disableQueryLog();
+        }
+    }
+
+    /**
+     * Warm the one cached read the page chrome performs.
+     *
+     * layouts/sidebar.blade.php asks UserPreferenceService for the signed-in account's
+     * interface preferences, and that service wraps its lookup in Cache::remember: the
+     * FIRST render for a given user in a test costs one extra SELECT and every later one
+     * costs none. That query belongs to the chrome, not to a report, and it lands on
+     * whichever measurement happens to come first in a file. Warming it here leaves the
+     * row count as the only variable between the two measurements of a report, and the
+     * comparison stays the strict equality it was written as.
+     */
+    private function primeChromeCache(): void
+    {
+        $user = auth()->user();
+
+        if ($user instanceof User) {
+            app(UserPreferenceService::class)->resolved($user);
         }
     }
 
