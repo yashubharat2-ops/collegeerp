@@ -23,6 +23,11 @@
     'use strict';
 
     var RAIL_KEY = 'collegeerp:sidebar:rail';
+    // Gap between the rail's right edge and the tooltip, and the margin kept from the
+    // viewport. The tooltip is anchored to the sidebar, not to the icon, so every row's
+    // label starts on exactly the same x — a fixed column of labels, not a stagger.
+    var TIP_GAP = 10;
+    var TIP_EDGE = 8;
     var DESKTOP = '(min-width: 1024px)';
 
     var sidebar = document.getElementById('erp-sidebar');
@@ -212,11 +217,32 @@
 
     /* 3 · Desktop icon rail ------------------------------------------------- */
 
-    function setRail(rail) {
+    /* The rail state a visitor starts in. This browser's own choice (the toggle above)
+     * wins; only when nothing has been clicked here yet does the account preference
+     * `sidebar.rail_by_default`, rendered by the server, decide. */
+    function preferredRail() {
+        try {
+            var stored = window.localStorage.getItem(RAIL_KEY);
+            if (stored !== null) {
+                return stored === 'true';
+            }
+        } catch (error) {
+            /* Private mode / storage disabled: fall through to the account preference. */
+        }
+        return sidebar.dataset.railDefault === 'true';
+    }
+
+    function setRail(rail, persist) {
         sidebar.dataset.rail = rail ? 'true' : 'false';
         if (railButton) {
             railButton.setAttribute('aria-expanded', rail ? 'false' : 'true');
             railButton.setAttribute('aria-label', rail ? 'Expand sidebar' : 'Collapse sidebar');
+        }
+        // Re-syncing after a breakpoint crossing must not overwrite the visitor's own
+        // choice, and must not freeze an account default into this browser's storage.
+        if (persist === false) {
+            hideTip();
+            return;
         }
         try {
             if (rail) {
@@ -236,12 +262,8 @@
         });
     }
 
-    try {
-        if (desktop.matches && window.localStorage.getItem(RAIL_KEY) === 'true') {
-            setRail(true);
-        }
-    } catch (error) {
-        /* No storage: stay expanded. */
+    if (desktop.matches && preferredRail()) {
+        setRail(true, false);
     }
 
     /* 4 · Mobile drawer ----------------------------------------------------- */
@@ -308,11 +330,7 @@
             if (isDrawerOpen()) {
                 drawerOpenState(false);
             }
-            try {
-                setRail(window.localStorage.getItem(RAIL_KEY) === 'true');
-            } catch (error) {
-                setRail(false);
-            }
+            setRail(preferredRail(), false);
         } else {
             sidebar.dataset.rail = 'false';
         }
@@ -327,8 +345,16 @@
     /* 5 · Rail tooltips ----------------------------------------------------- */
 
     var tip = null;
+    var tipTarget = null;
 
     function hideTip() {
+        // The id this element advertised disappears with it, so the reference has to go
+        // too; leaving a dangling aria-describedby on a hidden label is a bug screen
+        // readers report as an empty description.
+        if (tipTarget) {
+            tipTarget.removeAttribute('aria-describedby');
+            tipTarget = null;
+        }
         if (tip) {
             tip.remove();
             tip = null;
@@ -346,7 +372,9 @@
     }
 
     function showTip(target) {
-        if (!isRail()) {
+        // Rail mode only, and only where the rail exists: below the desktop breakpoint
+        // the sidebar is a drawer that shows its labels, so a tooltip would repeat them.
+        if (!isRail() || !desktop.matches) {
             return;
         }
         var text = (labelOf(target) || '').trim();
@@ -359,13 +387,23 @@
         tip.setAttribute('role', 'tooltip');
         tip.setAttribute('id', 'erp-nav-tip');
         tip.textContent = text;
+        // On <body> on purpose, so no scroll container or overflow rule can clip it; see
+        // the note in public/css/erp-sidebar.css about why its colours are literals.
         document.body.appendChild(tip);
         var box = target.getBoundingClientRect();
+        var rail = sidebar.getBoundingClientRect();
         var tipBox = tip.getBoundingClientRect();
         var top = box.top + box.height / 2 - tipBox.height / 2;
-        tip.style.top = Math.max(8, Math.min(top, window.innerHeight - tipBox.height - 8)) + 'px';
-        tip.style.left = (box.right + 10) + 'px';
+        var left = rail.right + TIP_GAP;
+        // A label is never allowed to hang off the edge of the window: it shrinks its
+        // offset until it fits, and the pill wraps instead of being cut.
+        if (left + tipBox.width > window.innerWidth - TIP_EDGE) {
+            left = Math.max(TIP_EDGE, window.innerWidth - tipBox.width - TIP_EDGE);
+        }
+        tip.style.top = Math.max(TIP_EDGE, Math.min(top, window.innerHeight - tipBox.height - TIP_EDGE)) + 'px';
+        tip.style.left = left + 'px';
         target.setAttribute('aria-describedby', 'erp-nav-tip');
+        tipTarget = target;
     }
 
     heads.concat([sidebar.querySelector('.nav-dashboard')])

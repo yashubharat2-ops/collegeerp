@@ -655,10 +655,28 @@
     .erp-sidebar[data-rail="true"] .erp-nav-brand__text,
     .erp-sidebar[data-rail="true"] .erp-nav-search,
     .erp-sidebar[data-rail="true"] .erp-nav__section-label,
-    .erp-sidebar[data-rail="true"] .nav-group__label,
-    .erp-sidebar[data-rail="true"] .nav-group__chevron,
-    .erp-sidebar[data-rail="true"] .nav-dashboard > span {
+    .erp-sidebar[data-rail="true"] .nav-group__chevron {
         display: none;
+    }
+
+    /* The two module labels are the rows' accessible names, so they leave the *layout*
+     * but not the accessibility tree: clipped to a pixel instead of `display: none`, a
+     * collapsed row is still announced as "Students", and the tooltip below is a visual
+     * affordance rather than the only thing carrying the name. Being out of flow also
+     * keeps the icon centred, and `:not(.nav-dashboard__icon)` matters — the Dashboard
+     * row holds its icon in a bare <span> as well, and hiding every child span there
+     * would empty the row instead of reducing it to that icon. */
+    .erp-sidebar[data-rail="true"] .nav-group__label,
+    .erp-sidebar[data-rail="true"] .nav-dashboard > span:not(.nav-dashboard__icon) {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        border: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
     }
 
     .erp-sidebar[data-rail="true"] .erp-nav-primary,
@@ -691,27 +709,52 @@
         display: none !important;
     }
 
-    /* In the rail the labels are hidden, so the accessible name is kept on the
-     * element via `aria-label` and rendered through the tooltip instead. */
+    /* In the rail the labels are visually replaced by .erp-nav-tip (section 8b), which
+     * the behaviour script positions beside the icon; the labels above stay readable to
+     * assistive technology, so no `aria-label` or `title` copy of a module name is
+     * needed — and none is allowed, because every label must appear exactly once. */
 }
 
-/* Tooltip: only ever in rail mode, and only for icons that are hidden. */
+/* -----------------------------------------------------------------------------
+ * 8b. Rail tooltip — the label of a collapsed icon
+ *
+ * `public/js/erp-sidebar.js` appends this element to <body>, never inside the
+ * sidebar: `.erp-nav__list` scrolls, and a child of a scroll container is clipped by
+ * it. Being outside `.erp-sidebar` also means the tokens declared there are out of
+ * scope, so every value below is a literal — a `var(--erp-nav-*)` reference here
+ * resolves to nothing and the text silently inherits the page's dark body colour,
+ * which is how the pill ended up unreadable. Colours are the sidebar's own navy and
+ * near-white (#f8fafc on #0b1a2c, contrast 16.7:1) and the typeface is the same stack,
+ * written out.
+ *
+ * Stacking, lowest to highest: drawer scrim (55) → sidebar / drawer (60) → header
+ * account panel (80, `erp-user-menu.css`) → this tooltip (90). It has to clear the
+ * content cards and the sticky header, and a label that is only a hover affordance
+ * must always be the topmost thing on the screen.
+ * ------------------------------------------------------------------------- */
 .erp-nav-tip {
     position: fixed;
-    z-index: 70;
-    max-width: 220px;
+    z-index: 90;
+    /* Long module names stay legible instead of being cut off at the pill's edge. */
+    width: max-content;
+    max-width: min(240px, calc(100vw - 96px));
     padding: 6px 9px;
-    border: 1px solid var(--erp-nav-line);
+    border: 1px solid rgba(148, 163, 184, 0.28);
     border-radius: 8px;
     background-color: #0b1a2c;
     box-shadow: 0 10px 24px rgba(2, 6, 23, 0.45);
-    color: var(--erp-nav-text);
-    font-family: var(--erp-nav-font);
+    color: #f8fafc;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
     font-size: 12px;
     font-weight: 500;
     line-height: 1.3;
+    letter-spacing: 0;
+    text-align: left;
+    text-transform: none;
+    -webkit-font-smoothing: auto;
+    overflow-wrap: anywhere;
     pointer-events: none;
-    white-space: nowrap;
 }
 
 /* -----------------------------------------------------------------------------

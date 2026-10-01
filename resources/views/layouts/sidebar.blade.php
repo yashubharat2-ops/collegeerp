@@ -25,9 +25,22 @@
     $navBrandMark = $navBrandName === 'College ERP'
         ? 'ERP'
         : mb_strtoupper(mb_substr(preg_replace('/[^\p{L}\p{N}]/u', '', $navBrandName) ?: 'ERP', 0, 3));
+
+    /*
+     * Whether this account wants the rail. The server renders the choice as
+     * `data-rail-default` so the first paint is already right instead of expanding to
+     * 280px and snapping shut a frame later; the behaviour script only treats it as the
+     * starting point, because a click on the rail toggle in this browser is the stronger
+     * signal and wins for as long as it is remembered (preferredRail() in
+     * public/js/erp-sidebar.js). Nothing else about the sidebar is user-configurable.
+     */
+    $navRailAccount = auth()->user();
+    $navRailByDefault = $navRailAccount === null
+        ? false
+        : (bool) app(\App\Services\Settings\UserPreferenceService::class)->resolved($navRailAccount)['sidebar.rail_by_default'];
 @endphp
 
-<aside class="erp-sidebar no-print" id="erp-sidebar" data-rail="false" aria-label="College ERP navigation">
+<aside class="erp-sidebar no-print" id="erp-sidebar" data-rail="false" data-rail-default="{{ $navRailByDefault ? 'true' : 'false' }}" aria-label="College ERP navigation">
     {{-- 1 · Brand header (64px): the product identity, never the framework name. --}}
     <div class="erp-nav-brand">
         <div class="erp-nav-brand__mark" aria-hidden="true">

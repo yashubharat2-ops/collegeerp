@@ -4,6 +4,9 @@ use App\Http\Controllers\AcademicReportController;
 use App\Http\Controllers\AcademicsController;
 use App\Http\Controllers\AcademicTermController;
 use App\Http\Controllers\AcademicYearController;
+use App\Http\Controllers\Account\PasswordController as AccountPasswordController;
+use App\Http\Controllers\Account\PreferenceController as AccountPreferenceController;
+use App\Http\Controllers\Account\ProfileController as AccountProfileController;
 use App\Http\Controllers\AdmissionApplicantController;
 use App\Http\Controllers\AdmissionApplicationController;
 use App\Http\Controllers\AdmissionController;
@@ -147,6 +150,21 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', LogoutController::class)->name('logout');
     Route::get('/dashboard', DashboardController::class)->middleware('tenant')->name('dashboard');
     Route::post('/college-context', CollegeSwitchController::class)->name('college-context.switch');
+
+    // The account panel's own screens. `auth` only, and no permission gate: each one acts
+    // on the record of the person holding the session and takes no identifier in its URL,
+    // so there is no other user to reach. What a user may not change about themselves is
+    // refused by the FormRequest (`prohibited` on status, roles, permissions, college
+    // membership and password), not by a policy — policies stay where they belong, in the
+    // Administration module. Deliberately outside the tenant group below: a profile and a
+    // password belong to a person, not to a college, and preferences are keyed by user,
+    // so no active college is needed to show or save them.
+    Route::get('/profile', [AccountProfileController::class, 'edit'])->name('profile.edit');
+    Route::put('/profile', [AccountProfileController::class, 'update'])->name('profile.update');
+    Route::get('/password/change', [AccountPasswordController::class, 'edit'])->name('password.change.edit');
+    Route::put('/password/change', [AccountPasswordController::class, 'store'])->name('password.change.store');
+    Route::get('/preferences', [AccountPreferenceController::class, 'edit'])->name('preferences.edit');
+    Route::put('/preferences', [AccountPreferenceController::class, 'update'])->name('preferences.update');
     Route::middleware(['tenant', 'tenant.access'])->group(function () {
         Route::prefix('certificates')->name('certificates.')->controller(CertificateController::class)->group(function () {
             Route::get('/', 'index')->name('index');

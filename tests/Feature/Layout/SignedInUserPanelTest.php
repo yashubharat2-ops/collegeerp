@@ -4,6 +4,7 @@ namespace Tests\Feature\Layout;
 
 use App\Models\College;
 use App\Models\User;
+use Illuminate\Support\Facades\Route;
 use Tests\Feature\Departments\DepartmentTestHelpers;
 use Tests\TestCase;
 
@@ -16,11 +17,13 @@ use Tests\TestCase;
  *     and holds no user block any more;
  *   - the header panel carries the avatar, the name and the e-mail, and the
  *     entries of an account menu;
- *   - only screens that actually exist are links. My Profile, Change Password,
- *     Preferences and Help & Support have no route in this application, so they
- *     must render as disabled rows — an invented href would 404 or 403;
- *   - Notifications links to the real Communication screen and only for a user
- *     whose permission lets them open it (same gate as the sidebar row);
+ *   - every row that has a screen behind it is a plain link — My Profile,
+ *     Change Password and Preferences are the account routes in routes/web.php,
+ *     Notifications is the real Communication screen and only renders as a link
+ *     for a user whose permission lets them open it (same gate as the sidebar
+ *     row). No row is decorative and none is invented;
+ *   - the one entry with no route, Help & Support, has to look and read disabled
+ *     and must say why, instead of linking somewhere that does not exist;
  *   - Logout keeps posting to the existing `logout` route, once per page;
  *   - System Settings stays under Administration / Settings, never in here.
  */
@@ -28,8 +31,15 @@ class SignedInUserPanelTest extends TestCase
 {
     use DepartmentTestHelpers;
 
-    /** Rows that have no route in this application: present, but not clickable. */
-    private const DISABLED_ROWS = ['My Profile', 'Change Password', 'Preferences', 'Help &amp; Support'];
+    /** The enabled rows: label => the route name each one must link to. */
+    private const LINKED_ROWS = [
+        'My Profile' => 'profile.edit',
+        'Change Password' => 'password.change.edit',
+        'Preferences' => 'preferences.edit',
+    ];
+
+    /** The row that has no route in this application: present, but not clickable. */
+    private const DISABLED_ROWS = ['Help &amp; Support'];
 
     /** The menu order, exactly as the component renders it. */
     private const ROWS = ['My Profile', 'Change Password', 'Preferences', 'Notifications', 'Help &amp; Support', 'Logout'];
@@ -58,6 +68,12 @@ class SignedInUserPanelTest extends TestCase
         $this->assertNotFalse($end, 'The sidebar must close.');
 
         return substr($html, $start, $end - $start);
+    }
+
+    /** The exact opening tag of an enabled row, so no extra attribute can hide in it. */
+    private function linkTag(string $routeName): string
+    {
+        return '<a class="erp-user-menu__item" role="menuitem" tabindex="-1" href="'.route($routeName).'">';
     }
 
     public function test_the_sidebar_holds_no_copy_of_the_signed_in_user(): void
@@ -118,32 +134,56 @@ class SignedInUserPanelTest extends TestCase
             $previous = $position;
         }
 
-        // Nothing outside the Notifications row may navigate: no fake href.
-        $this->assertSame(0, substr_count($panel, 'href='), 'Rows without a route must not be links.');
-        $this->assertSame(5, substr_count($panel, 'aria-disabled="true"'));
+        // The three account rows are ordinary links now, each with its own screen.
+        foreach (self::LINKED_ROWS as $label => $name) {
+            $this->assertSame(1, substr_count($panel, $this->linkTag($name)), "{$label} must be a link to {$name}.");
+            $this->assertSame(1, substr_count($panel, '<span class="erp-user-menu__label">'.$label.'</span>'), "{$label} is stated once.");
+        }
+        // Notifications is not permitted for this user, so it and Help & Support are the
+        // only disabled rows — nothing else may carry the marker.
+        $this->assertSame(3, substr_count($panel, 'href='), 'Only the four account screens and Notifications can be links.');
+        $this->assertSame(2, substr_count($panel, 'aria-disabled="true"'));
         // Every disabled row explains itself in its tooltip, so the menu never looks
         // broken: the reason is one read away instead of a dead link.
         $this->assertSame(
-            5,
+            2,
             preg_match_all('/<span class="erp-user-menu__item erp-user-menu__item--muted"[^>]*aria-disabled="true"[^>]*title="[^"]{20,}"/', $panel),
             'Each unavailable entry must carry a tooltip explaining why.'
         );
+        foreach (self::DISABLED_ROWS as $label) {
+            $this->assertMatchesRegularExpression('/<span class="erp-user-menu__item erp-user-menu__item--muted"[^>]*>\s*<span class="erp-user-menu__icon">.*<span class="erp-user-menu__label">'.preg_quote($label, '/').'<\/span>/s', $panel, "{$label} must stay a disabled row.");
+        }
 
         // The guest password flow is not a menu destination for a signed-in user.
         $this->assertStringNotContainsString(route('password.request'), $panel);
+        $this->assertStringNotContainsString('forgot-password', $panel);
         $this->assertStringNotContainsString('admin.system-settings', $panel, 'System Settings stays under Administration / Settings.');
         $this->assertStringNotContainsString('>System Settings<', $panel);
+        // No help route has been invented for the disabled row either.
+        $this->assertFalse(Route::has('help'));
+        $this->assertFalse(Route::has('help.index'));
+    }
+
+    public function test_every_enabled_row_opens_the_screen_it_points_at(): void
+    {
+        $college = $this->makeCollege('PANEL4');
+        $user = $this->makeUserWithPermissions($college, ['notifications.view']);
+
+        foreach (self::LINKED_ROWS as $routeName) {
+            $this->asCollege($college, $user)->get(route($routeName))->assertOk();
+        }
+        $this->asCollege($college, $user)->get(route('notifications.index'))->assertOk();
     }
 
     public function test_notifications_is_a_real_link_only_for_users_who_may_open_it(): void
     {
-        $college = $this->makeCollege('PANEL4');
+        $college = $this->makeCollege('PANEL5');
 
         $recipient = $this->makeUserWithPermissions($college, ['notifications.view']);
         $panel = $this->panel($this->dashboard($college, $recipient));
         $this->assertStringContainsString('href="'.route('notifications.index').'"', $panel);
-        $this->assertSame(1, substr_count($panel, 'href='));
-        $this->assertSame(4, substr_count($panel, 'aria-disabled="true"'));
+        $this->assertSame(4, substr_count($panel, 'href='), 'Three account rows plus Notifications.');
+        $this->assertSame(1, substr_count($panel, 'aria-disabled="true"'), 'Only Help & Support is disabled for this user.');
         // The link is not decorative: the screen it points at really opens.
         $this->asCollege($college, $recipient)->get(route('notifications.index'))->assertOk();
 
@@ -151,12 +191,13 @@ class SignedInUserPanelTest extends TestCase
         $outsiderPanel = $this->panel($this->dashboard($college, $outsider));
         $this->assertStringNotContainsString('href="'.route('notifications.index').'"', $outsiderPanel, 'No link may be offered to a screen that answers 403.');
         $this->assertStringContainsString('>Notifications<', $outsiderPanel, 'The entry stays visible, disabled.');
+        $this->assertSame(3, substr_count($outsiderPanel, 'href='), 'The account rows are unaffected by the notifications gate.');
         $this->asCollege($college, $outsider)->get(route('notifications.index'))->assertForbidden();
     }
 
     public function test_logout_keeps_its_existing_post_and_is_offered_once(): void
     {
-        $college = $this->makeCollege('PANEL5');
+        $college = $this->makeCollege('PANEL6');
         $user = $this->makeUserWithPermissions($college, []);
         $html = $this->dashboard($college, $user);
         $panel = $this->panel($html);
@@ -174,7 +215,7 @@ class SignedInUserPanelTest extends TestCase
 
     public function test_the_panel_script_follows_the_layouts_external_module_rule(): void
     {
-        $college = $this->makeCollege('PANEL6');
+        $college = $this->makeCollege('PANEL7');
         $user = $this->makeUserWithPermissions($college, []);
         $html = $this->dashboard($college, $user);
 
