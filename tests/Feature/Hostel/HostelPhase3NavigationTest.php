@@ -44,17 +44,17 @@ class HostelPhase3NavigationTest extends TestCase
         $start = strpos($html, '>Hostel Management</div>');
         $this->assertNotFalse($start, 'The sidebar must have a Hostel Management group heading.');
         $after = $start + strlen('>Hostel Management</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $end = strpos($html, 'nav-group__head', $after);
 
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
 
     private function reportsNavGroup(string $html): string
     {
-        $start = strpos($html, '>REPORTS</div>');
+        $start = strpos($html, '>Reports</div>');
         $this->assertNotFalse($start, 'The sidebar must have one REPORTS group.');
-        $after = $start + strlen('>REPORTS</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $after = $start + strlen('>Reports</div>');
+        $end = strpos($html, 'nav-group__head', $after);
 
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
@@ -84,7 +84,7 @@ class HostelPhase3NavigationTest extends TestCase
         }
 
         $reports = $this->reportsNavGroup($html);
-        $this->assertSame(1, substr_count($html, '>REPORTS</div>'));
+        $this->assertSame(1, substr_count($html, '>Reports</div>'));
         $this->assertStringNotContainsString(route('hostel-reports.index'), $group);
         $this->assertStringContainsString(route('hostel-reports.index'), $reports);
         $this->assertStringContainsString('Hostel Reports', $reports);

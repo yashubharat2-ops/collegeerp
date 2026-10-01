@@ -543,7 +543,7 @@ class MarksheetsTest extends TestCase
         $this->assertSame(1, substr_count($html, '>Examinations</div>'));
 
         $start = strpos($html, '>Examinations</div>') + strlen('>Examinations</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $start);
+        $end = strpos($html, 'nav-group__head', $start);
         $group = $end === false ? substr($html, $start) : substr($html, $start, $end - $start);
 
         $this->assertSame(1, substr_count($group, 'class="nav-link"'));

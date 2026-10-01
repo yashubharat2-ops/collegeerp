@@ -1,0 +1,881 @@
+/* =============================================================================
+ * College ERP — sidebar (authoritative styling for the navigation component)
+ * =============================================================================
+ *
+ * This file is the SINGLE source of truth for the look of the application
+ * sidebar rendered by resources/views/layouts/sidebar.blade.php and the
+ * <x-nav.*> Blade components. It is served as a static asset straight from
+ * `public/` (linked by resources/views/layouts/app.blade.php) on purpose: the
+ * sidebar must stay styled when no Vite build or dev server is available, so
+ * it never depends on `@vite()` / `public/hot` / `public/build/manifest.json`.
+ *
+ * Rules of the house:
+ *   - Every selector is scoped to `.erp-sidebar` (or its own overlay/tooltip),
+ *     so nothing here can leak into module pages.
+ *   - There is deliberately NO global `svg { … }` rule. Icon geometry is
+ *     carried by each <svg> element's own `width`/`height` attributes and only
+ *     fine-tuned by scoped classes below.
+ *   - Old Tailwind-based sidebar rules (`.nav-link` in resources/css/app.css)
+ *     were removed so that no second, competing sidebar system stays active.
+ *   - Colours are solid: the sidebar never uses `opacity`, transparency or a
+ *     light background on its container.
+ *
+ * Geometry contract (kept in sync with the component markup):
+ *   sidebar width 280px · rail 68px · brand 64px · profile 64px
+ *   search 40px · dashboard 42px · module row 42px · child row 34px
+ *   module icon 18px · search icon 16px · chevron 14px
+ */
+
+.erp-sidebar {
+    /* Palette */
+    --erp-nav-bg: #07111f;
+    --erp-nav-bg-raise: #0b1a2c;
+    --erp-nav-bg-hover: #102338;
+    --erp-nav-line: rgba(148, 163, 184, 0.16);
+    --erp-nav-text: #f8fafc;
+    --erp-nav-text-muted: #94a3b8;
+    --erp-nav-text-faint: #64748b;
+    --erp-nav-accent: #4f46e5;
+    --erp-nav-accent-hover: #4338ca;
+    --erp-nav-accent-soft: rgba(79, 70, 229, 0.22);
+    --erp-nav-accent-ring: #a5b4fc;
+
+    /* Geometry */
+    --erp-nav-width: 280px;
+    --erp-nav-rail-width: 68px;
+    --erp-nav-brand-h: 64px;
+    --erp-nav-row-h: 42px;
+    --erp-nav-child-h: 34px;
+    --erp-nav-icon: 18px;
+    --erp-nav-chevron: 14px;
+    --erp-nav-pad-x: 12px;
+    --erp-nav-indent: 38px;
+
+    --erp-nav-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+        Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
+    background-color: var(--erp-nav-bg);
+    color: var(--erp-nav-text);
+    font-family: var(--erp-nav-font);
+    font-size: 14px;
+    line-height: 1.35;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+.erp-sidebar *,
+.erp-sidebar *::before,
+.erp-sidebar *::after {
+    box-sizing: border-box;
+}
+
+/* The component ships `hidden` alongside class-based hiding, so make sure the
+ * attribute always wins inside the sidebar even when utilities are missing. */
+.erp-sidebar [hidden] {
+    display: none !important;
+}
+
+/* Icons are blocks, never inline glyphs with a baseline gap, and they never
+ * shrink: their box is fixed by the icon size above plus the SVG's own
+ * width/height attributes. */
+.erp-sidebar .nav-icon,
+.erp-nav-open-button .nav-icon {
+    display: block;
+    flex: 0 0 auto;
+}
+
+/* -----------------------------------------------------------------------------
+ * 1. Brand header (fixed, 64px)
+ * -------------------------------------------------------------------------- */
+.erp-nav-brand {
+    position: relative; /* anchor for the drawer close button */
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 10px;
+    height: var(--erp-nav-brand-h);
+    padding: 0 var(--erp-nav-pad-x) 0 16px;
+    border-bottom: 1px solid var(--erp-nav-line);
+}
+
+.erp-nav-brand__mark {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background-color: var(--erp-nav-accent);
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.erp-nav-brand__mark img {
+    width: 100%;
+    height: 100%;
+    border-radius: 9px;
+    background-color: #ffffff;
+    object-fit: contain;
+}
+
+.erp-nav-brand__text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.erp-nav-brand__name {
+    margin: 0;
+    overflow: hidden;
+    color: var(--erp-nav-text);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.erp-nav-brand__product {
+    margin: 1px 0 0;
+    overflow: hidden;
+    color: var(--erp-nav-text-muted);
+    font-size: 11.5px;
+    font-weight: 400;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* -----------------------------------------------------------------------------
+ * 2. Signed-in user (fixed, ~64px)
+ * -------------------------------------------------------------------------- */
+.erp-nav-user {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 64px;
+    padding: 10px var(--erp-nav-pad-x) 10px 16px;
+    border-bottom: 1px solid var(--erp-nav-line);
+}
+
+.erp-nav-user__avatar {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: var(--erp-nav-accent-soft);
+    border: 1px solid rgba(165, 180, 252, 0.35);
+    color: var(--erp-nav-accent-ring);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.erp-nav-user__text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.erp-nav-user__name,
+.erp-nav-user__email {
+    margin: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.erp-nav-user__name {
+    color: var(--erp-nav-text);
+    font-size: 13.5px;
+    font-weight: 500;
+}
+
+.erp-nav-user__email {
+    margin-top: 2px;
+    color: var(--erp-nav-text-muted);
+    font-size: 12px;
+}
+
+/* -----------------------------------------------------------------------------
+ * 3. Menu search (fixed, 40px input)
+ * -------------------------------------------------------------------------- */
+.erp-nav-search {
+    flex: 0 0 auto;
+    padding: 12px var(--erp-nav-pad-x) 10px 16px;
+}
+
+.erp-nav-search__field {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 40px;
+    border: 1px solid var(--erp-nav-line);
+    border-radius: 10px;
+    background-color: var(--erp-nav-bg-raise);
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.erp-nav-search__field:focus-within {
+    border-color: rgba(165, 180, 252, 0.6);
+    background-color: #0d1e33;
+}
+
+/* The magnifier is deliberately pinned in its own 16px box: an explicit
+ * square grid track, an explicit icon size and `overflow: hidden`, so a
+ * missing stylesheet or an unsized SVG can never blow the icon up again. */
+.erp-nav-search__icon {
+    display: grid;
+    flex: 0 0 16px;
+    grid-template-areas: "icon";
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    margin-left: 10px;
+    overflow: hidden;
+    color: var(--erp-nav-text-faint);
+}
+
+.erp-nav-search__icon svg {
+    grid-area: icon;
+    width: 16px;
+    height: 16px;
+}
+
+.erp-nav-search__input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    padding: 0 26px 0 8px;
+    border: 0;
+    background: none;
+    color: var(--erp-nav-text);
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+}
+
+.erp-nav-search__input::placeholder {
+    color: var(--erp-nav-text-faint);
+    opacity: 1;
+}
+
+.erp-nav-search__input::-webkit-search-cancel-button {
+    display: none;
+}
+
+.erp-nav-search__clear {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--erp-nav-text-faint);
+    cursor: pointer;
+}
+
+.erp-nav-search__clear:hover {
+    color: var(--erp-nav-text);
+}
+
+.erp-nav-search__clear svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* -----------------------------------------------------------------------------
+ * 4. Primary row: Dashboard (fixed, 42px)
+ * -------------------------------------------------------------------------- */
+.erp-nav-primary {
+    flex: 0 0 auto;
+    padding: 0 var(--erp-nav-pad-x) 0 16px;
+}
+
+.erp-nav-primary .nav-dashboard {
+    height: var(--erp-nav-row-h);
+}
+
+/* -----------------------------------------------------------------------------
+ * 5. Scrolling module navigation
+ * -------------------------------------------------------------------------- */
+.erp-nav {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0 var(--erp-nav-pad-x) 0 16px;
+}
+
+/* Only this region scrolls, so brand, profile, search, Dashboard and the
+ * "Navigation" label stay reachable even on a short viewport. Rows keep their
+ * real height — nothing is squashed to make 15 modules fit. */
+.erp-nav__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding-bottom: 16px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: #1e293b transparent;
+}
+
+.erp-nav__scroll::-webkit-scrollbar {
+    width: 8px;
+}
+
+.erp-nav__scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.erp-nav__scroll::-webkit-scrollbar-thumb {
+    border: 2px solid var(--erp-nav-bg);
+    border-radius: 999px;
+    background-color: #1e293b;
+}
+
+.erp-nav__scroll::-webkit-scrollbar-thumb:hover {
+    background-color: #334155;
+}
+
+.erp-nav__section-label {
+    flex: 0 0 auto;
+    margin: 14px 0 6px;
+    padding: 0 2px;
+    color: var(--erp-nav-text-faint);
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+}
+
+.erp-nav__empty {
+    margin: 8px 2px 0;
+    padding: 10px 12px;
+    border: 1px dashed var(--erp-nav-line);
+    border-radius: 10px;
+    color: var(--erp-nav-text-muted);
+    font-size: 12.5px;
+}
+
+.erp-nav__list {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 3px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* -----------------------------------------------------------------------------
+ * 6. Module group (top-level row + collapsible children)
+ * -------------------------------------------------------------------------- */
+.nav-group {
+    display: block;
+}
+
+.nav-group__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    height: var(--erp-nav-row-h);
+    margin: 0;
+    padding: 0 var(--erp-nav-pad-x) 0 12px;
+    border: 0;
+    border-radius: 10px;
+    background: none;
+    color: var(--erp-nav-text-muted);
+    font: inherit;
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.nav-group__head:hover {
+    background-color: var(--erp-nav-bg-hover);
+    color: var(--erp-nav-text);
+}
+
+.nav-group__head:focus-visible {
+    outline: 2px solid var(--erp-nav-accent-ring);
+    outline-offset: -2px;
+}
+
+/* Module icon: fixed 18×18 box, so the glyph can never grow past the row. */
+.nav-group__icon,
+.nav-dashboard__icon {
+    display: grid;
+    flex: 0 0 var(--erp-nav-icon);
+    grid-template-areas: "icon";
+    place-items: center;
+    width: var(--erp-nav-icon);
+    height: var(--erp-nav-icon);
+    overflow: hidden;
+    color: var(--erp-nav-text-faint);
+    transition: color 0.14s ease;
+}
+
+.nav-group__icon svg,
+.nav-dashboard__icon svg {
+    grid-area: icon;
+    width: var(--erp-nav-icon);
+    height: var(--erp-nav-icon);
+}
+
+.nav-group__head:hover .nav-group__icon {
+    color: var(--erp-nav-text);
+}
+
+/* Label owns the flexible space between the icon and the chevron. */
+.nav-group__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--erp-nav-text);
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.002em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* Chevron: 14px, pinned to the far right, purely decorative. */
+.nav-group__chevron {
+    display: grid;
+    flex: 0 0 var(--erp-nav-chevron);
+    grid-template-areas: "icon";
+    place-items: center;
+    width: var(--erp-nav-chevron);
+    height: var(--erp-nav-chevron);
+    overflow: hidden;
+    color: var(--erp-nav-text-faint);
+    transition: transform 0.16s ease, color 0.14s ease;
+}
+
+.nav-group__chevron svg {
+    grid-area: icon;
+    width: var(--erp-nav-chevron);
+    height: var(--erp-nav-chevron);
+}
+
+.nav-group__head[aria-expanded="true"] .nav-group__chevron {
+    transform: rotate(90deg);
+    color: var(--erp-nav-text-muted);
+}
+
+/* Active module (a child page is open) — subtle; the child row stays loudest. */
+.nav-group__head[aria-expanded="true"] .nav-group__icon {
+    color: var(--erp-nav-text-muted);
+}
+
+.nav-group[data-nav-active="true"] > .nav-group__head {
+    background-color: rgba(148, 163, 184, 0.08);
+    color: var(--erp-nav-text);
+}
+
+.nav-group[data-nav-active="true"] > .nav-group__head .nav-group__icon {
+    color: var(--erp-nav-accent-ring);
+}
+
+.nav-items {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 2px 0 6px;
+    padding: 0 0 0 var(--erp-nav-indent);
+}
+
+.nav-group[data-nav-open="false"] > .nav-items {
+    display: none;
+}
+
+/* -----------------------------------------------------------------------------
+ * 7. Rows (child links + the standalone Dashboard link)
+ * -------------------------------------------------------------------------- */
+.erp-sidebar .nav-link,
+.erp-sidebar .nav-dashboard {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: var(--erp-nav-child-h);
+    padding: 0 var(--erp-nav-pad-x) 0 0;
+    border-radius: 10px;
+    color: var(--erp-nav-text-muted);
+    font-size: 13px;
+    font-weight: 400;
+    text-decoration: none;
+    transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.erp-sidebar .nav-link {
+    position: relative;
+}
+
+.erp-sidebar .nav-link::before {
+    position: absolute;
+    top: 50%;
+    left: -14px;
+    width: 4px;
+    height: 0;
+    margin-top: 0;
+    border-radius: 2px;
+    background-color: transparent;
+    content: "";
+    transform: translateY(-50%);
+    transition: height 0.14s ease, background-color 0.14s ease;
+}
+
+.erp-sidebar .nav-link > span {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.erp-sidebar .nav-link:hover {
+    background-color: var(--erp-nav-bg-hover);
+    color: var(--erp-nav-text);
+}
+
+.erp-sidebar .nav-link:focus-visible {
+    outline: 2px solid var(--erp-nav-accent-ring);
+    outline-offset: -2px;
+}
+
+/* Active state is driven by the semantic `aria-current` attribute, never by a
+ * presentational class, so the markup keeps one hook per concern. */
+.erp-sidebar .nav-link[aria-current="page"] {
+    background-color: var(--erp-nav-accent);
+    color: #ffffff;
+    font-weight: 500;
+}
+
+.erp-sidebar .nav-link[aria-current="page"]:hover {
+    background-color: var(--erp-nav-accent-hover);
+    color: #ffffff;
+}
+
+.erp-sidebar .nav-link[aria-current="page"]::before {
+    height: 16px;
+    background-color: var(--erp-nav-accent);
+}
+
+.nav-dashboard {
+    height: var(--erp-nav-row-h);
+    padding-left: 12px;
+    color: var(--erp-nav-text);
+    font-size: 14px;
+}
+
+.nav-dashboard > span {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.nav-dashboard[aria-current="page"] {
+    background-color: var(--erp-nav-accent);
+    color: #ffffff;
+}
+
+.nav-dashboard[aria-current="page"]:hover {
+    background-color: var(--erp-nav-accent-hover);
+}
+
+.nav-dashboard[aria-current="page"] .nav-dashboard__icon {
+    color: #ffffff;
+}
+
+/* Search filtering (progressive: the class set is applied by public/js
+ * erp-sidebar.js only while a query is active). */
+.erp-nav[data-nav-filtering="true"] .nav-group[data-nav-match="false"] {
+    display: none;
+}
+
+.erp-nav[data-nav-filtering="true"] .nav-group[data-nav-match="true"] > .nav-items {
+    display: flex;
+}
+
+.erp-nav[data-nav-filtering="true"] .nav-group > .nav-group__head {
+    cursor: pointer;
+}
+
+.erp-nav[data-nav-filtering="true"] .nav-link[data-nav-match="false"],
+.erp-nav[data-nav-filtering="true"] .nav-dashboard[data-nav-match="false"] {
+    display: none;
+}
+
+.erp-nav[data-nav-filtering="true"][data-nav-empty="true"] .erp-nav__section-label {
+    display: none;
+}
+
+.erp-nav__empty:not([hidden]) {
+    display: block;
+}
+
+/* -----------------------------------------------------------------------------
+ * 8. Utility buttons (rail toggle, drawer close)
+ * -------------------------------------------------------------------------- */
+.erp-nav-button {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: none;
+    color: var(--erp-nav-text-muted);
+    cursor: pointer;
+    transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.erp-nav-button svg {
+    width: 18px;
+    height: 18px;
+}
+
+.erp-nav-button:hover {
+    background-color: var(--erp-nav-bg-hover);
+    color: var(--erp-nav-text);
+}
+
+.erp-nav-button:focus-visible {
+    outline: 2px solid var(--erp-nav-accent-ring);
+    outline-offset: 2px;
+}
+
+.erp-nav-button--close {
+    display: none;
+    position: absolute;
+    top: 16px;
+    right: 12px;
+}
+
+/* The rail toggle only makes sense where a rail exists. */
+@media (max-width: 1023.98px) {
+    .erp-nav-button--rail {
+        display: none;
+    }
+}
+
+.erp-nav-button--close[hidden] {
+    display: none;
+}
+
+/* -----------------------------------------------------------------------------
+ * 9. Desktop rail (collapsed sidebar, icons only)
+ * -------------------------------------------------------------------------- */
+@media (min-width: 1024px) {
+    .erp-sidebar {
+        position: sticky;
+        top: 0;
+        flex: 0 0 var(--erp-nav-width);
+        width: var(--erp-nav-width);
+        height: 100vh;
+    }
+
+    .erp-sidebar[data-rail="true"] {
+        flex-basis: var(--erp-nav-rail-width);
+        width: var(--erp-nav-rail-width);
+    }
+
+    /* Rail: everything textual leaves the layout, icons centre themselves. */
+    .erp-sidebar[data-rail="true"] .erp-nav-brand {
+        justify-content: center;
+    }
+
+    .erp-sidebar[data-rail="true"] .erp-nav-brand__text,
+    .erp-sidebar[data-rail="true"] .erp-nav-user__text,
+    .erp-sidebar[data-rail="true"] .erp-nav-search,
+    .erp-sidebar[data-rail="true"] .erp-nav__section-label,
+    .erp-sidebar[data-rail="true"] .nav-group__label,
+    .erp-sidebar[data-rail="true"] .nav-group__chevron,
+    .erp-sidebar[data-rail="true"] .nav-dashboard > span {
+        display: none;
+    }
+
+    .erp-sidebar[data-rail="true"] .erp-nav-user {
+        justify-content: center;
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+
+    .erp-sidebar[data-rail="true"] .erp-nav-primary,
+    .erp-sidebar[data-rail="true"] .erp-nav,
+    .erp-sidebar[data-rail="true"] .erp-nav-brand,
+    .erp-sidebar[data-rail="true"] .erp-nav-user {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    .erp-sidebar[data-rail="true"] .nav-group__head,
+    .erp-sidebar[data-rail="true"] .nav-dashboard {
+        justify-content: center;
+        padding: 0;
+    }
+
+    .erp-sidebar[data-rail="true"] .nav-group__icon,
+    .erp-sidebar[data-rail="true"] .nav-dashboard__icon {
+        flex-basis: 20px;
+        width: 20px;
+        height: 20px;
+    }
+
+    .erp-sidebar[data-rail="true"] .nav-group__icon svg,
+    .erp-sidebar[data-rail="true"] .nav-dashboard__icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .erp-sidebar[data-rail="true"] .nav-items {
+        display: none !important;
+    }
+
+    /* In the rail the labels are hidden, so the accessible name is kept on the
+     * element via `aria-label` and rendered through the tooltip instead. */
+    .erp-sidebar[data-rail="true"] .erp-nav-user__avatar {
+        flex-basis: 32px;
+    }
+}
+
+/* Tooltip: only ever in rail mode, and only for icons that are hidden. */
+.erp-nav-tip {
+    position: fixed;
+    z-index: 70;
+    max-width: 220px;
+    padding: 6px 9px;
+    border: 1px solid var(--erp-nav-line);
+    border-radius: 8px;
+    background-color: #0b1a2c;
+    box-shadow: 0 10px 24px rgba(2, 6, 23, 0.45);
+    color: var(--erp-nav-text);
+    font-family: var(--erp-nav-font);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.3;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+/* -----------------------------------------------------------------------------
+ * 10. Mobile: off-canvas drawer (max 280px) over the content
+ * -------------------------------------------------------------------------- */
+@media (max-width: 1023.98px) {
+    .erp-sidebar {
+        position: fixed;
+        top: 0;
+        right: auto;
+        bottom: 0;
+        left: 0;
+        z-index: 60;
+        width: 100%;
+        max-width: 280px;
+        height: 100%;
+        max-height: 100dvh;
+        border-right: 1px solid var(--erp-nav-line);
+        box-shadow: 0 0 40px rgba(2, 6, 23, 0.55);
+        transform: translateX(-102%);
+        transition: transform 0.2s ease;
+    }
+
+    html[data-nav-drawer="open"] .erp-sidebar {
+        transform: none;
+    }
+
+    .erp-nav-button--close {
+        display: grid;
+    }
+
+    .erp-nav-brand {
+        padding-right: 48px;
+    }
+}
+
+.erp-nav-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background-color: rgba(2, 6, 23, 0.55);
+}
+
+/* While the drawer is open the page behind it must not scroll. */
+body.erp-nav-drawer-lock {
+    overflow: hidden;
+}
+
+/* Only ever shown while the drawer is open, which is a sub-1024px state. */
+@media (min-width: 1024px) {
+    .erp-nav-overlay {
+        display: none !important;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+ * 11. Chrome button in the top bar that opens the drawer
+ * -------------------------------------------------------------------------- */
+.erp-nav-open-button {
+    display: none;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background-color: #ffffff;
+    color: #334155;
+    cursor: pointer;
+}
+
+.erp-nav-open-button svg {
+    width: 18px;
+    height: 18px;
+}
+
+@media (max-width: 1023.98px) {
+    .erp-nav-open-button {
+        display: grid;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+ * 12. Motion and printing
+ * -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+    .erp-sidebar,
+    .erp-sidebar *,
+    .erp-sidebar *::before,
+    .erp-sidebar *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}
+
+@media print {
+    .erp-sidebar,
+    .erp-nav-overlay,
+    .erp-nav-tip {
+        display: none !important;
+    }
+}

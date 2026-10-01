@@ -76,7 +76,7 @@ class InventoryNavigationTest extends TestCase
         'inventory_stock_reports.view',
     ];
 
-    /** Forbidden sub-headings that must NOT appear in the sidebar. */
+    /** Headings that must NOT appear inside the Inventory section. */
     private const FORBIDDEN_HEADINGS = [
         'Purchase &amp; Stock',
         'Purchase & Stock',
@@ -85,15 +85,14 @@ class InventoryNavigationTest extends TestCase
         'Inventory Operations',
         'Stock Management',
         '>Asset Management</div>',
-        '>Reports</div>',
         '>Phase 3</div>',
         '>Phase 4</div>',
     ];
 
     private const HEADING = '>Inventory / Asset Management</div>';
 
-    /** Any sidebar section heading (they share the uppercase heading styling). */
-    private const SECTION_HEADING_PATTERN = '/<div class="[^"]*\buppercase tracking-widest\b[^"]*">/';
+    /** Any sidebar module heading (they share the nav-group__head row markup). */
+    private const SECTION_HEADING_PATTERN = '/<button type="button" class="nav-group__head"[^>]*>/';
 
     private function href(string $routeName): string
     {
@@ -128,13 +127,16 @@ class InventoryNavigationTest extends TestCase
         $this->assertSame(1, substr_count($html, self::HEADING), 'Exactly one Inventory / Asset Management heading.');
         $this->assertSame(1, substr_count($html, '<aside'), 'One sidebar.');
 
-        // 2. No forbidden sub-headings remain.
+        // 2. No decoy sub-headings inside the Inventory section. The scan is scoped
+        //    to the group slice on purpose: module names are title case in the
+        //    rebuilt sidebar, so "Reports" is legitimately a group heading further
+        //    down — what must not exist is a second heading *inside* Inventory.
+        $group = $this->inventoryGroup($html);
         foreach (self::FORBIDDEN_HEADINGS as $bad) {
-            $this->assertStringNotContainsString($bad, $html, "Forbidden heading must not appear: {$bad}");
+            $this->assertStringNotContainsString($bad, $group, "Forbidden heading must not appear: {$bad}");
         }
 
         // 3. All 16 operational entries live inside that single section.
-        $group = $this->inventoryGroup($html);
         $this->assertSame(16, substr_count($group, 'class="nav-link"'), 'Inventory section must contain exactly 16 entries.');
 
         // 4. Order matches spec.
@@ -211,7 +213,7 @@ class InventoryNavigationTest extends TestCase
 
         $communication = strpos($html, '>Communication Management</div>');
         $inventory = strpos($html, self::HEADING);
-        $platform = strrpos($html, '>ADMINISTRATION / SETTINGS</div>');
+        $platform = strrpos($html, '>Administration / Settings</div>');
 
         $this->assertNotFalse($communication);
         $this->assertNotFalse($inventory);
@@ -251,12 +253,12 @@ class InventoryNavigationTest extends TestCase
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
 
         $this->assertStringNotContainsString(self::HEADING, $html, 'The reports permission must not reveal operational Inventory navigation.');
-        $this->assertSame(1, substr_count($html, '>REPORTS</div>'), 'Keep one plain shared REPORTS heading.');
+        $this->assertSame(1, substr_count($html, '>Reports</div>'), 'Keep one plain shared REPORTS heading.');
         $this->assertSame(1, substr_count($html, $this->href('inventory-reports.index')));
 
-        $reportsHeading = strpos($html, '>REPORTS</div>');
+        $reportsHeading = strpos($html, '>Reports</div>');
         $this->assertNotFalse($reportsHeading);
-        $afterHeading = $reportsHeading + strlen('>REPORTS</div>');
+        $afterHeading = $reportsHeading + strlen('>Reports</div>');
         $matched = preg_match(self::SECTION_HEADING_PATTERN, $html, $next, PREG_OFFSET_CAPTURE, $afterHeading);
         $end = $matched === 1 ? $next[0][1] : strpos($html, '</nav>', $afterHeading);
         $this->assertNotFalse($end, 'Reports must end at another section or the sidebar boundary.');

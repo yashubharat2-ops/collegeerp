@@ -49,7 +49,7 @@ class FeeStructureNavigationTest extends TestCase
         $this->assertNotFalse($start, 'The sidebar must have a Finance / Fees group heading.');
 
         $after = $start + strlen('>Finance / Fees</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $end = strpos($html, 'nav-group__head', $after);
 
         return $end === false ? substr($html, $after) : substr($html, $after, $end - $after);
     }
@@ -122,7 +122,7 @@ class FeeStructureNavigationTest extends TestCase
         $this->assertNotFalse($start);
 
         $after = $start + strlen('>Examinations</div>');
-        $end = strpos($html, 'uppercase tracking-widest', $after);
+        $end = strpos($html, 'nav-group__head', $after);
         $examinations = substr($html, $after, $end - $after);
 
         $this->assertSame(12, substr_count($examinations, 'class="nav-link"'));
