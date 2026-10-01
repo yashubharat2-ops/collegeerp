@@ -29,9 +29,19 @@ class AccountPasswordChangeTest extends TestCase
 {
     use DepartmentTestHelpers;
 
-    private const NEW_PASSWORD = 'the-replacement-secret';
+    /**
+     * The two credentials this file works with are written out as whole secrets, and
+     * deliberately NOT as the word `password`: the audit row is scanned for the secret
+     * below, and `account.password_changed` / `password.change.store` both contain that
+     * word, so a literal like that makes the leakage assertion fail on the audit's own
+     * names. Nothing here may be a substring of a route or action name.
+     */
+    private const NEW_PASSWORD = 'Fresh-Copper-Kettle-912';
 
-    private const OLD_PASSWORD = 'password';
+    private const OLD_PASSWORD = 'Stale-Lantern-Tide-77';
+
+    /** A deterministic stand-in for the {token} segment of the guest reset route. */
+    private const RESET_TOKEN = 'test-reset-token';
 
     public function test_a_guest_cannot_reach_the_password_screen(): void
     {
@@ -164,6 +174,9 @@ class AccountPasswordChangeTest extends TestCase
         $this->assertSame([], $audit->old_values);
         $this->assertStringNotContainsString(self::NEW_PASSWORD, (string) json_encode($audit->toArray()));
         $this->assertStringNotContainsString(self::OLD_PASSWORD, (string) json_encode($audit->toArray()));
+        // Not a vacuous pass: the row that was scanned is the audit row itself, so the
+        // two checks above looked at the payload a credential could have leaked into.
+        $this->assertStringContainsString('account.password_changed', (string) json_encode($audit->toArray()));
     }
 
     public function test_reusing_the_current_password_is_refused(): void
@@ -232,10 +245,17 @@ class AccountPasswordChangeTest extends TestCase
     public function test_the_guest_forgot_flow_is_left_alone_and_bounces_a_signed_in_visitor(): void
     {
         // The authenticated screen reuses none of the guest route names or URIs.
-        foreach (['password.request', 'password.email', 'password.reset', 'password.update'] as $name) {
+        foreach (['password.request', 'password.email', 'password.update'] as $name) {
             $this->assertTrue(Route::has($name), "The guest route {$name} must still exist.");
             $this->assertStringNotContainsString('password.change', route($name), "The guest route {$name} must not move under the account screen's URI.");
         }
+
+        // `password.reset` carries a {token} segment, so it cannot be named without one:
+        // a token is part of what the route is, and the account screen shares none of it.
+        $this->assertTrue(Route::has('password.reset'), 'The guest route password.reset must still exist.');
+        $reset = route('password.reset', ['token' => self::RESET_TOKEN]);
+        $this->assertStringContainsString(self::RESET_TOKEN, $reset);
+        $this->assertStringNotContainsString('password.change', $reset, 'The guest reset route must not move under the account screen URI.');
         $this->assertStringContainsString('forgot-password', route('password.request'));
         $this->assertNotSame(route('password.request'), route('password.change.edit'));
         $this->assertNotSame(route('password.update'), route('password.change.store'));
@@ -263,7 +283,7 @@ class AccountPasswordChangeTest extends TestCase
         $user = $this->account($college, []);
 
         $this->assertGuest();
-        $this->get(route('password.reset', ['token' => 'an-arbitrary-token']))->assertOk();
+        $this->get(route('password.reset', ['token' => self::RESET_TOKEN]))->assertOk();
 
         $token = Password::broker()->createToken($user);
         $this->post(route('password.update'), [
@@ -282,14 +302,22 @@ class AccountPasswordChangeTest extends TestCase
     /* helpers ------------------------------------------------------------------------- */
 
     /**
-     * An account for this file, with its address stored lower-cased the way every write
-     * in the application stores it, so that signing in with `$user->email` after a
-     * password change exercises the login route rather than string case.
+     * An account for this file: address stored lower-cased the way every write in the
+     * application stores it (so signing in with `$user->email` after a change exercises
+     * the login route rather than string case), and holding `OLD_PASSWORD` as its
+     * current secret.
      */
     private function account(College $college, array $slugs = []): User
     {
         $user = $this->makeUserWithPermissions($college, $slugs);
-        $user->forceFill(['email' => strtolower($user->email)])->save();
+        // The shared helper seeds every account with the literal password 'password'.
+        // This screen is about proving that secret, so the fixture states it as the same
+        // strong, non-ambiguous value the assertions use — the hash still goes through the
+        // model's own `hashed` cast, exactly as a real write would.
+        $user->forceFill([
+            'email' => strtolower($user->email),
+            'password' => self::OLD_PASSWORD,
+        ])->save();
 
         return $user->fresh();
     }
