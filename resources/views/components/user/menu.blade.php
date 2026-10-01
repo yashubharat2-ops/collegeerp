@@ -13,7 +13,7 @@
      *     loaded, so no query and no tenant/RBAC change is involved;
      *   - Notifications links to the real `notifications.index` screen and only
      *     renders when the user holds `notifications.view` — the same gate the
-     *     Communication Management sidebar row uses, so the menu can never
+     *     Communication sidebar row uses, so the menu can never
      *     offer a link that answers 403;
      *   - My Profile, Change Password and Preferences link to the account
      *     screens this application really serves (routes `profile.edit`,
@@ -29,7 +29,7 @@
      *   - Logout posts to the existing `logout` route exactly as the previous
      *     header did — same verb, same CSRF, same controller, same redirect;
      *   - System Settings deliberately does NOT live here. It stays under
-     *     Administration / Settings → System Settings, where the policy gates it.
+     *     Settings → System Settings, where the policy gates it.
      *
      * The panel is a <details>/<summary> disclosure, so it opens and closes with
      * no JavaScript at all; public/js/erp-user-menu.js only adds what a disclosure

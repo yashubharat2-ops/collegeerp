@@ -18,9 +18,9 @@
       * icon, label and chevron are three flex items — the label takes the
         flexible space, which is what keeps the chevron pinned to the far right
         instead of drifting next to the text;
-      * the label is a block element (not a bare text node) so long module
-        names such as "Certificate Management (EC)" truncate rather than
-        wrapping word by word;
+      * the label is a block element (not a bare text node) so a module name
+        that does not fit the row truncates rather than wrapping word by
+        word;
       * the label text is deliberately not mirrored into a `data-tip`
         attribute — the rail tooltip reads it from `.nav-group__label`, which
         keeps exactly one copy of every module name in the markup.

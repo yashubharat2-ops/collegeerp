@@ -66,14 +66,14 @@ class HostelNavigationTest extends TestCase
      */
     private function hostelNavGroup(string $html): string
     {
-        $start = strpos($html, '>Hostel Management</div>');
+        $start = strpos($html, '>Hostel</div>');
 
         $this->assertNotFalse(
             $start,
             'The sidebar must have a Hostel Management group heading.'
         );
 
-        $after = $start + strlen('>Hostel Management</div>');
+        $after = $start + strlen('>Hostel</div>');
         $end = strpos($html, 'nav-group__head', $after);
 
         return $end === false
@@ -122,7 +122,7 @@ class HostelNavigationTest extends TestCase
 
         $this->assertSame(
             1,
-            substr_count($html, '>Hostel Management</div>'),
+            substr_count($html, '>Hostel</div>'),
             'There must be exactly one Hostel Management section.'
         );
 
@@ -247,7 +247,7 @@ class HostelNavigationTest extends TestCase
         $this->asCollege($college, $stranger)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertDontSee('>Hostel Management</div>', false)
+            ->assertDontSee('>Hostel</div>', false)
             ->assertDontSee(route('hostels.dashboard'), false)
             ->assertDontSee(route('hostels.index'), false)
             ->assertDontSee('Hostel Dashboard')
@@ -269,17 +269,17 @@ class HostelNavigationTest extends TestCase
 
         $libraryStart = strpos(
             $html,
-            '>Library Management</div>'
+            '>Library</div>'
         );
 
         $this->assertNotFalse($libraryStart);
 
         $this->assertSame(
             1,
-            substr_count($html, '>Library Management</div>')
+            substr_count($html, '>Library</div>')
         );
 
-        $after = $libraryStart + strlen('>Library Management</div>');
+        $after = $libraryStart + strlen('>Library</div>');
         $end = strpos(
             $html,
             'nav-group__head',
@@ -301,7 +301,7 @@ class HostelNavigationTest extends TestCase
 
         $hostelStart = (int) strpos(
             $html,
-            '>Hostel Management</div>'
+            '>Hostel</div>'
         );
 
         $this->assertGreaterThan(
@@ -319,7 +319,7 @@ class HostelNavigationTest extends TestCase
 
         $this->assertGreaterThan(
             $hostelStart,
-            (int) strrpos($html, '>Administration / Settings</div>')
+            (int) strrpos($html, '>Settings</div>')
         );
     }
 

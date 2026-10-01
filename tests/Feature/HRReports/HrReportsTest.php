@@ -161,7 +161,7 @@ class HrReportsTest extends TestCase
         ]);
         $html = $this->asCollege($college, $user)->get(route('hr-reports.index'))->assertOk()->getContent();
 
-        $inventory = strpos($html, '>Inventory / Asset Management<');
+        $inventory = strpos($html, '>Inventory<');
         $reports = strpos($html, 'nav-group__label">Reports<');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
@@ -169,7 +169,7 @@ class HrReportsTest extends TestCase
         $finance = strpos($html, 'href="'.route('finance-reports.index').'"');
         $hr = strpos($html, 'href="'.route('hr-reports.index').'"');
         $library = strpos($html, 'href="'.route('library-reports.index').'"');
-        $platform = strpos($html, 'nav-group__label">Administration / Settings<', (int) $reports);
+        $platform = strpos($html, 'nav-group__label">Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue(
@@ -194,7 +194,7 @@ class HrReportsTest extends TestCase
 
         // HR Reports left the HR / Staff Management group: the group keeps its
         // seven operational entries and no longer mentions HR Reports.
-        $hrStart = strpos($html, '>HR / Staff Management</div>');
+        $hrStart = strpos($html, '>Human Resource (HR)</div>');
         $this->assertNotFalse($hrStart);
         $hrEnd = strpos($html, 'nav-group__head', $hrStart + 1);
         $group = substr($html, $hrStart, $hrEnd === false ? null : $hrEnd - $hrStart);
@@ -210,7 +210,7 @@ class HrReportsTest extends TestCase
         $soloHtml = $this->asCollege($college, $solo)->get(route('hr-reports.index'))->assertOk()->getContent();
         $this->assertStringContainsString('nav-group__label">Reports<', $soloHtml);
         $this->assertStringContainsString('href="'.route('hr-reports.index').'"', $soloHtml);
-        $this->assertStringNotContainsString('>HR / Staff Management</div>', $soloHtml);
+        $this->assertStringNotContainsString('>Human Resource (HR)</div>', $soloHtml);
     }
 
     /* ------------------------------------------------------------------ *\

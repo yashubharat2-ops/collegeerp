@@ -5,7 +5,10 @@ namespace Tests\Feature\Account;
 use App\Models\AuditLog;
 use App\Models\UserPreference;
 use App\Services\Settings\UserPreferenceService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use InvalidArgumentException;
 use Tests\Feature\Departments\DepartmentTestHelpers;
 use Tests\TestCase;
 
@@ -74,21 +77,46 @@ class AccountPreferencesTest extends TestCase
             ->assertRedirect(route('preferences.edit'))
             ->assertSessionHas('success');
 
-        $saved = UserPreference::query()->where('user_id', $user->getKey())->pluck('value', 'key')->all();
+        $saved = $this->rows(UserPreference::query()->where('user_id', $user->getKey()));
         $this->assertSame(
-            ['sidebar.rail_by_default' => '1', 'header.show_identity' => '0'],
+            ['header.show_identity' => '0', 'sidebar.rail_by_default' => '1'],
             $saved,
             'Only the supported keys may be written, under their own names.'
         );
         $this->assertSame(2, UserPreference::query()->count());
+        $this->assertSame(
+            [$user->getKey(), $user->getKey()],
+            UserPreference::query()->orderBy('key')->pluck('user_id')->all(),
+            'Every row belongs to the person who saved them.'
+        );
 
         // The second account keeps its own defaults: nothing here is shared or copied.
         $this->assertSame(0, UserPreference::query()->where('user_id', $other->getKey())->count());
 
         $audit = AuditLog::query()->where('action', 'account.preferences_updated')->sole();
         $this->assertSame($user->getKey(), $audit->user_id);
-        $this->assertSame(['sidebar.rail_by_default' => false, 'header.show_identity' => true], $audit->old_values);
-        $this->assertSame(['sidebar.rail_by_default' => true, 'header.show_identity' => false], $audit->new_values);
+        $this->assertSame($college->getKey(), $audit->college_id, 'The audit row records the college the change was made in.');
+        $this->assertSame('preferences.update', $audit->route_name);
+        $this->assertSame(
+            ['header.show_identity' => true, 'sidebar.rail_by_default' => false],
+            $this->sorted($audit->old_values),
+            'The audit states what the values were, defaults included.'
+        );
+        $this->assertSame(
+            ['header.show_identity' => false, 'sidebar.rail_by_default' => true],
+            $this->sorted($audit->new_values)
+        );
+
+        // The same save twice is not a second change: the resolved map is unchanged, so
+        // no further audit row is written and no further row is created.
+        $this->asCollege($college, $user)
+            ->put(route('preferences.update'), [
+                'sidebar_rail_by_default' => '1',
+                'header_show_identity' => '0',
+            ])
+            ->assertRedirect(route('preferences.edit'));
+        $this->assertSame(2, UserPreference::query()->count());
+        $this->assertSame(1, AuditLog::query()->where('action', 'account.preferences_updated')->count());
     }
 
     public function test_an_unsupported_key_in_the_payload_is_never_stored(): void
@@ -178,12 +206,94 @@ class AccountPreferencesTest extends TestCase
             'header_show_identity' => '0',
         ])->assertRedirect(route('preferences.edit'));
 
+        $rowsBefore = UserPreference::query()->orderBy('key')->pluck('id', 'key')->all();
+        $this->assertSame(['header.show_identity', 'sidebar.rail_by_default'], array_keys($rowsBefore));
+
         // Same person, different active college: their own interface choices follow them,
         // and no per-college copy of the preference is created.
         $page = $this->content($this->asCollege($second, $user)->get(route('preferences.edit'))->assertOk()->getContent());
-        $this->assertSame(1, substr_count($page, 'name="sidebar_rail_by_default" value="1"'), 'The rail switch is on.');
-        $this->assertSame(1, substr_count($page, 'type="checkbox" value="1" checked'), 'and it is the only checked switch.');
-        $this->assertSame(2, UserPreference::query()->count());
+
+        // Both controls render from the stored value: the rail switch is checked, the
+        // identity switch is not, and each is still preceded by its explicit hidden 0.
+        $this->assertSame(1, substr_count($page, 'name="sidebar_rail_by_default" value="0"'), 'Every switch posts an explicit off-state sentinel.');
+        $this->assertSame(1, substr_count($page, 'name="header_show_identity" value="0"'));
+        $this->assertSame(
+            1,
+            substr_count($page, 'name="sidebar_rail_by_default" type="checkbox" value="1" checked'),
+            'The rail switch is rendered on, in the second college too.'
+        );
+        $this->assertStringNotContainsString(
+            'name="header_show_identity" type="checkbox" value="1" checked',
+            $page,
+            'The identity switch is rendered off, and not because a college has no value for it.'
+        );
+
+        $this->assertSame(2, UserPreference::query()->count(), 'No second copy per college.');
+        $this->assertSame(
+            $rowsBefore,
+            UserPreference::query()->orderBy('key')->pluck('id', 'key')->all(),
+            'The very same rows were read in the other context — they were not re-created.'
+        );
+        // There is no college column on a user preference: the ownership is by user, and
+        // nothing in the table can fork a value per tenant.
+        $this->assertFalse(Schema::hasColumn('user_preferences', 'college_id'));
+
+        // And the chrome consumes the same values in both contexts, so a person who moves
+        // between colleges sees their own rail and their own header, not two of them.
+        foreach ([$first, $second] as $college) {
+            $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
+            $this->assertStringContainsString('data-rail-default="true"', $this->aside($html), 'sidebar.rail_by_default must load in every accessible college context.');
+            $this->assertStringNotContainsString('erp-user-menu__id', $this->header($html), 'header.show_identity must load in every accessible college context.');
+        }
+
+        // The service resolves the same map with and without the cache, so a value cannot
+        // be held up by one request having warmed it in a particular context.
+        $service = app(UserPreferenceService::class);
+        $resolved = $this->sorted($service->resolved($user));
+        Cache::forget($service->cacheKey($user));
+        $this->assertSame($resolved, $this->sorted($service->resolved($user)));
+    }
+
+    public function test_the_service_writes_only_a_preference_it_defines(): void
+    {
+        $college = $this->makeCollege('PREF8');
+        $user = $this->makeUserWithPermissions($college, []);
+
+        try {
+            app(UserPreferenceService::class)->put($user, 'theme', 'midnight');
+            $this->fail('An unsupported preference key must be refused, not stored.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertStringContainsString('theme', $exception->getMessage());
+        }
+
+        $this->assertSame(0, UserPreference::query()->count());
+    }
+
+    /**
+     * Stored rows as `key => value`, in key order. Which row SQLite happens to read
+     * first is not part of any rule here, so nothing in this file is allowed to depend
+     * on it: the assertion is made against a map that is sorted on both sides.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @return array<string, mixed>
+     */
+    private function rows($query): array
+    {
+        $values = $query->pluck('value', 'key')->all();
+        ksort($values);
+
+        return $values;
+    }
+
+    /**
+     * @param  array<string, mixed>  $values
+     * @return array<string, mixed>
+     */
+    private function sorted(array $values): array
+    {
+        ksort($values);
+
+        return $values;
     }
 
     /** Everything the page renders inside <main>: the screen itself, not the chrome. */

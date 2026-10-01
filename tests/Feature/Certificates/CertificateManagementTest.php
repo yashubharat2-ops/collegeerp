@@ -50,7 +50,7 @@ class CertificateManagementTest extends TestCase
         foreach (CertificateType::BUILT_INS as [$code, $name]) {
             $response->assertSee($name)->assertSee(route('certificates.requests.index', ['type' => $code]));
         }
-        $this->assertSame(1, substr_count($response->getContent(), '>Certificate Management (EC)</div>'));
+        $this->assertSame(1, substr_count($response->getContent(), '>Certificate</div>'));
         $response->assertSee('Certificate Templates')->assertSee('Certificate Reports');
         preg_match('/<aside\b.*?<\/aside>/s', $response->getContent(), $sidebar);
         preg_match_all('/<a\b[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/s', $sidebar[0], $links, PREG_SET_ORDER);

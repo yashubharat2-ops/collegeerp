@@ -96,7 +96,7 @@
                         <x-nav.link label="Subjects" route="subjects.index" />
                         <x-nav.link label="Faculty–Subject Assignments" route="faculty-subject-assignments.index" />
                     </x-nav.group>
-                    <x-nav.group id="hr" label="HR / Staff Management" icon="users" perm="faculties.view|departments.view|designations.view|employee_documents.view|staff_attendance.view|leave_types.view|leave_requests.view|salary_structures.view|salary_components.view|payrolls.view">
+                    <x-nav.group id="hr" label="Human Resource (HR)" icon="users" perm="faculties.view|departments.view|designations.view|employee_documents.view|staff_attendance.view|leave_types.view|leave_requests.view|salary_structures.view|salary_components.view|payrolls.view">
                         <x-nav.link label="Staff / Employee" route="employees.index" perm="faculties.view" />
                         <x-nav.link label="Staff Departments" route="staff-departments.index" perm="departments.view" />
                         <x-nav.link label="Designations" route="designations.index" perm="designations.view" />
@@ -126,7 +126,7 @@
                         <x-nav.link label="Student Transfers" route="student-transfers.index" />
                         <x-nav.link label="Student History" route="student-history.index" />
                     </x-nav.group>
-                    <x-nav.group id="certificates" label="Certificate Management (EC)" icon="award" perm="certificates.view|certificate_types.manage|certificate_templates.manage|certificate_reports.view">
+                    <x-nav.group id="certificates" label="Certificate" icon="award" perm="certificates.view|certificate_types.manage|certificate_templates.manage|certificate_reports.view">
                         <x-nav.link label="Transfer Certificate (TC)" route="certificates.requests.index" :params="['type' => 'TC']" pattern="certificates.*" :query="['type' => 'TC']" perm="certificates.view" />
                         <x-nav.link label="Bonafide Certificate" route="certificates.requests.index" :params="['type' => 'BON']" pattern="certificates.*" :query="['type' => 'BON']" perm="certificates.view" />
                         <x-nav.link label="Character Certificate" route="certificates.requests.index" :params="['type' => 'CHAR']" pattern="certificates.*" :query="['type' => 'CHAR']" perm="certificates.view" />
@@ -159,7 +159,7 @@
                         <x-nav.link label="Exam Reports" route="exam-reports.index" perm="exam_reports.view" />
                         <x-nav.link label="Student Result History" route="student-result-history.index" perm="student_result_history.view" />
                     </x-nav.group>
-                    <x-nav.group id="finance" label="Finance / Fees" icon="wallet" perm="fee_structures.view|fee_categories.view|student_fee_assignments.view|fee_collections.view|receipts.view|fee_dues.view|fee_concessions.view|refunds.view|fee_reports.view">
+                    <x-nav.group id="finance" label="Fees" icon="wallet" perm="fee_structures.view|fee_categories.view|student_fee_assignments.view|fee_collections.view|receipts.view|fee_dues.view|fee_concessions.view|refunds.view|fee_reports.view">
                         <x-nav.link label="Fee Structures" route="fee-structures.index" perm="fee_structures.view" />
                         <x-nav.link label="Fee Categories" route="fee-categories.index" perm="fee_categories.view" />
                         <x-nav.link label="Student Fee Assignment" route="student-fee-assignments.index" perm="student_fee_assignments.view" />
@@ -170,7 +170,7 @@
                         <x-nav.link label="Refunds" route="refunds.index" perm="refunds.view" />
                         <x-nav.link label="Fee Reports" route="fee-reports.index" perm="fee_reports.view" />
                     </x-nav.group>
-                    <x-nav.group id="transport" label="Transport Management" icon="bus" perm="transport_dashboard.view|vehicles.view|vehicle_documents.view|transport_drivers.view|transport_routes.view|student_transport_assignments.view|transport_fees.view">
+                    <x-nav.group id="transport" label="Transport" icon="bus" perm="transport_dashboard.view|vehicles.view|vehicle_documents.view|transport_drivers.view|transport_routes.view|student_transport_assignments.view|transport_fees.view">
                         <x-nav.link label="Transport Dashboard" route="transport.dashboard" perm="transport_dashboard.view" />
                         <x-nav.link label="Vehicles" route="vehicles.index" perm="vehicles.view" />
                         <x-nav.link label="Vehicle Documents" route="vehicle-documents.index" perm="vehicle_documents.view" />
@@ -180,7 +180,7 @@
                         <x-nav.link label="Student Transport Assignment" route="transport-assignments.index" perm="student_transport_assignments.view" />
                         <x-nav.link label="Transport Fees" route="transport-fees.index" perm="transport_fees.view" />
                     </x-nav.group>
-                    <x-nav.group id="library" label="Library Management" icon="books" perm="library_dashboard.view|books.view|book_categories.view|authors.view|publishers.view|book_copies.view|library_members.view|library_transactions.view|library_renewals.view|library_fines.view">
+                    <x-nav.group id="library" label="Library" icon="books" perm="library_dashboard.view|books.view|book_categories.view|authors.view|publishers.view|book_copies.view|library_members.view|library_transactions.view|library_renewals.view|library_fines.view">
                         <x-nav.link label="Library Dashboard" route="library.dashboard" perm="library_dashboard.view" />
                         <x-nav.link label="Books" route="books.index" perm="books.view" />
                         <x-nav.link label="Book Categories" route="book-categories.index" perm="book_categories.view" />
@@ -191,7 +191,7 @@
                         <x-nav.link label="Renewals" route="library-renewals.index" perm="library_renewals.view" />
                         <x-nav.link label="Fines / Penalties" route="library-fines.index" perm="library_fines.view" />
                     </x-nav.group>
-                    <x-nav.group id="hostel" label="Hostel Management" icon="building" perm="hostel_dashboard.view|hostels.view|hostel_buildings.view|hostel_rooms.view|hostel_beds.view|hostel_allocations.view|hostel_fees.view|hostel_attendance.view">
+                    <x-nav.group id="hostel" label="Hostel" icon="building" perm="hostel_dashboard.view|hostels.view|hostel_buildings.view|hostel_rooms.view|hostel_beds.view|hostel_allocations.view|hostel_fees.view|hostel_attendance.view">
                         <x-nav.link label="Hostel Dashboard" route="hostels.dashboard" perm="hostel_dashboard.view" />
                         <x-nav.link label="Hostels" route="hostels.index" perm="hostels.view" pattern="hostels.index|hostels.create|hostels.edit|hostels.store|hostels.update|hostels.destroy" />
                         <x-nav.link label="Buildings / Blocks" route="hostel-buildings.index" perm="hostel_buildings.view" />
@@ -201,7 +201,7 @@
                         <x-nav.link label="Hostel Fees" route="hostel-fees.index" perm="hostel_fees.view" />
                         <x-nav.link label="Hostel Attendance" route="hostel-attendance.index" perm="hostel_attendance.view" />
                     </x-nav.group>
-                    <x-nav.group id="communication" label="Communication Management" icon="message" perm="communication_dashboard.view|notices.view|circulars.view|notifications.view|communication_templates.view|communication_logs.view|communication_tracking.view">
+                    <x-nav.group id="communication" label="Communication" icon="message" perm="communication_dashboard.view|notices.view|circulars.view|notifications.view|communication_templates.view|communication_logs.view|communication_tracking.view">
                         <x-nav.link label="Communication Dashboard" route="communication.dashboard" perm="communication_dashboard.view" />
                         <x-nav.link label="Notices / Announcements" route="notices.index" perm="notices.view" />
                         <x-nav.link label="Circulars" route="circulars.index" perm="circulars.view" />
@@ -210,7 +210,7 @@
                         <x-nav.link label="SMS / Email Logs" route="communication-logs.index" perm="communication_logs.view" />
                         <x-nav.link label="Delivery / Read Tracking" route="communication-tracking.index" perm="communication_tracking.view" />
                     </x-nav.group>
-                    <x-nav.group id="inventory" label="Inventory / Asset Management" icon="box" perm="inventory_dashboard.view|inventory_categories.view|inventory_items.view|inventory_vendors.view|inventory_purchase_orders.view|inventory_goods_receipts.view|inventory_stock_adjustments.view|inventory_transactions.view|inventory_stock.view|inventory_issues.view|inventory_assignments.view|inventory_asset_returns.view|inventory_maintenance.view|inventory_current_stock.view|inventory_low_stock.view|inventory_asset_register.view|inventory_stock_reports.view">
+                    <x-nav.group id="inventory" label="Inventory" icon="box" perm="inventory_dashboard.view|inventory_categories.view|inventory_items.view|inventory_vendors.view|inventory_purchase_orders.view|inventory_goods_receipts.view|inventory_stock_adjustments.view|inventory_transactions.view|inventory_stock.view|inventory_issues.view|inventory_assignments.view|inventory_asset_returns.view|inventory_maintenance.view|inventory_current_stock.view|inventory_low_stock.view|inventory_asset_register.view|inventory_stock_reports.view">
                         <x-nav.link label="Inventory Dashboard" route="inventory.dashboard" perm="inventory_dashboard.view" />
                         <x-nav.link label="Item Categories" route="inventory-categories.index" perm="inventory_categories.view" />
                         <x-nav.link label="Items / Assets" route="inventory-items.index" perm="inventory_items.view" />

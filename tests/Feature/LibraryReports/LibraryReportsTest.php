@@ -183,7 +183,7 @@ class LibraryReportsTest extends TestCase
         ]);
         $html = $this->asCollege($college, $user)->get(route('library-reports.index'))->assertOk()->getContent();
 
-        $inventory = strpos($html, '>Inventory / Asset Management<');
+        $inventory = strpos($html, '>Inventory<');
         $reports = strpos($html, 'nav-group__label">Reports<');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
@@ -191,7 +191,7 @@ class LibraryReportsTest extends TestCase
         $finance = strpos($html, 'href="'.route('finance-reports.index').'"');
         $hr = strpos($html, 'href="'.route('hr-reports.index').'"');
         $library = strpos($html, 'href="'.route('library-reports.index').'"');
-        $platform = strpos($html, 'nav-group__label">Administration / Settings<', (int) $reports);
+        $platform = strpos($html, 'nav-group__label">Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue(
@@ -220,7 +220,7 @@ class LibraryReportsTest extends TestCase
 
         // Library Reports left the Library Management group: the group keeps its
         // nine operational entries and no longer mentions the reports.
-        $libraryStart = strpos($html, '>Library Management</div>');
+        $libraryStart = strpos($html, '>Library</div>');
         $this->assertNotFalse($libraryStart);
         $libraryEnd = strpos($html, 'nav-group__head', $libraryStart + 1);
         $group = substr($html, $libraryStart, $libraryEnd === false ? null : $libraryEnd - $libraryStart);
@@ -237,7 +237,7 @@ class LibraryReportsTest extends TestCase
         $soloHtml = $this->asCollege($college, $solo)->get(route('library-reports.index'))->assertOk()->getContent();
         $this->assertStringContainsString('nav-group__label">Reports<', $soloHtml);
         $this->assertStringContainsString('href="'.route('library-reports.index').'"', $soloHtml);
-        $this->assertStringNotContainsString('>Library Management</div>', $soloHtml);
+        $this->assertStringNotContainsString('>Library</div>', $soloHtml);
     }
 
     /* ------------------------------------------------------------------ *\

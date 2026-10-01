@@ -256,7 +256,7 @@ class ConsolidatedReportsTest extends TestCase
         $this->assertStringContainsString('class="nav-link"', substr($sidebar, max(0, $entry - 60), 60));
 
         $entryEnd = strpos($sidebar, '</a>', (int) $entry) + 4;
-        $platform = strpos($sidebar, 'nav-group__label">Administration / Settings<', $entryEnd);
+        $platform = strpos($sidebar, 'nav-group__label">Settings<', $entryEnd);
         $platform = $platform === false ? strpos($sidebar, '</nav>', $entryEnd) : $platform;
         $this->assertNotFalse($platform, 'REPORTS must end at Administration / Settings or the sidebar boundary.');
         $this->assertStringNotContainsString('class="nav-link"', substr($sidebar, $entryEnd, $platform - $entryEnd));

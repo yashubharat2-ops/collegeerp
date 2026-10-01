@@ -93,11 +93,11 @@ class AcademicReportsTest extends TestCase
         $user = $this->makeUserWithPermissions($college, ['inventory_dashboard.view', 'student_reports.view', 'academic_reports.view']);
         $html = $this->asCollege($college, $user)->get(route('academic-reports.index'))->assertOk()->getContent();
 
-        $inventory = strpos($html, '>Inventory / Asset Management<');
+        $inventory = strpos($html, '>Inventory<');
         $reports = strpos($html, 'nav-group__label">Reports<');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
-        $platform = strpos($html, 'nav-group__label">Administration / Settings<', (int) $reports);
+        $platform = strpos($html, 'nav-group__label">Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue($inventory < $reports && $reports < $student && $student < $academic && $academic < $platform);

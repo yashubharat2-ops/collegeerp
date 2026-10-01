@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Layout;
 
+use App\Models\Permission;
 use Tests\Feature\Departments\DepartmentTestHelpers;
 use Tests\TestCase;
 
@@ -25,6 +26,48 @@ use Tests\TestCase;
 class SidebarRailTooltipTest extends TestCase
 {
     use DepartmentTestHelpers;
+
+    /**
+     * group id => [the display label now, the display label before, a permission the row
+     * is still gated on, a route its children still link].
+     */
+    private const RENAMED_MODULES = [
+        'hr' => ['Human Resource (HR)', 'HR / Staff Management', 'faculties.view', 'employees.index'],
+        'certificates' => ['Certificate', 'Certificate Management (EC)', 'certificates.view', 'certificates.templates.index'],
+        'finance' => ['Fees', 'Finance / Fees', 'fee_structures.view', 'fee-structures.index'],
+        'transport' => ['Transport', 'Transport Management', 'vehicles.view', 'transport.dashboard'],
+        'library' => ['Library', 'Library Management', 'books.view', 'library.dashboard'],
+        'hostel' => ['Hostel', 'Hostel Management', 'hostels.view', 'hostels.dashboard'],
+        'communication' => ['Communication', 'Communication Management', 'notices.view', 'communication.dashboard'],
+        'inventory' => ['Inventory', 'Inventory / Asset Management', 'inventory_items.view', 'inventory.dashboard'],
+        // The administration row is gated by its own link collection, not a perm string.
+        'administration-settings' => ['Settings', 'Administration / Settings', null, 'admin.users.index'],
+    ];
+
+    /** A dashboard as a user who holds every permission, i.e. with all rows rendered. */
+    private function dashboard(): string
+    {
+        $college = $this->makeCollege('TIP2');
+        $user = $this->makeUserWithPermissions($college, Permission::query()->pluck('slug')->all());
+
+        return $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
+    }
+
+    private function uri(string $route): string
+    {
+        return parse_url(route($route), PHP_URL_PATH);
+    }
+
+    /** The markup one group label introduces, up to the next group or the list's end. */
+    private function block(string $aside, string $label): string
+    {
+        $start = strpos($aside, 'nav-group__label">'.$label.'<');
+        $this->assertNotFalse($start, "The sidebar must render a {$label} group.");
+        $next = strpos($aside, 'nav-group__label">', $start + 1);
+        $end = $next === false ? (strlen($aside)) : $next;
+
+        return substr($aside, $start, $end - $start);
+    }
 
     public function test_the_tip_paints_itself_because_it_is_rendered_outside_the_sidebar(): void
     {
@@ -154,6 +197,91 @@ class SidebarRailTooltipTest extends TestCase
         $hidden = $this->ruleAt('.erp-sidebar[data-rail="true"] .erp-nav-brand__text,', $css);
         $this->assertStringContainsString('display: none', $hidden);
         $this->assertStringContainsString('.nav-group__chevron', $hidden);
+    }
+
+    /**
+     * The nine module rows whose display labels were shortened, as the rail renders them.
+     *
+     * A collapsed sidebar shows nothing but these words — the tooltip reads them straight
+     * out of `.nav-group__label` — so this is the whole of what the change was meant to
+     * do: each new label exactly once, each old display string nowhere, and the child
+     * rows and report names underneath untouched.
+     */
+    public function test_the_rail_shows_the_shortened_module_labels_and_nothing_else(): void
+    {
+        $aside = $this->aside($this->dashboard());
+
+        foreach (self::RENAMED_MODULES as [$label, $old]) {
+            $this->assertSame(
+                1,
+                substr_count($aside, 'nav-group__label">'.$label.'<'),
+                "{$label} must be rendered exactly once, as the group label the tooltip reads."
+            );
+            $this->assertStringNotContainsString($old, $aside, "The old display string {$old} must be gone from the navigation.");
+        }
+
+        // Report names and child rows keep their own wording: the change stopped at the
+        // module row. "Inventory / Asset Reports" is a report, not the Inventory module.
+        $this->assertStringContainsString('>Inventory / Asset Reports<', $aside);
+        $this->assertStringContainsString('>Certificate Reports<', $aside);
+        $this->assertStringContainsString('>Finance Reports<', $aside);
+        $this->assertStringContainsString('>Hostel Reports<', $aside);
+
+        // The modules that were never in scope render exactly as they did.
+        foreach (['Platform', 'Admissions', 'Students', 'Academics', 'Examinations', 'Reports'] as $label) {
+            $this->assertSame(1, substr_count($aside, 'nav-group__label">'.$label.'<'), "{$label} is not one of the renamed modules.");
+        }
+    }
+
+    /**
+     * A display label is the only thing a rename of this kind may move. The group `id`
+     * (which the open/collapse state, the search filter and `data-navigation` all key
+     * off), the permission the row is gated on, and the route each child links, are
+     * identifiers the application is built around — so they are asserted against the
+     * source of the row and against the rendered href, not against the label.
+     */
+    public function test_a_label_change_did_not_move_an_id_a_permission_gate_or_a_route(): void
+    {
+        $source = (string) file_get_contents(resource_path('views/layouts/sidebar.blade.php'))
+            .(string) file_get_contents(resource_path('views/administration/partials/navigation.blade.php'));
+        $aside = $this->aside($this->dashboard());
+
+        foreach (self::RENAMED_MODULES as $id => [$label, , $permission, $route]) {
+            // The row itself: same component, same id, same icon, new display text.
+            $line = null;
+            foreach (explode("\n", $source) as $candidate) {
+                if (str_contains($candidate, '<x-nav.group id="'.$id.'"')) {
+                    $line = trim($candidate);
+                    break;
+                }
+            }
+            $this->assertNotNull($line, "The sidebar must still declare a <x-nav.group id=\"{$id}\"> row.");
+            $this->assertStringStartsWith(
+                '<x-nav.group id="'.$id.'" label="'.$label.'" icon="',
+                $line,
+                "Only the label of {$id} may differ from the row as it was before the rename."
+            );
+            if ($permission !== null) {
+                $this->assertStringContainsString(
+                    'perm="',
+                    $line,
+                    "The row must still carry its permission gate; a label edit is not a way to widen access."
+                );
+                $this->assertMatchesRegularExpression(
+                    '/perm="[^"]*(?<![a-z_.])'.preg_quote($permission, '/').'(?![a-z_.])/',
+                    $line,
+                    "{$id} must still be gated on {$permission} (among its other module permissions)."
+                );
+            }
+
+            // Rendered: the row is still there under its id, and still links the module.
+            $this->assertStringContainsString('data-nav-group="'.$id.'"', $aside);
+            $this->assertStringContainsString(
+                $this->uri($route),
+                $this->block($aside, $label),
+                "The {$label} row must still link {$route}: a label change moved no route."
+            );
+        }
     }
 
     /* helpers ------------------------------------------------------------------------- */

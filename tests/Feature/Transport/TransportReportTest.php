@@ -215,7 +215,7 @@ class TransportReportTest extends TestCase
         ]);
         $html = $this->asCollege($college, $user)->get(route('transport-reports.index'))->assertOk()->getContent();
 
-        $inventory = strpos($html, '>Inventory / Asset Management<');
+        $inventory = strpos($html, '>Inventory<');
         $reports = strpos($html, 'nav-group__label">Reports<');
         $student = strpos($html, 'href="'.route('student-reports.index').'"');
         $academic = strpos($html, 'href="'.route('academic-reports.index').'"');
@@ -224,7 +224,7 @@ class TransportReportTest extends TestCase
         $hr = strpos($html, 'href="'.route('hr-reports.index').'"');
         $library = strpos($html, 'href="'.route('library-reports.index').'"');
         $transport = strpos($html, 'href="'.route('transport-reports.index').'"');
-        $platform = strpos($html, 'nav-group__label">Administration / Settings<', (int) $reports);
+        $platform = strpos($html, 'nav-group__label">Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $this->assertNotFalse($inventory);
         $this->assertTrue(
@@ -248,7 +248,7 @@ class TransportReportTest extends TestCase
 
         // Transport Reports left the Transport Management group: the group keeps
         // only its operational entries and no longer mentions the reports.
-        $groupStart = strpos($html, '>Transport Management</div>');
+        $groupStart = strpos($html, '>Transport</div>');
         $this->assertNotFalse($groupStart);
         $groupEnd = strpos($html, 'nav-group__head', $groupStart + 1);
         $group = substr($html, $groupStart, $groupEnd === false ? null : $groupEnd - $groupStart);
@@ -264,7 +264,7 @@ class TransportReportTest extends TestCase
         $soloHtml = $this->asCollege($college, $solo)->get(route('transport-reports.index'))->assertOk()->getContent();
         $this->assertStringContainsString('nav-group__label">Reports<', $soloHtml);
         $this->assertStringContainsString('href="'.route('transport-reports.index').'"', $soloHtml);
-        $this->assertStringNotContainsString('>Transport Management</div>', $soloHtml);
+        $this->assertStringNotContainsString('>Transport</div>', $soloHtml);
     }
 
     /* ------------------------------------------------------------------ *\

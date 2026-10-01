@@ -59,7 +59,7 @@ class CertificateNavigationTest extends TestCase
         $this->assertSame([
             ...array_column(CertificateType::BUILT_INS, 1), 'Certificate Templates', 'Certificate Reports',
         ], $links->keys()->all());
-        $this->assertSame(1, substr_count($sidebar[0], 'Certificate Management (EC)'));
+        $this->assertSame(1, substr_count($sidebar[0], '>Certificate</div>'));
 
         foreach (CertificateType::BUILT_INS as [$code, $name]) {
             $this->assertSame(route('certificates.requests.index', ['type' => $code]), $links[$name]);

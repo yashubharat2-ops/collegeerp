@@ -34,17 +34,34 @@ class ProfileController extends Controller
     public function update(UpdateProfileRequest $request, AuditLogService $audit): RedirectResponse
     {
         $user = $request->user();
-        $before = ['name' => $user->name, 'email' => $user->email];
 
         // Beyond the FormRequest there is a second boundary: fill() only accepts the
         // keys the model itself lists as fillable, so name and e-mail are the only two
         // values this method can ever write, whatever the request carried.
-        $user->fill($request->validated())->save();
+        $user->fill($request->validated());
 
-        $after = ['name' => $user->name, 'email' => $user->email];
-        if ($before !== $after) {
-            $audit->record('account.profile_updated', $user, $before, $after, $request);
+        if (! $user->isDirty()) {
+            // The same name and the same address came back. Nothing is written, so
+            // `updated_at` stays where it was and, more importantly, no
+            // account.profile_updated row is produced for a change that did not happen.
+            return redirect()
+                ->route('profile.edit')
+                ->with('success', 'Your profile is up to date.');
         }
+
+        // Only the fields that actually moved are audited: getDirty() is the pending
+        // change set, getRawOriginal() the stored value of those same keys and
+        // getChanges() what the write reported back (its own updated_at is not part of
+        // the pair). The college this happened in is added by the audit service from
+        // TenantContext — which is why these routes run behind `tenant`.
+        $changed = array_flip(array_keys($user->getDirty()));
+        $before = array_intersect_key($user->getRawOriginal(), $changed);
+
+        $user->save();
+
+        $after = array_intersect_key($user->getChanges(), $changed);
+
+        $audit->record('account.profile_updated', $user, $before, $after, $request);
 
         return redirect()
             ->route('profile.edit')

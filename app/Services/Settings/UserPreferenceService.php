@@ -127,9 +127,13 @@ final class UserPreferenceService
      */
     private function load(User $user): array
     {
+        // No college identifier takes part in this query, and none could: the table
+        // keys a preference by its user alone. `orderBy('key')` keeps the read stable
+        // row for row, whatever order the storage engine returns them in.
         $stored = UserPreference::query()
             ->where('user_id', $user->getKey())
             ->whereIn('key', $this->keys())
+            ->orderBy('key')
             ->get()
             ->keyBy('key');
 

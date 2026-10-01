@@ -89,7 +89,7 @@ class InventoryNavigationTest extends TestCase
         '>Phase 4</div>',
     ];
 
-    private const HEADING = '>Inventory / Asset Management</div>';
+    private const HEADING = '>Inventory</div>';
 
     /** Any sidebar module heading (they share the nav-group__head row markup). */
     private const SECTION_HEADING_PATTERN = '/<button type="button" class="nav-group__head"[^>]*>/';
@@ -183,7 +183,7 @@ class InventoryNavigationTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk();
 
-        $response->assertDontSee('Inventory / Asset Management', false);
+        $response->assertDontSee('nav-group__label">Inventory<', false);
         foreach (self::FORBIDDEN_HEADINGS as $bad) {
             // assertDontSee with escaped=false; these are raw substrings we want absent.
             $this->assertStringNotContainsString(
@@ -211,9 +211,9 @@ class InventoryNavigationTest extends TestCase
 
         $html = $this->asCollege($college, $super)->get(route('dashboard'))->assertOk()->getContent();
 
-        $communication = strpos($html, '>Communication Management</div>');
+        $communication = strpos($html, '>Communication</div>');
         $inventory = strpos($html, self::HEADING);
-        $platform = strrpos($html, '>Administration / Settings</div>');
+        $platform = strrpos($html, '>Settings</div>');
 
         $this->assertNotFalse($communication);
         $this->assertNotFalse($inventory);

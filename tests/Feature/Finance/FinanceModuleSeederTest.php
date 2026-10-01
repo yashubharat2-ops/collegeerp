@@ -163,7 +163,7 @@ class FinanceModuleSeederTest extends TestCase
 
         $response = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk();
 
-        $response->assertSee('Finance / Fees');
+        $response->assertSee('nav-group__label">Fees<', false);
 
         foreach ([
             'fee-structures.index',

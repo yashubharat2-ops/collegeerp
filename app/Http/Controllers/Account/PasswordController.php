@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Account;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Account\ChangePasswordRequest;
 use App\Services\Audit\AuditLogService;
-use Illuminate\Auth\Events\PasswordChanged;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
@@ -20,7 +19,10 @@ use Illuminate\View\View;
  * no credential value of any kind.
  *
  * The session deliberately survives the change, matching how the rest of the ERP treats
- * a self-service password update: sign-out stays on its own POST route.
+ * a self-service password update: sign-out stays on its own POST route. No framework
+ * "password changed" event is dispatched — this Laravel release ships no such event
+ * class, and inventing one would be a fake hook nothing listens to. The audit row below
+ * is the record that the password was changed.
  */
 class PasswordController extends Controller
 {
@@ -33,9 +35,9 @@ class PasswordController extends Controller
     {
         $user = $request->user();
 
+        // The `hashed` cast on User::$password is the only place a hash is produced, so
+        // the plain value never reaches the attributes array that gets serialized.
         $user->forceFill(['password' => $request->validated('password')])->save();
-
-        event(new PasswordChanged($user));
 
         $audit->record('account.password_changed', $user, [], [], $request);
 

@@ -25,7 +25,7 @@
 @endphp
 
 @if ($administrationLinks->isNotEmpty())
-    <x-nav.group id="administration-settings" label="Administration / Settings" icon="cog" navigation="administration-settings">
+    <x-nav.group id="administration-settings" label="Settings" icon="cog" navigation="administration-settings">
         @foreach ($administrationLinks as $administrationLink)
             <x-nav.link
                 :label="$administrationLink['label']"

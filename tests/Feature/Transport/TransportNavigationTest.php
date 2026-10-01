@@ -62,8 +62,8 @@ class TransportNavigationTest extends TestCase
 
     private function transportNavBlock(string $html): string
     {
-        $this->assertStringContainsString('Transport Management', $html);
-        $start = strpos($html, '>Transport Management</div>') + strlen('>Transport Management</div>');
+        $this->assertStringContainsString('nav-group__label">Transport<', $html);
+        $start = strpos($html, '>Transport</div>') + strlen('>Transport</div>');
         $navEnd = strpos($html, '</nav>', $start);
         $this->assertNotFalse($navEnd, 'Transport must remain inside the sidebar.');
         $matched = preg_match('/<button type="button" class="nav-group__head"[^>]*>/', $html, $next, PREG_OFFSET_CAPTURE, $start);
@@ -156,7 +156,7 @@ class TransportNavigationTest extends TestCase
         $this->login($a, ['transport_reports.view']);
         $response = $this->get(route('transport-reports.index'))->assertOk();
         $html = $response->getContent();
-        $this->assertStringNotContainsString('Transport Management', $html);
+        $this->assertStringNotContainsString('nav-group__label">Transport<', $html);
         foreach (self::ENTRIES as $entryRoute) {
             $this->assertStringNotContainsString('href="'.route($entryRoute).'"', $html, "Leaked {$entryRoute} for transport_reports.view");
         }
@@ -170,7 +170,7 @@ class TransportNavigationTest extends TestCase
         // A user with a non-transport permission sees none of the group.
         $this->login($a, ['books.view']);
         $response = $this->get(route('books.index'))->assertOk();
-        $this->assertStringNotContainsString('Transport Management', $response->getContent());
+        $this->assertStringNotContainsString('nav-group__label">Transport<', $response->getContent());
         foreach (self::ENTRIES as $route) {
             $this->assertStringNotContainsString('href="'.route($route).'"', $response->getContent());
         }

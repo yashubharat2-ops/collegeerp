@@ -112,7 +112,7 @@ class HRManagementTest extends TestCase
         ]);
 
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
-        $start = strpos($html, '>HR / Staff Management</div>');
+        $start = strpos($html, '>Human Resource (HR)</div>');
         $this->assertNotFalse($start);
         $end = strpos($html, 'nav-group__head', $start + 1);
         $group = substr($html, $start, $end === false ? null : $end - $start);
@@ -132,7 +132,7 @@ class HRManagementTest extends TestCase
         ]);
 
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
-        $start = strpos($html, '>HR / Staff Management</div>');
+        $start = strpos($html, '>Human Resource (HR)</div>');
         $this->assertNotFalse($start);
         $end = strpos($html, 'nav-group__head', $start + 1);
         $group = substr($html, $start, $end === false ? null : $end - $start);
@@ -150,7 +150,7 @@ class HRManagementTest extends TestCase
         // other report links stay behind their own view permissions.
         $reports = strpos($html, 'nav-group__label">Reports<');
         $this->assertNotFalse($reports);
-        $platform = strpos($html, 'nav-group__label">Administration / Settings<', (int) $reports);
+        $platform = strpos($html, 'nav-group__label">Settings<', (int) $reports);
         $platform = $platform === false ? strpos($html, '</nav>', (int) $reports) : $platform;
         $menu = substr($html, $reports, $platform - $reports);
         $this->assertSame(1, substr_count($menu, 'class="nav-link"'));

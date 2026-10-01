@@ -4,7 +4,7 @@
     checkbox only for a preference the application really reads — the sidebar's opening
     state and the header's identity block. Nothing here is a placeholder, and nothing an
     administrator owns is editable from here: college-wide settings stay in
-    Administration / Settings → System Settings, behind their policy, and this form never
+    the Settings module's System Settings screen, behind their policy, and this form never
     touches the institutional settings table. --}}
 @section('title', 'Preferences')
 @section('content')

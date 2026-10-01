@@ -45,7 +45,11 @@ class UpdateProfileRequest extends FormRequest
                 'required',
                 'email:rfc',
                 'max:254',
-                Rule::unique('users', 'email')->ignore($this->user()?->getKey()),
+                // The rule ignores only the row of the person making the request. The cast
+                // to int is deliberate: `ignore(null)` would bind a NULL into
+                // `id <> ?`, which matches no row at all and would quietly turn the
+                // uniqueness check off — 0 names no user, so the check stays on.
+                Rule::unique('users', 'email')->ignore((int) $this->user()?->getKey()),
             ],
             // Protected by the Administration module, never by this screen.
             'id' => ['prohibited'],

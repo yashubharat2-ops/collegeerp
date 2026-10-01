@@ -170,7 +170,7 @@ class CertificateReportTest extends TestCase
 
         $reportsHeaderPos = strpos($visibleHtml, '>Reports</div>');
         $certReportsLinkPos = strpos($visibleHtml, route('certificate-reports.index'));
-        $platformFooterPos = strrpos($visibleHtml, '>Administration / Settings</div>');
+        $platformFooterPos = strrpos($visibleHtml, '>Settings</div>');
 
         $this->assertNotFalse($reportsHeaderPos);
         $this->assertNotFalse($certReportsLinkPos);

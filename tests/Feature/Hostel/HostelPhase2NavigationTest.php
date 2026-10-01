@@ -67,7 +67,7 @@ class HostelPhase2NavigationTest extends TestCase
     {
         $start = strpos(
             $html,
-            '>Hostel Management</div>'
+            '>Hostel</div>'
         );
 
         $this->assertNotFalse(
@@ -76,7 +76,7 @@ class HostelPhase2NavigationTest extends TestCase
         );
 
         $after = $start + strlen(
-            '>Hostel Management</div>'
+            '>Hostel</div>'
         );
 
         $end = strpos(
@@ -126,7 +126,7 @@ class HostelPhase2NavigationTest extends TestCase
 
         $this->assertSame(
             1,
-            substr_count($html, '>Hostel Management</div>'),
+            substr_count($html, '>Hostel</div>'),
             'Exactly one Hostel Management section.'
         );
 

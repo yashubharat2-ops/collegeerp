@@ -40,7 +40,7 @@ class CommunicationNavigationTest extends TestCase
 
     private const FUTURE = ['WhatsApp', 'Email Gateway', 'SMS Gateway', 'Push Notifications'];
 
-    private const HEADING = '>Communication Management</div>';
+    private const HEADING = '>Communication</div>';
 
     private const REPORTS_HEADING = '>Reports</div>';
 
@@ -183,8 +183,8 @@ class CommunicationNavigationTest extends TestCase
 
         // The group sits after Hostel Management and before the closing Administration / Settings section.
         $communication = strpos($html, self::HEADING);
-        $this->assertGreaterThan((int) strpos($html, '>Hostel Management</div>'), $communication);
-        $this->assertGreaterThan($communication, (int) strrpos($html, '>Administration / Settings</div>'));
+        $this->assertGreaterThan((int) strpos($html, '>Hostel</div>'), $communication);
+        $this->assertGreaterThan($communication, (int) strrpos($html, '>Settings</div>'));
 
         // …and its screens open for the super admin.
         foreach ([
