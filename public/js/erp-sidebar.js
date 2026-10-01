@@ -2,8 +2,9 @@
  * College ERP — sidebar behaviour (progressive enhancement)
  * =============================================================================
  *
- * Served as a static asset from `public/` and linked with `defer` by
- * resources/views/layouts/app.blade.php, so it needs no bundler: the sidebar
+ * Served as a static asset from `public/` and linked by
+ * resources/views/layouts/app.blade.php as `<script type="module">` — deferred by
+ * the browser, which is when this file wants to run — so it needs no bundler: the sidebar
  * already renders in its correct state on the server (the group that owns the
  * current route is open, the current row is `aria-current="page"`), and this
  * file only adds the interaction on top:

@@ -12,12 +12,17 @@
          * `public/` (never through the Vite tags below): the navigation must keep
          * its dark navy chrome, its sizing and its interactions when no build and
          * no dev server exist — `public/` is served by the web server alone.
-         * The file mtime is only a cache buster, so a stale copy can never be
-         * served after a deploy; the `?: null` guard keeps the tag usable when the
-         * build directory is not readable from disk.
+         *
+         * The stylesheet gets the file mtime as a cache buster, so a stale copy can
+         * never be served after a deploy; the `?: null` guard keeps the tag usable
+         * when the build directory is not readable from disk. The script deliberately
+         * carries no query string: every external script rendered by this layout must
+         * stay `<script type="module" src="….js">` (asserted by
+         * tests/Feature/Programs/ProgramNameEscapeTest.php, which requires the src to
+         * end in `.js`), and static assets under `public/` keep their Last-Modified /
+         * ETag headers, so the browser revalidates the file on its own.
          */
         $erpSidebarCssVersion = filemtime(public_path('css/erp-sidebar.css')) ?: null;
-        $erpSidebarJsVersion = filemtime(public_path('js/erp-sidebar.js')) ?: null;
     @endphp
     <link rel="stylesheet" href="{{ asset('css/erp-sidebar.css') }}@if ($erpSidebarCssVersion)?v={{ $erpSidebarCssVersion }}@endif">
 
@@ -84,7 +89,11 @@
         </section>
     </div>
 
-    <script src="{{ asset('js/erp-sidebar.js') }}@if ($erpSidebarJsVersion)?v={{ $erpSidebarJsVersion }}@endif" defer></script>
+    {{-- The sidebar behaviour loads as a module script: browsers defer modules by
+         default, which is what the component needs (it reads the rendered markup), and
+         `type="module"` is the form this layout allows for external scripts. The file is
+         already a strict-mode IIFE, so module semantics need no other change. --}}
+    <script type="module" src="{{ asset('js/erp-sidebar.js') }}"></script>
     @stack('scripts')
 </body>
 </html>
