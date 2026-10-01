@@ -154,8 +154,16 @@ class SidebarRailTooltipTest extends TestCase
         $this->assertStringContainsString("target.addEventListener('focus'", $js);
         $this->assertStringContainsString("target.addEventListener('blur', hideTip)", $js);
         $this->assertStringContainsString("scroll.addEventListener('scroll', hideTip", $js, 'A tip must not stay behind while its row scrolls away.');
-        // Rail mode only, and only where a rail exists.
-        $this->assertMatchesRegularExpression('/if \(! isRail\(\) \|\| ! desktop\.matches\) \{/', $js);
+        // Rail mode only, and only where a rail exists: showTip has to bail out when the
+        // sidebar is expanded, and when the viewport is under the desktop breakpoint. The
+        // pattern is tolerant of the whitespace around `!`, `||` and the braces because
+        // that spacing is formatting; the two operands and the `||` between them are the
+        // behaviour, so both are still named.
+        $this->assertMatchesRegularExpression(
+            '/if\s*\(\s*!\s*isRail\(\s*\)\s*\|\|\s*!\s*desktop\.matches\s*\)\s*\{/',
+            $js,
+            'The rail tooltip must be suppressed in the expanded sidebar and off desktop widths.'
+        );
     }
 
     public function test_the_tip_reads_the_one_copy_of_each_label_and_leaves_the_accessible_name_alone(): void
