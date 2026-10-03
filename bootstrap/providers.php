@@ -6,4 +6,5 @@ use App\Providers\AuthServiceProvider;
 return [
     AppServiceProvider::class,
     AuthServiceProvider::class,
+    App\Providers\BulkActionServiceProvider::class,
 ];
