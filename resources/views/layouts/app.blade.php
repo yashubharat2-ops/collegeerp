@@ -94,6 +94,7 @@
     {{-- Same loading rules as the sidebar script: external module script, no inline
          code, and a src that ends in `.js` (see ProgramNameEscapeTest). --}}
     <script type="module" src="{{ asset('js/erp-user-menu.js') }}"></script>
+    <script type="module" src="{{ asset('js/erp-list.js') }}"></script>
     @stack('scripts')
 </body>
 </html>

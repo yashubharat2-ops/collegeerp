@@ -642,6 +642,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/settings', [InstitutionalSettingController::class, 'index'])->name('settings.index');
         Route::post('/settings', [InstitutionalSettingController::class, 'update'])->name('settings.update');
 
+        // Central bulk action execution endpoint
+        Route::post('bulk-actions', \App\Http\Controllers\BulkActionController::class)->name('bulk-actions.execute');
+
     });
 });
 
