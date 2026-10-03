@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\BulkAction\BulkActionHandler;
 use App\Support\BulkAction\BulkActionRegistry;
 use App\Support\BulkAction\BulkActionResult;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Tests\Feature\Students\StudentTestHelpers;
@@ -61,6 +62,8 @@ class BulkActionContractTest extends TestCase
     public function test_bulk_action_rejects_missing_permission(): void
     {
         $college = $this->makeCollege('BA1');
+        app(TenantContext::class)->set($college);
+
         $applicant = AdmissionApplicant::create([
             'college_id' => $college->id,
             'first_name' => 'Alice',
@@ -83,14 +86,15 @@ class BulkActionContractTest extends TestCase
     {
         $collegeA = $this->makeCollege('BAA');
         $collegeB = $this->makeCollege('BAB');
+        app(TenantContext::class)->set($collegeA);
 
-        $applicantA = AdmissionApplicant::create([
+        $applicantA = AdmissionApplicant::withoutGlobalScopes()->create([
             'college_id' => $collegeA->id,
             'first_name' => 'Alice TenantA',
             'last_name' => 'Smith',
             'status' => 'active',
         ]);
-        $applicantB = AdmissionApplicant::create([
+        $applicantB = AdmissionApplicant::withoutGlobalScopes()->create([
             'college_id' => $collegeB->id,
             'first_name' => 'Bob TenantB',
             'last_name' => 'Jones',
@@ -118,7 +122,7 @@ class BulkActionContractTest extends TestCase
         $college = $this->makeCollege('BA3');
         $admin = $this->makeUserWithPermissions($college, ['admission_applicants.view', 'admission_applicants.update']);
 
-        $applicant = AdmissionApplicant::create([
+        $applicant = AdmissionApplicant::withoutGlobalScopes()->create([
             'college_id' => $college->id,
             'first_name' => 'Charlie',
             'last_name' => 'Brown',

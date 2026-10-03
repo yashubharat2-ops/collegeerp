@@ -7,6 +7,7 @@ use App\Models\College;
 use App\Models\User;
 use App\Support\Listing\ListContext;
 use App\Support\Listing\ListQueryBuilder;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Tests\Feature\Students\StudentTestHelpers;
 use Tests\TestCase;
@@ -18,6 +19,8 @@ class ListQueryBuilderTest extends TestCase
     public function test_filter_exact_and_search_query_building(): void
     {
         $college = $this->makeCollege('LQ1');
+        app(TenantContext::class)->set($college);
+
         AdmissionApplicant::create([
             'college_id' => $college->id,
             'first_name' => 'Alice',
@@ -49,6 +52,8 @@ class ListQueryBuilderTest extends TestCase
     public function test_pagination_preserves_query_string_and_filter_state(): void
     {
         $college = $this->makeCollege('LQ2');
+        app(TenantContext::class)->set($college);
+
         for ($i = 1; $i <= 25; $i++) {
             AdmissionApplicant::create([
                 'college_id' => $college->id,
@@ -93,6 +98,8 @@ class ListQueryBuilderTest extends TestCase
     public function test_sorting_with_whitelist_and_direction(): void
     {
         $college = $this->makeCollege('LQ3');
+        app(TenantContext::class)->set($college);
+
         AdmissionApplicant::create([
             'college_id' => $college->id,
             'first_name' => 'Zara',
@@ -128,6 +135,8 @@ class ListQueryBuilderTest extends TestCase
     public function test_date_range_and_boolean_and_multi_select_filters(): void
     {
         $college = $this->makeCollege('LQ4');
+        app(TenantContext::class)->set($college);
+
         AdmissionApplicant::create([
             'college_id' => $college->id,
             'first_name' => 'Jane',
@@ -169,14 +178,15 @@ class ListQueryBuilderTest extends TestCase
     {
         $collegeA = $this->makeCollege('LQA');
         $collegeB = $this->makeCollege('LQB');
+        app(TenantContext::class)->set($collegeA);
 
-        AdmissionApplicant::create([
+        AdmissionApplicant::withoutGlobalScopes()->create([
             'college_id' => $collegeA->id,
             'first_name' => 'TenantA Student',
             'last_name' => 'Smith',
             'status' => 'active',
         ]);
-        AdmissionApplicant::create([
+        AdmissionApplicant::withoutGlobalScopes()->create([
             'college_id' => $collegeB->id,
             'first_name' => 'TenantB Student',
             'last_name' => 'Jones',

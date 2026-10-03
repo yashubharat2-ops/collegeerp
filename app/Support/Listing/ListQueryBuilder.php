@@ -5,6 +5,7 @@ namespace App\Support\Listing;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Carbon;
 use Throwable;
 
@@ -283,7 +284,17 @@ class ListQueryBuilder
             $perPageInput = $perPage ?? $this->defaultPerPage;
         }
 
-        return $this->query->paginate($perPageInput, $columns, $pageName)->withQueryString();
+        // Honor request's explicit page parameter if the global Paginator resolver hasn't caught it yet
+        $page = (int) $this->request->input($pageName, Paginator::resolveCurrentPage($pageName));
+        if ($page <= 0) {
+            $page = 1;
+        }
+
+        /** @var LengthAwarePaginator $paginator */
+        $paginator = $this->query->paginate($perPageInput, $columns, $pageName, $page);
+
+        // Keep all request query parameters attached to the pagination links
+        return $paginator->appends($this->request->query());
     }
 
     public function getQuery(): Builder

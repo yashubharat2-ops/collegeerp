@@ -5,6 +5,7 @@ namespace Tests\Unit\Export;
 use App\Models\AdmissionApplicant;
 use App\Models\College;
 use App\Support\Export\CsvStreamExport;
+use App\Support\Tenancy\TenantContext;
 use Tests\Feature\Students\StudentTestHelpers;
 use Tests\TestCase;
 
@@ -33,15 +34,21 @@ class CsvStreamExportTest extends TestCase
         $response->sendContent();
         $content = ob_get_clean();
 
-        // UTF-8 BOM + Header + rows
-        $this->assertStringContainsString("ID,Name,Role", $content);
-        $this->assertStringContainsString("1,Alice,Admin", $content);
-        $this->assertStringContainsString("2,Bob,Student", $content);
+        // UTF-8 BOM must be present at the start of the output
+        $this->assertStringStartsWith("\xEF\xBB\xBF", $content);
+
+        // Header and rows after stripping BOM
+        $body = substr($content, 3);
+        $this->assertStringContainsString("ID,Name,Role", $body);
+        $this->assertStringContainsString("1,Alice,Admin", $body);
+        $this->assertStringContainsString("2,Bob,Student", $body);
     }
 
     public function test_csv_stream_from_query(): void
     {
         $college = $this->makeCollege('EXP1');
+        app(TenantContext::class)->set($college);
+
         AdmissionApplicant::create([
             'college_id' => $college->id,
             'first_name' => 'John',
@@ -65,7 +72,12 @@ class CsvStreamExportTest extends TestCase
         $response->sendContent();
         $content = ob_get_clean();
 
-        $this->assertStringContainsString("First Name,Last Name,Email,Status", $content);
-        $this->assertStringContainsString("John,Doe,john.doe@example.com,active", $content);
+        // UTF-8 BOM must be present at the start of the output
+        $this->assertStringStartsWith("\xEF\xBB\xBF", $content);
+
+        // Header and rows after stripping BOM
+        $body = substr($content, 3);
+        $this->assertStringContainsString("First Name,Last Name,Email,Status", $body);
+        $this->assertStringContainsString("John,Doe,john.doe@example.com,active", $body);
     }
 }
