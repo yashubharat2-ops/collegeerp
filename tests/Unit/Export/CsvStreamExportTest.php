@@ -75,9 +75,9 @@ class CsvStreamExportTest extends TestCase
         // UTF-8 BOM must be present at the start of the output
         $this->assertStringStartsWith("\xEF\xBB\xBF", $content);
 
-        // Header and rows after stripping BOM
+        // Header and rows after stripping BOM ("First Name" and "Last Name" contain spaces, so fputcsv quotes them)
         $body = substr($content, 3);
-        $this->assertStringContainsString("First Name,Last Name,Email,Status", $body);
+        $this->assertStringContainsString('"First Name","Last Name",Email,Status', $body);
         $this->assertStringContainsString("John,Doe,john.doe@example.com,active", $body);
     }
 }
