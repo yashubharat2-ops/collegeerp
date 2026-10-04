@@ -258,6 +258,9 @@ class StudentListFiltersTest extends TestCase
         $this->assertStringContainsString('data-date-picker-close', $html);
         $this->assertStringContainsString('erp-list-date-controls', $html);
         $this->assertStringContainsString('erp-list-date-separator', $html);
+        $this->assertStringContainsString('data-list-date-edge="from"', $html);
+        $this->assertStringContainsString('data-list-date-edge="to"', $html);
+        $this->assertSame(2, substr_count($html, 'class="erp-list-date-prefix"'));
         $this->assertStringContainsString('data-date-picker-label="From"', $html);
         $this->assertStringContainsString('data-date-picker-label="To"', $html);
         $this->assertStringContainsString('aria-haspopup="dialog"', $html);

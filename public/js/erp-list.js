@@ -250,6 +250,43 @@
         return true;
     }
 
+    function syncDateRange(range) {
+        if (!range) {
+            return true;
+        }
+
+        var fields = Array.prototype.slice.call(range.querySelectorAll('[data-list-date-display]'));
+        var allValid = true;
+        fields.forEach(function (field) {
+            if (!syncDateDisplay(field)) {
+                allValid = false;
+            }
+        });
+        if (!allValid) {
+            return false;
+        }
+
+        var fromField = range.querySelector('[data-list-date-edge="from"]');
+        var toField = range.querySelector('[data-list-date-edge="to"]');
+        if (!fromField || !toField) {
+            return true;
+        }
+
+        var fromDate = displayDateToIso(fromField.value);
+        var toDate = displayDateToIso(toField.value);
+        if (fromDate && toDate && fromDate > toDate) {
+            toField.setCustomValidity('The To date must be on or after the From date.');
+            toField.setAttribute('aria-invalid', 'true');
+            return false;
+        }
+
+        return true;
+    }
+
+    function syncPickerDate(picker) {
+        return picker.range ? syncDateRange(picker.range) : syncDateDisplay(picker.input);
+    }
+
     function setPickerExpanded(picker, expanded) {
         var value = expanded ? 'true' : 'false';
         picker.input.setAttribute('aria-expanded', value);
@@ -309,6 +346,10 @@
                 dayButton.setAttribute('aria-label', weekdayNames[makeUtcDate(year, month, day).getUTCDay()]
                     + ', ' + monthNames[month] + ' ' + day + ', ' + year);
                 dayButton.setAttribute('aria-pressed', selectedIso === isoDate ? 'true' : 'false');
+                var today = new Date();
+                if (year === today.getFullYear() && month === today.getMonth() && day === today.getDate()) {
+                    dayButton.setAttribute('aria-current', 'date');
+                }
                 dayButton.tabIndex = day === picker.state.focusDay ? 0 : -1;
                 if (selectedIso === isoDate) {
                     dayButton.classList.add('is-selected');
@@ -387,12 +428,12 @@
             picker.state.month = selected.month;
             picker.state.focusDay = selected.day;
         } else {
-            // Show the current month only; never write today's date into either
-            // the visible field or the backend query value.
+            // Show and focus today's day for navigation, but never select it or
+            // write it into either the display field or backend query value.
             var today = new Date();
             picker.state.year = today.getFullYear();
             picker.state.month = today.getMonth();
-            picker.state.focusDay = 1;
+            picker.state.focusDay = today.getDate();
         }
 
         renderPickerCalendar(picker);
@@ -416,6 +457,9 @@
 
         var isoDate = displayDateToIso(picker.input.value);
         if (isoDate === null) {
+            // Clear any stale selected-day highlight while the user edits an
+            // incomplete or invalid value manually.
+            renderPickerCalendar(picker);
             return;
         }
 
@@ -434,7 +478,7 @@
         }
 
         picker.input.value = isoDateToDisplay(isoDate);
-        syncDateDisplay(picker.input);
+        syncPickerDate(picker);
         dispatchDateChange(picker.input);
         closeDatePicker(picker, true);
     }
@@ -463,6 +507,7 @@
 
         var picker = {
             root: root,
+            range: root.closest('[data-list-date-range]'),
             input: input,
             queryValue: queryValue,
             toggle: toggle,
@@ -474,13 +519,13 @@
             state: { year: 0, month: 0, focusDay: 1 },
         };
 
-        syncDateDisplay(input);
+        syncPickerDate(picker);
         input.addEventListener('input', function () {
-            syncDateDisplay(input);
+            syncPickerDate(picker);
             updateOpenDatePickerFromInput(picker);
         });
         input.addEventListener('change', function () {
-            syncDateDisplay(input);
+            syncPickerDate(picker);
             updateOpenDatePickerFromInput(picker);
         });
         input.addEventListener('click', function () { openDatePicker(picker, false); });
@@ -494,14 +539,14 @@
             if (activeDatePicker === picker && !popover.hidden) {
                 closeDatePicker(picker, false);
             } else {
-                openDatePicker(picker);
+                openDatePicker(picker, true);
             }
         });
         previous.addEventListener('click', function () { shiftPickerMonth(picker, -1, false); });
         next.addEventListener('click', function () { shiftPickerMonth(picker, 1, false); });
         clear.addEventListener('click', function () {
             input.value = '';
-            syncDateDisplay(input);
+            syncPickerDate(picker);
             dispatchDateChange(input);
             closeDatePicker(picker, true);
         });
@@ -576,8 +621,8 @@
             form.dataset.listDateRangeBound = 'true';
             form.addEventListener('submit', function (event) {
                 var allValid = true;
-                Array.prototype.slice.call(form.querySelectorAll('[data-list-date-display]')).forEach(function (field) {
-                    if (!syncDateDisplay(field)) {
+                Array.prototype.slice.call(form.querySelectorAll('[data-list-date-range]')).forEach(function (dateRange) {
+                    if (!syncDateRange(dateRange)) {
                         allValid = false;
                     }
                 });

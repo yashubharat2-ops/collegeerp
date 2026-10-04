@@ -31,8 +31,8 @@
         : substr($date, 8, 2).'/'.substr($date, 5, 2).'/'.substr($date, 0, 4);
 
     $dateFields = [
-        ['label' => 'From', 'name' => $fromName, 'value' => $fromVal, 'align' => 'start'],
-        ['label' => 'To', 'name' => $toName, 'value' => $toVal, 'align' => 'end'],
+        ['label' => 'From', 'edge' => 'from', 'name' => $fromName, 'value' => $fromVal, 'align' => 'start'],
+        ['label' => 'To', 'edge' => 'to', 'name' => $toName, 'value' => $toVal, 'align' => 'end'],
     ];
 @endphp
 
@@ -44,12 +44,13 @@
     <div class="erp-list-controls erp-list-date-controls">
         @foreach($dateFields as $dateField)
             <div class="erp-list-date-part" data-erp-date-picker data-date-picker-align="{{ $dateField['align'] }}" data-date-picker-label="{{ $dateField['label'] }}">
-                <label for="filter-display-{{ $dateField['name'] }}" class="mb-1 block text-xs font-semibold text-slate-600">{{ $dateField['label'] }}</label>
                 <div class="erp-list-date-control">
+                    <label for="filter-display-{{ $dateField['name'] }}" class="erp-list-date-prefix">{{ $dateField['label'] }}</label>
                     <input
                         type="text"
                         id="filter-display-{{ $dateField['name'] }}"
                         data-list-date-display
+                        data-list-date-edge="{{ $dateField['edge'] }}"
                         data-list-date-target="filter-{{ $dateField['name'] }}"
                         value="{{ $toDisplayDate($dateField['value']) }}"
                         placeholder="DD/MM/YYYY"
@@ -61,7 +62,7 @@
                         autocomplete="off"
                         pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}"
                         title="Enter a date as DD/MM/YYYY"
-                        class="input !py-2 !text-xs"
+                        class="input !py-2 !pl-12 !pr-11 !text-xs"
                     >
                     <button
                         type="button"

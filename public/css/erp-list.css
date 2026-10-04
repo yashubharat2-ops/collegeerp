@@ -145,7 +145,7 @@
 
 .erp-list-date-controls {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     gap: 0.5rem;
 }
 
@@ -159,10 +159,28 @@
     min-width: 0;
 }
 
+.erp-list-date-prefix {
+    position: absolute;
+    z-index: 1;
+    top: 50%;
+    left: 0.75rem;
+    color: #64748b;
+    cursor: text;
+    font-size: 0.75rem;
+    line-height: 1;
+    transform: translateY(-50%);
+    white-space: nowrap;
+}
+
+.erp-list-date-control:focus-within .erp-list-date-prefix {
+    color: #4338ca;
+}
+
 .erp-list-date-control > .input {
     box-sizing: border-box;
     min-height: 2.5rem;
     padding-right: 2.75rem;
+    padding-left: 3rem;
 }
 
 .erp-list-date-picker-trigger {
@@ -199,7 +217,6 @@
 
 .erp-list-date-separator {
     flex: 0 0 auto;
-    margin-bottom: 0.75rem;
     color: #94a3b8;
     font-size: 0.75rem;
 }
@@ -304,6 +321,12 @@
 .erp-list-date-picker-day:hover {
     background: #eef2ff;
     color: #3730a3;
+}
+
+.erp-list-date-picker-day[aria-current="date"]:not(.is-selected) {
+    box-shadow: inset 0 0 0 1px #a5b4fc;
+    color: #3730a3;
+    font-weight: 600;
 }
 
 .erp-list-date-picker-day.is-selected,
