@@ -34,12 +34,21 @@
         <label class="text-sm font-semibold" for="gender">Gender</label>
         <select class="input mt-1" id="gender" name="gender">
             <option value="">— Select —</option>
-            <option value="male" @selected(old('gender', $student->gender ?? '') === 'male')>Male</option>
-            <option value="female" @selected(old('gender', $student->gender ?? '') === 'female')>Female</option>
-            <option value="other" @selected(old('gender', $student->gender ?? '') === 'other')>Other</option>
-            <option value="prefer_not_to_say" @selected(old('gender', $student->gender ?? '') === 'prefer_not_to_say')>Prefer not to say</option>
+            @foreach(\App\Models\Student::GENDERS as $gender)
+                <option value="{{ $gender }}" @selected(old('gender', $student->gender ?? '') === $gender)>{{ ucfirst(str_replace('_', ' ', $gender)) }}</option>
+            @endforeach
         </select>
         <p class="mt-1 text-xs text-rose-600">@error('gender'){{ $message }}@enderror</p>
+    </div>
+    <div>
+        <label class="text-sm font-semibold" for="category">Category</label>
+        <select class="input mt-1" id="category" name="category">
+            <option value="">— Select —</option>
+            @foreach(\App\Models\Student::CATEGORIES as $category)
+                <option value="{{ $category }}" @selected(old('category', $student->category ?? '') === $category)>{{ \App\Models\Student::categoryLabel($category) }}</option>
+            @endforeach
+        </select>
+        <p class="mt-1 text-xs text-rose-600">@error('category'){{ $message }}@enderror</p>
     </div>
     <div>
         <label class="text-sm font-semibold" for="date_of_birth">Date of Birth</label>

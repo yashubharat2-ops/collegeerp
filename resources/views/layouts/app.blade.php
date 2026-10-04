@@ -24,11 +24,21 @@
          */
         $erpSidebarCssVersion = filemtime(public_path('css/erp-sidebar.css')) ?: null;
         $erpUserMenuCssVersion = filemtime(public_path('css/erp-user-menu.css')) ?: null;
+        $erpDropdownCssVersion = filemtime(public_path('css/erp-dropdown.css')) ?: null;
+        $erpListCssVersion = filemtime(public_path('css/erp-list.css')) ?: null;
     @endphp
     <link rel="stylesheet" href="{{ asset('css/erp-sidebar.css') }}@if ($erpSidebarCssVersion)?v={{ $erpSidebarCssVersion }}@endif">
     {{-- The signed-in user panel in the header is its own component with its own
          stylesheet, so the sidebar file stays authoritative for the sidebar only. --}}
     <link rel="stylesheet" href="{{ asset('css/erp-user-menu.css') }}@if ($erpUserMenuCssVersion)?v={{ $erpUserMenuCssVersion }}@endif">
+    {{-- List dropdown menus (the Export menu of the page header and the bulk bar).
+         Static like the two above for the same reason: a menu must render as a menu
+         even when no Vite build exists, or when the bundle predates a component. --}}
+    <link rel="stylesheet" href="{{ asset('css/erp-dropdown.css') }}@if ($erpDropdownCssVersion)?v={{ $erpDropdownCssVersion }}@endif">
+    {{-- Shared list/table responsive foundation (filters, table, pagination): the
+         rules that keep a list inside the content column instead of overflowing it.
+         Static for the same reason — a layout guarantee must not depend on a build. --}}
+    <link rel="stylesheet" href="{{ asset('css/erp-list.css') }}@if ($erpListCssVersion)?v={{ $erpListCssVersion }}@endif">
 
     {{-- Application-wide styling is still built by Vite; link it only when a build (public/build/manifest.json) or a running dev server (public/hot) exists, so a page render never depends on running npm. --}}
     @if (is_file(public_path('build/manifest.json')) || is_file(public_path('hot')))
@@ -95,6 +105,12 @@
          code, and a src that ends in `.js` (see ProgramNameEscapeTest). --}}
     <script type="module" src="{{ asset('js/erp-user-menu.js') }}"></script>
     <script type="module" src="{{ asset('js/erp-list.js') }}"></script>
+    {{-- List toolbars: the Export dropdowns (page-level and bulk bar). Same
+         loading rules: external module script, no inline code. --}}
+    <script type="module" src="{{ asset('js/erp-dropdown.js') }}"></script>
+    {{-- Printable documents: the "Print / save as PDF" button and the report page
+         that opens the dialog itself. --}}
+    <script type="module" src="{{ asset('js/erp-print.js') }}"></script>
     @stack('scripts')
 </body>
 </html>

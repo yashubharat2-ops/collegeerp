@@ -8,10 +8,13 @@
 ])
 
 @php
-    $val = $value ?? request($name, '');
+    // A malformed (array) query value reads as empty, so it can select neither
+    // option and cannot reach a string cast: see filter-select.blade.php.
+    $requested = $value ?? request($name, '');
+    $val = is_scalar($requested) ? (string) $requested : '';
 @endphp
 
-<div>
+<div class="erp-list-field">
     @if($label)
         <label for="filter-{{ $name }}" class="mb-1 block text-xs font-semibold text-slate-700">{{ $label }}</label>
     @endif

@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Student\Services\StudentIdCardService;
 use App\Models\AcademicYear;
 use App\Models\Program;
 use App\Models\Section;
 use App\Models\Student;
 use App\Services\Audit\AuditLogService;
+use App\Support\Listing\ListSelection;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 /**
@@ -18,18 +21,30 @@ use Illuminate\View\View;
  * not a second identity record: nothing is persisted, no card number is minted,
  * and there is no id-card table. That is deliberate — a duplicate identity
  * master would drift from the student record it is supposed to represent.
+ * Card contents therefore come from one place
+ * (App\Domain\Student\Services\StudentIdCardService), shared by the single-card
+ * screen and the batch generation below.
  *
  * No QR/barcode library is bundled in this project, so the card exposes the
  * verification payload as text (and as a data attribute) instead of pulling in
  * a heavy dependency. If a QR library is added later it renders from
- * `StudentIdCardController::verificationPayload()` unchanged.
+ * `StudentIdCardService::verificationPayload()` unchanged.
  *
  * There is no model for an ID card, so authorization uses the project's RBAC
  * primitive directly (User::hasPermission, tenant-scoped) plus the Student
- * policy for the record itself.
+ * policy for the record itself — on the single card AND per record on a batch.
  */
 class StudentIdCardController extends Controller
 {
+    /**
+     * Upper bound on one printable batch. The listing page can select at most
+     * one page of rows (200 is the widest supported page), so this is head-room
+     * against a hand-crafted request rather than a limit a real click can hit.
+     */
+    public const BATCH_LIMIT = ListSelection::DEFAULT_LIMIT;
+
+    public function __construct(private readonly StudentIdCardService $cards) {}
+
     public function index(Request $request): View
     {
         $this->requirePermission('student_id_cards.view');
@@ -88,46 +103,85 @@ class StudentIdCardController extends Controller
 
         $model->load(['enrollments.academicYear', 'enrollments.program', 'enrollments.section.campus']);
 
-        $enrollment = $model->currentEnrollment()
-            ?? $model->enrollments
-                ->sortByDesc(fn ($e) => sprintf(
-                    '%011d%011d',
-                    $e->academicYear?->starts_on?->timestamp ?? 0,
-                    $e->id
-                ))
-                ->first();
+        $college = app(TenantContext::class)->college();
+        $card = $this->cards->cardFor($model, $college);
 
-        $audit->record('student_id_card.generated', $model, [], [
-            'id' => $model->id,
-            'student_number' => $model->student_number,
-            'enrollment_number' => $enrollment?->enrollment_number,
-            'academic_year_id' => $enrollment?->academic_year_id,
-        ]);
+        $audit->record('student_id_card.generated', $model, [], $this->cards->auditContext($model, $card['enrollment']));
 
         return view('student_id_cards.show', [
             'student' => $model,
-            'enrollment' => $enrollment,
-            'college' => app(TenantContext::class)->college(),
-            'campus' => $enrollment?->section?->campus,
-            'payload' => $this->verificationPayload($model, $enrollment?->enrollment_number),
+            'enrollment' => $card['enrollment'],
+            'campus' => $card['campus'],
+            'validUntil' => $card['validUntil'],
+            'payload' => $card['payload'],
+            'college' => $college,
         ]);
     }
 
     /**
-     * Compact machine-readable payload for the card.
+     * Batch ID cards for an authorized selection — the target of the listing's
+     * bulk "Generate ID cards" action.
      *
-     * Contains only non-sensitive identifiers that a verifier can look up:
-     * college code, student number and enrollment number.
+     * The ids arrive as a request to RE-QUERY, never as a set of records to
+     * trust: they are shape-checked (ListSelection), re-resolved through the
+     * tenant-scoped Student query (so a foreign college's id simply does not
+     * exist here) and re-authorized one record at a time through the Student
+     * policy. A student who cannot be authorized is skipped; if none survives,
+     * the whole request is forbidden.
+     *
+     * Nothing is stored: one audit entry per generated card is the only write,
+     * exactly as on the single-card screen.
      */
-    private function verificationPayload(Student $student, ?string $enrollmentNumber): string
+    public function batch(Request $request, AuditLogService $audit): View
     {
-        $collegeCode = app(TenantContext::class)->college()?->code ?? 'COLLEGE';
+        $this->requirePermission('student_id_cards.generate');
 
-        return strtoupper(implode('|', array_filter([
-            $collegeCode,
-            $student->student_number,
-            $enrollmentNumber,
-        ])));
+        $ids = ListSelection::ids($request->input('ids', []), self::BATCH_LIMIT);
+
+        abort_if($ids === [], 404, 'Select at least one student to generate ID cards for.');
+
+        $students = Student::query()
+            ->with(['enrollments.academicYear', 'enrollments.program', 'enrollments.section.campus'])
+            ->whereIn('id', $ids)
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (Student $student) => $request->user()?->can('view', $student) ?? false)
+            ->values();
+
+        abort_if($students->isEmpty(), 403, 'None of the selected students could be authorized for this operation.');
+
+        $college = app(TenantContext::class)->college();
+        $cards = $this->cards->cardsFor($students, $college);
+
+        $this->auditCards($students, $cards, $audit);
+
+        return view('student_id_cards.batch', [
+            'cards' => $cards,
+            'college' => $college,
+            // How many ids were asked for, so the page can say honestly that a
+            // cross-tenant/unviewable selection was skipped instead of printed.
+            'requestedCount' => count($ids),
+        ]);
+    }
+
+    /**
+     * One audit entry per generated card, matching the single-card action name.
+     *
+     * @param Collection<int, Student> $students
+     * @param array<int, array<string, mixed>> $cards
+     */
+    private function auditCards(Collection $students, array $cards, AuditLogService $audit): void
+    {
+        foreach ($students as $index => $student) {
+            $audit->record(
+                'student_id_card.generated',
+                $student,
+                [],
+                $this->cards->auditContext($student, $cards[$index]['enrollment'] ?? null)
+            );
+        }
     }
 
     private function requirePermission(string $permission): void

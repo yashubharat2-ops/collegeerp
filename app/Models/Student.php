@@ -30,6 +30,41 @@ class Student extends Model
 
     public const STATUSES = ['active', 'inactive', 'graduated', 'suspended', 'withdrawn'];
 
+    /**
+     * Gender values the UI offers and the write side accepts.
+     *
+     * A documented convention, not a schema constraint (the column is a plain
+     * nullable string), so an institution that needs another value changes this
+     * list rather than the database.
+     */
+    public const GENDERS = ['male', 'female', 'other', 'prefer_not_to_say'];
+
+    /**
+     * Admission (reservation) categories offered by the Student list filter and
+     * the student form.
+     *
+     * Same convention rule as GENDERS: `students.category` is a nullable string
+     * column added by 2026_10_04_000001_add_category_to_students_table, and this
+     * list is the validation/UI vocabulary — never a duplicated master table.
+     */
+    public const CATEGORIES = ['general', 'obc', 'sc', 'st', 'ews', 'other'];
+
+    /**
+     * Human label for a stored category value ("obc" → "OBC").
+     */
+    public static function categoryLabel(?string $category): string
+    {
+        return $category === null || $category === ''
+            ? '—'
+            : match ($category) {
+                'obc' => 'OBC',
+                'sc' => 'SC',
+                'st' => 'ST',
+                'ews' => 'EWS',
+                default => ucfirst(str_replace('_', ' ', $category)),
+            };
+    }
+
     public function certificates(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Certificate::class, 'student_id');
@@ -46,6 +81,7 @@ class Student extends Model
         'phone',
         'alternate_phone',
         'gender',
+        'category',
         'date_of_birth',
         'admission_date',
         'address_line_1',

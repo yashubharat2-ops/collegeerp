@@ -23,6 +23,10 @@ class StoreStudentRequest extends FormRequest
      * owned exclusively by ConvertApplicationToStudent, so an application can
      * only ever be linked to a student through the status-checked conversion
      * workflow.
+     *
+     * gender/category are plain whitelisted attributes of the student record
+     * (Student::GENDERS / Student::CATEGORIES); neither can point at a
+     * client-supplied master row, because neither is a foreign key.
      */
     public function rules(): array
     {
@@ -35,7 +39,10 @@ class StoreStudentRequest extends FormRequest
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30', Rule::unique('students', 'phone')->where('college_id', $collegeId)->whereNull('deleted_at')],
             'alternate_phone' => ['nullable', 'string', 'max:30'],
-            'gender' => ['nullable', 'string', 'max:20', Rule::in(['male', 'female', 'other', 'prefer_not_to_say'])],
+            'gender' => ['nullable', 'string', 'max:20', Rule::in(Student::GENDERS)],
+            // Admission category: nullable attribute of the student (see
+            // Student::CATEGORIES), never a client-supplied college/master id.
+            'category' => ['nullable', 'string', 'max:30', Rule::in(Student::CATEGORIES)],
             'date_of_birth' => ['nullable', 'date', 'before:today', 'after:1900-01-01'],
             'admission_date' => ['nullable', 'date'],
             'address_line_1' => ['nullable', 'string', 'max:2000'],

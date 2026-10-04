@@ -21,7 +21,35 @@
     .quick-link { @apply flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700; }
     .alert-success { @apply mb-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-700; }
     .alert-error { @apply mb-5 rounded-xl bg-rose-50 p-4 text-sm text-rose-700; }
+    /*
+     * List dropdown menus (resources/views/components/list/dropdown.blade.php) are
+     * NOT styled here: that component owns public/css/erp-dropdown.css, a static
+     * asset linked directly by the layout, so the Export menu renders as a proper
+     * panel with no Vite build — the same arrangement the sidebar and the
+     * signed-in user panel use, and deliberately a single source of truth rather
+     * than two sets of rules competing on load order.
+     */
 }
+
+/*
+ * Printable student report (Students list → Export → PDF / Print).
+ *
+ * It is styled as a DOCUMENT, not as an ERP screen: a full-width bordered table
+ * that reads like a register. The screen rules live here; the rules that only
+ * matter on paper (repeating header, unbroken rows) are in the print block below.
+ */
+.print-report table { width: 100%; border-collapse: collapse; }
+.print-report th,
+.print-report td {
+    border: 1px solid #cbd5e1;
+    padding: 6px 8px;
+    font-size: 11px;
+    line-height: 1.35;
+    text-align: left;
+    vertical-align: top;
+}
+.print-report th { background: #f1f5f9; font-weight: 600; }
+.print-report tbody tr:nth-child(even) { background: #f8fafc; }
 
 /*
  * The application sidebar is NOT styled here: it owns public/css/erp-sidebar.css
@@ -41,4 +69,37 @@
     main { padding: 0 !important; }
     .print-area { max-width: none !important; margin: 0 !important; }
     .print-area * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    /*
+     * Printable batches: each `.print-break` block (one Student ID card, one
+     * document pack) starts a new page, and the final one does not add a blank
+     * tail page. Declared here rather than relying on a utility class so a batch
+     * stays printable even if the Tailwind build is stale.
+     */
+    .print-break { break-after: page; page-break-after: always; }
+    .print-break:last-child { break-after: auto; page-break-after: auto; }
+
+    /*
+     * The printed student report: the column headings repeat on every page and a
+     * student row is never split across two pages, so a multi-page A4 run stays
+     * readable. Declared here rather than through utilities for the same reason as
+     * the batches above — the print layout must not depend on a fresh Tailwind
+     * build. Text is darkened for paper and the zebra striping is dropped, since
+     * a light fill can print as a grey wash on monochrome printers.
+     */
+    /* The report card becomes a plain sheet of paper: no card border, shadow or
+       inner padding around the A4 content. */
+    .print-report {
+        color: #0f172a;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+    .print-report thead { display: table-header-group; }
+    .print-report tr { break-inside: avoid; page-break-inside: avoid; }
+    .print-report th,
+    .print-report td { border: 1px solid #94a3b8; font-size: 10.5px; padding: 4px 6px; }
+    .print-report th { background: #e2e8f0 !important; }
+    .print-report tbody tr:nth-child(even) { background: transparent !important; }
 }

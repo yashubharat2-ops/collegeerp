@@ -7,15 +7,19 @@
 ])
 
 @php
-    $fromVal = $fromValue ?? request($fromName, '');
-    $toVal = $toValue ?? request($toName, '');
+    // Malformed (array) query values read as empty instead of being rendered
+    // into the value attributes: see filter-select.blade.php for the rule.
+    $fromRequested = $fromValue ?? request($fromName, '');
+    $toRequested = $toValue ?? request($toName, '');
+    $fromVal = is_scalar($fromRequested) ? (string) $fromRequested : '';
+    $toVal = is_scalar($toRequested) ? (string) $toRequested : '';
 @endphp
 
-<div>
+<div class="erp-list-field erp-list-date-range">
     @if($label)
         <span class="mb-1 block text-xs font-semibold text-slate-700">{{ $label }}</span>
     @endif
-    <div class="flex items-center gap-2">
+    <div class="erp-list-controls flex items-center gap-2">
         <input
             type="date"
             name="{{ $fromName }}"

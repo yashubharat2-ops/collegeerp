@@ -1,0 +1,144 @@
+/* =============================================================================
+ * College ERP — shared list / table responsive foundation
+ * =============================================================================
+ *
+ * Authoritative responsive rules for every list screen (filters + table +
+ * pagination). A static asset under `public/`, linked directly by
+ * resources/views/layouts/app.blade.php, so the lists stay inside their
+ * container with NO Vite build and NO dev server — the same arrangement as
+ * public/css/erp-sidebar.css, erp-user-menu.css and erp-dropdown.css.
+ *
+ * -----------------------------------------------------------------------------
+ * The overflow it fixes
+ * -----------------------------------------------------------------------------
+ * A CSS grid/flex child defaults to `min-width: auto`: it refuses to shrink
+ * below its intrinsic minimum. Inside the filter grid that minimum is large:
+ *
+ *   - a <select>'s intrinsic width is its WIDEST option ("Semester 1 (SEM1) ·
+ *     2026-27"), not the visible text;
+ *   - an <input type="date"> has a fixed intrinsic width (~150px in Chrome for
+ *     the segmented date field plus the picker glyph);
+ *   - the date-range control holds TWO of them side by side in a flex row, whose
+ *     own children also default to `min-width: auto`.
+ *
+ * So a single filter cell could not shrink below ~320px. Tailwind's
+ * `grid-cols-*` tracks are `minmax(0, 1fr)`, so the TRACK was free to shrink —
+ * but the ITEM inside it was not, and it pushed out of the filter card, giving
+ * the page a horizontal scrollbar and clipping the card's right edge. The same
+ * pattern applies to the header row, the bulk bar and the pagination row.
+ *
+ * The rule below is the standard cure: every grid/flex child of a list is
+ * allowed to shrink (`min-width: 0`), controls fill but never force their cell
+ * wider, and anything genuinely wide (the table, a long pager) gets its OWN
+ * horizontal scroll container — so only that element scrolls, never the page.
+ *
+ * Everything is scoped to `.erp-list-*` hooks emitted by the shared
+ * resources/views/components/list/* components and by a list page's own grid, so
+ * no rule here can leak into another module, the sidebar or a detail page.
+ */
+
+/* -----------------------------------------------------------------------------
+ * 1 · The page shell — every flex/grid child may shrink
+ * -----------------------------------------------------------------------------
+ * The page panel itself needs no hook: it is a block box, so an overflowing
+ * child cannot widen it (which is exactly why the reported overflow showed up as
+ * a horizontal scrollbar instead of a wider card). What matters is that each
+ * ITEM that can carry wide content is allowed to shrink. */
+.erp-list-head,
+.erp-list-grid,
+.erp-list-field,
+.erp-list-filters,
+.erp-list-actions {
+    min-width: 0;
+}
+
+/* The header row (title on the left, Export / New student on the right) and the
+ * filter grid: their DIRECT children are the grid/flex items that must be able
+ * to shrink. Applied as a child selector so a page does not have to annotate
+ * every cell. */
+.erp-list-head > *,
+.erp-list-grid > * {
+    min-width: 0;
+}
+
+/* -----------------------------------------------------------------------------
+ * 2 · Filter controls — fill the cell, shrink when the cell shrinks
+ * -------------------------------------------------------------------------- */
+.erp-list-field .input,
+.erp-list-field select,
+.erp-list-field input:not([type="checkbox"]):not([type="radio"]) {
+    width: 100%;
+    min-width: 0;
+}
+
+/* A row of controls inside one cell (the date range): allow every part of it to
+ * shrink, and let the two date fields share whatever space is left instead of
+ * insisting on their intrinsic width. */
+.erp-list-controls {
+    min-width: 0;
+}
+
+.erp-list-controls > * {
+    min-width: 0;
+}
+
+.erp-list-date-range .erp-list-controls > .input {
+    flex: 1 1 0%;
+    min-width: 0;
+}
+
+/* The date-range separator must not be squeezed away or wrapped. */
+.erp-list-date-range .erp-list-controls > span {
+    flex: 0 0 auto;
+}
+
+/* Buttons always wrap rather than pushing their cell wider. */
+.erp-list-actions {
+    flex-wrap: wrap;
+}
+
+.erp-list-actions > * {
+    min-width: 0;
+}
+
+/* -----------------------------------------------------------------------------
+ * 3 · Wide content scrolls itself — the table and the pager
+ * -----------------------------------------------------------------------------
+ * `overflow-x: auto` on a block element makes it its own scroll container, so a
+ * table with more columns than fit scrolls INSIDE this box. The table keeps its
+ * natural column widths down to its minimum content width (no text is squeezed
+ * away), and `max-width: 100%` guarantees the box itself can never push the page
+ * wider — which is exactly the "only the table scrolls" requirement.
+ */
+.erp-list-scroll,
+.erp-list-pagination {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* A wide pager scrolls the same way, and its own inner flex row is allowed to
+ * shrink so the pager box (not the page) is what overflows. */
+.erp-list-pagination > * {
+    min-width: 0;
+}
+
+/* -----------------------------------------------------------------------------
+ * 4 · Table inside a scroll box
+ * -------------------------------------------------------------------------- */
+.erp-list-scroll > table {
+    /* Full width while it fits (so a narrow table looks unchanged) but free to
+     * exceed it, where the wrapper above takes over. `table-layout: auto` keeps
+     * the browser's own column sizing, so text is never squeezed unnaturally. */
+    min-width: 100%;
+    width: auto;
+    table-layout: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .erp-list-scroll,
+    .erp-list-pagination {
+        scroll-behavior: auto;
+    }
+}

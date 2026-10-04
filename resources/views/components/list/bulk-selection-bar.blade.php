@@ -29,7 +29,7 @@
             </button>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2" data-bulk-actions-container>
+        <div class="erp-list-actions flex flex-wrap items-center gap-2" data-bulk-actions-container>
             {{ $slot }}
         </div>
     </div>

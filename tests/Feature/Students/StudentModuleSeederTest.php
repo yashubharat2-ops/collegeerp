@@ -32,8 +32,9 @@ class StudentModuleSeederTest extends TestCase
         'student_transfers.view', 'student_transfers.create',
         'student_transfers.update', 'student_transfers.approve',
         'student_history.view',
-        // Pre-existing Students module slugs that must not be lost.
-        'students.view', 'students.create', 'students.update', 'students.delete',
+        // Pre-existing Students module slugs that must not be lost, plus the
+        // Step 2 list export slug.
+        'students.view', 'students.create', 'students.update', 'students.delete', 'students.export',
         'student_enrollments.view', 'student_enrollments.create',
         'student_enrollments.update', 'student_enrollments.delete',
     ];
