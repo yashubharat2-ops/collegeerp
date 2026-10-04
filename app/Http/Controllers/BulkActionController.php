@@ -63,6 +63,16 @@ class BulkActionController extends Controller
             $flash .= " ({$result->getSkippedUnauthorizedCount()} unauthorized/invalid records were skipped).";
         }
 
+        // A handler may hand back a follow-up destination in its result data
+        // (e.g. the students export streams a CSV, the ID-card batch opens the
+        // printable cards). The URL is built server-side by the handler from the
+        // ids IT authorized, so it can never carry a record the user may not
+        // touch; a handler without one keeps the original back() behaviour.
+        $redirect = $result->getData()['redirect'] ?? null;
+        if (is_string($redirect) && $redirect !== '') {
+            return redirect()->to($redirect)->with('success', $flash);
+        }
+
         return back()->with('success', $flash);
     }
 }

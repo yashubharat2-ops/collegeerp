@@ -72,7 +72,8 @@
             <p><span class="font-semibold text-slate-500">Email:</span> {{ $student->email ?? '—' }}</p>
             <p><span class="font-semibold text-slate-500">Phone:</span> {{ $student->phone ?? '—' }}</p>
             <p><span class="font-semibold text-slate-500">Alternate phone:</span> {{ $student->alternate_phone ?? '—' }}</p>
-            <p><span class="font-semibold text-slate-500">Gender:</span> {{ $student->gender ?? '—' }}</p>
+            <p><span class="font-semibold text-slate-500">Gender:</span> {{ $student->gender ? ucfirst(str_replace('_', ' ', $student->gender)) : '—' }}</p>
+            <p><span class="font-semibold text-slate-500">Category:</span> {{ \App\Models\Student::categoryLabel($student->category) }}</p>
             <p><span class="font-semibold text-slate-500">Date of birth:</span> {{ $student->date_of_birth?->format('d M Y') ?? '—' }}</p>
             <p><span class="font-semibold text-slate-500">Admission date:</span> {{ $student->admission_date?->format('d M Y') ?? '—' }}</p>
             <p class="md:col-span-2"><span class="font-semibold text-slate-500">Address:</span> {{ implode(', ', array_filter([$student->address_line_1, $student->address_line_2, $student->city, $student->state, $student->postal_code, $student->country])) ?: '—' }}</p>
@@ -83,9 +84,11 @@
         </div>
         <p class="mt-6 text-xs text-slate-500">
             Personal fields are the ones this project's Student schema holds (person data is snapshotted from the
-            admission applicant at conversion time). Guardian and category fields are intentionally not invented here —
-            they belong to a future schema decision. The portrait in the header and on the ID card comes from the
-            existing <code>photo_path</code> column; this module adds no new person fields of its own.
+            admission applicant at conversion time). Category is a single nullable column on the existing
+            <code>students</code> table — it is an attribute of the student, not a master table — and its value set is
+            the documented <code>Student::CATEGORIES</code> convention, never a schema enum. Guardian details are
+            intentionally not invented here: they belong to a future schema decision. The portrait in the header and on
+            the ID card comes from the existing <code>photo_path</code> column.
         </p>
 
     {{-- ================= 2. Enrollments ================= --}}

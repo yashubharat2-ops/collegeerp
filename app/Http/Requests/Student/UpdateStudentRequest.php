@@ -36,7 +36,10 @@ class UpdateStudentRequest extends FormRequest
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30', Rule::unique('students', 'phone')->where('college_id', $collegeId)->whereNull('deleted_at')->ignore((int) $this->route('student'))],
             'alternate_phone' => ['nullable', 'string', 'max:30'],
-            'gender' => ['nullable', 'string', 'max:20', Rule::in(['male', 'female', 'other', 'prefer_not_to_say'])],
+            'gender' => ['nullable', 'string', 'max:20', Rule::in(Student::GENDERS)],
+            // Admission category: editable, whitelisted attribute of the student
+            // itself (see Student::CATEGORIES) — never a client-supplied master id.
+            'category' => ['nullable', 'string', 'max:30', Rule::in(Student::CATEGORIES)],
             'date_of_birth' => ['nullable', 'date', 'before:today', 'after:1900-01-01'],
             'admission_date' => ['nullable', 'date'],
             'address_line_1' => ['nullable', 'string', 'max:2000'],

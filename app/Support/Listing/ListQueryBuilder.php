@@ -23,6 +23,7 @@ class ListQueryBuilder
     protected int $maxPerPage = 100;
     protected string $currentSortField = '';
     protected string $currentSortDirection = '';
+    protected bool $sortsApplied = false;
 
     public function __construct(Builder $query, ?Request $request = null)
     {
@@ -38,9 +39,16 @@ class ListQueryBuilder
     /**
      * Search across one or more columns with LIKE %search%.
      *
-     * @param array<int, string> $columns
+     * Related-model columns may be searched too, so a single term covers data
+     * that lives on a child record (e.g. a student's enrollment number). Every
+     * related match is OR-ed INSIDE the same group as the column matches, so the
+     * search term is still AND-ed with all other filters.
+     *
+     * @param array<int, string> $columns Columns on the root query.
+     * @param array<string, array<int, string>> $relations Map of relation => columns
+     *        to match with whereHas (a relation is skipped when its column list is empty).
      */
-    public function search(array $columns, string $param = 'search'): static
+    public function search(array $columns, string $param = 'search', array $relations = []): static
     {
         $val = $this->request->input($param);
         if (! is_string($val)) {
@@ -54,13 +62,29 @@ class ListQueryBuilder
 
         $this->appliedFilters[$param] = $term;
 
-        $this->query->where(function (Builder $builder) use ($columns, $term): void {
+        $this->query->where(function (Builder $builder) use ($columns, $relations, $term): void {
             foreach ($columns as $index => $column) {
                 if ($index === 0) {
                     $builder->where($column, 'like', "%{$term}%");
                 } else {
                     $builder->orWhere($column, 'like', "%{$term}%");
                 }
+            }
+
+            foreach ($relations as $relation => $relationColumns) {
+                if (! is_string($relation) || empty($relationColumns)) {
+                    continue;
+                }
+
+                $builder->orWhereHas($relation, function (Builder $related) use ($relationColumns, $term): void {
+                    foreach ($relationColumns as $index => $column) {
+                        if ($index === 0) {
+                            $related->where($column, 'like', "%{$term}%");
+                        } else {
+                            $related->orWhere($column, 'like', "%{$term}%");
+                        }
+                    }
+                });
             }
         });
 
@@ -235,6 +259,45 @@ class ListQueryBuilder
     }
 
     /**
+     * Apply a custom filter group when ANY of the given parameters is present.
+     *
+     * This exists for filter sets that describe ONE related record: the callback
+     * runs once with the map of present parameters, so a single correlated
+     * subquery (`whereHas`) can be built instead of one per parameter — the
+     * difference between "a student with year A and a different enrollment in
+     * program B" and "a student whose enrollment is year A AND program B".
+     *
+     * Present parameters are recorded in the applied-filter state exactly like
+     * the built-in filters; the callback decides whether a value is usable
+     * (whitelist / numeric check), and ignorable values must simply not be
+     * translated into a constraint.
+     *
+     * @param array<int, string> $params
+     * @param callable(Builder, array<string, mixed>): void $callback
+     */
+    public function filterAny(array $params, callable $callback): static
+    {
+        $present = [];
+
+        foreach ($params as $param) {
+            $val = $this->request->input($param);
+
+            if ($val === null || $val === '' || $val === []) {
+                continue;
+            }
+
+            $present[$param] = $val;
+            $this->appliedFilters[$param] = $val;
+        }
+
+        if ($present !== []) {
+            $callback($this->query, $present);
+        }
+
+        return $this;
+    }
+
+    /**
      * Configure allowed sorting columns and default sort.
      *
      * @param array<string, string> $allowedSorts Map of user sort keys => database column expressions
@@ -244,15 +307,26 @@ class ListQueryBuilder
         $this->allowedSorts = $allowedSorts;
         $this->defaultSortField = $defaultField;
         $this->defaultSortDirection = strtolower($defaultDirection) === 'desc' ? 'desc' : 'asc';
+        // A new sort configuration always re-applies, so the order is never
+        // silently pinned to a previous applySorts() call.
+        $this->sortsApplied = false;
 
         return $this;
     }
 
     /**
      * Apply sorting to the query.
+     *
+     * Idempotent: the configured sort is applied at most once, so a caller may
+     * apply sorts explicitly (e.g. to inspect getCurrentSort(), or to add a
+     * tiebreak) and then paginate() without the order clause being duplicated.
      */
     public function applySorts(string $sortParam = 'sort', string $directionParam = 'direction'): static
     {
+        if ($this->sortsApplied) {
+            return $this;
+        }
+
         $sort = (string) $this->request->input($sortParam, '');
         $dir = strtolower((string) $this->request->input($directionParam, ''));
 
@@ -268,6 +342,29 @@ class ListQueryBuilder
             $this->currentSortField = $this->defaultSortField;
             $this->currentSortDirection = $this->defaultSortDirection;
         }
+
+        $this->sortsApplied = true;
+
+        return $this;
+    }
+
+    /**
+     * Append a stable tiebreak column AFTER the configured sort.
+     *
+     * Without it two rows sharing a sort value (e.g. students created in the same
+     * second) may swap places between pages, which makes a paginated list show
+     * one row twice and skip another. The tiebreak follows the primary direction
+     * so "newest first" lists stay newest-first on equal keys.
+     */
+    public function tiebreaker(string $column, ?string $direction = null): static
+    {
+        $this->applySorts();
+
+        $direction = in_array(strtolower((string) $direction), ['asc', 'desc'], true)
+            ? strtolower((string) $direction)
+            : ($this->currentSortDirection !== '' ? $this->currentSortDirection : 'asc');
+
+        $this->query->orderBy($column, $direction);
 
         return $this;
     }

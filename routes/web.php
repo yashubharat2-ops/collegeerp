@@ -245,6 +245,10 @@ Route::middleware('auth')->group(function () {
         Route::post('admissions/{admission}/cancel', [AdmissionController::class, 'cancel'])->name('admissions.cancel');
         Route::resource('admissions', AdmissionController::class)->except('show');
         Route::post('students/convert/{admission_application}', [StudentController::class, 'convert'])->name('students.convert');
+        // CSV export of the filtered list (or of an authorized selection of it).
+        // Declared BEFORE the resource route: `students/{student}` would otherwise
+        // capture "students/export" and 404 on a student named "export".
+        Route::get('students/export', [StudentController::class, 'export'])->name('students.export');
         Route::get('students/{student}/photo', [StudentController::class, 'photo'])->name('students.photo');
         Route::resource('students', StudentController::class);
         Route::resource('student-enrollments', StudentEnrollmentController::class)->except('show');
@@ -256,10 +260,17 @@ Route::middleware('auth')->group(function () {
         // Students — Documents (private disk, tenant-safe, authorized streaming).
         Route::get('student-documents/{student_document}/download', [StudentDocumentController::class, 'download'])->name('student-documents.download');
         Route::post('student-documents/{student_document}/verify', [StudentDocumentController::class, 'verify'])->name('student-documents.verify');
+        // Consolidated printable document pack for a selection of students (the
+        // listing's bulk "Bulk documents" action). Static segment first, so
+        // "batch" is never read as a {student_document} id.
+        Route::get('student-documents/batch', [StudentDocumentController::class, 'batch'])->name('student-documents.batch');
         Route::resource('student-documents', StudentDocumentController::class)->except('show');
 
         // Students — ID Cards (generated from Student + Enrollment; no records).
         Route::get('student-id-cards', [StudentIdCardController::class, 'index'])->name('student-id-cards.index');
+        // Printable batch of cards for a selection of students (the listing's
+        // bulk "Generate ID cards" action). Declared before the {student} route.
+        Route::get('student-id-cards/batch', [StudentIdCardController::class, 'batch'])->name('student-id-cards.batch');
         Route::get('student-id-cards/{student}', [StudentIdCardController::class, 'show'])->name('student-id-cards.show');
 
         // Students — Promotion (request → approve; additive, never destructive).

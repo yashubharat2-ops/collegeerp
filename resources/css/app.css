@@ -41,4 +41,13 @@
     main { padding: 0 !important; }
     .print-area { max-width: none !important; margin: 0 !important; }
     .print-area * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    /*
+     * Printable batches: each `.print-break` block (one Student ID card, one
+     * document pack) starts a new page, and the final one does not add a blank
+     * tail page. Declared here rather than relying on a utility class so a batch
+     * stays printable even if the Tailwind build is stale.
+     */
+    .print-break { break-after: page; page-break-after: always; }
+    .print-break:last-child { break-after: auto; page-break-after: auto; }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Student\Services\StudentDocumentPackService;
 use App\Domain\Student\Services\StudentDocumentService;
 use App\Http\Requests\StudentDocument\StoreStudentDocumentRequest;
 use App\Http\Requests\StudentDocument\UpdateStudentDocumentRequest;
@@ -11,6 +12,7 @@ use App\Models\Student;
 use App\Models\StudentDocument;
 use App\Services\Audit\AuditLogService;
 use App\Services\Files\SecureFileService;
+use App\Support\Listing\ListSelection;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,6 +30,12 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class StudentDocumentController extends Controller
 {
+    /**
+     * Upper bound on one pack; the listing selects at most one page of rows, so
+     * this only bounds a hand-crafted request.
+     */
+    public const BATCH_LIMIT = ListSelection::DEFAULT_LIMIT;
+
     public function index(Request $request): View
     {
         $this->authorize('viewAny', StudentDocument::class);
@@ -69,6 +77,44 @@ class StudentDocumentController extends Controller
             'document_type_id' => $request->input('document_type_id'),
             'students' => $this->studentOptions(),
             'documentTypes' => $this->documentTypeOptions(),
+        ]);
+    }
+
+    /**
+     * Consolidated, printable document pack for a selection of students — the
+     * target of the listing's bulk "Bulk documents" action.
+     *
+     * The ids are a request to re-query, never records to trust: they are
+     * shape-checked (ListSelection), re-resolved through the tenant-scoped
+     * Student query (a foreign college's id simply does not exist here) and
+     * re-authorized per record through the Student policy. Documents themselves
+     * come from the tenant-scoped StudentDocument query inside
+     * StudentDocumentPackService, and only metadata is rendered — file bytes are
+     * never embedded in the pack.
+     */
+    public function batch(Request $request, StudentDocumentPackService $pack): View
+    {
+        $this->authorize('viewAny', StudentDocument::class);
+
+        $ids = ListSelection::ids($request->input('ids', []), self::BATCH_LIMIT);
+
+        abort_if($ids === [], 404, 'Select at least one student to build a document pack for.');
+
+        $students = Student::query()
+            ->with(['enrollments.academicYear', 'enrollments.program', 'enrollments.section'])
+            ->whereIn('id', $ids)
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (Student $student) => $request->user()?->can('view', $student) ?? false)
+            ->values();
+
+        abort_if($students->isEmpty(), 403, 'None of the selected students could be authorized for this operation.');
+
+        return view('student_documents.batch', [
+            'pack' => $pack->packFor($students),
+            'requestedCount' => count($ids),
         ]);
     }
 

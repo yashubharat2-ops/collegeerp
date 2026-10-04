@@ -61,7 +61,9 @@ class DatabaseSeeder extends Seeder
             'admission_document_types.view', 'admission_document_types.create', 'admission_document_types.update', 'admission_document_types.delete',
             'admission_merit.view', 'admission_merit.create', 'admission_merit.update', 'admission_merit.delete', 'admission_merit.publish',
             'admissions.view', 'admissions.create', 'admissions.update', 'admissions.delete',
-            'students.view', 'students.create', 'students.update', 'students.delete',
+            // Students — the list's CSV export is its own permission, so a
+            // read-only user can browse the list without being able to extract it.
+            'students.view', 'students.create', 'students.update', 'students.delete', 'students.export',
             'student_enrollments.view', 'student_enrollments.create', 'student_enrollments.update', 'student_enrollments.delete',
             'student_academic_records.view', 'student_academic_records.create', 'student_academic_records.update', 'student_academic_records.delete',
             'student_documents.view', 'student_documents.create', 'student_documents.update', 'student_documents.delete',
