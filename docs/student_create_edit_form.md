@@ -136,37 +136,66 @@ Unchanged and re-asserted by tests:
 - `tests/Feature/Students/StudentProfileFormTest.php`,
   `tests/Unit/Students/AadhaarTest.php`
 
-## Layout — a compact data-entry grid
+## Layout — a compact data-entry grid (static stylesheet, no build needed)
 
-The form is a dense ERP data-entry screen, not a stacked registration page, so
+The form is a dense ERP data-entry screen, not a stacked registration page.
 `create.blade.php` and `edit.blade.php` render the one partial inside the same
-`panel max-w-6xl p-4 md:p-5` wrapper and are laid out identically.
+`erp-student-page` > `erp-form-shell` wrapper and are laid out identically.
 
-- **12-column grid.** Every section uses `.form-grid` (`grid-cols-1` below the
-  `md` breakpoint, `md:grid-cols-12` above it). A field declares its width with
-  `.form-field` (half), `--third`, `--wide` (two-thirds) or `--full`, so rows are
-  composed instead of stacked: first / middle / last name sit on one row,
-  date of birth + gender + category on the next, status beside the portrait;
-  address line 1 shares its row with the postal code; city / state / country fill
-  one row. Every row sums to exactly 12 columns.
-- **Mobile.** No breakpoint work is needed per field: the single-column
-  mobile grid plus the `md:`-only spans collapse the form to one column
-  automatically, and long values wrap rather than overflow (`min-w-0`).
-- **Compact chrome.** Section headings are a `text-sm` title with the hint
-  inline on the same line and a hairline rule instead of a card or a banner;
-  labels are `text-xs` with a 4px gap; inputs are `py-1.5` (≈30px) with a 12px
-  row gap; `.form-error:empty` collapses so a valid field reserves no error
-  height. Read-only context (student number, admission source, current
-  enrollment) is a single `.form-strip` line, and the portrait is a 56px avatar
-  in the basic-information row.
-- **Full width reserved for long content**: address lines, guardian address and
-  remarks — and the section picker of the optional first enrollment.
-- **No hidden fields, no tabs/accordions**: all seven sections render in one
-  page, all 48 controls (and all 45 error slots) are the same ones the previous
-  markup rendered, only their arrangement changed.
-- Buttons use the shared `.button` with a new `--sm` / `--secondary` modifier
-  instead of the legacy `!utility` prefix classes, which are inert under
-  Tailwind v4's suffix syntax.
+**Why a static stylesheet instead of Tailwind utilities.** The layout only emits
+`@vite(...)` when `public/build/manifest.json` or `public/hot` exists:
+
+```blade
+@if (is_file(public_path('build/manifest.json')) || is_file(public_path('hot')))
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+@endif
+```
+
+With no build (and no dev server) Tailwind never reaches the browser, so a grid
+written as `md:grid-cols-12` / `md:col-span-4` / `py-1.5` collapses to a plain
+one-column document with unstyled inputs — the class names are simply inert.
+The form is therefore styled by **`public/css/erp-student-form.css`**, linked
+directly by `resources/views/layouts/app.blade.php` with the same static-asset
+pattern (and `filemtime` cache-buster) as `erp-sidebar.css`, `erp-user-menu.css`,
+`erp-dropdown.css` and `erp-list.css`, after the Vite block so a stale bundle can
+never win. Its `.erp-*` names are unique to the student form, so no other screen
+is affected.
+
+- **12-column grid.** Each section is one `.erp-grid`
+  (`repeat(12, minmax(0, 1fr))`; `gap: 12px`). A field declares its width with
+  `.erp-col-3` (quarter), `-4` (third), `-6` (half), `-8` (two-thirds), `-9` or
+  `-12`, so rows are composed instead of stacked:
+
+  | Section | Row |
+  | --- | --- |
+  | Basic information | first / middle / last name + photograph · date of birth + gender + category + status |
+  | Parent / guardian | father + mother · guardian name + relationship + phone · email + occupation · address (full) |
+  | Identity & IDs | Aadhaar + APAAR/ABC · ID type + ID number |
+  | Contact | email + mobile + alternate mobile · address line 1 (9) + PIN (3) · address line 2 (full) · village/city + state + country · emergency name + phone |
+  | Academic / admission | admission date + academic year + program + enrollment date · section (full) · previous education in 6/6 + 4/4/4 |
+  | Additional information | blood group + nationality + mother tongue · remarks (full) |
+  | Documents | one compact action row |
+
+  Every row sums to exactly 12 columns.
+- **Mobile/tablet.** One `@media (max-width: 899px)` query resets every column
+  class to full width (single column); a `640–899px` query uses two comfortable
+  columns while keeping long/block fields full width (`:has()` based, graceful
+  where `:has()` is unsupported). `minmax(0, 1fr)` tracks plus `min-width: 0` on
+  `.erp-field` mean a long `<select>` option can never widen the row and cause
+  horizontal overflow.
+- **Compact chrome.** Section headings are a 14px title with the hint inline over
+  a hairline rule (16px `margin-top` per section, no cards); labels 12px with a
+  4px gap; inputs are 36px tall with a 1px `#cbd5e1` border, white background,
+  6px radius and an indigo focus ring; rows are 12px apart; `.erp-error:empty`
+  collapses so a valid field reserves no error height (and `:has()` highlights the
+  offending control). Read-only context (student number, admission source, current
+  enrollment) is one `.erp-strip` line and the portrait is a 56px avatar inside
+  the basic-information row.
+- **Full width reserved for long content**: address lines, guardian address,
+  remarks and the optional first-enrollment section picker.
+- **No hidden fields, no tabs/accordions**: all seven sections render on one page
+  and every control/error slot of the previous markup is still present — only the
+  arrangement changed.
 
 ## Tests
 
