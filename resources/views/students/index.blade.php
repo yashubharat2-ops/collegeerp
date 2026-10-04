@@ -32,7 +32,7 @@
 @endphp
 
 <div class="panel">
-    <div class="flex flex-wrap items-start justify-between gap-4">
+    <div class="erp-list-head flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Students</h2>
             <p class="panel-subtitle">Officially enrolled students within the active college. Each student accumulates an enrollment per academic year.</p>
@@ -58,14 +58,14 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ route('students.index') }}" class="mt-6 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+    <form method="GET" action="{{ route('students.index') }}" class="erp-list-filters mt-6 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
         {{-- Re-applying a filter must not silently drop the sort the user chose. --}}
         @if($activeSort !== '')
             <input type="hidden" name="sort" value="{{ $activeSort }}">
             <input type="hidden" name="direction" value="{{ $activeDirection }}">
         @endif
 
-        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div class="erp-list-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             <div class="sm:col-span-2">
                 <x-list.search-input
                     placeholder="Search name, student no., enrollment no., email or mobile"
@@ -183,7 +183,7 @@
         @endif
     </x-list.bulk-selection-bar>
 
-    <div class="mt-6 overflow-x-auto">
+    <x-list.scroll class="mt-6" table>
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
@@ -270,16 +270,16 @@
                 @endforelse
             </tbody>
         </table>
-    </div>
+    </x-list.scroll>
 
-    <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+    <div class="erp-list-head mt-4 flex flex-wrap items-center justify-between gap-2">
         <p class="text-xs text-slate-500">
             Showing {{ $students->firstItem() ?? 0 }}–{{ $students->lastItem() ?? 0 }} of {{ $students->total() }} students
             @if($hasFilters) (filtered from the full college list) @endif.
         </p>
         {{-- Pagination keeps search, filters and sort: ListQueryBuilder attaches
              the current query string to every page link. --}}
-        {{ $students->links() }}
+        <x-list.scroll class="erp-list-pagination">{{ $students->links() }}</x-list.scroll>
     </div>
 </div>
 @endsection

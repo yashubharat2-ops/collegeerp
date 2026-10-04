@@ -14,7 +14,7 @@
     $val = is_scalar($requested) ? (string) $requested : '';
 @endphp
 
-<div>
+<div class="erp-list-field">
     @if($label)
         <label for="filter-{{ $name }}" class="mb-1 block text-xs font-semibold text-slate-700">{{ $label }}</label>
     @endif
