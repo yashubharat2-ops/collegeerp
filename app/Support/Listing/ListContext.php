@@ -59,9 +59,14 @@ class ListContext
             }
         }
 
-        // Also check common GET parameters if filters array wasn't fully supplied
+        // Also check common GET parameters if filters array wasn't fully supplied.
+        // Only a scalar can be a search term: a malformed query string may deliver
+        // an array (?search[]=…), which ListQueryBuilder::search() ignores, so
+        // reporting it as an active filter here would both contradict the query
+        // and crash the string cast. Array values of $this->filters stay active —
+        // a multi-select filter legitimately holds one.
         $search = $this->request->input('search');
-        if ($search !== null && trim((string) $search) !== '') {
+        if (is_scalar($search) && trim((string) $search) !== '') {
             return true;
         }
 
@@ -96,8 +101,8 @@ class ListContext
      */
     public function sortUrl(string $field): string
     {
-        $currentField = (string) $this->request->input('sort');
-        $currentDir = strtolower((string) $this->request->input('direction', 'asc'));
+        $currentField = $this->scalarParam('sort');
+        $currentDir = strtolower($this->scalarParam('direction', 'asc'));
 
         $newDir = ($currentField === $field && $currentDir === 'asc') ? 'desc' : 'asc';
 
@@ -115,7 +120,7 @@ class ListContext
      */
     public function isSorted(string $field, ?string $direction = null): bool
     {
-        $currentField = (string) $this->request->input('sort');
+        $currentField = $this->scalarParam('sort');
         if ($currentField !== $field) {
             return false;
         }
@@ -124,8 +129,22 @@ class ListContext
             return true;
         }
 
-        $currentDir = strtolower((string) $this->request->input('direction', 'asc'));
-        return $currentDir === strtolower($direction);
+        return $this->scalarParam('direction', 'asc') === strtolower($direction);
+    }
+
+    /**
+     * A single-value read of a request parameter.
+     *
+     * A malformed query string can deliver an array where one value is expected
+     * (`?sort[]=name`, `?direction[]=asc`). Such a value is not a field or a
+     * direction, so it reads as absent here instead of crashing a string cast —
+     * the same rule the listing components apply.
+     */
+    private function scalarParam(string $key, string $default = ''): string
+    {
+        $value = $this->request->input($key, $default);
+
+        return is_scalar($value) ? (string) $value : '';
     }
 
     public function getPaginator(): ?LengthAwarePaginator

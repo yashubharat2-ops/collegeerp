@@ -9,8 +9,18 @@
      * $listContext carries the active filter set, the sort state and the URLs
      * that keep both while paging.
      */
+    /*
+     * A single-value read is normalised once here: a malformed query string
+     * (e.g. `?department_id[]=nested`) delivers an array where a control expects
+     * one value, and casting that to string is fatal. Such a value reads as "no
+     * filter" — the server already ignored it, so no option may claim it is
+     * selected and the page must not crash.
+     */
+    $scalar = static fn ($value): string => is_scalar($value) ? (string) $value : '';
     $hasFilters = $listContext->hasActiveFilters();
     $clearUrl = $listContext->clearFiltersUrl();
+    $activeSort = $scalar($listContext->filter('sort'));
+    $activeDirection = $scalar($listContext->filter('direction')) ?: 'asc';
     $colspan = 9;
 @endphp
 
@@ -37,9 +47,9 @@
 
     <form method="GET" action="{{ route('students.index') }}" class="mt-6 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
         {{-- Re-applying a filter must not silently drop the sort the user chose. --}}
-        @if($listContext->filter('sort'))
-            <input type="hidden" name="sort" value="{{ $listContext->filter('sort') }}">
-            <input type="hidden" name="direction" value="{{ $listContext->filter('direction', 'asc') }}">
+        @if($activeSort !== '')
+            <input type="hidden" name="sort" value="{{ $activeSort }}">
+            <input type="hidden" name="direction" value="{{ $activeDirection }}">
         @endif
 
         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -52,25 +62,25 @@
 
             <x-list.filter-select name="academic_year_id" label="Academic year" placeholder="All academic years">
                 @foreach($academicYears as $year)
-                    <option value="{{ $year->id }}" @selected((string) $listContext->filter('academic_year_id') === (string) $year->id)>{{ $year->name }} ({{ $year->code }})</option>
+                    <option value="{{ $year->id }}" @selected($scalar($listContext->filter('academic_year_id')) === (string) $year->id)>{{ $year->name }} ({{ $year->code }})</option>
                 @endforeach
             </x-list.filter-select>
 
             <x-list.filter-select name="department_id" label="Department" placeholder="All departments">
                 @foreach($departments as $department)
-                    <option value="{{ $department->id }}" @selected((string) $listContext->filter('department_id') === (string) $department->id)>{{ $department->name }} ({{ $department->code }})</option>
+                    <option value="{{ $department->id }}" @selected($scalar($listContext->filter('department_id')) === (string) $department->id)>{{ $department->name }} ({{ $department->code }})</option>
                 @endforeach
             </x-list.filter-select>
 
             <x-list.filter-select name="program_id" label="Program / Course" placeholder="All programs">
                 @foreach($programs as $program)
-                    <option value="{{ $program->id }}" @selected((string) $listContext->filter('program_id') === (string) $program->id)>{{ $program->name }} ({{ $program->code }})</option>
+                    <option value="{{ $program->id }}" @selected($scalar($listContext->filter('program_id')) === (string) $program->id)>{{ $program->name }} ({{ $program->code }})</option>
                 @endforeach
             </x-list.filter-select>
 
             <x-list.filter-select name="academic_term_id" label="Academic term / semester" placeholder="All terms">
                 @foreach($academicTerms as $term)
-                    <option value="{{ $term->id }}" @selected((string) $listContext->filter('academic_term_id') === (string) $term->id)>
+                    <option value="{{ $term->id }}" @selected($scalar($listContext->filter('academic_term_id')) === (string) $term->id)>
                         {{ $term->name }} ({{ $term->code }}){{ $term->academicYear ? ' · '.$term->academicYear->name : '' }}
                     </option>
                 @endforeach
@@ -78,7 +88,7 @@
 
             <x-list.filter-select name="section_id" label="Section / Batch" placeholder="All sections">
                 @foreach($sections as $section)
-                    <option value="{{ $section->id }}" @selected((string) $listContext->filter('section_id') === (string) $section->id)>
+                    <option value="{{ $section->id }}" @selected($scalar($listContext->filter('section_id')) === (string) $section->id)>
                         {{ $section->name }} ({{ $section->code }}){{ $section->academicYear ? ' · '.$section->academicYear->name : '' }}{{ $section->program ? ' · '.$section->program->name : '' }}
                     </option>
                 @endforeach

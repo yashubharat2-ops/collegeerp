@@ -83,8 +83,20 @@ class StudentExportTest extends TestCase
         // UTF-8 BOM for Excel, then the header row.
         $this->assertStringStartsWith("\xEF\xBB\xBF", $csv);
         $body = substr($csv, 3);
-        $this->assertStringContainsString('Student number,First name', $body);
-        $this->assertStringContainsString('Enrollment status', $body);
+
+        // fputcsv quotes every field that contains a space — that quoting is the
+        // Excel-safe behaviour, not a defect — so the header is validated as
+        // PARSED fields, never as raw text.
+        $headerLine = rtrim(explode("\n", $body, 2)[0], "\r");
+        $this->assertSame([
+            'Student number', 'First name', 'Middle name', 'Last name', 'Email', 'Mobile', 'Alternate mobile',
+            'Gender', 'Category', 'Student status', 'Admission date', 'Date of birth',
+            'Enrollment number', 'Academic year', 'Program', 'Department', 'Section', 'Enrollment status',
+        ], str_getcsv($headerLine, ',', '"', '\\'));
+
+        // The quoting itself is part of the contract: it is what keeps Excel from
+        // splitting a header such as "Student number" into two columns.
+        $this->assertStringContainsString('"Student number","First name"', $body);
 
         // The row carries the student, the category column and current-enrollment data.
         $this->assertStringContainsString('STU-EXP-1', $body);

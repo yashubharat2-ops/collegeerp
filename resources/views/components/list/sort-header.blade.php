@@ -5,8 +5,12 @@
 ])
 
 @php
-    $currentField = request('sort');
-    $currentDir = strtolower(request('direction', ''));
+    // Sort state is also normalised: a malformed query string may deliver an
+    // array (`?direction[]=asc`), and strtolower() on an array is a TypeError.
+    $requestedField = request('sort');
+    $requestedDir = request('direction', '');
+    $currentField = is_string($requestedField) ? $requestedField : '';
+    $currentDir = is_string($requestedDir) ? strtolower($requestedDir) : '';
     $isActive = $currentField === $field;
     $nextDir = ($isActive && $currentDir === 'asc') ? 'desc' : 'asc';
 

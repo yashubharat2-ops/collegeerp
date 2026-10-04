@@ -8,6 +8,7 @@ use App\Models\Student;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -238,6 +239,13 @@ class StudentListFiltersTest extends TestCase
             'department_id' => ['nested'],
             'academic_term_id' => 'oops',
             'admission_date' => '2026-13-45',
+            // Sort state is query input too: an array must be ignored like any
+            // other malformed value, never cast.
+            'sort' => ['student_number'],
+            'direction' => ['desc'],
+            // …and so is the search term: an array is not a term, so it filters
+            // nothing and must not be echoed into the search box.
+            'search' => ['nested'],
         ])->assertOk()->assertSee('STU-IGN');
 
         // A numeric value that matches nothing is still just a filter.
@@ -465,11 +473,47 @@ class StudentListFiltersTest extends TestCase
 
     public function test_searching_a_student_number_never_returns_a_soft_deleted_student(): void
     {
-        [$college, $viewer] = $this->collegeWithViewer('SLF12');
-        $student = $this->makeStudent($college, ['first_name' => 'Gone', 'student_number' => 'STU-GONE']);
+        [$college, $viewer] = $this->collegeWithViewer('SLF12', ['students.view', 'students.export']);
+
+        $student = $this->makeStudent($college, ['first_name' => 'Trashed', 'student_number' => 'STU-GONE']);
         $student->delete();
 
-        $this->list($college, $viewer, ['search' => 'STU-GONE'])->assertOk()->assertDontSee('STU-GONE');
-        $this->assertSame(0, Student::query()->where('student_number', 'STU-GONE')->count());
+        $response = $this->list($college, $viewer, ['search' => 'STU-GONE'])->assertOk();
+
+        // The list is asserted on its DATA and on the table body — not on the
+        // whole document: the search term is deliberately echoed back into the
+        // search box, so a page-wide assertDontSee() would be asserting the wrong
+        // thing.
+        $response->assertViewHas('students', fn ($students) => $students->total() === 0);
+
+        $html = $response->getContent();
+        $bodyStart = strpos($html, '<tbody>');
+        $bodyEnd = strpos($html, '</tbody>');
+        $this->assertNotFalse($bodyStart);
+        $this->assertNotFalse($bodyEnd);
+        $this->assertStringNotContainsString('STU-GONE', substr($html, $bodyStart, $bodyEnd - $bodyStart),
+            'A soft-deleted student must not be rendered as a row.');
+        // The table shows its empty state instead: no student matched.
+        $this->assertStringContainsString('No records found matching your active filters.', $html);
+
+        // The export shares the query, so it cannot leak the record either.
+        $csv = $this->asCollege($college, $viewer)
+            ->get(route('students.export', ['search' => 'STU-GONE']))
+            ->assertOk()
+            ->streamedContent();
+        $this->assertStringNotContainsString('STU-GONE', $csv);
+        $this->assertStringNotContainsString('Trashed', $csv);
+
+        // Soft delete preserved — the row is still in the table, only hidden.
+        // With the college context set explicitly, the model's normal query
+        // (SoftDeletingScope + CollegeScope) finds nothing, while the fully
+        // unscoped count proves the delete was never a hard delete. Asserting
+        // both keeps this about SoftDeletes rather than about tenant scoping.
+        $this->assertSoftDeleted('students', ['id' => $student->id]);
+        app(TenantContext::class)->set($college);
+        $this->assertSame(0, Student::query()->where('student_number', 'STU-GONE')->count(),
+            'A normal student query must not see the trashed row.');
+        $this->assertSame(1, Student::withoutGlobalScopes()->where('student_number', 'STU-GONE')->count(),
+            'The row must still exist: soft delete, never a hard delete.');
     }
 }

@@ -6,7 +6,15 @@
 ])
 
 @php
-    $selected = (string) ($value ?? request($name, ''));
+    /*
+     * A malformed query string (e.g. ?department_id[]=nested) delivers an array
+     * where a single-value control expects one value, and casting that to string
+     * is a fatal "Array to string conversion". The value is normalised here, at
+     * the point where it would become markup: a non-scalar reads as "nothing
+     * selected", exactly as the server-side filter treated it.
+     */
+    $requested = $value ?? request($name, '');
+    $selected = is_scalar($requested) ? (string) $requested : '';
 @endphp
 
 <div>

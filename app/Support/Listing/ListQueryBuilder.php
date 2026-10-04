@@ -327,8 +327,14 @@ class ListQueryBuilder
             return $this;
         }
 
-        $sort = (string) $this->request->input($sortParam, '');
-        $dir = strtolower((string) $this->request->input($directionParam, ''));
+        // Sorting input is normalised before use: a malformed query string can
+        // deliver an array (`?sort[]=name`), which is not a sort key and must be
+        // read as absent rather than crash the cast. The allow-list below is
+        // unchanged, so nothing new can reach the ORDER BY clause.
+        $requestedSort = $this->request->input($sortParam, '');
+        $requestedDir = $this->request->input($directionParam, '');
+        $sort = is_string($requestedSort) ? $requestedSort : '';
+        $dir = is_string($requestedDir) ? strtolower($requestedDir) : '';
 
         if ($sort !== '' && isset($this->allowedSorts[$sort])) {
             $direction = in_array($dir, ['asc', 'desc'], true) ? $dir : 'asc';
