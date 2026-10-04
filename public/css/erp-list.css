@@ -16,16 +16,14 @@
  *
  *   - a <select>'s intrinsic width is its WIDEST option ("Semester 1 (SEM1) ·
  *     2026-27"), not the visible text;
- *   - an <input type="date"> has a fixed intrinsic width (~150px in Chrome for
- *     the segmented date field plus the picker glyph);
- *   - the date-range control holds TWO of them side by side in a flex row, whose
- *     own children also default to `min-width: auto`.
+ *   - the date-range control holds TWO labelled text fields side by side, and
+ *     each wrapping grid/flex child also defaults to `min-width: auto`.
  *
- * So a single filter cell could not shrink below ~320px. Tailwind's
- * `grid-cols-*` tracks are `minmax(0, 1fr)`, so the TRACK was free to shrink —
- * but the ITEM inside it was not, and it pushed out of the filter card, giving
- * the page a horizontal scrollbar and clipping the card's right edge. The same
- * pattern applies to the header row, the bulk bar and the pagination row.
+ * A filter cell can therefore insist on more width than its grid track. Tailwind's
+ * `grid-cols-*` tracks are `minmax(0, 1fr)`, so the TRACK is free to shrink —
+ * but an ITEM inside it is not unless explicitly allowed, and it can push out of
+ * the filter card and clip its right edge. The same pattern applies to the header
+ * row, the bulk bar and the pagination row.
  *
  * The rule below is the standard cure: every grid/flex child of a list is
  * allowed to shrink (`min-width: 0`), controls fill but never force their cell
@@ -72,8 +70,7 @@
 }
 
 /* A row of controls inside one cell (the date range): allow every part of it to
- * shrink, and let the two date fields share whatever space is left instead of
- * insisting on their intrinsic width. */
+ * shrink, and let the two labelled date fields share whatever space is left. */
 .erp-list-controls {
     min-width: 0;
 }
@@ -82,14 +79,9 @@
     min-width: 0;
 }
 
-.erp-list-date-range .erp-list-controls > .input {
+.erp-list-date-range .erp-list-controls > .erp-list-date-part {
     flex: 1 1 0%;
     min-width: 0;
-}
-
-/* The date-range separator must not be squeezed away or wrapped. */
-.erp-list-date-range .erp-list-controls > span {
-    flex: 0 0 auto;
 }
 
 /* Buttons always wrap rather than pushing their cell wider. */

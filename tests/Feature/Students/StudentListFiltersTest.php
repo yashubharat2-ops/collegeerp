@@ -222,6 +222,36 @@ class StudentListFiltersTest extends TestCase
             ->assertOk()->assertSee('STU-F1')->assertSee('STU-F3')->assertDontSee('STU-F2');
     }
 
+    public function test_admission_date_range_displays_dd_mm_yyyy_and_keeps_iso_query_values(): void
+    {
+        [$college, $viewer] = $this->collegeWithViewer('SLF4D');
+        $this->makeStudent($college, [
+            'first_name' => 'DateFiltered',
+            'student_number' => 'STU-DATE',
+            'admission_date' => '2026-07-05',
+        ]);
+
+        $html = $this->list($college, $viewer, [
+            'admission_date_from' => '2026-07-05',
+            'admission_date_to' => '2026-07-31',
+        ])->assertOk()->assertSee('STU-DATE')->getContent();
+
+        // The human-facing controls are DD/MM/YYYY, while the named values sent
+        // to Laravel remain the ISO dates consumed by StudentListService.
+        $this->assertStringContainsString('id="filter-display-admission_date_from"', $html);
+        $this->assertStringContainsString('id="filter-display-admission_date_to"', $html);
+        $this->assertStringContainsString('placeholder="DD/MM/YYYY"', $html);
+        $this->assertStringContainsString('value="05/07/2026"', $html);
+        $this->assertStringContainsString('value="31/07/2026"', $html);
+        $this->assertStringContainsString('name="admission_date_from"', $html);
+        $this->assertStringContainsString('name="admission_date_to"', $html);
+        $this->assertStringContainsString('value="2026-07-05"', $html);
+        $this->assertStringContainsString('value="2026-07-31"', $html);
+        $this->assertStringContainsString('data-list-date-display', $html);
+        $this->assertStringContainsString('data-list-date-value', $html);
+        $this->assertStringContainsString('src="'.asset('js/erp-list.js').'"', $html);
+    }
+
     public function test_unknown_or_malformed_filter_values_are_ignored(): void
     {
         [$college, $viewer] = $this->collegeWithViewer('SLF5');
@@ -375,11 +405,19 @@ class StudentListFiltersTest extends TestCase
 
         // Search + every documented filter is rendered in the form.
         $this->assertStringContainsString('name="search"', $html);
+        $this->assertStringContainsString('Search name, student no., enrollment no., email or mobile', $html);
         foreach ([
             'academic_year_id', 'department_id', 'program_id', 'academic_term_id', 'section_id',
             'gender', 'category', 'status', 'enrollment_status', 'admission_date_from', 'admission_date_to',
         ] as $filter) {
             $this->assertStringContainsString('name="'.$filter.'"', $html, "The {$filter} filter must be rendered.");
+        }
+        foreach ([
+            'Academic year', 'Department', 'Program / Course', 'Academic term / semester',
+            'Section / Batch', 'Gender', 'Category', 'Student status', 'Enrollment status',
+            'Admission date', 'From', 'To',
+        ] as $label) {
+            $this->assertStringContainsString($label, $html, "The {$label} filter label must be visible.");
         }
 
         // Sorting and pagination controls are the shared components' output.
