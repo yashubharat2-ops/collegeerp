@@ -22,6 +22,13 @@
     $activeSort = $scalar($listContext->filter('sort'));
     $activeDirection = $scalar($listContext->filter('direction')) ?: 'asc';
     $colspan = 9;
+    /*
+     * The page-level export carries this page's query string, so the download /
+     * report obeys exactly the search, filters and sort on screen. `page` is
+     * dropped: pagination is a screen concern, and an export that depended on it
+     * would silently become "page 3 only".
+     */
+    $exportQuery = \Illuminate\Support\Arr::except(request()->query(), ['page']);
 @endphp
 
 <div class="panel">
@@ -31,13 +38,19 @@
             <p class="panel-subtitle">Officially enrolled students within the active college. Each student accumulates an enrollment per academic year.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-            {{-- Export honours the filters below (same pipeline as the table), so a
-                 filtered list can be taken away as-is. --}}
-            @if($canExport ?? false)
-                <a class="button !bg-slate-700 hover:!bg-slate-800"
-                   href="{{ route('students.export', request()->query()) }}">
-                    Export {{ $hasFilters ? 'filtered list' : 'list' }}
-                </a>
+            {{-- Export as a format menu, honouring the filters and sort below (the
+                 links carry this page's query string). Excel is the existing
+                 Excel-compatible CSV stream; PDF and Print are the A4 report —
+                 the PDF option for a review-then-save-as-PDF page, the Print
+                 option for the same page with the native print dialog open.
+                 Gated on the live permission, so it can only ever be hidden by
+                 `students.export` itself; the endpoints re-check it regardless. --}}
+            @if(auth()->user()?->hasPermission('students.export'))
+                <x-list.dropdown label="Export">
+                    <x-list.dropdown-item :href="route('students.export', $exportQuery)">Excel</x-list.dropdown-item>
+                    <x-list.dropdown-item :href="route('students.export.pdf', $exportQuery)">PDF</x-list.dropdown-item>
+                    <x-list.dropdown-item :href="route('students.export.print', $exportQuery)">Print</x-list.dropdown-item>
+                </x-list.dropdown>
             @endif
             @can('create', App\Models\Student::class)
                 <a class="button" href="{{ route('students.create') }}">+ New student</a>
@@ -135,17 +148,23 @@
          keeps the count in sync, shows the indeterminate state, and posts the
          selected ids to the central bulk action endpoint. --}}
     <x-list.bulk-selection-bar module="students">
-        {{-- Same live permission check as the two actions below, so the button
-             can only ever be hidden by the permission itself: gating it on a
-             controller-supplied variable with a `?? false` fallback would hide a
-             registered, authorized action with no error whenever that variable
-             was absent. The bulk endpoint re-checks `students.export` (and the
-             per-record Student policy) on every request regardless. --}}
+        {{-- The bulk Export menu: one indigo control (the same button language as
+             Generate ID cards and Bulk documents) offering the three formats for
+             the rows that are ticked. Every entry goes through the SAME central
+             bulk endpoint as the two actions beside it: the ids are re-queried
+             inside the college scope, each record is re-checked through the
+             Student policy, and the follow-up URL is built server-side from the
+             ids the handler authorized — a hand-edited request can never widen
+             it. Excel streams the existing CSV; PDF and Print open the A4 report
+             for exactly that authorized selection. Same live permission check as
+             the other actions, so the menu can only be hidden by the permission
+             itself. --}}
         @if(auth()->user()?->hasPermission('students.export'))
-            <button type="button" data-bulk-action="export"
-                    class="button !py-2 !text-xs font-semibold !bg-slate-700 hover:!bg-slate-800">
-                Export students
-            </button>
+            <x-list.dropdown label="Export" size="sm">
+                <x-list.dropdown-item data-bulk-action="export">Excel</x-list.dropdown-item>
+                <x-list.dropdown-item data-bulk-action="export_pdf">PDF</x-list.dropdown-item>
+                <x-list.dropdown-item data-bulk-action="export_print">Print</x-list.dropdown-item>
+            </x-list.dropdown>
         @endif
 
         @if(auth()->user()?->hasPermission('student_id_cards.generate'))

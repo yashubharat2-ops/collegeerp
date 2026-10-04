@@ -249,6 +249,11 @@ Route::middleware('auth')->group(function () {
         // Declared BEFORE the resource route: `students/{student}` would otherwise
         // capture "students/export" and 404 on a student named "export".
         Route::get('students/export', [StudentController::class, 'export'])->name('students.export');
+        // The same filtered/selected list as a printable A4 report: "PDF" is the
+        // review-then-save-as-PDF page, "print" opens it with the native print
+        // dialog. Same permission, same tenant scope, same filter pipeline.
+        Route::get('students/export/pdf', [StudentController::class, 'exportPdf'])->name('students.export.pdf');
+        Route::get('students/export/print', [StudentController::class, 'exportPrint'])->name('students.export.print');
         Route::get('students/{student}/photo', [StudentController::class, 'photo'])->name('students.photo');
         Route::resource('students', StudentController::class);
         Route::resource('student-enrollments', StudentEnrollmentController::class)->except('show');

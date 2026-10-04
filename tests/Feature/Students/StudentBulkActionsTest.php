@@ -13,9 +13,9 @@ use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
- * Step 2 of the Students module: the three bulk actions of the Student list
- * (Export students, Generate ID cards, Bulk documents) driven through the ONE
- * shared endpoint, `bulk-actions.execute`.
+ * Step 2 of the Students module: the bulk actions of the Student list — the
+ * Export menu (Excel, PDF, Print), Generate ID cards and Bulk documents — all
+ * driven through the ONE shared endpoint, `bulk-actions.execute`.
  *
  * The security model under test — identical to the shared contract:
  *  - every action has its own permission AND a per-record Student policy check,
@@ -64,20 +64,25 @@ class StudentBulkActionsTest extends TestCase
         return array_map('intval', (array) ($query['ids'] ?? []));
     }
 
-    public function test_the_three_actions_are_registered_for_the_students_module(): void
+    public function test_the_actions_are_registered_for_the_students_module(): void
     {
         $registry = app(BulkActionRegistry::class);
 
         $this->assertTrue($registry->has('students', 'export'));
         $this->assertTrue($registry->has('students', 'id_cards'));
         $this->assertTrue($registry->has('students', 'documents'));
+        // The Export menu's two report formats: the same export in a printable
+        // form (Excel stays `export`), so every dropdown entry is a registered
+        // action the shared endpoint validates against — never a free-form name.
+        $this->assertTrue($registry->has('students', 'export_pdf'));
+        $this->assertTrue($registry->has('students', 'export_print'));
 
         // A module that was never registered must stay unknown (no wildcard).
         $this->assertFalse($registry->has('students', 'import'));
         $this->assertFalse($registry->has('students', 'delete'));
 
         $this->assertSame(
-            ['export', 'id_cards', 'documents'],
+            ['export', 'id_cards', 'documents', 'export_pdf', 'export_print'],
             array_keys($registry->getForModule('students'))
         );
     }

@@ -95,6 +95,12 @@
          code, and a src that ends in `.js` (see ProgramNameEscapeTest). --}}
     <script type="module" src="{{ asset('js/erp-user-menu.js') }}"></script>
     <script type="module" src="{{ asset('js/erp-list.js') }}"></script>
+    {{-- List toolbars: the Export dropdowns (page-level and bulk bar). Same
+         loading rules: external module script, no inline code. --}}
+    <script type="module" src="{{ asset('js/erp-dropdown.js') }}"></script>
+    {{-- Printable documents: the "Print / save as PDF" button and the report page
+         that opens the dialog itself. --}}
+    <script type="module" src="{{ asset('js/erp-print.js') }}"></script>
     @stack('scripts')
 </body>
 </html>

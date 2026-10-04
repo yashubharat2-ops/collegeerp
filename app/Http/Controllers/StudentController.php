@@ -45,9 +45,6 @@ class StudentController extends Controller
         return view('students.index', array_merge([
             'students' => $students,
             'listContext' => ListContext::make($builder->getAppliedFilters(), $students, $request, 'students.index'),
-            // The bulk export button is only offered to users who may use it;
-            // the permission itself is enforced server-side on the endpoint.
-            'canExport' => (bool) $request->user()?->hasPermission('students.export'),
         ], $list->filterOptions()));
     }
 
@@ -80,7 +77,7 @@ class StudentController extends Controller
         $builder = $list->builder($request);
         $query = $builder->getQuery();
 
-        // An explicit selection (the bulk "Export students" action) narrows the
+        // An explicit selection (the bulk Export menu's Excel option) narrows the
         // export to those students — after the same filters have been applied.
         $ids = ListSelection::ids($request->input('ids', []));
         if ($ids !== []) {
@@ -124,6 +121,119 @@ class StudentController extends Controller
                 ];
             })
             ->streamFromQuery($query);
+    }
+
+    /**
+     * Upper bound on one printed / PDF report.
+     *
+     * The CSV export streams with chunkById() and is unbounded on purpose. A
+     * report is rendered as ONE document, so it cannot be streamed: the cap keeps
+     * a multi-thousand-row college from turning a print click into an out-of-memory
+     * 500. The view states honestly when the cap is hit and points at the Excel
+     * export for the complete set.
+     */
+    public const REPORT_ROW_LIMIT = 1000;
+
+    /**
+     * The student list as a printable A4 report — the target of the export
+     * dropdown's "PDF" option (review, then save as PDF from the dialog).
+     *
+     * Same filter pipeline, same tenant scope and same permission as the CSV
+     * export; see exportReport().
+     */
+    public function exportPdf(Request $request, StudentListService $list, AuditLogService $audit): View
+    {
+        return $this->exportReport($request, $list, $audit, 'pdf');
+    }
+
+    /**
+     * The same A4 report, opened with the browser's print dialog.
+     *
+     * There is no PDF library in this project (and no need to add one): the
+     * established mechanism for official documents — receipts, ID card batches —
+     * is a print-safe HTML page plus the browser's native print / "Save as PDF"
+     * dialog, styled by the `@media print` rules in resources/css/app.css. A PDF
+     * and a print are therefore the same server-rendered document; only the
+     * dialog differs, and the printed/saved file never depends on a client-side
+     * library or a headless browser.
+     */
+    public function exportPrint(Request $request, StudentListService $list, AuditLogService $audit): View
+    {
+        return $this->exportReport($request, $list, $audit, 'print');
+    }
+
+    /**
+     * Build the printable student report for the current query string.
+     *
+     * Honest about its inputs, exactly like the CSV export:
+     *
+     *  - the same StudentListService/ListQueryBuilder pipeline as the list, so the
+     *    report can only ever contain what the filters select;
+     *  - an explicit `ids` selection (the bulk bar's PDF/Print options) only ever
+     *    NARROWS that set: the ids are shape-checked (ListSelection), re-queried
+     *    inside the tenant scope, and each surviving record is re-authorized
+     *    through the Student policy — a foreign college's student and a
+     *    soft-deleted student match nothing;
+     *  - `students.export` on top of `students.view`, so the report is behind the
+     *    same permission as the CSV (the bulk path checks it twice: once in the
+     *    handler, once here).
+     *
+     * Unlike the CSV stream — which pages by primary key to stay constant-memory
+     * and therefore cannot honour the on-screen order — the report is rendered in
+     * a single pass, so it DOES honour the selected sort plus a stable id
+     * tiebreak, and it is capped at REPORT_ROW_LIMIT rows.
+     */
+    private function exportReport(Request $request, StudentListService $list, AuditLogService $audit, string $format): View
+    {
+        $this->authorize('viewAny', Student::class);
+        abort_unless($request->user()?->hasPermission('students.export'), 403);
+
+        $builder = $list->builder($request);
+        $query = $builder->getQuery();
+
+        // An explicit selection narrows the report, after the same filters have
+        // been applied — never widens it.
+        $ids = ListSelection::ids($request->input('ids', []));
+        if ($ids !== []) {
+            $query->whereIn('students.id', $ids);
+        }
+
+        $total = (clone $query)->count();
+
+        $rows = $builder->applySorts()
+            ->tiebreaker('students.id')
+            ->getQuery()
+            ->limit(self::REPORT_ROW_LIMIT + 1)
+            ->get();
+
+        // One extra row was fetched purely to detect the cap, never to print it.
+        $truncated = $rows->count() > self::REPORT_ROW_LIMIT;
+        $rows = $rows->take(self::REPORT_ROW_LIMIT);
+
+        // Per-record authorization, as on every printable document in this
+        // module: a record the viewer may not read is skipped and reported.
+        $students = $rows
+            ->filter(fn (Student $student) => $request->user()?->can('view', $student) ?? false)
+            ->values();
+
+        $audit->record('students.exported', null, [], [
+            'format' => $format,
+            'filters' => $builder->getAppliedFilters(),
+            'selected_ids' => count($ids),
+            'rows' => $students->count(),
+        ]);
+
+        return view('students.export_report', [
+            'students' => $students,
+            'college' => app(TenantContext::class)->college(),
+            'total' => $total,
+            'truncated' => $truncated,
+            'limit' => self::REPORT_ROW_LIMIT,
+            'isSelection' => $ids !== [],
+            'skipped' => $rows->count() - $students->count(),
+            'autoPrint' => $format === 'print',
+            'generatedAt' => now(),
+        ]);
     }
 
     public function create(): View
