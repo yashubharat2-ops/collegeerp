@@ -65,9 +65,12 @@
             <input type="hidden" name="direction" value="{{ $activeDirection }}">
         @endif
 
-        <div class="erp-list-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            <div class="sm:col-span-2">
+        <div class="erp-list-grid">
+            <div class="erp-list-filter-span-2">
+                <label for="students-list-search" class="mb-1 block text-xs font-semibold text-slate-700">Search</label>
                 <x-list.search-input
+                    id="students-list-search"
+                    class="!py-2 !text-xs"
                     placeholder="Search name, student no., enrollment no., email or mobile"
                     :value="$listContext->filter('search')"
                 />
@@ -125,13 +128,16 @@
                 @endforeach
             </x-list.filter-select>
 
-            <x-list.filter-select name="enrollment_status" label="Enrollment status" placeholder="All enrollment statuses">
-                @foreach(\App\Models\StudentEnrollment::STATUSES as $enrollmentStatus)
-                    <option value="{{ $enrollmentStatus }}" @selected(in_array($enrollmentStatus, (array) $listContext->filter('enrollment_status', []), true))>{{ ucfirst($enrollmentStatus) }}</option>
-                @endforeach
-            </x-list.filter-select>
+            <div class="erp-list-filter-span-2-desktop">
+                <x-list.filter-select name="enrollment_status" label="Enrollment status" placeholder="All enrollment statuses">
+                    @foreach(\App\Models\StudentEnrollment::STATUSES as $enrollmentStatus)
+                        <option value="{{ $enrollmentStatus }}" @selected(in_array($enrollmentStatus, (array) $listContext->filter('enrollment_status', []), true))>{{ ucfirst($enrollmentStatus) }}</option>
+                    @endforeach
+                </x-list.filter-select>
+            </div>
 
             <x-list.filter-date-range
+                class="erp-list-filter-span-2"
                 from-name="admission_date_from"
                 to-name="admission_date_to"
                 label="Admission date"
@@ -139,7 +145,7 @@
                 :to-value="$listContext->filter('admission_date_to')"
             />
 
-            <x-list.filter-actions :clear-url="$clearUrl" :has-filters="$hasFilters" />
+            <x-list.filter-actions class="erp-list-filter-span-2-xl justify-end" :clear-url="$clearUrl" :has-filters="$hasFilters" />
         </div>
     </form>
 

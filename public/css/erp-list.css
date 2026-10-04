@@ -19,8 +19,8 @@
  *   - the date-range control holds TWO labelled text fields side by side, and
  *     each wrapping grid/flex child also defaults to `min-width: auto`.
  *
- * A filter cell can therefore insist on more width than its grid track. Tailwind's
- * `grid-cols-*` tracks are `minmax(0, 1fr)`, so the TRACK is free to shrink —
+ * A filter cell can therefore insist on more width than its grid track. The
+ * shared `.erp-list-grid` uses `minmax(0, 1fr)` tracks, so the TRACK can shrink —
  * but an ITEM inside it is not unless explicitly allowed, and it can push out of
  * the filter card and clip its right edge. The same pattern applies to the header
  * row, the bulk bar and the pagination row.
@@ -36,7 +36,47 @@
  */
 
 /* -----------------------------------------------------------------------------
- * 1 · The page shell — every flex/grid child may shrink
+ * 1 · Filter grid — predictable columns and balanced spans
+ * ----------------------------------------------------------------------------- */
+.erp-list-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+    .erp-list-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .erp-list-grid > .erp-list-filter-span-2 {
+        grid-column: span 2;
+    }
+}
+
+@media (min-width: 1024px) {
+    .erp-list-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1rem;
+    }
+
+    .erp-list-grid > .erp-list-filter-span-2-desktop {
+        grid-column: span 2;
+    }
+}
+
+@media (min-width: 1280px) {
+    .erp-list-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .erp-list-grid > .erp-list-filter-span-2-xl {
+        grid-column: span 2;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+ * 2 · The page shell — every flex/grid child may shrink
  * -----------------------------------------------------------------------------
  * The page panel itself needs no hook: it is a block box, so an overflowing
  * child cannot widen it (which is exactly why the reported overflow showed up as
@@ -60,7 +100,7 @@
 }
 
 /* -----------------------------------------------------------------------------
- * 2 · Filter controls — fill the cell, shrink when the cell shrinks
+ * 3 · Filter controls — fill the cell, shrink when the cell shrinks
  * -------------------------------------------------------------------------- */
 .erp-list-field .input,
 .erp-list-field select,
@@ -84,6 +124,207 @@
     min-width: 0;
 }
 
+.erp-list-filters .erp-list-field .input,
+.erp-list-filters .erp-list-field select {
+    box-sizing: border-box;
+    min-height: 2.5rem;
+}
+
+.erp-list-filters .erp-list-actions {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.erp-list-filters .erp-list-actions .button {
+    display: inline-flex;
+    min-height: 2.5rem;
+    align-items: center;
+}
+
+.erp-list-date-controls {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+}
+
+.erp-list-date-part {
+    position: relative;
+    min-width: 0;
+}
+
+.erp-list-date-control {
+    position: relative;
+    min-width: 0;
+}
+
+.erp-list-date-control > .input {
+    box-sizing: border-box;
+    min-height: 2.5rem;
+    padding-right: 2.75rem;
+}
+
+.erp-list-date-picker-trigger {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: inline-flex;
+    width: 2.5rem;
+    height: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 0 0.75rem 0.75rem 0;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+}
+
+.erp-list-date-picker-trigger:hover {
+    color: #4338ca;
+}
+
+.erp-list-date-picker-trigger:focus-visible,
+.erp-list-date-picker-header > button:focus-visible,
+.erp-list-date-picker-footer button:focus-visible,
+.erp-list-date-picker-day:focus-visible {
+    outline: 2px solid #4f46e5;
+    outline-offset: 2px;
+}
+
+.erp-list-date-control > .input[aria-invalid="true"] {
+    border-color: #dc2626;
+}
+
+.erp-list-date-separator {
+    flex: 0 0 auto;
+    margin-bottom: 0.75rem;
+    color: #94a3b8;
+    font-size: 0.75rem;
+}
+
+.erp-list-date-picker-popover[hidden] {
+    display: none !important;
+}
+
+.erp-list-date-picker-popover {
+    position: absolute;
+    z-index: 50;
+    top: calc(100% + 0.5rem);
+    left: 0;
+    box-sizing: border-box;
+    width: 18rem;
+    max-width: calc(100vw - 3rem);
+    padding: 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 16px 36px rgb(15 23 42 / 18%);
+}
+
+.erp-list-date-part[data-date-picker-align="end"] .erp-list-date-picker-popover {
+    right: 0;
+    left: auto;
+}
+
+.erp-list-date-picker-header {
+    display: grid;
+    grid-template-columns: 2.25rem minmax(0, 1fr) 2.25rem;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.erp-list-date-picker-header > button,
+.erp-list-date-picker-footer button {
+    display: inline-flex;
+    min-height: 2.25rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.625rem;
+    background: #fff;
+    color: #334155;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.erp-list-date-picker-header > button:hover,
+.erp-list-date-picker-footer button:hover {
+    border-color: #c7d2fe;
+    background: #eef2ff;
+    color: #3730a3;
+}
+
+.erp-list-date-picker-header h3 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 0.875rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.erp-list-date-picker-calendar {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0.125rem;
+    table-layout: fixed;
+}
+
+.erp-list-date-picker-calendar th {
+    height: 2rem;
+    color: #64748b;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.erp-list-date-picker-calendar td {
+    height: 2.25rem;
+    padding: 0;
+    text-align: center;
+}
+
+.erp-list-date-picker-day {
+    display: inline-flex;
+    width: 2rem;
+    height: 2rem;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 9999px;
+    background: transparent;
+    color: #334155;
+    cursor: pointer;
+    font-size: 0.75rem;
+}
+
+.erp-list-date-picker-day:hover {
+    background: #eef2ff;
+    color: #3730a3;
+}
+
+.erp-list-date-picker-day.is-selected,
+.erp-list-date-picker-day[aria-pressed="true"] {
+    background: #4f46e5;
+    color: #fff;
+    font-weight: 700;
+}
+
+.erp-list-date-picker-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.erp-list-date-picker-footer button {
+    min-height: 2rem;
+    padding: 0 0.625rem;
+}
+
 /* Buttons always wrap rather than pushing their cell wider. */
 .erp-list-actions {
     flex-wrap: wrap;
@@ -93,8 +334,25 @@
     min-width: 0;
 }
 
+@media (max-width: 1023px) {
+    .erp-list-date-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .erp-list-date-range .erp-list-controls > .erp-list-date-part {
+        width: 100%;
+        flex: 0 0 auto;
+    }
+
+    .erp-list-date-separator {
+        align-self: center;
+        margin: 0;
+    }
+}
+
 /* -----------------------------------------------------------------------------
- * 3 · Wide content scrolls itself — the table and the pager
+ * 4 · Wide content scrolls itself — the table and the pager
  * -----------------------------------------------------------------------------
  * `overflow-x: auto` on a block element makes it its own scroll container, so a
  * table with more columns than fit scrolls INSIDE this box. The table keeps its
@@ -117,7 +375,7 @@
 }
 
 /* -----------------------------------------------------------------------------
- * 4 · Table inside a scroll box
+ * 5 · Table inside a scroll box
  * -------------------------------------------------------------------------- */
 .erp-list-scroll > table {
     /* Full width while it fits (so a narrow table looks unchanged) but free to

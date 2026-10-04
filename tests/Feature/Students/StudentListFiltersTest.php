@@ -243,13 +243,50 @@ class StudentListFiltersTest extends TestCase
         $this->assertStringContainsString('placeholder="DD/MM/YYYY"', $html);
         $this->assertStringContainsString('value="05/07/2026"', $html);
         $this->assertStringContainsString('value="31/07/2026"', $html);
-        $this->assertStringContainsString('name="admission_date_from"', $html);
-        $this->assertStringContainsString('name="admission_date_to"', $html);
+        $this->assertSame(1, substr_count($html, 'name="admission_date_from"'));
+        $this->assertSame(1, substr_count($html, 'name="admission_date_to"'));
         $this->assertStringContainsString('value="2026-07-05"', $html);
         $this->assertStringContainsString('value="2026-07-31"', $html);
         $this->assertStringContainsString('data-list-date-display', $html);
         $this->assertStringContainsString('data-list-date-value', $html);
+        $this->assertSame(2, substr_count($html, 'data-date-picker-toggle'));
+        $this->assertSame(2, substr_count($html, 'data-date-picker-prev'));
+        $this->assertSame(2, substr_count($html, 'data-date-picker-next'));
+        $this->assertStringContainsString('data-date-picker-calendar', $html);
+        $this->assertStringContainsString('data-date-picker-days', $html);
+        $this->assertStringContainsString('data-date-picker-clear', $html);
+        $this->assertStringContainsString('data-date-picker-close', $html);
+        $this->assertStringContainsString('erp-list-date-controls', $html);
+        $this->assertStringContainsString('erp-list-date-separator', $html);
+        $this->assertStringContainsString('data-date-picker-label="From"', $html);
+        $this->assertStringContainsString('data-date-picker-label="To"', $html);
+        $this->assertStringContainsString('aria-haspopup="dialog"', $html);
+        $this->assertStringContainsString('aria-modal="false"', $html);
+        $this->assertStringNotContainsString('type="date"', $html);
         $this->assertStringContainsString('src="'.asset('js/erp-list.js').'"', $html);
+    }
+
+    public function test_admission_date_fields_start_blank_and_calendar_is_closed(): void
+    {
+        [$college, $viewer] = $this->collegeWithViewer('SLF4E');
+        $html = $this->list($college, $viewer)->assertOk()->getContent();
+
+        foreach (['admission_date_from', 'admission_date_to'] as $filter) {
+            $this->assertMatchesRegularExpression(
+                '/<input(?=[^>]*id="filter-display-'.$filter.'")(?=[^>]*value="")[^>]*>/',
+                $html,
+                "The visible {$filter} field must be empty on first load."
+            );
+            $this->assertMatchesRegularExpression(
+                '/<input(?=[^>]*type="hidden")(?=[^>]*name="'.$filter.'")(?=[^>]*value="")[^>]*>/',
+                $html,
+                "The {$filter} query value must start empty."
+            );
+        }
+
+        $this->assertSame(2, substr_count($html, 'data-date-picker-popover'));
+        $this->assertStringContainsString('aria-expanded="false"', $html);
+        $this->assertSame(2, substr_count($html, 'data-list-date-display'));
     }
 
     public function test_unknown_or_malformed_filter_values_are_ignored(): void
@@ -406,6 +443,8 @@ class StudentListFiltersTest extends TestCase
         // Search + every documented filter is rendered in the form.
         $this->assertStringContainsString('name="search"', $html);
         $this->assertStringContainsString('Search name, student no., enrollment no., email or mobile', $html);
+        $this->assertStringContainsString('class="erp-list-grid"', $html);
+        $this->assertStringContainsString('erp-list-filter-span-2', $html);
         foreach ([
             'academic_year_id', 'department_id', 'program_id', 'academic_term_id', 'section_id',
             'gender', 'category', 'status', 'enrollment_status', 'admission_date_from', 'admission_date_to',
