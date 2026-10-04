@@ -69,6 +69,29 @@ class StudentExportOptionsTest extends TestCase
         return array_map('intval', (array) ($query['ids'] ?? []));
     }
 
+    /**
+     * The student numbers of the printable report, in the order its rows were
+     * RENDERED.
+     *
+     * Read from the report's own `<tbody>`, never from the whole page: the toolbar,
+     * the heading and the links carry filters, a sort key and counts — not student
+     * data — so scoping here is what makes a row-order assertion mean what it says.
+     */
+    private function printedStudentNumbers(string $html): array
+    {
+        $bodyStart = strpos($html, '<tbody>');
+        $bodyEnd = strpos($html, '</tbody>', (int) $bodyStart);
+
+        $this->assertNotFalse($bodyStart, 'The report has no table body.');
+        $this->assertNotFalse($bodyEnd, 'The report table body is not closed.');
+
+        $rows = substr($html, $bodyStart, $bodyEnd - $bodyStart);
+
+        preg_match_all('/STU-[A-Z0-9]+/', $rows, $matches);
+
+        return $matches[0];
+    }
+
     public function test_the_page_header_offers_one_export_menu_with_the_three_formats(): void
     {
         [$college, $exporter] = $this->collegeWithExporter('SEO1');
@@ -123,28 +146,49 @@ class StudentExportOptionsTest extends TestCase
 
         $html = $this->list($college, $exporter)->assertOk()->getContent();
 
-        // The three formats live INSIDE the bulk bar, so they act on the ticked
-        // rows. Each is a bulk action name the registry knows and the endpoint
-        // validates against.
-        $barAt = strpos($html, 'data-bulk-selection');
-        $excelAt = strpos($html, 'data-bulk-action="export"');
-        $pdfAt = strpos($html, 'data-bulk-action="export_pdf"');
-        $printAt = strpos($html, 'data-bulk-action="export_print"');
-        $tableAt = strpos($html, 'data-select-all');
-
-        $this->assertNotFalse($barAt);
-        foreach (['excel' => $excelAt, 'pdf' => $pdfAt, 'print' => $printAt] as $label => $position) {
-            $this->assertNotFalse($position, "The {$label} bulk option is missing.");
-            $this->assertLessThan($position, $barAt, 'The bulk export must be inside the bulk selection bar.');
+        // Each export option occurs EXACTLY ONCE on the page. The page-header menu
+        // renders the same formats, but as plain <a href> links with no data
+        // attribute, so the bar is the only place these action names exist — an
+        // occurrence elsewhere can neither satisfy nor break the ordering below.
+        foreach (['data-bulk-action="export"', 'data-bulk-action="export_pdf"', 'data-bulk-action="export_print"'] as $token) {
+            $this->assertSame(1, substr_count($html, $token), "Expected exactly one {$token} on the page.");
         }
 
-        $this->assertLessThan($excelAt, $pdfAt);
-        $this->assertLessThan($pdfAt, $printAt);
-        $this->assertLessThan($tableAt, $printAt, 'The bulk bar must stay above the table it drives.');
+        // Isolate the bar ITSELF before ordering anything: it runs from its own
+        // container down to the table it drives (the table's select-all checkbox
+        // is the first thing rendered inside that table). Every position below is
+        // read from this slice, never from the page.
+        $barStart = strpos($html, 'data-bulk-selection');
+        $tableStart = strpos($html, 'data-select-all', (int) $barStart);
+
+        $this->assertNotFalse($barStart, 'The bulk selection bar is missing.');
+        $this->assertNotFalse($tableStart, 'The table that the bulk bar drives is missing.');
+        $this->assertTrue($barStart < $tableStart, 'The bulk bar must stay above the table it drives.');
+
+        $bar = substr($html, $barStart, $tableStart - $barStart);
+
+        // The three formats are bulk actions INSIDE the bar, in this order:
+        // Excel → PDF → Print. Read in document order, so the list itself is the
+        // proof of the ordering.
+        preg_match_all('/data-bulk-action="([^"]+)"/', $bar, $matches);
+        $actions = $matches[1] ?? [];
+
+        $this->assertSame(
+            ['export', 'export_pdf', 'export_print', 'id_cards', 'documents'],
+            $actions,
+            'The bulk bar must offer Export (Excel, PDF, Print), Generate ID cards and Bulk documents, in that order.'
+        );
+
+        // The Excel → PDF → Print order stated explicitly, pairwise. Written as
+        // plain comparisons on purpose: assertLessThan()'s argument order is
+        // (expected, actual), so "comes first" is easy to invert by accident.
+        $position = array_flip($actions);
+        $this->assertTrue($position['export'] < $position['export_pdf'], 'Excel must be listed before PDF.');
+        $this->assertTrue($position['export_pdf'] < $position['export_print'], 'PDF must be listed before Print.');
 
         // The two unchanged actions are still there, untouched.
-        $this->assertStringContainsString('data-bulk-action="id_cards"', $html);
-        $this->assertStringContainsString('data-bulk-action="documents"', $html);
+        $this->assertStringContainsString('data-bulk-action="id_cards"', $bar);
+        $this->assertStringContainsString('data-bulk-action="documents"', $bar);
 
         // And the shared scripts that make the menu and the printing work are
         // loaded as module scripts (the only form the layout allows).
@@ -273,10 +317,14 @@ class StudentExportOptionsTest extends TestCase
         $this->makeEnrollment($college, $gone, $year, $program);
 
         // A status filter applies to the report exactly as it does to the list.
+        // Read the PRINTED ROWS (the report's own <tbody>), not the page: the
+        // toolbar and links carry filters and sort keys, never student data.
         $html = $this->report($college, $exporter, 'pdf', ['status' => 'active'])->assertOk()->getContent();
-        $this->assertStringContainsString('STU-A', $html);
-        $this->assertStringContainsString('STU-B', $html);
-        $this->assertStringNotContainsString('STU-C', $html);
+
+        $this->assertSame(['STU-A', 'STU-B'], $this->printedStudentNumbers($html));
+        // The filtered-out student must not appear anywhere on the report, not
+        // merely be absent from the rows.
+        $this->assertStringNotContainsString('STU-C', $html, 'A student excluded by the filter must not appear on the report.');
         $this->assertStringContainsString('2 of 2 students', $html);
 
         // And the on-screen sort is honoured — the CSV stream cannot do this (it
@@ -286,14 +334,27 @@ class StudentExportOptionsTest extends TestCase
             'direction' => 'desc',
         ])->assertOk()->getContent();
 
-        $position = [];
+        // Each number occurs exactly once on the page, so a token outside the
+        // table cannot stand in for a row (and a mis-sorted row cannot hide).
         foreach (['STU-A', 'STU-B', 'STU-C'] as $number) {
-            $position[$number] = strpos($html, $number);
-            $this->assertNotFalse($position[$number], "{$number} is missing from the report.");
+            $this->assertSame(1, substr_count($html, $number), "Expected {$number} to appear exactly once on the page.");
         }
 
-        $this->assertLessThan($position['STU-C'], $position['STU-B'], 'C should follow B when sorted descending.');
-        $this->assertLessThan($position['STU-B'], $position['STU-A'], 'B should follow A when sorted descending.');
+        // The rows, in the order they were rendered: student number descending.
+        $printed = $this->printedStudentNumbers($html);
+
+        $this->assertSame(
+            ['STU-C', 'STU-B', 'STU-A'],
+            $printed,
+            'The report rows must follow the chosen sort: student number, descending.'
+        );
+
+        // C → B → A stated explicitly, pairwise, on the row positions. Written as
+        // plain comparisons on purpose: assertLessThan()'s argument order is
+        // (expected, actual), so "comes first" is easy to invert by accident.
+        $position = array_flip($printed);
+        $this->assertTrue($position['STU-C'] < $position['STU-B'], 'C must be printed before B.');
+        $this->assertTrue($position['STU-B'] < $position['STU-A'], 'B must be printed before A.');
     }
 
     public function test_a_selected_report_contains_only_the_requested_students(): void
