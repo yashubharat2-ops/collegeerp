@@ -232,17 +232,42 @@
     color: #e11d48;
 }
 
-/* Visible date format: "DD/MM/YYYY" while empty, the value in DD/MM/YYYY once
-   set. The control itself still submits the native ISO date. */
-.erp-date-hint {
-    float: right;
-    padding: 0.0625rem 0.25rem;
-    font-size: 10.5px;
-    font-weight: 500;
-    letter-spacing: 0.01em;
-    color: #64748b;
-    background: #f1f5f9;
-    border-radius: 0.25rem;
+/* -----------------------------------------------------------------------------
+ * 4a · Date fields — day/month/year ON SCREEN, ISO on the wire
+ * -----------------------------------------------------------------------------
+ * A native <input type="date"> paints its segments in the browser's locale
+ * order (month/day/year on an en-US browser) and that order cannot be restyled.
+ * So the field shows a read-only text mirror carrying DD/MM/YYYY, and the real
+ * date input — unchanged id/name/value/validation — sits on top of it,
+ * transparent, owning the picker and the submitted ISO value. Clicking the field
+ * still opens the calendar (the script calls showPicker()); the mirror follows
+ * whatever is typed or picked.
+ */
+.erp-date {
+    position: relative;
+}
+
+.erp-date__text {
+    pointer-events: none;
+    color: #0f172a;                   /* a filled date is data, not a hint */
+}
+
+/* Child selector on purpose: the overlay must own its geometry outright rather
+   than depend on source order against `.erp-input`'s height. */
+.erp-date > .erp-date__native {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;                        /* invisible, but still the real control */
+    cursor: pointer;
+}
+
+/* Focusing the (invisible) date input has to light up the box the operator sees. */
+.erp-date:has(.erp-date__native:focus) .erp-date__text {
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.14);
 }
 
 .erp-input {

@@ -34,23 +34,38 @@
     // into — the form request strips the fields for anyone else.
     $showEnrollmentBlock = ! $isEdit && $canEnroll && ($academicYears ?? collect())->isNotEmpty();
 
-    /* A date field shows the expected format until it has a value, then the value
-       itself in DD/MM/YYYY. The server renders the stored/old value; the small
-       script at the end of this partial keeps it in step while typing. The
-       submitted value stays the native ISO date — validation is untouched.
-       Deliberately string-only and exception-free: a crafted request can put an
-       array or an invalid date in `old()`, and re-rendering the form must show
-       the validation message rather than fail while formatting it. */
-    $dateHint = function ($iso) {
+    /*
+     * Dates: the control must READ day/month/year, but the value the browser
+     * submits (and the server validates) stays the native YYYY-MM-DD.
+     *
+     * A native <input type="date"> paints its segments in the BROWSER's locale
+     * order — month/day/year on an en-US browser — and that order cannot be
+     * restyled: `lang` is only a hint and the ::-webkit-datetime-edit-* fields
+     * cannot be regrouped with their separators. So each date field is a small
+     * shim: a visible, read-only text mirror showing DD/MM/YYYY, overlaid by the
+     * real <input type="date"> (same id/name/value/validation — it still owns the
+     * picker and still posts ISO). The mirror is server-rendered from the same
+     * value, and the script at the end of this partial keeps it in step.
+     *
+     * $dateDisplay stays string-only and exception-free on purpose: a crafted
+     * request can put an array or an invalid date in `old()`, and re-rendering
+     * the form must show the validation message rather than fail formatting it.
+     */
+    $dateDisplay = function ($iso) {
         if (is_string($iso) && preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $iso, $parts) === 1) {
             return $parts[3].'/'.$parts[2].'/'.$parts[1];
         }
 
-        return 'DD/MM/YYYY';
+        return '';
     };
-    $dobHint = $dateHint(old('date_of_birth', isset($student->date_of_birth) ? $student->date_of_birth->format('Y-m-d') : null));
-    $admissionHint = $dateHint(old('admission_date', isset($student->admission_date) ? $student->admission_date->format('Y-m-d') : null));
-    $enrollmentHint = $dateHint(old('enrollment_date'));
+    // Same defaults the inputs always had — computed once so the mirror and the
+    // control can never disagree.
+    $dobValue = old('date_of_birth', isset($student->date_of_birth) ? $student->date_of_birth->format('Y-m-d') : '');
+    $admissionValue = old('admission_date', isset($student->admission_date) ? $student->admission_date->format('Y-m-d') : now()->format('Y-m-d'));
+    $enrollmentValue = old('enrollment_date', now()->format('Y-m-d'));
+    $dobDisplay = $dateDisplay($dobValue);
+    $admissionDisplay = $dateDisplay($admissionValue);
+    $enrollmentDisplay = $dateDisplay($enrollmentValue);
 @endphp
 
 <div class="erp-student-form">
@@ -144,19 +159,21 @@
                     <p class="erp-error">@error('section_id'){{ $message }}@enderror</p>
                 </div>
                 <div class="erp-field erp-col-3">
-                    <label class="erp-label" for="enrollment_date">
-                        Enrollment Date <span class="erp-date-hint" data-erp-date-hint="enrollment_date">{{ $enrollmentHint }}</span>
-                    </label>
-                    <input class="erp-input" lang="en-IN" id="enrollment_date" name="enrollment_date" type="date" value="{{ old('enrollment_date', now()->format('Y-m-d')) }}">
+                    <label class="erp-label" for="enrollment_date">Enrollment Date</label>
+                    <div class="erp-date">
+                        <input class="erp-input erp-date__text" type="text" value="{{ $enrollmentDisplay }}" placeholder="DD/MM/YYYY" readonly tabindex="-1" aria-hidden="true" data-erp-date-text="enrollment_date">
+                        <input class="erp-input erp-date__native" lang="en-IN" id="enrollment_date" name="enrollment_date" type="date" value="{{ $enrollmentValue }}" data-erp-date-native="enrollment_date">
+                    </div>
                     <p class="erp-error">@error('enrollment_date'){{ $message }}@enderror</p>
                 </div>
             @endif
 
             <div class="erp-field erp-col-3">
-                <label class="erp-label" for="admission_date">
-                    Admission Date <span class="erp-date-hint" data-erp-date-hint="admission_date">{{ $admissionHint }}</span>
-                </label>
-                <input class="erp-input" lang="en-IN" id="admission_date" name="admission_date" type="date" value="{{ old('admission_date', isset($student->admission_date) ? $student->admission_date->format('Y-m-d') : now()->format('Y-m-d')) }}">
+                <label class="erp-label" for="admission_date">Admission Date</label>
+                <div class="erp-date">
+                    <input class="erp-input erp-date__text" type="text" value="{{ $admissionDisplay }}" placeholder="DD/MM/YYYY" readonly tabindex="-1" aria-hidden="true" data-erp-date-text="admission_date">
+                    <input class="erp-input erp-date__native" lang="en-IN" id="admission_date" name="admission_date" type="date" value="{{ $admissionValue }}" data-erp-date-native="admission_date">
+                </div>
                 <p class="erp-error">@error('admission_date'){{ $message }}@enderror</p>
             </div>
             <div class="erp-field erp-col-3">
@@ -234,10 +251,11 @@
                 </div>
 
                 <div class="erp-field erp-col-3">
-                    <label class="erp-label" for="date_of_birth">
-                        Date of Birth <span class="erp-date-hint" data-erp-date-hint="date_of_birth">{{ $dobHint }}</span>
-                    </label>
-                    <input class="erp-input" lang="en-IN" id="date_of_birth" name="date_of_birth" type="date" value="{{ old('date_of_birth', isset($student->date_of_birth) ? $student->date_of_birth->format('Y-m-d') : '') }}">
+                    <label class="erp-label" for="date_of_birth">Date of Birth</label>
+                    <div class="erp-date">
+                        <input class="erp-input erp-date__text" type="text" value="{{ $dobDisplay }}" placeholder="DD/MM/YYYY" readonly tabindex="-1" aria-hidden="true" data-erp-date-text="date_of_birth">
+                        <input class="erp-input erp-date__native" lang="en-IN" id="date_of_birth" name="date_of_birth" type="date" value="{{ $dobValue }}" data-erp-date-native="date_of_birth">
+                    </div>
                     <p class="erp-error">@error('date_of_birth'){{ $message }}@enderror</p>
                 </div>
                 <div class="erp-field erp-col-3">
@@ -595,26 +613,42 @@
             apply();
         })();
 
-        // Visible date format: the native date control stores/submits the ISO
-        // value, so this only mirrors it as DD/MM/YYYY in the field's label chip
-        // (and leaves the format hint in place while the field is empty).
+        // Visible date format: a native date control paints its segments in the
+        // browser's own locale order (month/day/year on an en-US browser) and
+        // that cannot be restyled. The field therefore shows a read-only mirror
+        // containing DD/MM/YYYY, with the real date input on top of it (see
+        // .erp-date in the stylesheet): the mirror is what the operator reads,
+        // the input underneath still owns the picker and still submits ISO.
         (function () {
             function pad(value) { return String(value).padStart(2, '0'); }
 
-            function sync(hint) {
-                const input = document.getElementById(hint.dataset.erpDateHint);
-                if (!input || !input.value) return;
-                const parts = input.value.split('-');
-                if (parts.length === 3) hint.textContent = pad(parts[2]) + '/' + pad(parts[1]) + '/' + parts[0];
+            function display(iso) {
+                const parts = String(iso || '').split('-');
+                return parts.length === 3 && parts[0]
+                    ? pad(parts[2]) + '/' + pad(parts[1]) + '/' + parts[0]
+                    : '';
             }
 
-            const hints = document.querySelectorAll('[data-erp-date-hint]');
-            Array.prototype.forEach.call(hints, function (hint) {
-                const input = document.getElementById(hint.dataset.erpDateHint);
-                if (!input) return;
-                sync(hint);
-                input.addEventListener('change', function () { sync(hint); });
-                input.addEventListener('input', function () { sync(hint); });
+            const natives = document.querySelectorAll('[data-erp-date-native]');
+            Array.prototype.forEach.call(natives, function (native) {
+                const mirror = document.querySelector('[data-erp-date-text="' + native.dataset.erpDateNative + '"]');
+                if (!mirror) return;
+
+                const sync = function () { mirror.value = display(native.value); };
+
+                // Typing into the segments and picking from the calendar both
+                // land here, so the mirror follows either way.
+                native.addEventListener('input', sync);
+                native.addEventListener('change', sync);
+
+                // Clicking anywhere in the field opens the calendar, exactly as
+                // clicking the browser's own (now hidden) calendar button did.
+                native.addEventListener('click', function () {
+                    if (typeof native.showPicker !== 'function') return;
+                    try { native.showPicker(); } catch (error) { /* already open, or no user gesture */ }
+                });
+
+                sync();
             });
         })();
     </script>

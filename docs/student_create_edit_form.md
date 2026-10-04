@@ -229,13 +229,22 @@ is affected.
   with the number chip and title, `16px` between sections, on a light slate page
   surface — so the six sections read as six groups at a glance. Padding is
   compact (`8px 12px` header, `8px 12px 12px` body).
-- **Dates are DD/MM/YYYY on screen, YYYY-MM-DD on the wire.** Each date control
-  is `type="date" lang="en-IN"` (native DD/MM/YYYY picker) with a `DD/MM/YYYY`
-  chip in its label that the server fills from the stored/`old()` value and a
-  ~15-line inline script keeps in step while typing. The formatting helper is
-  string-only and exception-free: a crafted `old()` value must show the
-  validation message, never break the re-render. The submitted value, the
-  validation rules and the existing `now()` defaults are untouched.
+- **Dates are DD/MM/YYYY on screen, YYYY-MM-DD on the wire.** A native
+  `<input type="date">` paints its segments in the *browser's* locale order
+  (month/day/year on an en-US browser) and that order cannot be restyled —
+  `lang="en-IN"` is only a hint, and the `::-webkit-datetime-edit-*` fields
+  cannot be regrouped with their separators. So every date field is a two-layer
+  shim (`.erp-date`): a visible, read-only `.erp-date__text` mirror carrying
+  `DD/MM/YYYY` (placeholder `DD/MM/YYYY` while empty), beneath the real
+  `<input type="date">` — unchanged `id`/`name`/value/`lang`/validation — which
+  sits on top, transparent, still owning the picker and still posting ISO.
+  Clicking anywhere in the field opens the calendar (`showPicker()`), and a
+  ~20-line inline script keeps the mirror in step while typing or picking. The
+  server renders the mirror from the same value the control carries, so the two
+  can never disagree; the display helper is string-only and exception-free, so a
+  crafted `old()` value shows the validation message instead of breaking the
+  re-render. The submitted value, the validation rules and the existing `now()`
+  defaults are untouched.
 - **Mobile/tablet.** A `max-width: 899px` query makes every column full width
   (one column) and turns the photograph block into a compact horizontal row; a
   `640–899px` query uses two columns and keeps the long fields (`-8`, `-9`, `-12`)
