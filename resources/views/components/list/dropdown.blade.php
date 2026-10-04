@@ -24,15 +24,27 @@
     its items whether or not the menu has been opened. Items come from the caller
     — typically <x-list.dropdown-item> — so the same shell serves links (page-level
     export of the filtered list) and buttons (bulk export of the selection).
+
+    Styling: public/css/erp-dropdown.css, a static asset linked straight from the
+    layout, so the menu is a proper white floating panel with no Vite build — the
+    same convention as the sidebar and the signed-in user panel. `.erp-list-dropdown`
+    is the scoping root; the trigger keeps the shared indigo `.button`.
 --}}
 @php
     $triggerClass = $size === 'sm'
         ? 'button inline-flex items-center gap-1.5 !py-2 !text-xs font-semibold'
         : 'button inline-flex items-center gap-1.5';
-    $panelClass = 'dropdown-panel '.($align === 'left' ? 'left-0' : 'right-0');
+    /*
+     * The panel is positioned by public/css/erp-dropdown.css, not by Tailwind
+     * utilities: the menu must sit correctly even when the Vite bundle is stale or
+     * absent (which is exactly how it once rendered as inline text). The root
+     * carries the size so the compact bulk-bar trigger is small regardless of the
+     * build, and the panel carries an alignment modifier instead of `right-0`.
+     */
+    $panelClass = 'dropdown-panel dropdown-panel--'.($align === 'left' ? 'left' : 'right');
 @endphp
 
-<div class="relative inline-block text-left" data-dropdown>
+<div class="erp-list-dropdown" data-dropdown data-dropdown-size="{{ $size }}">
     <button
         type="button"
         class="{{ $triggerClass }}"

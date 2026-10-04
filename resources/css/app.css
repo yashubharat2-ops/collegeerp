@@ -22,14 +22,13 @@
     .alert-success { @apply mb-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-700; }
     .alert-error { @apply mb-5 rounded-xl bg-rose-50 p-4 text-sm text-rose-700; }
     /*
-     * List dropdown menu (resources/views/components/list/dropdown.blade.php):
-     * a clean white ERP panel with a subtle border and shadow, holding either
-     * links or bulk-action buttons. Positioning is added by the component, so the
-     * same panel can align left or right without a second set of rules — and no
-     * new button colour is introduced: the trigger is always `.button`.
+     * List dropdown menus (resources/views/components/list/dropdown.blade.php) are
+     * NOT styled here: that component owns public/css/erp-dropdown.css, a static
+     * asset linked directly by the layout, so the Export menu renders as a proper
+     * panel with no Vite build — the same arrangement the sidebar and the
+     * signed-in user panel use, and deliberately a single source of truth rather
+     * than two sets of rules competing on load order.
      */
-    .dropdown-panel { @apply absolute z-30 mt-2 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg; }
-    .dropdown-item { @apply flex w-full items-center gap-2 px-4 py-2 text-left text-xs font-semibold text-slate-700 transition hover:bg-indigo-50 hover:text-indigo-700; }
 }
 
 /*

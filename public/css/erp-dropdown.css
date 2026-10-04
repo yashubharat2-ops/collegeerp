@@ -1,0 +1,170 @@
+/* =============================================================================
+ * College ERP — list dropdown menu (Export in the page header and bulk bar)
+ * =============================================================================
+ *
+ * Authoritative styling for resources/views/components/list/dropdown.blade.php
+ * and dropdown-item.blade.php. It is a static asset under `public/`, linked
+ * directly by resources/views/layouts/app.blade.php, so the menu keeps its shape
+ * with NO Vite build and NO dev server — exactly like public/css/erp-sidebar.css
+ * and public/css/erp-user-menu.css.
+ *
+ * Why it lives here and not in resources/css/app.css: application styling is
+ * built by Vite, and the layout links it only when public/build/manifest.json (or
+ * public/hot) exists. A stylesheet that only exists inside that bundle therefore
+ * disappears the moment the bundle is stale or missing — which is precisely how
+ * the Export menu ended up as unstyled inline text (the trigger kept its old
+ * `.button` rule from an earlier build while the newly added panel/row rules were
+ * not in it yet). Component chrome that must always work belongs under public/.
+ *
+ * Rules of the house (same as the two stylesheets above):
+ *   - every selector is scoped to `.erp-list-dropdown`, so nothing leaks into the
+ *     page, the filters or the table;
+ *   - alignment/compactness come from the component's own data attributes rather
+ *     than Tailwind utilities, so no rule here depends on a fresh build;
+ *   - the surface is white with a slate hairline and the same shadow/radius/row
+ *     anatomy as the signed-in user panel, so the two menus read as one system;
+ *   - the trigger keeps the shared `.button` (indigo) — no second button colour.
+ */
+
+.erp-list-dropdown {
+    /* Palette + metrics, mirroring the user panel's tokens so the two never drift. */
+    --erp-list-dropdown-line: #e2e8f0;
+    --erp-list-dropdown-surface: #ffffff;
+    --erp-list-dropdown-text: #0f172a;
+    --erp-list-dropdown-hover: #f1f5f9;
+    --erp-list-dropdown-accent: #4f46e5;
+    --erp-list-dropdown-accent-ink: #4338ca;
+    --erp-list-dropdown-accent-soft: #eef2ff;
+    --erp-list-dropdown-radius: 12px;
+    --erp-list-dropdown-row-h: 32px;
+    --erp-list-dropdown-z: 40;
+
+    position: relative;
+    display: inline-block;
+    text-align: left;
+}
+
+/* -----------------------------------------------------------------------------
+ * 1 · Trigger — the shared indigo `.button`, plus the caret it always needs
+ * -------------------------------------------------------------------------- */
+.erp-list-dropdown [data-dropdown-trigger] {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Icon geometry comes from the <svg>'s own width/height attributes (the sidebar's
+ * rule), never from a global `svg { … }` selector. */
+.erp-list-dropdown [data-dropdown-trigger] svg {
+    display: block;
+    flex: 0 0 auto;
+    transition: transform .14s ease;
+}
+
+/* The compact variant used inside the bulk selection bar. The attribute is what
+ * guarantees the small size: the `!py-2 !text-xs` utilities it also carries only
+ * exist when a fresh build does. */
+.erp-list-dropdown[data-dropdown-size="sm"] [data-dropdown-trigger] {
+    padding: 8px 12px;
+    font-size: 12px;
+}
+
+/* The trigger advertises its state already (`aria-expanded` is set by
+ * public/js/erp-dropdown.js), so the caret needs no extra class to rotate. */
+.erp-list-dropdown [data-dropdown-trigger][aria-expanded="true"] svg {
+    transform: rotate(180deg);
+}
+
+/* -----------------------------------------------------------------------------
+ * 2 · Panel — a white floating surface, right-aligned under the trigger
+ * -------------------------------------------------------------------------- */
+.dropdown-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    z-index: var(--erp-list-dropdown-z, 40);
+    min-width: 168px;
+    max-width: calc(100vw - 24px);
+    max-height: min(70vh, 320px);
+    overflow: hidden auto;
+    padding: 6px;
+    border: 1px solid var(--erp-list-dropdown-line, #e2e8f0);
+    border-radius: var(--erp-list-dropdown-radius, 12px);
+    background-color: var(--erp-list-dropdown-surface, #fff);
+    box-shadow: 0 12px 32px -12px rgba(15, 23, 42, .28), 0 1px 2px rgba(15, 23, 42, .06);
+}
+
+/* Alignment is a modifier class on the panel (not a Tailwind `right-0`/`left-0`
+ * utility), so the menu lines up with the Export button with no build present. */
+.dropdown-panel--right {
+    right: 0;
+    left: auto;
+}
+
+.dropdown-panel--left {
+    left: 0;
+    right: auto;
+}
+
+/* The closed state is the `hidden` class toggled by public/js/erp-dropdown.js.
+ * Declared here as well as (potentially) in the compiled build: the menu must
+ * stay closed even when no bundle carries Tailwind's `.hidden` utility. */
+.dropdown-panel.hidden {
+    display: none;
+}
+
+/* -----------------------------------------------------------------------------
+ * 3 · Rows — one option per line, compact, with hover and focus states
+ * -------------------------------------------------------------------------- */
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: var(--erp-list-dropdown-row-h, 32px);
+    margin: 0;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--erp-list-dropdown-text, #0f172a);
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    text-align: left;
+    /* The page-level options are <a> elements; they must never look like links. */
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.dropdown-item + .dropdown-item {
+    margin-top: 2px;
+}
+
+.dropdown-item:hover {
+    background-color: var(--erp-list-dropdown-hover, #f1f5f9);
+    color: var(--erp-list-dropdown-accent-ink, #4338ca);
+}
+
+.dropdown-item:focus-visible {
+    outline: 2px solid var(--erp-list-dropdown-accent, #4f46e5);
+    outline-offset: -2px;
+}
+
+/* Keyboard/pointer activation feedback without a second colour language. */
+.dropdown-item:active {
+    background-color: var(--erp-list-dropdown-accent-soft, #eef2ff);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .erp-list-dropdown [data-dropdown-trigger] svg {
+        transition: none;
+    }
+}
+
+/* Menus are chrome: the printable student report must never carry one. */
+@media print {
+    .erp-list-dropdown {
+        display: none !important;
+    }
+}

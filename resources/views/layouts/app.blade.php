@@ -24,11 +24,16 @@
          */
         $erpSidebarCssVersion = filemtime(public_path('css/erp-sidebar.css')) ?: null;
         $erpUserMenuCssVersion = filemtime(public_path('css/erp-user-menu.css')) ?: null;
+        $erpDropdownCssVersion = filemtime(public_path('css/erp-dropdown.css')) ?: null;
     @endphp
     <link rel="stylesheet" href="{{ asset('css/erp-sidebar.css') }}@if ($erpSidebarCssVersion)?v={{ $erpSidebarCssVersion }}@endif">
     {{-- The signed-in user panel in the header is its own component with its own
          stylesheet, so the sidebar file stays authoritative for the sidebar only. --}}
     <link rel="stylesheet" href="{{ asset('css/erp-user-menu.css') }}@if ($erpUserMenuCssVersion)?v={{ $erpUserMenuCssVersion }}@endif">
+    {{-- List dropdown menus (the Export menu of the page header and the bulk bar).
+         Static like the two above for the same reason: a menu must render as a menu
+         even when no Vite build exists, or when the bundle predates a component. --}}
+    <link rel="stylesheet" href="{{ asset('css/erp-dropdown.css') }}@if ($erpDropdownCssVersion)?v={{ $erpDropdownCssVersion }}@endif">
 
     {{-- Application-wide styling is still built by Vite; link it only when a build (public/build/manifest.json) or a running dev server (public/hot) exists, so a page render never depends on running npm. --}}
     @if (is_file(public_path('build/manifest.json')) || is_file(public_path('hot')))
