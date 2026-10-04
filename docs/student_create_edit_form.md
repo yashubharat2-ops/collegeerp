@@ -1,20 +1,22 @@
 # Student Create/Edit Form
 
-The single Student Create/Edit form, delivered as the seven sections the brief
-asks for:
+The single Student Create/Edit form, delivered as the six numbered sections the
+brief asks for — Academic / admission first, Documents last, with the
+government IDs as a **sub-block of Basic information** rather than a section of
+their own:
 
-| Section | Fields | Storage |
-| --- | --- | --- |
-| Basic Information | first / middle / last name, gender, date of birth, category, status, **photograph** | existing `students` columns + existing `photo_path` (private disk) |
-| Parent / Guardian | father's name, mother's name, guardian name, relationship, phone, e-mail, occupation, address | new nullable `students` columns |
-| Identity & Government IDs | Aadhaar number, APAAR / ABC ID, other government ID (type + number) | new nullable `students` columns; Aadhaar + other ID number **encrypted** |
-| Contact | e-mail, phone, alternate phone, emergency contact name/phone, address line 1/2, city, state, postal code, country | existing columns + new emergency-contact columns |
-| Academic / Admission | student number (read-only), admission source (read-only), current enrollment (read-only), admission date, **optional first enrollment** (academic year / program / section / date), previous-education snapshot | existing columns + `StudentEnrollment` (existing module) + new previous-education columns |
-| Additional Information | blood group, nationality, mother tongue, remarks | new nullable `students` columns |
-| Documents | link to the student's documents and to the upload form (no inline upload) | existing `student_documents` module |
+| # | Section | Fields | Storage |
+| --- | --- | --- | --- |
+| 01 | Academic / Admission | student number, admission source, current enrollment, department (all read-only on edit), admission date, status, **optional first enrollment** (academic year / program / section / date), previous-education snapshot | existing columns + `StudentEnrollment` (existing module) + new previous-education columns |
+| 02 | Basic Information | first / middle / last name, gender, date of birth, category, blood group, nationality, **photograph**, and the *Government / identity* sub-block: Aadhaar number, APAAR / ABC ID, other government ID (type + number) | existing `students` columns + existing `photo_path` (private disk) + new nullable `students` columns; Aadhaar + other ID number **encrypted** |
+| 03 | Parent / Guardian | father's name, mother's name, guardian name, relationship, phone, e-mail, occupation, address | new nullable `students` columns |
+| 04 | Contact | e-mail, phone, alternate phone, emergency contact name/phone, address line 1/2, city, state, postal code, country | existing columns + new emergency-contact columns |
+| 05 | Additional Information | mother tongue, remarks | new nullable `students` columns |
+| 06 | Documents | link to the student's documents and to the upload form (no inline upload) | existing `student_documents` module |
 
-Only the basic information is required (`first_name`, `status`); every other
-section may be completed later from the same form. Bulk student registration is
+Only `first_name` and `status` are required (the first name sits in section 02
+and the student status in section 01); every other field may be completed later
+from the same form. Bulk student registration is
 deliberately **not** part of this milestone.
 
 ## Reused instead of reinvented
@@ -132,15 +134,53 @@ Unchanged and re-asserted by tests:
 - `app/Services/Files/SecureFileService.php` (`storeAs`, `inline`)
 - `resources/views/students/_form.blade.php`, `create.blade.php`,
   `edit.blade.php`, `show.blade.php`
-- `resources/css/app.css` (the compact `.form-*` / `button--sm` vocabulary)
+- `public/css/erp-student-form.css` (the whole form vocabulary: `.erp-card`,
+  `.erp-grid`/`.erp-col-*`, `.erp-input`, `.erp-photo-block`, …)
 - `tests/Feature/Students/StudentProfileFormTest.php`,
   `tests/Unit/Students/AadhaarTest.php`
 
-## Layout — a compact data-entry grid (static stylesheet, no build needed)
+## Layout — six numbered section cards on a 12-column grid (static stylesheet, no build needed)
 
 The form is a dense ERP data-entry screen, not a stacked registration page.
-`create.blade.php` and `edit.blade.php` render the one partial inside the same
-`erp-student-page` > `erp-form-shell` wrapper and are laid out identically.
+`create.blade.php` and `edit.blade.php` are structurally identical: each renders
+the page header, then the one partial inside `erp-student-page`:
+
+```blade
+<div class="erp-student-page">
+    <header class="erp-page-header"> New Student · Create a new student record </header>
+    <form method="POST" enctype="multipart/form-data">
+        @include('students._form', ['submitLabel' => 'Create Student'])
+    </form>
+</div>
+```
+
+The partial renders the six `<section class="erp-card">` containers itself, so a
+field can never appear outside a section, and each card carries its number
+(`01`–`06`), a 14.5px semibold title and a single muted description line.
+
+| # | Section | What it holds |
+| --- | --- | --- |
+| 01 | Academic / admission | *(create)* optional first enrollment: academic year · program/course · section/batch · enrollment date, then admission date · student status, then previous education. *(edit)* a read-only `.erp-strip` (student number, admission application, current enrollment, department) plus `Manage enrollments` |
+| 02 | Basic information | first · middle · last name, date of birth · gender · blood group · category, nationality — plus the compact photograph block — and the **Government / identity sub-card**: Aadhaar · APAAR/ABC, ID type · ID number |
+| 03 | Parent / guardian | father + mother · guardian name + relationship + phone · guardian email + occupation · guardian address (full) |
+| 04 | Contact | email + mobile + alternate mobile · address line 1 (9) + postal code (3) · address line 2 (full) · village/city + state + country · emergency contact name + phone |
+| 05 | Additional information | mother tongue · remarks (full) |
+| 06 | Documents | one compact action row into the Document module — no second upload system |
+
+**Government IDs are not a section.** They live in the `.erp-subcard` inside
+Basic information (a hairline block with a tinted left edge), because they
+describe the same person and only take two rows. Nothing was renamed, merged or
+hidden to reach this arrangement: every control and every validation message of
+the previous markup is still present, exactly once — the "no duplicate academics
+masters" rule is kept too, since Department is derived read-only from
+`StudentEnrollment.program.department` and the Section list is narrowed
+client-side to the chosen year/program and re-validated server-side.
+
+Order is enforced by the feature test, not only by this table:
+`test_the_create_form_renders_every_requested_section_in_order` asserts the
+headings appear once each, in chronological order, and that
+`Government / identity` sits *between* Basic information and Parent / guardian —
+so a future refactor that reintroduces a separate identity section fails.
 
 **Why a static stylesheet instead of Tailwind utilities.** The layout only emits
 `@vite(...)` when `public/build/manifest.json` or `public/hot` exists:
@@ -161,45 +201,57 @@ pattern (and `filemtime` cache-buster) as `erp-sidebar.css`, `erp-user-menu.css`
 never win. Its `.erp-*` names are unique to the student form, so no other screen
 is affected.
 
-- **12-column grid.** Each section is one `.erp-grid`
+- **12-column grid.** Each card body holds one `.erp-grid`
   (`repeat(12, minmax(0, 1fr))`; `gap: 12px`). A field declares its width with
   `.erp-col-3` (quarter), `-4` (third), `-6` (half), `-8` (two-thirds), `-9` or
-  `-12`, so rows are composed instead of stacked:
+  `-12`, so three to four short fields share a row and every row sums to exactly
+  12 columns:
 
-  | Section | Row |
+  | Section | Rows (desktop, as resolved from the shipped CSS) |
   | --- | --- |
-  | Basic information | first / middle / last name + photograph · date of birth + gender + category + status |
-  | Parent / guardian | father + mother · guardian name + relationship + phone · email + occupation · address (full) |
-  | Identity & IDs | Aadhaar + APAAR/ABC · ID type + ID number |
-  | Contact | email + mobile + alternate mobile · address line 1 (9) + PIN (3) · address line 2 (full) · village/city + state + country · emergency name + phone |
-  | Academic / admission | admission date + academic year + program + enrollment date · section (full) · previous education in 6/6 + 4/4/4 |
-  | Additional information | blood group + nationality + mother tongue · remarks (full) |
-  | Documents | one compact action row |
+  | Academic / admission | `12` subhead · `3+3+3+3` year · program · section · enrollment date · `3+3` admission date · student status · `12` subhead · `6+6` school · board · `4+4+4` qualification · year · marks |
+  | Basic information | `4+4+4` first · middle · last name (beside a 108px photo column) · `3+3+3+3` date of birth · gender · blood group · category · `4` nationality · `6+6` Aadhaar · APAAR/ABC · `4+8` ID type · ID number |
+  | Parent / guardian | `6+6` father · mother · `4+4+4` guardian name · relationship · phone · `6+6` guardian email · occupation · `12` guardian address |
+  | Contact | `4+4+4` email · mobile · alternate mobile · `9+3` address line 1 · postal code · `12` address line 2 · `4+4+4` village/city · state · country · `6+6` emergency name · phone |
+  | Additional information | `4` mother tongue · `12` remarks |
+  | Documents | one compact action row (student number + `[Open Document Register]` + upload link) |
 
-  Every row sums to exactly 12 columns.
-- **Mobile/tablet.** One `@media (max-width: 899px)` query resets every column
-  class to full width (single column); a `640–899px` query uses two comfortable
-  columns while keeping long/block fields full width (`:has()` based, graceful
-  where `:has()` is unsupported). `minmax(0, 1fr)` tracks plus `min-width: 0` on
-  `.erp-field` mean a long `<select>` option can never widen the row and cause
-  horizontal overflow.
-- **Compact chrome.** Section headings are a 14px title with the hint inline over
-  a hairline rule (16px `margin-top` per section, no cards); labels 12px with a
-  4px gap; inputs are 36px tall with a 1px `#cbd5e1` border, white background,
-  6px radius and an indigo focus ring; rows are 12px apart; `.erp-error:empty`
-  collapses so a valid field reserves no error height (and `:has()` highlights the
-  offending control). Read-only context (student number, admission source, current
-  enrollment) is one `.erp-strip` line and the portrait is a 56px avatar inside
-  the basic-information row.
-- **Full width reserved for long content**: address lines, guardian address,
-  remarks and the optional first-enrollment section picker.
-- **No hidden fields, no tabs/accordions**: all seven sections render on one page
-  and every control/error slot of the previous markup is still present — only the
-  arrangement changed.
+  That is 22 field rows on the create page (20 on edit, which has no first
+  enrollment), so the whole form is a couple of screens instead of a long list.
+- **The photograph is a block, not a column.** `.erp-basic` is
+  `minmax(0, 1fr) 108px` — the fields take everything else — and the block itself
+  is 108px wide with a 92×112px portrait/placeholder, a `Browse…` label bound to
+  the native `input type="file" name="photo"` (which stays in the DOM and
+  focusable, so the picker opens with no JavaScript), a one-line 2 MB
+  jpg/png/webp hint and the remove checkbox. `object-fit: cover` keeps any
+  portrait ratio from stretching the block.
+- **Cards.** `1px solid #dfe6ef` on white, `8px` radius, a `#f8fafc` header strip
+  with the number chip and title, `16px` between sections, on a light slate page
+  surface — so the six sections read as six groups at a glance. Padding is
+  compact (`8px 12px` header, `8px 12px 12px` body).
+- **Dates are DD/MM/YYYY on screen, YYYY-MM-DD on the wire.** Each date control
+  is `type="date" lang="en-IN"` (native DD/MM/YYYY picker) with a `DD/MM/YYYY`
+  chip in its label that the server fills from the stored/`old()` value and a
+  ~15-line inline script keeps in step while typing. The formatting helper is
+  string-only and exception-free: a crafted `old()` value must show the
+  validation message, never break the re-render. The submitted value, the
+  validation rules and the existing `now()` defaults are untouched.
+- **Mobile/tablet.** A `max-width: 899px` query makes every column full width
+  (one column) and turns the photograph block into a compact horizontal row; a
+  `640–899px` query uses two columns and keeps the long fields (`-8`, `-9`, `-12`)
+  full width. `minmax(0, 1fr)` tracks plus `min-width: 0` on `.erp-field` mean a
+  long `<select>` option can never widen a row into horizontal overflow.
+- **Compact chrome.** Labels are 12px semibold with a 4px gap; inputs are 36px
+  tall with a 1px `#cbd5e1` border, white background, 6px radius and an indigo
+  focus ring; `.erp-error:empty` collapses so a valid field reserves no error
+  height, and `:has()` tints the offending control (a graceful no-op where
+  `:has()` is unsupported).
+- **No hidden fields, no tabs/accordions**: all six sections render on one page.
 
 ## Tests
 
-`StudentProfileFormTest` covers the seven sections, persistence of every field,
+`StudentProfileFormTest` covers the six sections (their order, and that
+Government / identity is a sub-block rather than a section), persistence of every field,
 encryption at rest + derived columns, "the full number is never rendered",
 serialisation hiding, masked-tail-only auditing, the Verhoeff rejection, the
 per-college duplicate rule (and its tenant-scoping), soft-delete behaviour, the

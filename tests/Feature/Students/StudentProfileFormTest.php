@@ -94,7 +94,7 @@ class StudentProfileFormTest extends TestCase
     // Sections
     // ---------------------------------------------------------------------
 
-    public function test_the_create_form_renders_every_requested_section(): void
+    public function test_the_create_form_renders_every_requested_section_in_order(): void
     {
         $college = $this->makeCollege('SPFC');
         $admin = $this->makeUserWithPermissions($college, ['students.create', 'student_enrollments.create']);
@@ -109,18 +109,40 @@ class StudentProfileFormTest extends TestCase
         $response->assertSee('enctype="multipart/form-data"', false);
 
         foreach ([
-            'Basic information',
-            'Parent / guardian',
-            'Identity &amp; government IDs',
-            'Contact',
             'Academic / admission',
+            'Basic information',
+            'Government / identity',
+            'Parent / guardian',
+            'Contact',
             'Additional information',
             'First enrollment (optional)',
+            'Documents',
         ] as $section) {
             $response->assertSee($section, false);
         }
 
-        $response->assertSee('Documents', false);
+        // The numbered cards must appear in the documented chronological order:
+        // Academic first, then Basic, then Parent/guardian, Contact, Additional
+        // and finally Documents.
+        $html = $response->getContent();
+        $positions = array_map(
+            fn (string $heading) => strpos($html, $heading),
+            ['Academic / admission', 'Basic information', 'Parent / guardian', 'Contact', 'Additional information', 'Documents'],
+        );
+
+        $this->assertNotContains(false, $positions, 'Every section heading must be rendered.');
+        $this->assertSame($positions, array_values(array_unique($positions)), 'No section may be rendered twice.');
+        $sorted = $positions;
+        sort($sorted);
+        $this->assertSame($sorted, $positions, 'The sections must be rendered in chronological order.');
+
+        // Government / identity is a SUB-BLOCK of Basic information: it must
+        // appear inside it (after it) and never as its own section.
+        $government = strpos($html, 'Government / identity');
+        $this->assertNotFalse($government);
+        $this->assertGreaterThan($positions[1], $government, 'Government / identity must sit inside Basic information.');
+        $this->assertLessThan($positions[2], $government, 'Government / identity must sit before Parent / guardian.');
+        $response->assertDontSee('Identity &amp; government IDs', false);
     }
 
     public function test_the_edit_form_masks_identity_numbers_and_links_to_the_document_module(): void
