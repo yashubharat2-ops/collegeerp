@@ -132,8 +132,41 @@ Unchanged and re-asserted by tests:
 - `app/Services/Files/SecureFileService.php` (`storeAs`, `inline`)
 - `resources/views/students/_form.blade.php`, `create.blade.php`,
   `edit.blade.php`, `show.blade.php`
+- `resources/css/app.css` (the compact `.form-*` / `button--sm` vocabulary)
 - `tests/Feature/Students/StudentProfileFormTest.php`,
   `tests/Unit/Students/AadhaarTest.php`
+
+## Layout — a compact data-entry grid
+
+The form is a dense ERP data-entry screen, not a stacked registration page, so
+`create.blade.php` and `edit.blade.php` render the one partial inside the same
+`panel max-w-6xl p-4 md:p-5` wrapper and are laid out identically.
+
+- **12-column grid.** Every section uses `.form-grid` (`grid-cols-1` below the
+  `md` breakpoint, `md:grid-cols-12` above it). A field declares its width with
+  `.form-field` (half), `--third`, `--wide` (two-thirds) or `--full`, so rows are
+  composed instead of stacked: first / middle / last name sit on one row,
+  date of birth + gender + category on the next, status beside the portrait;
+  address line 1 shares its row with the postal code; city / state / country fill
+  one row. Every row sums to exactly 12 columns.
+- **Mobile.** No breakpoint work is needed per field: the single-column
+  mobile grid plus the `md:`-only spans collapse the form to one column
+  automatically, and long values wrap rather than overflow (`min-w-0`).
+- **Compact chrome.** Section headings are a `text-sm` title with the hint
+  inline on the same line and a hairline rule instead of a card or a banner;
+  labels are `text-xs` with a 4px gap; inputs are `py-1.5` (≈30px) with a 12px
+  row gap; `.form-error:empty` collapses so a valid field reserves no error
+  height. Read-only context (student number, admission source, current
+  enrollment) is a single `.form-strip` line, and the portrait is a 56px avatar
+  in the basic-information row.
+- **Full width reserved for long content**: address lines, guardian address and
+  remarks — and the section picker of the optional first enrollment.
+- **No hidden fields, no tabs/accordions**: all seven sections render in one
+  page, all 48 controls (and all 45 error slots) are the same ones the previous
+  markup rendered, only their arrangement changed.
+- Buttons use the shared `.button` with a new `--sm` / `--secondary` modifier
+  instead of the legacy `!utility` prefix classes, which are inert under
+  Tailwind v4's suffix syntax.
 
 ## Tests
 

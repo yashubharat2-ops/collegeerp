@@ -21,6 +21,60 @@
     .quick-link { @apply flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700; }
     .alert-success { @apply mb-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-700; }
     .alert-error { @apply mb-5 rounded-xl bg-rose-50 p-4 text-sm text-rose-700; }
+
+    /*
+     * Compact data-entry form primitives (used by the Student Create/Edit form).
+     *
+     * A small reusable vocabulary for a dense ERP data-entry screen: a 12-column
+     * grid that collapses to a single column on mobile, a thin section heading
+     * instead of a banner, and small consistent field chrome. They live here —
+     * not inline in the Blade view — for the same reason the classes above do:
+     * one source of truth, and markup that stays readable. The roomier `.input` /
+     * `.label` pair is deliberately untouched, because every other screen uses it.
+     */
+    /* A <fieldset> defaults to a border and a min-content width, which fights the grid. */
+    .form-section-fieldset { @apply m-0 min-w-0 border-0 p-0; }
+    .form-section { @apply block w-full border-b border-slate-200 pb-1.5; }
+    .form-section-title { @apply text-sm font-semibold text-slate-800; }
+    .form-section-hint { @apply text-xs font-normal text-slate-500; }
+    /*
+     * 12 columns on md+ so a field can be a half (6), a third (4) or a full row
+     * (12) in one grid — no nested layouts and no per-section magic numbers.
+     * Below md the grid is a single column, so one phone-width works everywhere.
+     */
+    .form-grid { @apply mt-3 grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-12; }
+    .form-field { @apply min-w-0 md:col-span-6; }
+    .form-field--third { @apply md:col-span-4; }
+    .form-field--wide { @apply md:col-span-8; }
+    .form-field--full { @apply md:col-span-12; }
+    .form-label { @apply mb-1 block text-xs font-semibold text-slate-600; }
+    .form-required { @apply text-rose-500; }
+    .form-input { @apply block w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm leading-5 text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100; }
+    .form-help { @apply mt-1 text-xs leading-snug text-slate-500; }
+    .form-error { @apply mt-1 text-xs font-medium text-rose-600; }
+    /*
+     * An error slot that holds no message reserves no height, so a valid field
+     * never grows a blank line under it. The message itself is untouched.
+     */
+    .form-error:empty { display: none; }
+    .form-check { @apply inline-flex items-center gap-1.5 text-xs text-slate-600; }
+    .form-meta { @apply mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500; }
+    .form-meta strong { @apply font-semibold tracking-wider text-slate-700; }
+    .form-subsection { @apply text-xs font-semibold uppercase tracking-wide text-slate-500; }
+    .form-strip { @apply flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600; }
+    .form-strip strong { @apply font-semibold text-slate-700; }
+    .form-avatar { @apply h-14 w-14 shrink-0 rounded-lg object-cover ring-1 ring-slate-200; }
+    .form-avatar--empty { @apply flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-[10px] font-medium uppercase tracking-wide text-slate-400; }
+    /*
+     * The portrait upload: one compact control. The native file button is styled
+     * directly with ::file-selector-button rather than a Tailwind variant, so the
+     * control still reads as a button even if the utility layer is stale.
+     */
+    .form-input--file { @apply py-1 text-xs; }
+    .form-input--file::file-selector-button { margin-right: .5rem; border: 0; border-radius: .375rem; background-color: #f1f5f9; padding: .25rem .6rem; font-size: .75rem; font-weight: 500; color: #334155; cursor: pointer; }
+    /* Compact variants of the shared button for dense rows; the base size is unchanged. */
+    .button--sm { @apply px-3 py-1.5 text-xs; }
+    .button--secondary { @apply bg-slate-200 text-slate-700 hover:bg-slate-300; }
     /*
      * List dropdown menus (resources/views/components/list/dropdown.blade.php) are
      * NOT styled here: that component owns public/css/erp-dropdown.css, a static
