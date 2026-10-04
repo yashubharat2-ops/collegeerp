@@ -135,7 +135,13 @@
          keeps the count in sync, shows the indeterminate state, and posts the
          selected ids to the central bulk action endpoint. --}}
     <x-list.bulk-selection-bar module="students">
-        @if($canExport ?? false)
+        {{-- Same live permission check as the two actions below, so the button
+             can only ever be hidden by the permission itself: gating it on a
+             controller-supplied variable with a `?? false` fallback would hide a
+             registered, authorized action with no error whenever that variable
+             was absent. The bulk endpoint re-checks `students.export` (and the
+             per-record Student policy) on every request regardless. --}}
+        @if(auth()->user()?->hasPermission('students.export'))
             <button type="button" data-bulk-action="export"
                     class="button !py-2 !text-xs font-semibold !bg-slate-700 hover:!bg-slate-800">
                 Export students
