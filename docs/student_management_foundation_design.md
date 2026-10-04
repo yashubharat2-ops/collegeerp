@@ -163,6 +163,14 @@ only originate from a legitimately approved/admitted application.
 
 ## 9. Future extension points
 
+> Delivered since this document: the Student Create/Edit form added the profile
+> sections (parent/guardian, identity & government IDs, contact, academic
+> snapshot, additional information, photo, documents link) as nullable columns on
+> `students`, with Aadhaar encrypted + masked and no new entity. See
+> [`docs/student_create_edit_form.md`](student_create_edit_form.md). A
+> multi-guardian table remains the future extension point described below.
+
+
 - **Profile**: `Student` already snapshots identity/contact/address; a future
   profile module adds non-identity preferences, emergency contact, etc.
 - **Guardian/parent**: a `guardians` table keyed to `student_id` (tenant-scoped).

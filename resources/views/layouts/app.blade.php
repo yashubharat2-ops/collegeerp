@@ -26,6 +26,16 @@
         $erpUserMenuCssVersion = filemtime(public_path('css/erp-user-menu.css')) ?: null;
         $erpDropdownCssVersion = filemtime(public_path('css/erp-dropdown.css')) ?: null;
         $erpListCssVersion = filemtime(public_path('css/erp-list.css')) ?: null;
+        /*
+         * Student Create/Edit form. Static for the same reason as the four above,
+         * and for one more: the form's compact grid must not depend on the
+         * Tailwind bundle, which the guard below only links when a build (or a dev
+         * server) exists — without it the form would fall back to a plain
+         * one-column document with unstyled inputs.
+         */
+        $erpStudentFormCssVersion = is_file(public_path('css/erp-student-form.css'))
+            ? (filemtime(public_path('css/erp-student-form.css')) ?: null)
+            : null;
     @endphp
     <link rel="stylesheet" href="{{ asset('css/erp-sidebar.css') }}@if ($erpSidebarCssVersion)?v={{ $erpSidebarCssVersion }}@endif">
     {{-- The signed-in user panel in the header is its own component with its own
@@ -44,6 +54,12 @@
     @if (is_file(public_path('build/manifest.json')) || is_file(public_path('hot')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @endif
+
+    {{-- Student Create/Edit form: the compact data-entry grid and its input chrome,
+         as a static asset like the four links above — the form must render as an
+         ERP screen even when no bundle exists, and linking it after the Vite block
+         means the form's own rules always win over a stale one. --}}
+    <link rel="stylesheet" href="{{ asset('css/erp-student-form.css') }}@if ($erpStudentFormCssVersion)?v={{ $erpStudentFormCssVersion }}@endif">
 </head>
 <body class="bg-slate-100 text-slate-900">
     <div class="min-h-screen lg:flex">

@@ -81,14 +81,68 @@
                 <p><span class="font-semibold text-slate-500">Admission reference:</span> {{ $student->admissionApplication->application_number }}</p>
                 <p><span class="font-semibold text-slate-500">Admission record:</span> {{ $student->admissionApplication->admission?->admission_number ?? '—' }}</p>
             @endif
+            <p><span class="font-semibold text-slate-500">Emergency contact:</span> {{ collect([$student->emergency_contact_name, $student->emergency_contact_phone])->filter()->implode(' · ') ?: '—' }}</p>
         </div>
+
+        {{-- Parent / guardian: the people the institute contacts. --}}
+        <div class="mt-6 border-t border-slate-100 pt-4">
+            <h3 class="text-sm font-semibold text-slate-700">Parent / guardian</h3>
+            <div class="mt-2 grid gap-x-8 gap-y-2 text-sm md:grid-cols-2">
+                <p><span class="font-semibold text-slate-500">Father:</span> {{ $student->father_name ?? '—' }}</p>
+                <p><span class="font-semibold text-slate-500">Mother:</span> {{ $student->mother_name ?? '—' }}</p>
+                <p>
+                    <span class="font-semibold text-slate-500">Guardian:</span>
+                    {{ $student->guardian_name ?? '—' }}
+                    @if($student->guardian_relation) ({{ \App\Models\Student::guardianRelationLabel($student->guardian_relation) }}) @endif
+                </p>
+                <p><span class="font-semibold text-slate-500">Guardian phone:</span> {{ $student->guardian_phone ?? '—' }}</p>
+                <p><span class="font-semibold text-slate-500">Guardian email:</span> {{ $student->guardian_email ?? '—' }}</p>
+                <p><span class="font-semibold text-slate-500">Guardian occupation:</span> {{ $student->guardian_occupation ?? '—' }}</p>
+                @if($student->guardian_address)
+                    <p class="md:col-span-2"><span class="font-semibold text-slate-500">Guardian address:</span> {{ $student->guardian_address }}</p>
+                @endif
+            </div>
+        </div>
+
+        {{-- Identity numbers: MASKED only — the full values are never rendered. --}}
+        <div class="mt-6 border-t border-slate-100 pt-4">
+            <h3 class="text-sm font-semibold text-slate-700">Identity &amp; government IDs</h3>
+            <div class="mt-2 grid gap-x-8 gap-y-2 text-sm md:grid-cols-2">
+                <p><span class="font-semibold text-slate-500">Aadhaar:</span> {{ $student->maskedAadhaar() ?? '—' }}</p>
+                <p><span class="font-semibold text-slate-500">APAAR / ABC ID:</span> {{ $student->apaar_id ?? '—' }}</p>
+                <p>
+                    <span class="font-semibold text-slate-500">{{ \App\Models\Student::govtIdTypeLabel($student->govt_id_type) }}:</span>
+                    {{ $student->maskedGovtIdNumber() ?? '—' }}
+                </p>
+            </div>
+            <p class="mt-2 text-xs text-slate-500">Aadhaar and other government ID numbers are stored encrypted; only the last four characters are shown, and they are never exported.</p>
+        </div>
+
+        {{-- Academic snapshot + additional information. --}}
+        <div class="mt-6 border-t border-slate-100 pt-4">
+            <h3 class="text-sm font-semibold text-slate-700">Additional information</h3>
+            <div class="mt-2 grid gap-x-8 gap-y-2 text-sm md:grid-cols-2">
+                <p><span class="font-semibold text-slate-500">Blood group:</span> {{ $student->blood_group === 'unknown' ? 'Not known' : ($student->blood_group ?? '—') }}</p>
+                <p><span class="font-semibold text-slate-500">Nationality:</span> {{ $student->nationality ?? '—' }}</p>
+                <p><span class="font-semibold text-slate-500">Mother tongue:</span> {{ $student->mother_tongue ?? '—' }}</p>
+                <p><span class="font-semibold text-slate-500">Previous qualification:</span> {{ collect([$student->previous_qualification, $student->previous_school_board, $student->previous_exam_year])->filter()->implode(' · ') ?: '—' }}</p>
+                <p class="md:col-span-2"><span class="font-semibold text-slate-500">Previous institution:</span> {{ $student->previous_school_name ?? '—' }}</p>
+                @if($student->previous_percentage !== null)
+                    <p><span class="font-semibold text-slate-500">Previous percentage:</span> {{ number_format((float) $student->previous_percentage, 2) }}%</p>
+                @endif
+                @if($student->remarks)
+                    <p class="md:col-span-2"><span class="font-semibold text-slate-500">Remarks:</span> {{ $student->remarks }}</p>
+                @endif
+            </div>
+        </div>
+
         <p class="mt-6 text-xs text-slate-500">
-            Personal fields are the ones this project's Student schema holds (person data is snapshotted from the
-            admission applicant at conversion time). Category is a single nullable column on the existing
-            <code>students</code> table — it is an attribute of the student, not a master table — and its value set is
-            the documented <code>Student::CATEGORIES</code> convention, never a schema enum. Guardian details are
-            intentionally not invented here: they belong to a future schema decision. The portrait in the header and on
-            the ID card comes from the existing <code>photo_path</code> column.
+            Person data is snapshotted from the admission applicant at conversion time; the profile sections above are the
+            ones the Student Create/Edit form maintains, and the portrait in the header and on the ID card comes from the
+            existing <code>photo_path</code> column. Category and guardian/identity values are attributes of the student
+            itself — their vocabularies live in <code>Student::CATEGORIES</code> / <code>Student::GUARDIAN_RELATIONS</code> /
+            <code>Student::GOVT_ID_TYPES</code>, never in a schema enum. Identity numbers are masked here by design: the full
+            Aadhaar/government ID values are never rendered on any page.
         </p>
 
     {{-- ================= 2. Enrollments ================= --}}

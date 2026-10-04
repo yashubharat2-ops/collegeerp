@@ -8,7 +8,11 @@ use App\Domain\Student\Services\StudentListService;
 use App\Domain\Student\Services\StudentService;
 use App\Http\Requests\Student\StoreStudentRequest;
 use App\Http\Requests\Student\UpdateStudentRequest;
+use App\Models\AcademicYear;
+use App\Models\Program;
+use App\Models\Section;
 use App\Models\Student;
+use App\Models\StudentEnrollment;
 use App\Services\Audit\AuditLogService;
 use App\Services\Files\SecureFileService;
 use App\Support\Export\CsvStreamExport;
@@ -236,11 +240,21 @@ class StudentController extends Controller
         ]);
     }
 
-    public function create(): View
+    /**
+     * The Create/Edit form.
+     *
+     * The controller only loads what the form cannot derive: the academic
+     * option lists for the OPTIONAL first enrollment. They are loaded only for
+     * a user who may create enrollments (the same `StudentEnrollment` policy the
+     * Enrollment module uses), and the Form Request strips the corresponding
+     * fields for anyone else — so the Student policy is never a way around the
+     * Enrollment policy.
+     */
+    public function create(Request $request): View
     {
         $this->authorize('create', Student::class);
 
-        return view('students.create');
+        return view('students.create', $this->profileFormOptions($request));
     }
 
     public function store(StoreStudentRequest $request, StudentService $service): RedirectResponse
@@ -295,6 +309,12 @@ class StudentController extends Controller
      *
      * The path is stored server-side and re-checked here; a cross-college
      * student 404s through CollegeScope before any file is touched.
+     *
+     * Streamed INLINE (not as an attachment): the response is used as the `src`
+     * of an <img> on the profile and the ID card, and browsers refuse to render
+     * a response that carries `Content-Disposition: attachment`. Document
+     * downloads keep the attachment behaviour — this is the only read path that
+     * must render in place.
      */
     public function photo(string $student, SecureFileService $files): StreamedResponse
     {
@@ -315,15 +335,26 @@ class StudentController extends Controller
             abort(404, 'No photo is available for this student.');
         }
 
-        return $files->download($path);
+        return $files->inline($path);
     }
 
-    public function edit(string $student): View
+    /**
+     * Edit the student's own profile fields.
+     *
+     * Enrollments are NOT edited here — they own their own module and policy —
+     * so the form shows the current enrollment and links to it, while the
+     * "Documents" section links to the student's document register (the count
+     * is read tenant-scoped through the Student relation).
+     */
+    public function edit(Request $request, string $student): View
     {
         $model = $this->findScoped($student);
         $this->authorize('update', $model);
 
-        return view('students.edit', ['student' => $model]);
+        return view('students.edit', array_merge([
+            'student' => $model,
+            'documentsCount' => $model->documents()->count(),
+        ], $this->profileFormOptions($request)));
     }
 
     public function update(UpdateStudentRequest $request, string $student, StudentService $service): RedirectResponse
@@ -368,5 +399,34 @@ class StudentController extends Controller
     private function findScoped(string $id): Student
     {
         return Student::query()->findOrFail($id);
+    }
+
+    /**
+     * Option lists for the profile form's optional first-enrollment block.
+     *
+     * Every list is tenant-scoped by CollegeScope, and the section list carries
+     * the academic year/program it belongs to so the view can narrow it (with
+     * the server re-validating the combination in StudentService).
+     *
+     * An unauthorized user gets empty lists: the block is not rendered, and the
+     * Form Request removes the fields anyway.
+     *
+     * @return array<string, \Illuminate\Support\Collection<int, mixed>>
+     */
+    private function profileFormOptions(Request $request): array
+    {
+        if (! $request->user()?->can('create', StudentEnrollment::class)) {
+            return ['academicYears' => collect(), 'programs' => collect(), 'sections' => collect()];
+        }
+
+        return [
+            'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(['id', 'name', 'code']),
+            'programs' => Program::query()->orderBy('name')->get(['id', 'name', 'code']),
+            'sections' => Section::query()
+                ->with(['academicYear:id,name', 'program:id,name'])
+                ->orderBy('name')
+                ->orderBy('id')
+                ->get(['id', 'name', 'code', 'academic_year_id', 'program_id']),
+        ];
     }
 }
