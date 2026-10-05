@@ -11,6 +11,12 @@
      * 05 Additional information · 06 Documents. Government IDs are a sub-block of
      * Basic information, not a section of their own.
      *
+     * Inside 01 the controls follow admission chronology: academic year ·
+     * program/course · section/batch · admission date · student status ·
+     * enrollment date · previous education. The enrollment-date control belongs
+     * to the optional first enrollment and therefore only renders when the
+     * enrollment block does, but it always sits after the admission fields.
+     *
      * Styling lives in the STATIC stylesheet public/css/erp-student-form.css
      * (linked from resources/views/layouts/app.blade.php): `.erp-card` per
      * section, `.erp-grid`/`.erp-col-*` for the field grid, `.erp-input` for the
@@ -158,14 +164,6 @@
                     </select>
                     <p class="erp-error">@error('section_id'){{ $message }}@enderror</p>
                 </div>
-                <div class="erp-field erp-col-3">
-                    <label class="erp-label" for="enrollment_date">Enrollment Date</label>
-                    <div class="erp-date">
-                        <input class="erp-input erp-date__text" type="text" value="{{ $enrollmentDisplay }}" placeholder="DD/MM/YYYY" readonly tabindex="-1" aria-hidden="true" data-erp-date-text="enrollment_date">
-                        <input class="erp-input erp-date__native" lang="en-IN" id="enrollment_date" name="enrollment_date" type="date" value="{{ $enrollmentValue }}" data-erp-date-native="enrollment_date">
-                    </div>
-                    <p class="erp-error">@error('enrollment_date'){{ $message }}@enderror</p>
-                </div>
             @endif
 
             <div class="erp-field erp-col-3">
@@ -186,6 +184,19 @@
                 </select>
                 <p class="erp-error">@error('status'){{ $message }}@enderror</p>
             </div>
+
+            @if($showEnrollmentBlock)
+                {{-- Enrollment Date closes the chronological sequence: it is the
+                     start date of the optional first enrollment declared above. --}}
+                <div class="erp-field erp-col-3">
+                    <label class="erp-label" for="enrollment_date">Enrollment Date</label>
+                    <div class="erp-date">
+                        <input class="erp-input erp-date__text" type="text" value="{{ $enrollmentDisplay }}" placeholder="DD/MM/YYYY" readonly tabindex="-1" aria-hidden="true" data-erp-date-text="enrollment_date">
+                        <input class="erp-input erp-date__native" lang="en-IN" id="enrollment_date" name="enrollment_date" type="date" value="{{ $enrollmentValue }}" data-erp-date-native="enrollment_date">
+                    </div>
+                    <p class="erp-error">@error('enrollment_date'){{ $message }}@enderror</p>
+                </div>
+            @endif
 
             <div class="erp-field erp-col-12">
                 <p class="erp-subhead">Previous education</p>
