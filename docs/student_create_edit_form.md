@@ -185,7 +185,10 @@ so a future refactor that reintroduces a separate identity section fails.
 01 controls to the admission chronology on both screens (academic year ·
 program/course · section/batch · admission date · student status · enrollment
 date · previous education) — so re-sorting that card into, say, enrollment date
-first fails too.
+first fails too. Both assertions read the rendered **form** markup
+(`studentFormHtml()`), not the whole response: the sidebar draws permission-free
+`Documents` module rows above `<main>`, so a page-wide search would match that
+navigation instead of the form's own Documents card.
 
 **Why a static stylesheet instead of Tailwind utilities.** The layout only emits
 `@vite(...)` when `public/build/manifest.json` or `public/hot` exists:
