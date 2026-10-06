@@ -77,20 +77,23 @@
                     <td><span class="rounded-full px-2 py-0.5 text-xs font-semibold {{ $adm->status === 'active' ? 'bg-emerald-100 text-emerald-700' : ($adm->status === 'cancelled' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-700') }}">{{ ucfirst($adm->status) }}</span></td>
                     <td class="text-right">
                         <div class="flex flex-wrap items-center justify-end gap-2">
-                            @if($adm->student)
-                                @can('view', $adm->student)
-                                    <a class="text-xs font-semibold text-indigo-600 hover:underline" href="{{ route('students.show', $adm->student) }}">View Student</a>
-                                @endcan
-                                @php $convertedEnrollment = $adm->student->enrollments->first(); @endphp
+                            @php
+                                $convertedStudent = $adm->student;
+                                $convertedEnrollment = $convertedStudent?->enrollments?->first();
+                                $canConvert = $adm->status !== 'cancelled'
+                                    && $adm->application_id
+                                    && $convertedStudent === null;
+                            @endphp
+                            @if($convertedStudent)
+                                <a class="button !py-1 !text-xs font-semibold" href="{{ route('students.show', $convertedStudent) }}">View Student</a>
                                 @if($convertedEnrollment)
-                                    @can('view', $convertedEnrollment)
-                                        <a class="text-xs font-semibold text-indigo-600 hover:underline" href="{{ route('student-enrollments.edit', $convertedEnrollment) }}">View Enrollment</a>
-                                    @endcan
+                                    <a class="button !py-1 !text-xs font-semibold !bg-slate-200 !text-slate-700" href="{{ route('student-enrollments.index', ['student_id' => $convertedStudent->id]) }}">View Enrollment</a>
                                 @endif
-                            @elseif($adm->status !== 'cancelled')
-                                @can('create', App\Models\Student::class)
-                                    <a class="text-xs font-semibold text-emerald-700 hover:underline" href="{{ route('admissions.convert.create', $adm) }}">Convert to Student</a>
-                                @endcan
+                            @elseif($canConvert)
+                                <form method="POST" action="{{ route('students.convert', $adm->application_id) }}">
+                                    @csrf
+                                    <button class="button !py-1 !text-xs font-semibold !bg-emerald-600 hover:!bg-emerald-700" type="submit">Convert to Student</button>
+                                </form>
                             @endif
                             @can('update', $adm)
                                 <a class="text-xs font-semibold text-indigo-600 hover:underline" href="{{ route('admissions.edit', $adm) }}">Edit</a>

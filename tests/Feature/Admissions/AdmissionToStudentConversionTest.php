@@ -99,9 +99,9 @@ class AdmissionToStudentConversionTest extends TestCase
     {
         $college = $this->makeCollege('ADTI');
         $admin = $this->makeUserWithPermissions($college, [
-            'admissions.view', 'students.create', 'student_enrollments.create',
+            'admissions.view', 'admissions.update',
         ]);
-        $admission = $this->makeAdmission($college);
+        $admission = $this->makeAdmission($college, ['status' => 'completed']);
 
         $this->asCollege($college, $admin)
             ->get(route('admissions.index'))
@@ -109,10 +109,10 @@ class AdmissionToStudentConversionTest extends TestCase
             ->assertSee('Final Admissions')
             ->assertDontSee('Final Admissions / Enrollment')
             ->assertSee('Convert to Student')
-            ->assertSee(route('admissions.convert.create', $admission), false)
-            ->assertSee('data-bulk-selection', false)
-            ->assertSee('hidden', false)
-            ->assertSee('data-select-row', false);
+            ->assertSee(route('students.convert', $admission->application_id), false)
+            ->assertSee('data-bulk-action="export"', false)
+            ->assertSee('data-bulk-action="complete"', false)
+            ->assertSee('data-bulk-action="cancel"', false);
     }
 
     public function test_from_admission_form_reuses_student_create_and_prefills(): void
@@ -265,20 +265,19 @@ class AdmissionToStudentConversionTest extends TestCase
         $college = $this->makeCollege('ADLK');
         $admin = $this->makeUserWithPermissions($college, [
             'admissions.view', 'students.create', 'students.view',
-            'student_enrollments.create', 'student_enrollments.view', 'student_enrollments.update',
+            'student_enrollments.create', 'student_enrollments.view',
         ]);
-        $admission = $this->makeAdmission($college);
+        $admission = $this->makeAdmission($college, ['status' => 'completed']);
 
         $this->asCollege($college, $admin)
-            ->post(route('admissions.convert.store', $admission), [
-                'first_name' => 'Kiran',
-                'status' => 'active',
-                'academic_year_id' => $admission->academic_year_id,
-                'program_id' => $admission->program_id,
-            ]);
+            ->post(route('students.convert', $admission->application_id))
+            ->assertRedirect()
+            ->assertSessionHas('success');
 
         $student = Student::withoutGlobalScopes()->where('college_id', $college->id)->first();
+        $this->assertNotNull($student);
         $enrollment = StudentEnrollment::withoutGlobalScopes()->where('student_id', $student->id)->first();
+        $this->assertNotNull($enrollment);
 
         $this->asCollege($college, $admin)
             ->get(route('admissions.index'))
@@ -286,7 +285,21 @@ class AdmissionToStudentConversionTest extends TestCase
             ->assertSee('View Student')
             ->assertSee('View Enrollment')
             ->assertSee(route('students.show', $student), false)
-            ->assertSee(route('student-enrollments.edit', $enrollment), false)
+            ->assertSee(route('student-enrollments.index', ['student_id' => $student->id]), false)
             ->assertDontSee('Convert to Student');
+    }
+
+    public function test_completed_admission_converts_through_existing_application_route(): void
+    {
+        $college = $this->makeCollege('ADCM');
+        $admin = $this->makeUserWithPermissions($college, ['admissions.view', 'students.create']);
+        $admission = $this->makeAdmission($college, ['status' => 'completed']);
+
+        $this->asCollege($college, $admin)
+            ->from(route('admissions.index'))
+            ->post(route('students.convert', $admission->application_id))
+            ->assertRedirect();
+
+        $this->assertSame(1, Student::withoutGlobalScopes()->where('admission_application_id', $admission->application_id)->count());
     }
 }
