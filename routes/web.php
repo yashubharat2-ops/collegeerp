@@ -113,6 +113,7 @@ use App\Http\Controllers\SectionController;
 use App\Http\Controllers\StaffAttendanceController;
 use App\Http\Controllers\StudentAcademicRecordController;
 use App\Http\Controllers\StudentController;
+use App\Http\Controllers\StudentImportController;
 use App\Http\Controllers\StudentDocumentController;
 use App\Http\Controllers\StudentEnrollmentController;
 use App\Http\Controllers\StudentFeeAssignmentController;
@@ -242,12 +243,19 @@ Route::middleware('auth')->group(function () {
         Route::post('admission-merit-lists/{admission_merit_list}/unpublish', [AdmissionMeritListController::class, 'unpublish'])->name('admission-merit-lists.unpublish');
         Route::resource('admission-merit-lists', AdmissionMeritListController::class);
         Route::resource('admission-merit-entries', AdmissionMeritEntryController::class)->except('show');
+        Route::get('admissions/export', [AdmissionController::class, 'export'])->name('admissions.export');
+        Route::get('admissions/{admission}/convert', [StudentController::class, 'createFromAdmission'])->name('admissions.convert.create');
+        Route::post('admissions/{admission}/convert', [StudentController::class, 'storeFromAdmission'])->name('admissions.convert.store');
         Route::post('admissions/{admission}/cancel', [AdmissionController::class, 'cancel'])->name('admissions.cancel');
         Route::resource('admissions', AdmissionController::class)->except('show');
         Route::post('students/convert/{admission_application}', [StudentController::class, 'convert'])->name('students.convert');
         // CSV export of the filtered list (or of an authorized selection of it).
         // Declared BEFORE the resource route: `students/{student}` would otherwise
         // capture "students/export" and 404 on a student named "export".
+        Route::get('students/import', [StudentImportController::class, 'index'])->name('students.import.index');
+        Route::get('students/import/template', [StudentImportController::class, 'template'])->name('students.import.template');
+        Route::post('students/import/validate', [StudentImportController::class, 'validateUpload'])->name('students.import.validate');
+        Route::post('students/import', [StudentImportController::class, 'store'])->name('students.import.store');
         Route::get('students/export', [StudentController::class, 'export'])->name('students.export');
         // The same filtered/selected list as a printable A4 report: "PDF" is the
         // review-then-save-as-PDF page, "print" opens it with the native print
@@ -256,6 +264,7 @@ Route::middleware('auth')->group(function () {
         Route::get('students/export/print', [StudentController::class, 'exportPrint'])->name('students.export.print');
         Route::get('students/{student}/photo', [StudentController::class, 'photo'])->name('students.photo');
         Route::resource('students', StudentController::class);
+        Route::get('student-enrollments/export', [StudentEnrollmentController::class, 'export'])->name('student-enrollments.export');
         Route::resource('student-enrollments', StudentEnrollmentController::class)->except('show');
 
         // Students — Academic Records (progression ledger; references Platform

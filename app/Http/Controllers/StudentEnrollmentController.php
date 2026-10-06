@@ -10,10 +10,14 @@ use App\Models\Program;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StudentEnrollmentController extends Controller
 {
@@ -47,6 +51,47 @@ class StudentEnrollmentController extends Controller
             'students' => Student::query()->orderBy('first_name')->orderBy('last_name')->get(['id', 'student_number', 'first_name', 'last_name']),
             'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(['id', 'name', 'code']),
         ]);
+    }
+
+    /**
+     * CSV of enrollments, optionally narrowed to an authorized id selection.
+     * Identity numbers (Aadhaar, government ID) are never exported.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', StudentEnrollment::class);
+
+        $query = StudentEnrollment::query()->with(['student', 'academicYear', 'program', 'section']);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+        if ($ids !== []) {
+            $query->whereIn('student_enrollments.id', $ids);
+        }
+
+        $audit->record('student_enrollments.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => (clone $query)->count(),
+        ]);
+
+        return CsvStreamExport::make('enrollments-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Enrollment number', 'Student number', 'Student', 'Academic year',
+                'Program', 'Section', 'Enrollment date', 'Status', 'Remarks',
+            ])
+            ->map(function (StudentEnrollment $enrollment): array {
+                return [
+                    $enrollment->enrollment_number,
+                    $enrollment->student?->student_number,
+                    trim(($enrollment->student?->first_name ?? '').' '.($enrollment->student?->last_name ?? '')),
+                    $enrollment->academicYear?->name,
+                    $enrollment->program?->name,
+                    $enrollment->section?->name,
+                    $enrollment->enrollment_date?->format('Y-m-d'),
+                    $enrollment->status,
+                    $enrollment->remarks,
+                ];
+            })
+            ->streamFromQuery($query);
     }
 
     /**

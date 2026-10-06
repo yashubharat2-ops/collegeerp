@@ -107,8 +107,8 @@
                     </x-nav.group>
                     <x-nav.group id="admissions" label="Admissions" icon="user-plus">
                         <x-nav.link label="Dashboard" route="admission.dashboard" />
-                        <x-nav.link label="Applicants" route="admission-applicants.index" />
                         <x-nav.link label="Enquiries" route="admission-enquiries.index" />
+                        <x-nav.link label="Applicants" route="admission-applicants.index" />
                         <x-nav.link label="Applications" route="admission-applications.index" />
                         <x-nav.link label="Documents" route="admission-documents.index" />
                         <x-nav.link label="Document Types" route="admission-document-types.index" />
@@ -118,6 +118,7 @@
                     </x-nav.group>
                     <x-nav.group id="students" label="Students" icon="graduation-cap">
                         <x-nav.link label="Students" route="students.index" />
+                        <x-nav.link label="Bulk Registration / Import" route="students.import.index" perm="students.create" />
                         <x-nav.link label="Enrollments" route="student-enrollments.index" />
                         <x-nav.link label="Academic Records" route="student-academic-records.index" />
                         <x-nav.link label="Documents" route="student-documents.index" />

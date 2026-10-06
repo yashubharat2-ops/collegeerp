@@ -53,6 +53,7 @@
                 </x-list.dropdown>
             @endif
             @can('create', App\Models\Student::class)
+                <a class="button !bg-slate-200 !text-slate-700" href="{{ route('students.import.index') }}">Bulk Registration / Import Students</a>
                 <a class="button" href="{{ route('students.create') }}">+ New student</a>
             @endcan
         </div>

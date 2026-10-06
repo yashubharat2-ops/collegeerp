@@ -2,6 +2,11 @@
 
 namespace App\Providers;
 
+use App\Domain\Admission\BulkActions\AdmissionBulkCancelHandler;
+use App\Domain\Admission\BulkActions\AdmissionBulkCompleteHandler;
+use App\Domain\Admission\BulkActions\AdmissionBulkExportHandler;
+use App\Domain\Student\BulkActions\EnrollmentBulkExportHandler;
+use App\Domain\Student\BulkActions\EnrollmentBulkStatusHandler;
 use App\Domain\Student\BulkActions\StudentBulkDocumentHandler;
 use App\Domain\Student\BulkActions\StudentBulkExportHandler;
 use App\Domain\Student\BulkActions\StudentBulkIdCardHandler;
@@ -37,5 +42,14 @@ class BulkActionServiceProvider extends ServiceProvider
             // cannot send.
             ->register('students', 'export_pdf', StudentBulkPdfHandler::class)
             ->register('students', 'export_print', StudentBulkPrintHandler::class);
+
+        $registry
+            ->register('admissions', 'export', AdmissionBulkExportHandler::class)
+            ->register('admissions', 'cancel', AdmissionBulkCancelHandler::class)
+            ->register('admissions', 'complete', AdmissionBulkCompleteHandler::class);
+
+        $registry
+            ->register('enrollments', 'export', EnrollmentBulkExportHandler::class)
+            ->register('enrollments', 'change_status', EnrollmentBulkStatusHandler::class);
     }
 }

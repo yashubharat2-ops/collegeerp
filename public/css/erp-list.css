@@ -415,3 +415,11 @@
         scroll-behavior: auto;
     }
 }
+
+/* The bulk-action toolbar ships the `hidden` class (toggled by public/js/erp-list.js)
+ * so it stays invisible until at least one row is selected. Mirror the dropdown
+ * pattern: define `.hidden` here so the bar still hides when no Vite/Tailwind
+ * bundle is present. */
+[data-bulk-selection].hidden {
+    display: none !important;
+}

@@ -4,8 +4,8 @@
 <div class="panel">
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-            <h2 class="panel-title">Final Admissions / Enrollment</h2>
-            <p class="panel-subtitle">Approved/selected applications become admission records. Admission number generated server-side per college. Integration boundary for future Student module via applicant_id.</p>
+            <h2 class="panel-title">Final Admissions</h2>
+            <p class="panel-subtitle">Approved/selected applications become admission records. Admission number generated server-side per college. Convert an admission to create the student and first enrollment.</p>
         </div>
         @can('create', App\Models\Admission::class)
             <a class="button" href="{{ route('admissions.create') }}">+ New admission</a>
@@ -40,13 +40,35 @@
         </div>
     </form>
 
+    <x-list.bulk-selection-bar module="admissions">
+        @can('viewAny', App\Models\Admission::class)
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export
+            </button>
+        @endcan
+        @if(auth()->user()?->hasPermission('admissions.update'))
+            <button type="button" data-bulk-action="complete"
+                    class="button !py-2 !text-xs font-semibold !bg-sky-700 hover:!bg-sky-800"
+                    data-confirm="Mark the selected admissions as completed? Every record is re-checked on the server.">
+                Mark completed
+            </button>
+            <button type="button" data-bulk-action="cancel"
+                    class="button !py-2 !text-xs font-semibold !bg-amber-600 hover:!bg-amber-700"
+                    data-confirm="Cancel the selected admissions? Every record is re-checked on the server.">
+                Cancel
+            </button>
+        @endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-8 overflow-x-auto">
         <table class="w-full text-left text-sm">
-            <thead><tr class="border-b text-slate-500"><th class="py-3">Admission No</th><th>Applicant</th><th>Application</th><th>Year</th><th>Program</th><th>Date</th><th>Status</th><th class="text-right">Actions</th></tr></thead>
+            <thead><tr class="border-b text-slate-500"><th class="w-10 py-3"><x-list.select-all /></th><th class="py-3">Admission No</th><th>Applicant</th><th>Application</th><th>Year</th><th>Program</th><th>Date</th><th>Status</th><th class="text-right">Actions</th></tr></thead>
             <tbody>
             @forelse($admissions as $adm)
                 <tr class="border-b">
-                    <td class="py-3 font-medium">{{ $adm->admission_number }}</td>
+                    <td class="py-3"><x-list.row-checkbox :id="$adm->id" /></td>
+                    <td class="font-medium">{{ $adm->admission_number }}</td>
                     <td>{{ $adm->applicant->first_name }} {{ $adm->applicant->last_name }}<p class="text-xs text-slate-500">{{ $adm->applicant->email ?? '' }}</p></td>
                     <td class="text-xs">{{ $adm->application->application_number ?? '—' }}</td>
                     <td>{{ $adm->academicYear?->name ?? '—' }}</td>
@@ -55,6 +77,24 @@
                     <td><span class="rounded-full px-2 py-0.5 text-xs font-semibold {{ $adm->status === 'active' ? 'bg-emerald-100 text-emerald-700' : ($adm->status === 'cancelled' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-700') }}">{{ ucfirst($adm->status) }}</span></td>
                     <td class="text-right">
                         <div class="flex flex-wrap items-center justify-end gap-2">
+                            @php
+                                $convertedStudent = $adm->student;
+                                $convertedEnrollment = $convertedStudent?->enrollments?->first();
+                                $canConvert = $adm->status !== 'cancelled'
+                                    && $adm->application_id
+                                    && $convertedStudent === null;
+                            @endphp
+                            @if($convertedStudent)
+                                <a class="button !py-1 !text-xs font-semibold" href="{{ route('students.show', $convertedStudent) }}">View Student</a>
+                                @if($convertedEnrollment)
+                                    <a class="button !py-1 !text-xs font-semibold !bg-slate-200 !text-slate-700" href="{{ route('student-enrollments.index', ['student_id' => $convertedStudent->id]) }}">View Enrollment</a>
+                                @endif
+                            @elseif($canConvert)
+                                <form method="POST" action="{{ route('students.convert', $adm->application_id) }}">
+                                    @csrf
+                                    <button class="button !py-1 !text-xs font-semibold !bg-emerald-600 hover:!bg-emerald-700" type="submit">Convert to Student</button>
+                                </form>
+                            @endif
                             @can('update', $adm)
                                 <a class="text-xs font-semibold text-indigo-600 hover:underline" href="{{ route('admissions.edit', $adm) }}">Edit</a>
                                 @if($adm->status !== 'cancelled')
@@ -74,7 +114,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td class="py-6 text-slate-500" colspan="8">No admissions found.</td></tr>
+                <tr><td class="py-6 text-slate-500" colspan="9">No admissions found.</td></tr>
             @endforelse
             </tbody>
         </table>

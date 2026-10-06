@@ -39,10 +39,31 @@
         </div>
     </form>
 
+    <x-list.bulk-selection-bar module="enrollments">
+        @can('viewAny', App\Models\StudentEnrollment::class)
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export
+            </button>
+        @endcan
+        @if(auth()->user()?->hasPermission('student_enrollments.update'))
+            <x-list.dropdown label="Change status" size="sm">
+                @foreach(\App\Models\StudentEnrollment::STATUSES as $enrollmentStatus)
+                    <x-list.dropdown-item
+                        data-bulk-action="change_status"
+                        data-bulk-param-status="{{ $enrollmentStatus }}"
+                        data-confirm="Set the selected enrollments to {{ $enrollmentStatus }}? Duplicate active enrollments are blocked and nothing is written if any row cannot be updated."
+                    >Change Status → {{ ucfirst($enrollmentStatus) }}</x-list.dropdown-item>
+                @endforeach
+            </x-list.dropdown>
+        @endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-8 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-3"><x-list.select-all /></th>
                     <th class="py-3">Number</th>
                     <th>Student</th>
                     <th>Academic year</th>
@@ -56,7 +77,8 @@
             <tbody>
                 @forelse($enrollments as $enrollment)
                     <tr class="border-b">
-                        <td class="py-3 font-medium">{{ $enrollment->enrollment_number }}</td>
+                        <td class="py-3"><x-list.row-checkbox :id="$enrollment->id" /></td>
+                        <td class="font-medium">{{ $enrollment->enrollment_number }}</td>
                         <td>{{ $enrollment->student?->student_number }} — {{ $enrollment->student?->first_name }} {{ $enrollment->student?->last_name }}</td>
                         <td>{{ $enrollment->academicYear?->name ?? '—' }}</td>
                         <td>{{ $enrollment->program?->name ?? '—' }}</td>
@@ -83,7 +105,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-6 text-slate-500" colspan="8">No enrollments found.</td></tr>
+                    <tr><td class="py-6 text-slate-500" colspan="9">No enrollments found.</td></tr>
                 @endforelse
             </tbody>
         </table>
