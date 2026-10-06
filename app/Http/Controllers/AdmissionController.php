@@ -10,9 +10,12 @@ use App\Models\Admission;
 use App\Models\AdmissionApplication;
 use App\Models\Program;
 use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdmissionController extends Controller
 {
@@ -66,6 +69,47 @@ class AdmissionController extends Controller
             'academicYears' => $this->academicYearOptions(),
             'programs' => $this->programOptions(),
         ]);
+    }
+
+    /**
+     * CSV of the filtered admission list, optionally narrowed to an authorized
+     * selection. Ids are shape-checked and re-queried inside CollegeScope.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', Admission::class);
+
+        $query = Admission::query()->with(['applicant', 'application', 'academicYear', 'program']);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+        if ($ids !== []) {
+            $query->whereIn('admissions.id', $ids);
+        }
+
+        $audit->record('admissions.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => (clone $query)->count(),
+        ]);
+
+        return CsvStreamExport::make('admissions-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Admission number', 'Applicant', 'Email', 'Application number',
+                'Academic year', 'Program', 'Admission date', 'Status', 'Remarks',
+            ])
+            ->map(function (Admission $admission): array {
+                return [
+                    $admission->admission_number,
+                    trim(($admission->applicant?->first_name ?? '').' '.($admission->applicant?->last_name ?? '')),
+                    $admission->applicant?->email,
+                    $admission->application?->application_number,
+                    $admission->academicYear?->name,
+                    $admission->program?->name,
+                    $admission->admission_date?->format('Y-m-d'),
+                    $admission->status,
+                    $admission->remarks,
+                ];
+            })
+            ->streamFromQuery($query);
     }
 
     public function create(Request $request): View

@@ -40,13 +40,35 @@
         </div>
     </form>
 
+    <x-list.bulk-selection-bar module="admissions">
+        @can('viewAny', App\Models\Admission::class)
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export
+            </button>
+        @endcan
+        @if(auth()->user()?->hasPermission('admissions.update'))
+            <button type="button" data-bulk-action="complete"
+                    class="button !py-2 !text-xs font-semibold !bg-sky-700 hover:!bg-sky-800"
+                    data-confirm="Mark the selected admissions as completed? Every record is re-checked on the server.">
+                Mark completed
+            </button>
+            <button type="button" data-bulk-action="cancel"
+                    class="button !py-2 !text-xs font-semibold !bg-amber-600 hover:!bg-amber-700"
+                    data-confirm="Cancel the selected admissions? Every record is re-checked on the server.">
+                Cancel
+            </button>
+        @endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-8 overflow-x-auto">
         <table class="w-full text-left text-sm">
-            <thead><tr class="border-b text-slate-500"><th class="py-3">Admission No</th><th>Applicant</th><th>Application</th><th>Year</th><th>Program</th><th>Date</th><th>Status</th><th class="text-right">Actions</th></tr></thead>
+            <thead><tr class="border-b text-slate-500"><th class="w-10 py-3"><x-list.select-all /></th><th class="py-3">Admission No</th><th>Applicant</th><th>Application</th><th>Year</th><th>Program</th><th>Date</th><th>Status</th><th class="text-right">Actions</th></tr></thead>
             <tbody>
             @forelse($admissions as $adm)
                 <tr class="border-b">
-                    <td class="py-3 font-medium">{{ $adm->admission_number }}</td>
+                    <td class="py-3"><x-list.row-checkbox :id="$adm->id" /></td>
+                    <td class="font-medium">{{ $adm->admission_number }}</td>
                     <td>{{ $adm->applicant->first_name }} {{ $adm->applicant->last_name }}<p class="text-xs text-slate-500">{{ $adm->applicant->email ?? '' }}</p></td>
                     <td class="text-xs">{{ $adm->application->application_number ?? '—' }}</td>
                     <td>{{ $adm->academicYear?->name ?? '—' }}</td>
@@ -74,7 +96,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td class="py-6 text-slate-500" colspan="8">No admissions found.</td></tr>
+                <tr><td class="py-6 text-slate-500" colspan="9">No admissions found.</td></tr>
             @endforelse
             </tbody>
         </table>

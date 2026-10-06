@@ -243,6 +243,7 @@ Route::middleware('auth')->group(function () {
         Route::post('admission-merit-lists/{admission_merit_list}/unpublish', [AdmissionMeritListController::class, 'unpublish'])->name('admission-merit-lists.unpublish');
         Route::resource('admission-merit-lists', AdmissionMeritListController::class);
         Route::resource('admission-merit-entries', AdmissionMeritEntryController::class)->except('show');
+        Route::get('admissions/export', [AdmissionController::class, 'export'])->name('admissions.export');
         Route::post('admissions/{admission}/cancel', [AdmissionController::class, 'cancel'])->name('admissions.cancel');
         Route::resource('admissions', AdmissionController::class)->except('show');
         Route::post('students/convert/{admission_application}', [StudentController::class, 'convert'])->name('students.convert');
@@ -261,6 +262,7 @@ Route::middleware('auth')->group(function () {
         Route::get('students/export/print', [StudentController::class, 'exportPrint'])->name('students.export.print');
         Route::get('students/{student}/photo', [StudentController::class, 'photo'])->name('students.photo');
         Route::resource('students', StudentController::class);
+        Route::get('student-enrollments/export', [StudentEnrollmentController::class, 'export'])->name('student-enrollments.export');
         Route::resource('student-enrollments', StudentEnrollmentController::class)->except('show');
 
         // Students — Academic Records (progression ledger; references Platform

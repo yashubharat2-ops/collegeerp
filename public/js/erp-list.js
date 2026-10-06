@@ -147,6 +147,25 @@
                         form.appendChild(idInput);
                     });
 
+                    // Optional extra fields from data-bulk-param-* on the
+                    // trigger (e.g. data-bulk-param-status="cancelled" becomes
+                    // parameters[status]). The shared endpoint already accepts
+                    // a parameters array; handlers re-validate every value.
+                    Array.prototype.forEach.call(btn.attributes, function (attr) {
+                        if (!attr.name || attr.name.indexOf('data-bulk-param-') !== 0) {
+                            return;
+                        }
+                        var key = attr.name.slice('data-bulk-param-'.length).replace(/-/g, '_');
+                        if (key === '') {
+                            return;
+                        }
+                        var paramInput = document.createElement('input');
+                        paramInput.type = 'hidden';
+                        paramInput.name = 'parameters[' + key + ']';
+                        paramInput.value = attr.value;
+                        form.appendChild(paramInput);
+                    });
+
                     document.body.appendChild(form);
                     form.submit();
                 });
