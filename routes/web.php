@@ -113,6 +113,7 @@ use App\Http\Controllers\SectionController;
 use App\Http\Controllers\StaffAttendanceController;
 use App\Http\Controllers\StudentAcademicRecordController;
 use App\Http\Controllers\StudentController;
+use App\Http\Controllers\StudentImportController;
 use App\Http\Controllers\StudentDocumentController;
 use App\Http\Controllers\StudentEnrollmentController;
 use App\Http\Controllers\StudentFeeAssignmentController;
@@ -248,6 +249,10 @@ Route::middleware('auth')->group(function () {
         // CSV export of the filtered list (or of an authorized selection of it).
         // Declared BEFORE the resource route: `students/{student}` would otherwise
         // capture "students/export" and 404 on a student named "export".
+        Route::get('students/import', [StudentImportController::class, 'index'])->name('students.import.index');
+        Route::get('students/import/template', [StudentImportController::class, 'template'])->name('students.import.template');
+        Route::post('students/import/validate', [StudentImportController::class, 'validateUpload'])->name('students.import.validate');
+        Route::post('students/import', [StudentImportController::class, 'store'])->name('students.import.store');
         Route::get('students/export', [StudentController::class, 'export'])->name('students.export');
         // The same filtered/selected list as a printable A4 report: "PDF" is the
         // review-then-save-as-PDF page, "print" opens it with the native print

@@ -118,6 +118,7 @@
                     </x-nav.group>
                     <x-nav.group id="students" label="Students" icon="graduation-cap">
                         <x-nav.link label="Students" route="students.index" />
+                        <x-nav.link label="Bulk Registration / Import" route="students.import.index" perm="students.create" />
                         <x-nav.link label="Enrollments" route="student-enrollments.index" />
                         <x-nav.link label="Academic Records" route="student-academic-records.index" />
                         <x-nav.link label="Documents" route="student-documents.index" />
