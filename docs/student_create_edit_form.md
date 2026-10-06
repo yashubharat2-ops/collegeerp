@@ -7,7 +7,7 @@ their own:
 
 | # | Section | Fields | Storage |
 | --- | --- | --- | --- |
-| 01 | Academic / Admission | student number, admission source, current enrollment, department (all read-only on edit), admission date, status, **optional first enrollment** (academic year / program / section / date), previous-education snapshot | existing columns + `StudentEnrollment` (existing module) + new previous-education columns |
+| 01 | Academic / Admission | student number, admission source, current enrollment, department (all read-only on edit), then **optional first enrollment** (academic year / program / section), admission date, status, enrollment date (the first enrollment's), and the previous-education snapshot — in that chronological order | existing columns + `StudentEnrollment` (existing module) + new previous-education columns |
 | 02 | Basic Information | first / middle / last name, gender, date of birth, category, blood group, nationality, **photograph**, and the *Government / identity* sub-block: Aadhaar number, APAAR / ABC ID, other government ID (type + number) | existing `students` columns + existing `photo_path` (private disk) + new nullable `students` columns; Aadhaar + other ID number **encrypted** |
 | 03 | Parent / Guardian | father's name, mother's name, guardian name, relationship, phone, e-mail, occupation, address | new nullable `students` columns |
 | 04 | Contact | e-mail, phone, alternate phone, emergency contact name/phone, address line 1/2, city, state, postal code, country | existing columns + new emergency-contact columns |
@@ -160,7 +160,7 @@ field can never appear outside a section, and each card carries its number
 
 | # | Section | What it holds |
 | --- | --- | --- |
-| 01 | Academic / admission | *(create)* optional first enrollment: academic year · program/course · section/batch · enrollment date, then admission date · student status, then previous education. *(edit)* a read-only `.erp-strip` (student number, admission application, current enrollment, department) plus `Manage enrollments` |
+| 01 | Academic / admission | *(create)* optional first enrollment: academic year · program/course · section/batch, then admission date · student status, then its enrollment date, then previous education — the controls follow admission chronology. *(edit)* a read-only `.erp-strip` (student number, admission application, current enrollment, department) plus `Manage enrollments` |
 | 02 | Basic information | first · middle · last name, date of birth · gender · blood group · category, nationality — plus the compact photograph block — and the **Government / identity sub-card**: Aadhaar · APAAR/ABC, ID type · ID number |
 | 03 | Parent / guardian | father + mother · guardian name + relationship + phone · guardian email + occupation · guardian address (full) |
 | 04 | Contact | email + mobile + alternate mobile · address line 1 (9) + postal code (3) · address line 2 (full) · village/city + state + country · emergency contact name + phone |
@@ -181,6 +181,14 @@ Order is enforced by the feature test, not only by this table:
 headings appear once each, in chronological order, and that
 `Government / identity` sits *between* Basic information and Parent / guardian —
 so a future refactor that reintroduces a separate identity section fails.
+`test_the_academic_section_renders_its_fields_in_chronological_order` holds the
+01 controls to the admission chronology on both screens (academic year ·
+program/course · section/batch · admission date · student status · enrollment
+date · previous education) — so re-sorting that card into, say, enrollment date
+first fails too. Both assertions read the rendered **form** markup
+(`studentFormHtml()`), not the whole response: the sidebar draws permission-free
+`Documents` module rows above `<main>`, so a page-wide search would match that
+navigation instead of the form's own Documents card.
 
 **Why a static stylesheet instead of Tailwind utilities.** The layout only emits
 `@vite(...)` when `public/build/manifest.json` or `public/hot` exists:
@@ -209,7 +217,7 @@ is affected.
 
   | Section | Rows (desktop, as resolved from the shipped CSS) |
   | --- | --- |
-  | Academic / admission | `12` subhead · `3+3+3+3` year · program · section · enrollment date · `3+3` admission date · student status · `12` subhead · `6+6` school · board · `4+4+4` qualification · year · marks |
+  | Academic / admission | `12` subhead · `3+3+3` year · program · section · `3+3` admission date · student status · `3` enrollment date · `12` subhead · `6+6` school · board · `4+4+4` qualification · year · marks |
   | Basic information | `4+4+4` first · middle · last name (beside a 108px photo column) · `3+3+3+3` date of birth · gender · blood group · category · `4` nationality · `6+6` Aadhaar · APAAR/ABC · `4+8` ID type · ID number |
   | Parent / guardian | `6+6` father · mother · `4+4+4` guardian name · relationship · phone · `6+6` guardian email · occupation · `12` guardian address |
   | Contact | `4+4+4` email · mobile · alternate mobile · `9+3` address line 1 · postal code · `12` address line 2 · `4+4+4` village/city · state · country · `6+6` emergency name · phone |
@@ -259,8 +267,9 @@ is affected.
 
 ## Tests
 
-`StudentProfileFormTest` covers the six sections (their order, and that
-Government / identity is a sub-block rather than a section), persistence of every field,
+`StudentProfileFormTest` covers the six sections (their order, the chronological
+field order inside 01, and that Government / identity is a sub-block rather than a
+section), persistence of every field,
 encryption at rest + derived columns, "the full number is never rendered",
 serialisation hiding, masked-tail-only auditing, the Verhoeff rejection, the
 per-college duplicate rule (and its tenant-scoping), soft-delete behaviour, the

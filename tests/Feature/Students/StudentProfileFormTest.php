@@ -124,7 +124,13 @@ class StudentProfileFormTest extends TestCase
         // The numbered cards must appear in the documented chronological order:
         // Academic first, then Basic, then Parent/guardian, Contact, Additional
         // and finally Documents.
-        $html = $response->getContent();
+        //
+        // Positional assertions are scoped to the form itself: the page renders
+        // the sidebar above <main>, and two of its module rows are labelled
+        // "Documents" (Admissions, Students) with no permission gate, so a
+        // page-wide strpos() would match that navigation instead of the form's
+        // own Documents card.
+        $html = $this->studentFormHtml($response->getContent());
         $positions = array_map(
             fn (string $heading) => strpos($html, $heading),
             ['Academic / admission', 'Basic information', 'Parent / guardian', 'Contact', 'Additional information', 'Documents'],
@@ -143,6 +149,100 @@ class StudentProfileFormTest extends TestCase
         $this->assertGreaterThan($positions[1], $government, 'Government / identity must sit inside Basic information.');
         $this->assertLessThan($positions[2], $government, 'Government / identity must sit before Parent / guardian.');
         $response->assertDontSee('Identity &amp; government IDs', false);
+    }
+
+    public function test_the_academic_section_renders_its_fields_in_chronological_order(): void
+    {
+        $college = $this->makeCollege('SPFORD');
+        $admin = $this->makeUserWithPermissions($college, [
+            'students.view', 'students.create', 'students.update', 'student_enrollments.create',
+        ]);
+
+        // Same precondition as above: the optional first-enrollment block only
+        // renders when the college has an academic year to enroll into.
+        $this->makeYear($college);
+        $this->makeProgram($college);
+
+        // Create: academic year · program/course · section/batch · admission date
+        // · student status · enrollment date · previous education.
+        $create = $this->studentFormHtml(
+            $this->asCollege($college, $admin)->get(route('students.create'))->assertOk()->getContent()
+        );
+
+        $this->assertFieldsInOrder($this->academicSection($create), [
+            'for="academic_year_id"',
+            'for="program_id"',
+            'for="section_id"',
+            'for="admission_date"',
+            'for="status"',
+            'for="enrollment_date"',
+            'for="previous_school_name"',
+        ], 'The create form must order the academic fields by admission chronology.');
+
+        // Edit renders the same partial — and therefore the same order — with the
+        // optional first-enrollment block absent (an existing enrollment is
+        // managed by the Enrollment module, not from here).
+        $student = $this->makeStudent($college);
+
+        $edit = $this->studentFormHtml(
+            $this->asCollege($college, $admin)->get(route('students.edit', $student))->assertOk()->getContent()
+        );
+        $editSection = $this->academicSection($edit);
+
+        $this->assertFieldsInOrder($editSection, [
+            'for="admission_date"',
+            'for="status"',
+            'for="previous_school_name"',
+        ], 'The edit form must keep the same academic order.');
+
+        $this->assertStringNotContainsString('for="enrollment_date"', $editSection, 'The first-enrollment block stays create-only.');
+    }
+
+    /**
+     * The rendered form markup only — never the page chrome.
+     *
+     * The layout draws the sidebar above <main>, and the sidebar carries
+     * ungated module rows labelled "Documents" (Admissions and Students), so a
+     * positional search over the whole response finds navigation rather than
+     * the form's own sections. Every order assertion therefore runs on the
+     * form's markup, and on nothing else.
+     */
+    private function studentFormHtml(string $html): string
+    {
+        $start = strpos($html, '<div class="erp-student-form">');
+        $this->assertNotFalse($start, 'The student form must be rendered.');
+
+        $end = strpos($html, '</form>', $start);
+        $this->assertNotFalse($end, 'The student form must be closed.');
+
+        return substr($html, $start, $end - $start);
+    }
+
+    /** The rendered markup of the 01 Academic / admission card, for order assertions. */
+    private function academicSection(string $html): string
+    {
+        $start = strpos($html, 'Academic / admission');
+        $end = strpos($html, 'Basic information');
+
+        $this->assertNotFalse($start, 'The Academic / admission section must be rendered.');
+        $this->assertNotFalse($end, 'The Basic information section must be rendered.');
+
+        return substr($html, $start, $end - $start);
+    }
+
+    /**
+     * Assert the markers are all rendered and appear in the given order.
+     *
+     * @param  array<int, string>  $markers
+     */
+    private function assertFieldsInOrder(string $html, array $markers, string $message): void
+    {
+        $positions = array_map(fn (string $marker) => strpos($html, $marker), $markers);
+
+        $this->assertNotContains(false, $positions, $message.' Every field must be rendered.');
+        $sorted = $positions;
+        sort($sorted);
+        $this->assertSame($sorted, $positions, $message);
     }
 
     public function test_the_edit_form_masks_identity_numbers_and_links_to_the_document_module(): void
