@@ -6,6 +6,7 @@ use App\Domain\Foundation\Traits\BelongsToCollege;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -63,6 +64,16 @@ class Admission extends Model
     public function applicant(): BelongsTo
     {
         return $this->belongsTo(AdmissionApplicant::class, 'applicant_id');
+    }
+
+    /**
+     * The Student created from this admission's application, if conversion has
+     * already run. Provenance is `students.admission_application_id` — there is
+     * no parallel student table or extra FK on admissions.
+     */
+    public function student(): HasOne
+    {
+        return $this->hasOne(Student::class, 'admission_application_id', 'application_id');
     }
 
     public function creator(): BelongsTo

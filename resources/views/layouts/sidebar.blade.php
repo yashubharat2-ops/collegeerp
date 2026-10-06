@@ -107,8 +107,8 @@
                     </x-nav.group>
                     <x-nav.group id="admissions" label="Admissions" icon="user-plus">
                         <x-nav.link label="Dashboard" route="admission.dashboard" />
-                        <x-nav.link label="Applicants" route="admission-applicants.index" />
                         <x-nav.link label="Enquiries" route="admission-enquiries.index" />
+                        <x-nav.link label="Applicants" route="admission-applicants.index" />
                         <x-nav.link label="Applications" route="admission-applications.index" />
                         <x-nav.link label="Documents" route="admission-documents.index" />
                         <x-nav.link label="Document Types" route="admission-document-types.index" />

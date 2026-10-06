@@ -4,8 +4,8 @@
 <div class="panel">
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-            <h2 class="panel-title">Final Admissions / Enrollment</h2>
-            <p class="panel-subtitle">Approved/selected applications become admission records. Admission number generated server-side per college. Integration boundary for future Student module via applicant_id.</p>
+            <h2 class="panel-title">Final Admissions</h2>
+            <p class="panel-subtitle">Approved/selected applications become admission records. Admission number generated server-side per college. Convert an admission to create the student and first enrollment.</p>
         </div>
         @can('create', App\Models\Admission::class)
             <a class="button" href="{{ route('admissions.create') }}">+ New admission</a>
@@ -77,6 +77,21 @@
                     <td><span class="rounded-full px-2 py-0.5 text-xs font-semibold {{ $adm->status === 'active' ? 'bg-emerald-100 text-emerald-700' : ($adm->status === 'cancelled' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-700') }}">{{ ucfirst($adm->status) }}</span></td>
                     <td class="text-right">
                         <div class="flex flex-wrap items-center justify-end gap-2">
+                            @if($adm->student)
+                                @can('view', $adm->student)
+                                    <a class="text-xs font-semibold text-indigo-600 hover:underline" href="{{ route('students.show', $adm->student) }}">View Student</a>
+                                @endcan
+                                @php $convertedEnrollment = $adm->student->enrollments->first(); @endphp
+                                @if($convertedEnrollment)
+                                    @can('view', $convertedEnrollment)
+                                        <a class="text-xs font-semibold text-indigo-600 hover:underline" href="{{ route('student-enrollments.edit', $convertedEnrollment) }}">View Enrollment</a>
+                                    @endcan
+                                @endif
+                            @elseif($adm->status !== 'cancelled')
+                                @can('create', App\Models\Student::class)
+                                    <a class="text-xs font-semibold text-emerald-700 hover:underline" href="{{ route('admissions.convert.create', $adm) }}">Convert to Student</a>
+                                @endcan
+                            @endif
                             @can('update', $adm)
                                 <a class="text-xs font-semibold text-indigo-600 hover:underline" href="{{ route('admissions.edit', $adm) }}">Edit</a>
                                 @if($adm->status !== 'cancelled')

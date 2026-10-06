@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Student\Actions\ConvertAdmissionToStudent;
 use App\Domain\Student\Actions\ConvertApplicationToStudent;
 use App\Domain\Student\Services\StudentHistoryService;
 use App\Domain\Student\Services\StudentListService;
@@ -9,6 +10,7 @@ use App\Domain\Student\Services\StudentService;
 use App\Http\Requests\Student\StoreStudentRequest;
 use App\Http\Requests\Student\UpdateStudentRequest;
 use App\Models\AcademicYear;
+use App\Models\Admission;
 use App\Models\Program;
 use App\Models\Section;
 use App\Models\Student;
@@ -257,6 +259,55 @@ class StudentController extends Controller
         return view('students.create', $this->profileFormOptions($request));
     }
 
+    /**
+     * Existing Student Create form in "From Admission" mode.
+     *
+     * Compatible applicant/admission fields are flashed as old input so the
+     * six-section form prefills without a second form or a design change.
+     */
+    public function createFromAdmission(Request $request, string $admission): View|RedirectResponse
+    {
+        $this->authorize('create', Student::class);
+
+        $model = Admission::query()->with(['applicant', 'application', 'academicYear', 'program', 'student.enrollments'])->findOrFail($admission);
+
+        if ($model->status === 'cancelled') {
+            return redirect()
+                ->route('admissions.index')
+                ->withErrors(['admission' => 'A cancelled admission cannot be converted to a student.']);
+        }
+
+        if ($model->student) {
+            return redirect()
+                ->route('students.show', $model->student)
+                ->with('success', 'This admission has already been converted to student '.$model->student->student_number.'.');
+        }
+
+        if (! $request->session()->hasOldInput()) {
+            $request->session()->now('_old_input', $this->defaultsFromAdmission($model));
+        }
+
+        return view('students.create', array_merge($this->profileFormOptions($request), [
+            'fromAdmission' => $model,
+        ]));
+    }
+
+    public function storeFromAdmission(StoreStudentRequest $request, string $admission, ConvertAdmissionToStudent $action): RedirectResponse
+    {
+        $collegeId = app(TenantContext::class)->id();
+        $model = Admission::query()->findOrFail($admission);
+
+        $student = $action->execute((int) $model->id, $collegeId, $request->validated());
+        $enrollment = $student->enrollments->first();
+
+        $message = 'Student '.$student->student_number.' created from admission '.$model->admission_number.'.';
+        if ($enrollment) {
+            $message .= ' Enrollment '.$enrollment->enrollment_number.'.';
+        }
+
+        return redirect()->route('students.show', $student)->with('success', $message);
+    }
+
     public function store(StoreStudentRequest $request, StudentService $service): RedirectResponse
     {
         $collegeId = app(TenantContext::class)->id();
@@ -413,6 +464,37 @@ class StudentController extends Controller
      *
      * @return array<string, \Illuminate\Support\Collection<int, mixed>>
      */
+    /**
+     * Compatible Student Create fields snapshotted from Admission → Application
+     * → Applicant. Parent/guardian columns do not exist on the applicant, so
+     * they are left blank for the operator to complete on the same form.
+     *
+     * @return array<string, mixed>
+     */
+    private function defaultsFromAdmission(Admission $admission): array
+    {
+        $applicant = $admission->applicant;
+        $application = $admission->application;
+
+        return [
+            'first_name' => $applicant?->first_name,
+            'middle_name' => $applicant?->middle_name,
+            'last_name' => $applicant?->last_name,
+            'email' => $applicant?->email,
+            'phone' => $applicant?->phone,
+            'alternate_phone' => $applicant?->alternate_phone,
+            'gender' => $applicant?->gender,
+            'date_of_birth' => $applicant?->date_of_birth?->format('Y-m-d'),
+            'address_line_1' => $applicant?->address,
+            'status' => 'active',
+            'admission_date' => $admission->admission_date?->format('Y-m-d'),
+            'academic_year_id' => $admission->academic_year_id ?? $application?->academic_year_id,
+            'program_id' => $admission->program_id ?? $application?->program_id,
+            'enrollment_date' => $admission->admission_date?->format('Y-m-d'),
+            'remarks' => $admission->remarks,
+        ];
+    }
+
     private function profileFormOptions(Request $request): array
     {
         if (! $request->user()?->can('create', StudentEnrollment::class)) {

@@ -53,7 +53,13 @@ class EnrollmentBulkActionsTest extends TestCase
             ->assertOk()
             ->assertSee('data-module="enrollments"', false)
             ->assertSee('data-bulk-action="export"', false)
-            ->assertSee('data-bulk-action="change_status"', false);
+            ->assertSee('data-bulk-action="change_status"', false)
+            ->assertSee('Change Status → Active')
+            ->assertSee('Change Status → Completed')
+            ->assertSee('Change Status → Cancelled')
+            ->assertSee('Change Status → Withdrawn')
+            ->assertSee('data-select-row', false)
+            ->assertSee('data-select-all', false);
     }
 
     public function test_permission_is_required(): void

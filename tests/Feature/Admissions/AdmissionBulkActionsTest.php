@@ -101,7 +101,11 @@ class AdmissionBulkActionsTest extends TestCase
             ->assertOk()
             ->assertSee('data-module="admissions"', false)
             ->assertSee('data-bulk-action="export"', false)
-            ->assertSee('data-bulk-action="cancel"', false);
+            ->assertSee('data-bulk-action="complete"', false)
+            ->assertSee('data-bulk-action="cancel"', false)
+            ->assertSee('data-bulk-selection', false)
+            ->assertSee('data-select-all', false)
+            ->assertSee('data-select-row', false);
     }
 
     public function test_viewer_cannot_cancel_or_complete(): void

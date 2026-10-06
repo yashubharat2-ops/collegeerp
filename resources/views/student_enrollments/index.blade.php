@@ -53,7 +53,7 @@
                         data-bulk-action="change_status"
                         data-bulk-param-status="{{ $enrollmentStatus }}"
                         data-confirm="Set the selected enrollments to {{ $enrollmentStatus }}? Duplicate active enrollments are blocked and nothing is written if any row cannot be updated."
-                    >{{ ucfirst($enrollmentStatus) }}</x-list.dropdown-item>
+                    >Change Status → {{ ucfirst($enrollmentStatus) }}</x-list.dropdown-item>
                 @endforeach
             </x-list.dropdown>
         @endif

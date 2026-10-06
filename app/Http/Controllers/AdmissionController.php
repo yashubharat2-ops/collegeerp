@@ -30,7 +30,7 @@ class AdmissionController extends Controller
         // (admission_date is not a stable global sort: many records share a date,
         // which caused page-membership to flip under newest-first ordering.)
         $query = Admission::query()
-            ->with(['applicant','application','academicYear','program'])
+            ->with(['applicant', 'application', 'academicYear', 'program', 'student.enrollments'])
             ->orderBy('created_at')
             ->orderBy('id');
 

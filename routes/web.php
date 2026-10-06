@@ -244,6 +244,8 @@ Route::middleware('auth')->group(function () {
         Route::resource('admission-merit-lists', AdmissionMeritListController::class);
         Route::resource('admission-merit-entries', AdmissionMeritEntryController::class)->except('show');
         Route::get('admissions/export', [AdmissionController::class, 'export'])->name('admissions.export');
+        Route::get('admissions/{admission}/convert', [StudentController::class, 'createFromAdmission'])->name('admissions.convert.create');
+        Route::post('admissions/{admission}/convert', [StudentController::class, 'storeFromAdmission'])->name('admissions.convert.store');
         Route::post('admissions/{admission}/cancel', [AdmissionController::class, 'cancel'])->name('admissions.cancel');
         Route::resource('admissions', AdmissionController::class)->except('show');
         Route::post('students/convert/{admission_application}', [StudentController::class, 'convert'])->name('students.convert');
