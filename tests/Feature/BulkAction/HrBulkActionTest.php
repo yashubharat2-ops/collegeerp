@@ -210,7 +210,12 @@ class HrBulkActionTest extends TestCase
         // PARSED fields, with the BOM removed before str_getcsv() so it can never
         // end up inside the first field.
         $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
-        $lines = array_values(array_filter(explode("\n", trim(str_replace("\xEF\xBB\xBF", '', $body)))));
+
+        // Remove that BOM at the byte level BEFORE parsing — the same read-side
+        // convention StudentImportService uses — so it can never leak into the
+        // first parsed field.
+        $csvBody = preg_replace('/^\xEF\xBB\xBF/', '', $body) ?? $body;
+        $lines = array_values(array_filter(explode("\n", trim($csvBody))));
 
         // Metadata the listing shows: name, employee, type, dates, file name, size.
         $this->assertStringContainsString('Employment Contract', $body);
@@ -223,7 +228,7 @@ class HrBulkActionTest extends TestCase
 
         // ...and never the private path, the stored file name or free-text remarks.
         $this->assertStringNotContainsString($document->file_path, $body);
-        $this->assertStringNotContainsString('employee-documents/'.$college->id().'/', $body);
+        $this->assertStringNotContainsString('employee-documents/'.$college->id.'/', $body);
         $this->assertStringNotContainsString('Identity number', $body);
     }
 
@@ -346,7 +351,8 @@ class HrBulkActionTest extends TestCase
         $csv = $this->asCollege($college, $admin)->get($redirect)->assertOk();
         $this->assertStringContainsString('payrolls-export-', (string) $csv->headers->get('Content-Disposition'));
 
-        $body = str_replace("\xEF\xBB\xBF", '', $csv->streamedContent());
+        $body = $csv->streamedContent();
+        $body = preg_replace('/^\xEF\xBB\xBF/', '', $body) ?? $body;
 
         $this->assertStringContainsString('EMP-PAY-BULK', $body);
         $this->assertStringContainsString('41000', $body);

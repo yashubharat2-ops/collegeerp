@@ -182,7 +182,12 @@ class FinanceBulkActionTest extends TestCase
         // PARSED fields, with the BOM removed before str_getcsv() so it can never
         // end up inside the first field.
         $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
-        $lines = array_values(array_filter(explode("\n", trim(str_replace("\xEF\xBB\xBF", '', $body)))));
+
+        // Remove that BOM at the byte level BEFORE parsing — the same read-side
+        // convention StudentImportService uses — so it can never leak into the
+        // first parsed field.
+        $csvBody = preg_replace('/^\xEF\xBB\xBF/', '', $body) ?? $body;
+        $lines = array_values(array_filter(explode("\n", trim($csvBody))));
 
         // One line per configured component, exactly as the card shows them.
         $this->assertCount($structure->items()->count() + 1, $lines);
@@ -226,7 +231,8 @@ class FinanceBulkActionTest extends TestCase
         $csv = $this->asCollege($college, $admin)->get($redirect)->assertOk();
         $this->assertStringContainsString('fee-dues-export-', (string) $csv->headers->get('Content-Disposition'));
 
-        $body = str_replace("\xEF\xBB\xBF", '', $csv->streamedContent());
+        $body = $csv->streamedContent();
+        $body = preg_replace('/^\xEF\xBB\xBF/', '', $body) ?? $body;
 
         $this->assertStringContainsString('Outstanding', $body);
         $this->assertStringContainsString($enrollment->enrollment_number, $body);
