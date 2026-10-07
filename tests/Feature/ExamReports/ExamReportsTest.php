@@ -375,6 +375,42 @@ class ExamReportsTest extends TestCase
             ->assertSee('No published results found for the selected filters.');
     }
 
+    // ------------------------------------------------------------------- filter
+
+    public function test_examination_filter_explains_an_empty_college_and_cannot_be_submitted(): void
+    {
+        // A college with no examinations at all: the filter must never render as
+        // an unexplained blank select, and the meaningless request must not be
+        // submittable.
+        $college = $this->makeCollege('RPN');
+
+        $this->asCollege($college, $this->makeUserWithPermissions($college, self::VIEW))
+            ->get(route('exam-reports.index'))
+            ->assertOk()
+            ->assertSee('No examinations available')
+            ->assertSee('name="examination_id" disabled', false)
+            ->assertSee('type="submit" disabled', false)
+            // The existing explanation and the rest of the screen are unchanged.
+            ->assertSee('No examinations exist yet, so there is nothing to report on.')
+            ->assertDontSee('Program-wise summary')
+            ->assertDontSee('Subject-wise summary');
+    }
+
+    public function test_examination_filter_offers_a_placeholder_above_the_real_examinations(): void
+    {
+        $f = $this->publishedFixture('RPP');
+
+        $this->asCollege($f['college'], $this->makeUserWithPermissions($f['college'], self::VIEW))
+            ->get(route('exam-reports.index'))
+            ->assertOk()
+            ->assertSee('Select examination')
+            ->assertSee($f['ctx']['exam']->name)
+            ->assertDontSee('No examinations available')
+            // The control stays enabled and the report renders as before.
+            ->assertDontSee('name="examination_id" disabled', false)
+            ->assertSee('Published Results');
+    }
+
     // ---------------------------------------------------------- tenant isolation
 
     public function test_reports_never_leak_across_colleges(): void

@@ -14,10 +14,22 @@
     </div>
 
     <form method="GET" action="{{ route('exam-reports.index') }}" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <select class="input" name="examination_id">
-            @foreach($examinations as $exam)
-                <option value="{{ $exam->id }}" @selected($examinationId === $exam->id)>{{ $exam->name }} ({{ $exam->code }})</option>
-            @endforeach
+        {{-- The examination control always explains itself: a college with no
+             examinations yet gets a disabled placeholder instead of an empty
+             select, and the meaningless submit is disabled with it (the same
+             @disabled($collection->isEmpty()) convention the library and
+             certificate forms use). Otherwise the list starts with an explicit
+             "Select examination" option; leaving it empty submits no filter and
+             the controller falls back to its usual default examination. --}}
+        <select class="input" name="examination_id" @disabled($examinations->isEmpty())>
+            @if($examinations->isEmpty())
+                <option value="">No examinations available</option>
+            @else
+                <option value="">Select examination</option>
+                @foreach($examinations as $exam)
+                    <option value="{{ $exam->id }}" @selected($examinationId === $exam->id)>{{ $exam->name }} ({{ $exam->code }})</option>
+                @endforeach
+            @endif
         </select>
         <select class="input" name="program_id">
             <option value="">All programs</option>
@@ -26,7 +38,7 @@
             @endforeach
         </select>
         <div class="flex gap-2">
-            <button class="button" type="submit">Show report</button>
+            <button class="button" type="submit" @disabled($examinations->isEmpty())>Show report</button>
             <a class="button !bg-slate-200 !text-slate-700" href="{{ route('exam-reports.index') }}">Reset</a>
         </div>
     </form>
