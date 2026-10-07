@@ -168,7 +168,13 @@ class FinanceBulkActionTest extends TestCase
         ])->assertOk();
 
         $body = $this->asCollege($college, $admin)->get($response->json('data.redirect'))->streamedContent();
-        $lines = array_values(array_filter(explode("\n", trim($body))));
+
+        // The shared CsvStreamExport prefixes every download with a UTF-8 BOM for
+        // Excel (an established, unit-tested project convention), so the header is
+        // asserted as PARSED fields after that BOM — exactly how StudentExportTest
+        // and CsvStreamExportTest read a CSV.
+        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
+        $lines = array_values(array_filter(explode("\n", trim(substr($body, 3)))));
 
         // One line per configured component, exactly as the card shows them.
         $this->assertCount($structure->items()->count() + 1, $lines);
@@ -216,7 +222,10 @@ class FinanceBulkActionTest extends TestCase
         // are exactly what they were before the export.
         $this->assertSame($ledgerBefore, $this->ledgerOf($college, $assignment));
         $this->assertSame($paymentsBefore, FeePayment::withoutGlobalScopes()->count());
-        $this->assertSame(1, FeePayment::withoutGlobalScopes()->where('status', FeePayment::STATUS_COMPLETED)->count());
+        $this->assertSame(1, FeePayment::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->where('status', FeePayment::STATUS_COMPLETED)
+            ->count());
     }
 
     public function test_a_selection_never_changes_a_finance_record(): void

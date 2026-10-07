@@ -190,7 +190,13 @@ class HrBulkActionTest extends TestCase
         ])->assertOk();
 
         $body = $this->asCollege($college, $admin)->get($response->json('data.redirect'))->streamedContent();
-        $lines = array_values(array_filter(explode("\n", trim($body))));
+
+        // The shared CsvStreamExport prefixes every download with a UTF-8 BOM for
+        // Excel (an established, unit-tested project convention), so the header is
+        // asserted as PARSED fields after that BOM — exactly how StudentExportTest
+        // and CsvStreamExportTest read a CSV.
+        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
+        $lines = array_values(array_filter(explode("\n", trim(substr($body, 3)))));
 
         // Metadata the listing shows: name, employee, type, dates, file name, size.
         $this->assertStringContainsString('Employment Contract', $body);

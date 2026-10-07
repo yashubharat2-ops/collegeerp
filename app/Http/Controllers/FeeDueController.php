@@ -6,6 +6,7 @@ use App\Domain\Finance\Services\FeeDuesService;
 use App\Domain\Finance\Support\FeeFormOptions;
 use App\Domain\Finance\Support\FeeLedger;
 use App\Models\FeeDue;
+use App\Models\StudentFeeAssignment;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
