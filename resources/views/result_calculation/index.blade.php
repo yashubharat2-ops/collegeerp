@@ -121,7 +121,10 @@
             re-checks each one through the Results policy before the CSV endpoint
             streams anything.
         --}}
-        <div class="mt-8">
+        {{-- Explicit local selection scope: the shared script resolves this page's
+             selectable list here, so the bar can never pick up controls from the
+             scope/filter forms above. --}}
+        <div class="mt-8" data-bulk-scope>
             <h3 class="text-sm font-semibold text-slate-900">Results in this scope</h3>
             <p class="mt-1 text-xs text-slate-500">
                 Read-only worklist of the calculated results for the scope above.

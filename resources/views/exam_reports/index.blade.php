@@ -67,32 +67,31 @@
             </div>
         </div>
 
-        {{-- Program-wise summary. Every figure is a live COUNT over published
-             results, so a line is keyed by the real Program row it summarises: the
-             checkbox value is that program id, which the handler re-queries inside
-             the active college before the export endpoint re-aggregates exactly
-             those programs. The screen's own filters travel with the action as
-             bulk parameters and are re-validated server-side, so the CSV reports
-             the same scope as the line on screen. --}}
-        <div class="panel mt-8">
-            <h3 class="text-sm font-semibold text-slate-900">Program-wise summary</h3>
+        <div data-bulk-scope>
+        {{-- Every figure in this summary is a live COUNT over published results,
+             so a line is keyed by the real Program row it summarises: the checkbox
+             value is that program id, which the handler re-queries inside the
+             active college before the export endpoint re-aggregates exactly those
+             programs. The screen's own filters travel with the action as bulk
+             parameters and are re-validated server-side, so the CSV reports the
+             same scope as the line on screen. --}}
+        <h3 class="mt-8 text-sm font-semibold text-slate-900">Program-wise summary</h3>
 
-            <x-list.bulk-selection-bar module="exam_reports">
-                @if(auth()->user()?->hasPermission('exam_reports.view'))
-                    <button type="button" data-bulk-action="export"
-                            data-bulk-param-examination-id="{{ $examinationId }}"
-                            data-bulk-param-program-id="{{ $programId }}"
-                            class="button !py-2 !text-xs font-semibold">
-                        Export selected
-                    </button>
-                @endif
-            </x-list.bulk-selection-bar>
-
+        <x-list.bulk-selection-bar module="exam_reports">
+            @if(auth()->user()?->hasPermission('exam_reports.view'))
+                <button type="button" data-bulk-action="export"
+                        data-bulk-param-examination-id="{{ $examinationId }}"
+                        data-bulk-param-program-id="{{ $programId }}"
+                        class="button !py-2 !text-xs font-semibold">
+                    Export selected
+                </button>
+            @endif
+        </x-list.bulk-selection-bar>
         <div class="mt-3 overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead>
                     <tr class="border-b text-slate-500">
-                        <th class="w-10 py-3"><x-list.select-all /></th>
+                        <th class="w-10 py-3"><x-list.select-all id="exam-reports-program-select-all" /></th>
                         <th class="py-3">Program</th>
                         <th class="text-right">Total</th>
                         <th class="text-right">Pass</th>
@@ -127,28 +126,27 @@
         <div class="mt-4">{{ $programSummaries->links() }}</div>
         </div>
 
-        {{-- Subject-wise summary: the same contract as above, keyed by the
-             Subject rows it summarises and posted as its OWN module, so a
-             program id and a subject id can never end up in one selection. --}}
-        <div class="panel mt-8">
-            <h3 class="text-sm font-semibold text-slate-900">Subject-wise summary</h3>
+        <div data-bulk-scope>
+        {{-- The subject-wise sibling: the same contract, keyed by the Subject rows
+             it summarises and posted as its OWN module, so a program id and a
+             subject id can never end up in one selection. --}}
+        <h3 class="mt-8 text-sm font-semibold text-slate-900">Subject-wise summary</h3>
 
-            <x-list.bulk-selection-bar module="exam_report_subjects">
-                @if(auth()->user()?->hasPermission('exam_reports.view'))
-                    <button type="button" data-bulk-action="export"
-                            data-bulk-param-examination-id="{{ $examinationId }}"
-                            data-bulk-param-program-id="{{ $programId }}"
-                            class="button !py-2 !text-xs font-semibold">
-                        Export selected
-                    </button>
-                @endif
-            </x-list.bulk-selection-bar>
-
+        <x-list.bulk-selection-bar module="exam_report_subjects">
+            @if(auth()->user()?->hasPermission('exam_reports.view'))
+                <button type="button" data-bulk-action="export"
+                        data-bulk-param-examination-id="{{ $examinationId }}"
+                        data-bulk-param-program-id="{{ $programId }}"
+                        class="button !py-2 !text-xs font-semibold">
+                    Export selected
+                </button>
+            @endif
+        </x-list.bulk-selection-bar>
         <div class="mt-3 overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead>
                     <tr class="border-b text-slate-500">
-                        <th class="w-10 py-3"><x-list.select-all /></th>
+                        <th class="w-10 py-3"><x-list.select-all id="exam-reports-subject-select-all" /></th>
                         <th class="py-3">Subject</th>
                         <th class="text-right">Max Marks</th>
                         <th class="text-right">Total</th>
