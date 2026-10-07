@@ -78,10 +78,23 @@
         </div>
     </form>
 
+    {{-- Bulk selection for the schedule list. Export only: timing, seating,
+         invigilation and marks distribution are per-record operations with their
+         own validation, so no bulk schedule edit exists. --}}
+    <x-list.bulk-selection-bar module="exam_schedules">
+        @if(auth()->user()?->hasPermission('exam_schedules.view'))
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export selected
+            </button>
+        @endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-8 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-3"><x-list.select-all /></th>
                     <th class="py-3">Examination</th>
                     <th>Date & Time</th>
                     <th>Subject</th>
@@ -96,6 +109,7 @@
             <tbody>
                 @forelse($schedules as $sched)
                     <tr class="border-b">
+                        <td class="py-3"><x-list.row-checkbox :id="$sched->id" /></td>
                         <td class="py-3 font-medium">
                             {{ $sched->examination?->name ?? '—' }}
                             <p class="text-xs text-slate-500">{{ $sched->examination?->code }}</p>
@@ -155,7 +169,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td class="py-6 text-slate-500" colspan="9">No exam schedule entries found.</td>
+                        <td class="py-6 text-slate-500" colspan="10">No exam schedule entries found.</td>
                     </tr>
                 @endforelse
             </tbody>

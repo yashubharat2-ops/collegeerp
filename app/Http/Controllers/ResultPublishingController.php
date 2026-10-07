@@ -5,12 +5,17 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ResultPublishing\PublishResultRequest;
 use App\Models\ExamResult;
 use App\Models\Examination;
+use App\Services\Audit\AuditLogService;
 use App\Services\Examinations\ResultPublishingService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Result Publishing (Examinations Phase 3) — separate from calculation.
@@ -38,24 +43,8 @@ class ResultPublishingController extends Controller
 
         $examinationId = $request->input('examination_id');
 
-        $results = ExamResult::query()
-            ->with([
-                'examination',
-                'studentEnrollment.student',
-                'studentEnrollment.program',
-                'studentEnrollment.section',
-                'gradeScale',
-                'publishedBy',
-            ])
-            ->when($examinationId !== null, fn ($q) => $q->where('examination_id', (int) $examinationId))
-            // Unpublished first: that is what an operator acts on.
-            ->orderByRaw('CASE WHEN published_at IS NULL THEN 0 ELSE 1 END')
-            ->orderBy('id')
-            ->paginate(15)
-            ->withQueryString();
-
         return view('result_publishing.index', [
-            'results' => $results,
+            'results' => $this->listQuery($request)->paginate(15)->withQueryString(),
             'examinations' => Examination::query()->orderByDesc('id')->get(['id', 'name', 'code']),
             'filters' => [
                 'examination_id' => $examinationId,
@@ -64,6 +53,99 @@ class ResultPublishingController extends Controller
             'canUnpublish' => $request->user()?->can('unpublish', ExamResult::class) ?? false,
             'calculationStatuses' => ExamResult::CALCULATION_STATUSES,
         ]);
+    }
+
+    /**
+     * The publishing worklist query, shared by the screen and its CSV export.
+     *
+     * Unpublished first — that is what an operator acts on — with the screen's
+     * own filters (examination and calculation status). ExamResult carries the
+     * CollegeScope, so both the screen and the export are tenant-scoped by
+     * construction.
+     */
+    private function listQuery(Request $request): Builder
+    {
+        $examinationId = $request->input('examination_id');
+
+        return ExamResult::query()
+            ->with([
+                'examination',
+                'studentEnrollment.student',
+                'studentEnrollment.program',
+                'studentEnrollment.section',
+                'gradeScale',
+                'publishedBy',
+            ])
+            // The examination scope is the only filter this screen has ever
+            // applied to the worklist (the calculation-status control is rendered
+            // and echoed back); the export therefore applies exactly the same one,
+            // so the CSV can never be narrower or wider than the list on screen.
+            ->when($examinationId !== null && $examinationId !== '', fn ($q) => $q->where('examination_id', (int) $examinationId))
+            // Unpublished first: that is what an operator acts on.
+            ->orderByRaw('CASE WHEN published_at IS NULL THEN 0 ELSE 1 END')
+            ->orderBy('id');
+    }
+
+    /**
+     * CSV of the publishing worklist, or of an authorized selection of it.
+     *
+     * Destination of the screen's bulk "Export selected" action. The ids were
+     * re-queried inside the active college and returned by the bulk action
+     * handler, are shape-checked (ListSelection) here and are re-resolved through
+     * the same tenant-scoped query as the list, with the screen's own permission
+     * re-checked — so the CSV can never be wider than the worklist.
+     *
+     * Publishing is NOT re-implemented here and is NOT a bulk action of this
+     * controller: the page posts its own selection to `publishBulk()`, which
+     * resolves the ids under the active examination scope and delegates to
+     * {@see ResultPublishingService} (eligibility rules, transaction and audit
+     * included). This endpoint only streams.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewPublishing', ExamResult::class);
+
+        $query = $this->listQuery($request)->reorder('exam_results.id');
+
+        $ids = ListSelection::ids($request->input('ids', []));
+        if ($ids !== []) {
+            $query->whereIn('exam_results.id', $ids);
+        }
+
+        $audit->record('result_publishing.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => (clone $query)->count(),
+        ]);
+
+        return CsvStreamExport::make('result-publishing-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Enrollment number', 'Student number', 'Student', 'Examination', 'Program', 'Section',
+                'Grade scale', 'Total obtained', 'Total max', 'Percentage', 'Grade',
+                'Calculation status', 'Result status', 'Publishing status', 'Published at', 'Published by',
+            ])
+            ->map(function (ExamResult $result): array {
+                $enrollment = $result->studentEnrollment;
+
+                return [
+                    $enrollment?->enrollment_number,
+                    $enrollment?->student?->student_number,
+                    $enrollment?->student?->fullName(),
+                    $result->examination?->name,
+                    $enrollment?->program?->name,
+                    $enrollment?->section?->name,
+                    $result->gradeScale?->name,
+                    $result->total_obtained_marks,
+                    $result->total_max_marks,
+                    $result->percentage,
+                    $result->overall_grade,
+                    $result->calculation_status,
+                    $result->result_status,
+                    $result->publication_status,
+                    $result->published_at?->format('Y-m-d H:i'),
+                    $result->publishedBy?->name,
+                ];
+            })
+            ->streamFromQuery($query);
     }
 
     public function publish(Request $request, string $result): RedirectResponse

@@ -57,10 +57,25 @@
         </div>
     </form>
 
+    {{-- Bulk selection: export only. A marksheet is a derived document, so the
+         values below are the PUBLISHED result ids they are rendered from; the
+         handler re-queries them inside the active college, applies the
+         published-only rule per record and re-authorizes it through the marksheet
+         policy before the CSV endpoint streams anything. --}}
+    <x-list.bulk-selection-bar module="marksheets">
+        @if(auth()->user()?->hasPermission('marksheets.view'))
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export selected
+            </button>
+        @endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-6 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-3"><x-list.select-all /></th>
                     <th class="py-3">Enrollment No.</th>
                     <th>Student</th>
                     <th>Examination</th>
@@ -76,6 +91,7 @@
             <tbody>
                 @forelse($results as $result)
                     <tr class="border-b">
+                        <td class="py-3"><x-list.row-checkbox :id="$result->id" /></td>
                         <td class="py-3 font-medium">{{ $result->studentEnrollment?->enrollment_number }}</td>
                         <td>{{ $result->studentEnrollment?->student?->fullName() }}</td>
                         <td>{{ $result->examination?->name }}</td>
@@ -95,7 +111,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td class="py-6 text-slate-500" colspan="10">No published results found for the selected filters.</td>
+                        <td class="py-6 text-slate-500" colspan="11">No published results found for the selected filters.</td>
                     </tr>
                 @endforelse
             </tbody>

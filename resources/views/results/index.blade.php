@@ -72,10 +72,25 @@
         </div>
     </form>
 
+    {{-- Bulk selection: export only. Results are produced by the calculation
+         engine and never edited by hand. The handler re-queries the ticked ids
+         inside the active college and re-checks each one through the Results
+         policy, so unpublished rows are exported only for holders of
+         results.view_unpublished — exactly like the list above. --}}
+    <x-list.bulk-selection-bar module="results">
+        @if(auth()->user()?->hasPermission('results.view'))
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export selected
+            </button>
+        @endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-6 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-3"><x-list.select-all /></th>
                     <th class="py-3">Enrollment No.</th>
                     <th>Student</th>
                     <th>Examination</th>
@@ -92,6 +107,7 @@
             <tbody>
                 @forelse($results as $result)
                     <tr class="border-b">
+                        <td class="py-3"><x-list.row-checkbox :id="$result->id" /></td>
                         <td class="py-3 font-medium">{{ $result->studentEnrollment?->enrollment_number }}</td>
                         <td>{{ $result->studentEnrollment?->student?->full_name }}</td>
                         <td>{{ $result->examination?->name }}</td>
@@ -118,7 +134,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td class="py-6 text-slate-500" colspan="11">No results found for the selected filters.</td>
+                        <td class="py-6 text-slate-500" colspan="12">No results found for the selected filters.</td>
                     </tr>
                 @endforelse
             </tbody>

@@ -16,13 +16,35 @@
         @endcan
     </div>
 
+    {{-- Bulk selection over the configured grade / pass-fail scales. Export
+         only: bands are contiguous, non-overlapping ranges validated by
+         GradeScaleService, so they are edited one scale at a time. The handler
+         re-queries the ticked ids inside the active college and re-authorizes
+         each scale through GradeScalePolicy before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="grade_scales">
+        @if(auth()->user()?->hasPermission('grade_scales.view'))
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export selected
+            </button>
+        @endif
+    </x-list.bulk-selection-bar>
+
+    <div class="mb-4 mt-2 flex items-center gap-2 text-xs text-slate-500">
+        <x-list.select-all id="grade-scales-select-all" />
+        <label for="grade-scales-select-all" class="cursor-pointer">Select all grade scales on this page</label>
+    </div>
+
     <div class="mt-6 space-y-4">
         @forelse($scales as $scale)
             <div class="rounded-2xl border border-slate-200 p-5">
                 <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                        <p class="text-base font-semibold text-slate-900">{{ $scale->name }} <span class="text-sm font-normal text-slate-500">({{ $scale->code }})</span></p>
-                        <p class="mt-1 text-xs text-slate-500">{{ $scale->description }}</p>
+                    <div class="flex items-start gap-3">
+                        <span class="mt-1"><x-list.row-checkbox :id="$scale->id" /></span>
+                        <div>
+                            <p class="text-base font-semibold text-slate-900">{{ $scale->name }} <span class="text-sm font-normal text-slate-500">({{ $scale->code }})</span></p>
+                            <p class="mt-1 text-xs text-slate-500">{{ $scale->description }}</p>
+                        </div>
                     </div>
                     <div class="flex items-center gap-2">
                         <span class="rounded-full px-3 py-1 text-xs font-semibold {{ $scale->status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">{{ ucfirst($scale->status) }}</span>

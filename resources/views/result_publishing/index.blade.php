@@ -48,6 +48,26 @@
         </form>
     @endif
 
+    {{-- Shared bulk bar. Its "Export selected" action goes through the SAME
+         central endpoint as every other listing in the ERP: the ids are
+         re-queried inside the active college and returned by the handler, and the
+         CSV endpoint re-resolves them again. The checkboxes below are the shared
+         row-selection control, so the bar and the publish form always agree on
+         what is ticked.
+
+         Publishing itself is deliberately NOT re-implemented as a bulk action:
+         the existing form below posts the same selection to
+         ResultPublishingService through PublishResultRequest, which keeps the
+         eligibility rules, the transaction and the audit trail in one place. --}}
+    <x-list.bulk-selection-bar module="result_publishing">
+        @if(auth()->user()?->hasPermission('result_publishing.view'))
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export selected
+            </button>
+        @endif
+    </x-list.bulk-selection-bar>
+
     {{-- Bulk publish: the selection is posted with the list form. --}}
     <form method="POST" action="{{ route('result-publishing.bulk') }}" class="mt-6">
         @csrf
@@ -59,7 +79,7 @@
             <table class="w-full text-left text-sm">
                 <thead>
                     <tr class="border-b text-slate-500">
-                        <th class="py-3 w-10"><span class="sr-only">Select</span></th>
+                        <th class="py-3 w-10"><x-list.select-all /></th>
                         <th>Enrollment No.</th>
                         <th>Student</th>
                         <th>Examination</th>
@@ -81,7 +101,7 @@
                         <tr class="border-b">
                             <td class="py-3">
                                 @if($publishable)
-                                    <input type="checkbox" name="result_ids[]" value="{{ $result->id }}" class="rounded border-slate-300">
+                                    <input type="checkbox" name="result_ids[]" value="{{ $result->id }}" data-select-row aria-label="Select row {{ $result->id }}" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
                                 @endif
                             </td>
                             <td class="font-medium">{{ $result->studentEnrollment?->enrollment_number }}</td>

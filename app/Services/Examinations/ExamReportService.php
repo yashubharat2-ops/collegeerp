@@ -7,6 +7,8 @@ use App\Models\ExamResult;
 use App\Models\ExamResultItem;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * ExamReportService — the read side of the Exam Reports screen
@@ -84,6 +86,38 @@ class ExamReportService
      */
     public function programSummaries(?int $examinationId, ?int $programId): LengthAwarePaginator
     {
+        return $this->programSummaryQuery($examinationId, $programId)
+            ->paginate(15, ['*'], 'program_page')
+            ->withQueryString()
+            ->through(fn ($row) => $this->withPassRate($row));
+    }
+
+    /**
+     * The PROGRAM-WISE summary lines for an explicit set of programs.
+     *
+     * Backs the report screen's bulk "Export selected": the program ids come from
+     * the bulk action handler, which re-queried them inside the active college
+     * and returned only the ones that survive. An empty set means "every line in
+     * scope" (the id-less report export). Filters are applied by the caller and
+     * are the same ones the screen used, so a line can never report a different
+     * scope than it did on screen.
+     *
+     * @param  array<int, int>  $programIds
+     */
+    public function programSummaryRows(array $programIds, ?int $examinationId, ?int $programId): Collection
+    {
+        return $this->programSummaryQuery($examinationId, $programId)
+            ->when($programIds !== [], fn ($query) => $query->whereIn('programs.id', $programIds))
+            ->get()
+            ->map(fn ($row) => $this->withPassRate($row));
+    }
+
+    /**
+     * The shared program-wise aggregate: published results only, every joined
+     * table guarded by its own college + soft-delete predicate.
+     */
+    private function programSummaryQuery(?int $examinationId, ?int $programId): Builder
+    {
         $collegeId = $this->tenant->id();
 
         return ExamResult::query()
@@ -99,16 +133,40 @@ class ExamReportService
             ->groupBy('programs.id', 'programs.name', 'programs.code')
             ->selectRaw('programs.id, programs.name, programs.code, COUNT(*) AS total, '.$this->statusSums('exam_results.result_status'))
             ->orderBy('programs.name')
-            ->orderBy('programs.id')
-            ->paginate(15, ['*'], 'program_page')
-            ->withQueryString()
-            ->through(fn ($row) => $this->withPassRate($row));
+            ->orderBy('programs.id');
     }
 
     /**
      * Per-subject published item counts, deterministically paginated.
      */
     public function subjectSummaries(?int $examinationId, ?int $programId): LengthAwarePaginator
+    {
+        return $this->subjectSummaryQuery($examinationId, $programId)
+            ->paginate(15, ['*'], 'subject_page')
+            ->withQueryString()
+            ->through(fn ($row) => $this->withPassRate($row));
+    }
+
+    /**
+     * The SUBJECT-WISE summary lines for an explicit set of subjects — the
+     * subject-wise sibling of {@see self::programSummaryRows()}, used by the
+     * report screen's bulk export and bounded by the same tenant guards.
+     *
+     * @param  array<int, int>  $subjectIds
+     */
+    public function subjectSummaryRows(array $subjectIds, ?int $examinationId, ?int $programId): Collection
+    {
+        return $this->subjectSummaryQuery($examinationId, $programId)
+            ->when($subjectIds !== [], fn ($query) => $query->whereIn('subjects.id', $subjectIds))
+            ->get()
+            ->map(fn ($row) => $this->withPassRate($row));
+    }
+
+    /**
+     * The shared subject-wise aggregate: published result items only, every
+     * joined table guarded by its own college + soft-delete predicate.
+     */
+    private function subjectSummaryQuery(?int $examinationId, ?int $programId): Builder
     {
         $collegeId = $this->tenant->id();
 
@@ -128,10 +186,7 @@ class ExamReportService
             ->groupBy('subjects.id', 'subjects.name', 'subjects.code')
             ->selectRaw('subjects.id, subjects.name, subjects.code, MAX(exam_result_items.max_marks) AS max_marks, COUNT(*) AS total, '.$this->statusSums('exam_result_items.status'))
             ->orderBy('subjects.name')
-            ->orderBy('subjects.id')
-            ->paginate(15, ['*'], 'subject_page')
-            ->withQueryString()
-            ->through(fn ($row) => $this->withPassRate($row));
+            ->orderBy('subjects.id');
     }
 
     /**

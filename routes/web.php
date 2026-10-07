@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AcademicReportController;
 use App\Http\Controllers\AcademicsController;
+use App\Http\Controllers\AcademicsExportController;
 use App\Http\Controllers\AcademicTermController;
 use App\Http\Controllers\AcademicYearController;
 use App\Http\Controllers\Account\PasswordController as AccountPasswordController;
@@ -333,6 +334,19 @@ Route::middleware('auth')->group(function () {
         Route::get('library-reports', [LibraryReportController::class, 'index'])->name('library-reports.index');
 
         Route::get('admission-reports', [AdmissionReportController::class, 'index'])->name('admission-reports.index');
+        // ACADEMIC BULK ACTIONS — the CSV destination of the six Academic listings'
+        // bulk "Export selected" actions. Each one re-resolves the authorized ids
+        // inside the active college (never trusting the client list), re-checks the
+        // listing's own permission and streams through the shared CsvStreamExport.
+        // Registered together, before the academic list/detail routes, so a static
+        // "…/export" segment is never captured as a record id.
+        Route::get('academics/subject-enrollments/export', [AcademicsExportController::class, 'subjectEnrollments'])->name('academic-subject-enrollments.export');
+        Route::get('academics/sections/export', [AcademicsExportController::class, 'sections'])->name('academic-sections.export');
+        Route::get('academics/timetables/export', [AcademicsExportController::class, 'timetables'])->name('academic-timetables.export');
+        Route::get('academics/attendance/export', [AcademicsExportController::class, 'attendance'])->name('academic-attendance.export');
+        Route::get('academics/calendar/export', [AcademicsExportController::class, 'calendar'])->name('academic-calendar.export');
+        Route::get('academics/workload/export', [AcademicsExportController::class, 'workload'])->name('academic-workload.export');
+
         // Academics is operational only: all master data remains in Platform/Students.
         Route::get('academics/subject-enrollments', [AcademicsController::class, 'subjectEnrollments'])->name('academic-subject-enrollments.index');
         Route::get('academics/subject-enrollments/create', [AcademicsController::class, 'createSubjectEnrollment'])->name('academic-subject-enrollments.create');
@@ -357,25 +371,45 @@ Route::middleware('auth')->group(function () {
         Route::get('academics/workload', [AcademicsController::class, 'workload'])->name('academic-workload.index');
 
         // Examinations (Phase 1)
+        // EXAMINATION BULK ACTIONS — the CSV destination of each Examination
+        // listing's bulk "Export selected" action. Declared before the resource
+        // routes so a static "…/export" segment is never read as a record id, and
+        // every endpoint re-checks its listing's permission and re-resolves the
+        // authorized ids inside the active college before streaming.
+        Route::get('examinations/export', [ExaminationController::class, 'export'])->name('examinations.export');
         Route::resource('examinations', ExaminationController::class)->except('show');
+        Route::get('exam-schedules/export', [ExamScheduleController::class, 'export'])->name('exam-schedules.export');
         Route::resource('exam-schedules', ExamScheduleController::class)->except('show');
 
         // Examinations (Phase 2) — Exam Attendance and Marks Entry.
+        // Both are export-only in the bulk bar: marking and marks entry keep their
+        // existing per-record / board paths, which resolve eligibility server-side.
+        Route::get('exam-attendance/export', [ExamAttendanceController::class, 'export'])->name('exam-attendance.export');
         Route::post('exam-attendance/bulk', [ExamAttendanceController::class, 'bulk'])->name('exam-attendance.bulk');
         Route::resource('exam-attendance', ExamAttendanceController::class)->except('show');
+        Route::get('exam-marks/export', [ExamMarkController::class, 'export'])->name('exam-marks.export');
         Route::post('exam-marks/bulk', [ExamMarkController::class, 'bulk'])->name('exam-marks.bulk');
         Route::resource('exam-marks', ExamMarkController::class)->except('show');
 
         // Examinations (Phase 3) — Results, Result Calculation, Grade / Pass-Fail, Result Publishing.
+        // Results and Result Calculation are read-only screens; their bulk bar
+        // exports the authorized selection. The CSV routes are declared before the
+        // "{result}" detail route so "results/export" is never read as an id.
+        Route::get('results/export', [ResultController::class, 'export'])->name('results.export');
         Route::get('results', [ResultController::class, 'index'])->name('results.index');
         Route::get('results/{result}', [ResultController::class, 'show'])->name('results.show');
 
+        Route::get('result-calculation/export', [ResultCalculationController::class, 'export'])->name('result-calculation.export');
         Route::get('result-calculation', [ResultCalculationController::class, 'index'])->name('result-calculation.index');
         Route::post('result-calculation/calculate', [ResultCalculationController::class, 'calculate'])->name('result-calculation.calculate');
         Route::post('result-calculation/recalculate', [ResultCalculationController::class, 'recalculate'])->name('result-calculation.recalculate');
 
+        Route::get('grade-scales/export', [GradeScaleController::class, 'export'])->name('grade-scales.export');
         Route::resource('grade-scales', GradeScaleController::class)->except('show');
 
+        // The publishing worklist exports its selection; publishing itself stays
+        // with ResultPublishingService (the page's own bulk form below).
+        Route::get('result-publishing/export', [ResultPublishingController::class, 'export'])->name('result-publishing.export');
         Route::get('result-publishing', [ResultPublishingController::class, 'index'])->name('result-publishing.index');
         Route::post('result-publishing/bulk', [ResultPublishingController::class, 'publishBulk'])->name('result-publishing.bulk');
         Route::post('result-publishing/examination/{examination}', [ResultPublishingController::class, 'publishExamination'])->name('result-publishing.examination');
@@ -384,16 +418,19 @@ Route::middleware('auth')->group(function () {
 
         // Examinations (Phase 4A) — Marksheets. Derived printable documents,
         // read-only: no create/update/delete routes.
+        Route::get('marksheets/export', [MarksheetController::class, 'export'])->name('marksheets.export');
         Route::get('marksheets', [MarksheetController::class, 'index'])->name('marksheets.index');
         Route::get('marksheets/{result}', [MarksheetController::class, 'show'])->name('marksheets.show');
 
         // Examinations (Phase 4) — Grade Cards. Derived printable documents,
         // read-only: no create/update/delete routes.
+        Route::get('grade-cards/export', [GradeCardController::class, 'export'])->name('grade-cards.export');
         Route::get('grade-cards', [GradeCardController::class, 'index'])->name('grade-cards.index');
         Route::get('grade-cards/{result}', [GradeCardController::class, 'show'])->name('grade-cards.show');
 
         // Examinations (Phase 4) — Exam Reports. Aggregated published-result
         // summaries, read-only.
+        Route::get('exam-reports/export', [ExamReportController::class, 'export'])->name('exam-reports.export');
         Route::get('exam-reports', [ExamReportController::class, 'index'])->name('exam-reports.index');
 
         // Examinations (Phase 4) — Student Result History. A student's

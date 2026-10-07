@@ -107,5 +107,88 @@
     @else
         <p class="mt-6 text-sm text-slate-500">Select an examination to see the calculation summary and actions.</p>
     @endif
+
+    @if($canViewResults && $results)
+        {{--
+            The calculation worklist: the results inside the scope above. It lists
+            RESULTS, so it is rendered only for a user who may read results
+            (`results.view`) — the `result_calculation.*` permissions grant the
+            engine, never per-student result data. Unpublished rows appear only
+            with `results.view_unpublished`, exactly as on the Results screen.
+
+            Bulk selection is export-only: nothing here recalculates or publishes.
+            The handler re-queries the ticked ids inside the active college and
+            re-checks each one through the Results policy before the CSV endpoint
+            streams anything.
+        --}}
+        <div class="mt-8">
+            <h3 class="text-sm font-semibold text-slate-900">Results in this scope</h3>
+            <p class="mt-1 text-xs text-slate-500">
+                Read-only worklist of the calculated results for the scope above.
+                {{ $results->total() }} result(s).
+            </p>
+
+            <x-list.bulk-selection-bar module="result_calculation">
+                <button type="button" data-bulk-action="export"
+                        class="button !py-2 !text-xs font-semibold">
+                    Export selected
+                </button>
+            </x-list.bulk-selection-bar>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead>
+                        <tr class="border-b text-slate-500">
+                            <th class="w-10 py-3"><x-list.select-all /></th>
+                            <th>Enrollment No.</th>
+                            <th>Student</th>
+                            <th>Program / Section</th>
+                            <th>Grade scale</th>
+                            <th>Percentage</th>
+                            <th>Calculation</th>
+                            <th>Result</th>
+                            <th>Publishing</th>
+                            <th class="text-right">View</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($results as $result)
+                            <tr class="border-b">
+                                <td class="py-3"><x-list.row-checkbox :id="$result->id" /></td>
+                                <td class="font-medium">{{ $result->studentEnrollment?->enrollment_number }}</td>
+                                <td>{{ $result->studentEnrollment?->student?->full_name }}</td>
+                                <td>
+                                    {{ $result->studentEnrollment?->program?->name }}
+                                    <span class="text-xs text-slate-500">/ {{ $result->studentEnrollment?->section?->name }}</span>
+                                </td>
+                                <td>{{ $result->gradeScale?->name ?? '—' }}</td>
+                                <td>{{ $result->percentage !== null ? $result->percentage.'%' : '—' }}</td>
+                                <td>
+                                    <span class="rounded-full px-2 py-1 text-xs font-semibold {{ $result->calculation_status === 'calculated' ? 'bg-emerald-100 text-emerald-700' : ($result->calculation_status === 'failed' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700') }}">{{ ucfirst($result->calculation_status) }}</span>
+                                </td>
+                                <td>{{ ucfirst($result->result_status) }}</td>
+                                <td>
+                                    <span class="rounded-full px-2 py-1 text-xs font-semibold {{ $result->isPublished() ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">{{ ucfirst($result->publication_status) }}</span>
+                                </td>
+                                <td class="text-right">
+                                    @can('view', $result)
+                                        <a class="text-xs font-semibold text-indigo-600 hover:underline" href="{{ route('results.show', $result) }}">Open</a>
+                                    @else
+                                        <span class="text-xs text-slate-400">—</span>
+                                    @endcan
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td class="py-6 text-slate-500" colspan="10">No results in this scope yet. Mark entry and calculate to produce them.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-4">{{ $results->links() }}</div>
+        </div>
+    @endif
 </div>
 @endsection

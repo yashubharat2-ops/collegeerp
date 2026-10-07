@@ -67,11 +67,32 @@
             </div>
         </div>
 
-        <h3 class="mt-8 text-sm font-semibold text-slate-900">Program-wise summary</h3>
+        {{-- Program-wise summary. Every figure is a live COUNT over published
+             results, so a line is keyed by the real Program row it summarises: the
+             checkbox value is that program id, which the handler re-queries inside
+             the active college before the export endpoint re-aggregates exactly
+             those programs. The screen's own filters travel with the action as
+             bulk parameters and are re-validated server-side, so the CSV reports
+             the same scope as the line on screen. --}}
+        <div class="panel mt-8">
+            <h3 class="text-sm font-semibold text-slate-900">Program-wise summary</h3>
+
+            <x-list.bulk-selection-bar module="exam_reports">
+                @if(auth()->user()?->hasPermission('exam_reports.view'))
+                    <button type="button" data-bulk-action="export"
+                            data-bulk-param-examination-id="{{ $examinationId }}"
+                            data-bulk-param-program-id="{{ $programId }}"
+                            class="button !py-2 !text-xs font-semibold">
+                        Export selected
+                    </button>
+                @endif
+            </x-list.bulk-selection-bar>
+
         <div class="mt-3 overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead>
                     <tr class="border-b text-slate-500">
+                        <th class="w-10 py-3"><x-list.select-all /></th>
                         <th class="py-3">Program</th>
                         <th class="text-right">Total</th>
                         <th class="text-right">Pass</th>
@@ -85,6 +106,7 @@
                 <tbody>
                     @forelse($programSummaries as $program)
                         <tr class="border-b">
+                            <td class="py-3"><x-list.row-checkbox :id="$program->id" /></td>
                             <td class="py-3 font-medium">{{ $program->name }} ({{ $program->code }})</td>
                             <td class="text-right">{{ $program->total }}</td>
                             <td class="text-right">{{ $program->pass_count }}</td>
@@ -96,19 +118,37 @@
                         </tr>
                     @empty
                         <tr>
-                            <td class="py-6 text-slate-500" colspan="8">No program data for the selected filters.</td>
+                            <td class="py-6 text-slate-500" colspan="9">No program data for the selected filters.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
         <div class="mt-4">{{ $programSummaries->links() }}</div>
+        </div>
 
-        <h3 class="mt-8 text-sm font-semibold text-slate-900">Subject-wise summary</h3>
+        {{-- Subject-wise summary: the same contract as above, keyed by the
+             Subject rows it summarises and posted as its OWN module, so a
+             program id and a subject id can never end up in one selection. --}}
+        <div class="panel mt-8">
+            <h3 class="text-sm font-semibold text-slate-900">Subject-wise summary</h3>
+
+            <x-list.bulk-selection-bar module="exam_report_subjects">
+                @if(auth()->user()?->hasPermission('exam_reports.view'))
+                    <button type="button" data-bulk-action="export"
+                            data-bulk-param-examination-id="{{ $examinationId }}"
+                            data-bulk-param-program-id="{{ $programId }}"
+                            class="button !py-2 !text-xs font-semibold">
+                        Export selected
+                    </button>
+                @endif
+            </x-list.bulk-selection-bar>
+
         <div class="mt-3 overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead>
                     <tr class="border-b text-slate-500">
+                        <th class="w-10 py-3"><x-list.select-all /></th>
                         <th class="py-3">Subject</th>
                         <th class="text-right">Max Marks</th>
                         <th class="text-right">Total</th>
@@ -123,6 +163,7 @@
                 <tbody>
                     @forelse($subjectSummaries as $subject)
                         <tr class="border-b">
+                            <td class="py-3"><x-list.row-checkbox :id="$subject->id" /></td>
                             <td class="py-3 font-medium">{{ $subject->name }} ({{ $subject->code }})</td>
                             <td class="text-right">{{ $subject->max_marks ?? '—' }}</td>
                             <td class="text-right">{{ $subject->total }}</td>
@@ -135,13 +176,14 @@
                         </tr>
                     @empty
                         <tr>
-                            <td class="py-6 text-slate-500" colspan="9">No subject data for the selected filters.</td>
+                            <td class="py-6 text-slate-500" colspan="10">No subject data for the selected filters.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
         <div class="mt-4">{{ $subjectSummaries->links() }}</div>
+        </div>
     @endif
 </div>
 @endsection
