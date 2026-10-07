@@ -167,20 +167,28 @@ class FinanceBulkActionTest extends TestCase
             'ids' => [$structure->id],
         ])->assertOk();
 
-        $body = $this->asCollege($college, $admin)->get($response->json('data.redirect'))->streamedContent();
+        $redirect = $response->json('data.redirect');
+        $this->assertIsString($redirect, 'The bulk endpoint must hand back a redirect to the CSV endpoint.');
 
-        // The shared CsvStreamExport prefixes every download with a UTF-8 BOM for
-        // Excel (an established, unit-tested project convention), so the header is
-        // asserted as PARSED fields after that BOM — exactly how StudentExportTest
-        // and CsvStreamExportTest read a CSV.
+        $csv = $this->asCollege($college, $admin)->get($redirect)->assertOk();
+        $this->assertStringContainsString('fee-structures-export-', (string) $csv->headers->get('Content-Disposition'));
+
+        $body = $csv->streamedContent();
+
+        // The shared CsvStreamExport leads every download with a UTF-8 BOM for
+        // Excel — the project-wide convention StudentExportTest and
+        // CsvStreamExportTest pin — and fputcsv quotes every field containing a
+        // space (Excel-safe, not a defect). The header is therefore validated as
+        // PARSED fields, with the BOM removed before str_getcsv() so it can never
+        // end up inside the first field.
         $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
-        $lines = array_values(array_filter(explode("\n", trim(substr($body, 3)))));
+        $lines = array_values(array_filter(explode("\n", trim(str_replace("\xEF\xBB\xBF", '', $body)))));
 
         // One line per configured component, exactly as the card shows them.
         $this->assertCount($structure->items()->count() + 1, $lines);
         $this->assertSame(
             ['Fee structure', 'Code', 'Academic year', 'Program', 'Term', 'Structure status', '#', 'Fee category / Name', 'Amount', 'Description', 'Component status'],
-            str_getcsv(rtrim($lines[0], "\r"))
+            str_getcsv(rtrim($lines[0], "\r"), ',', '"', '\\')
         );
 
         foreach ($structure->items as $item) {
@@ -212,7 +220,13 @@ class FinanceBulkActionTest extends TestCase
             'ids' => [$assignment->id],
         ])->assertOk();
 
-        $body = $this->asCollege($college, $admin)->get($response->json('data.redirect'))->streamedContent();
+        $redirect = $response->json('data.redirect');
+        $this->assertIsString($redirect, 'The bulk endpoint must hand back a redirect to the CSV endpoint.');
+
+        $csv = $this->asCollege($college, $admin)->get($redirect)->assertOk();
+        $this->assertStringContainsString('fee-dues-export-', (string) $csv->headers->get('Content-Disposition'));
+
+        $body = str_replace("\xEF\xBB\xBF", '', $csv->streamedContent());
 
         $this->assertStringContainsString('Outstanding', $body);
         $this->assertStringContainsString($enrollment->enrollment_number, $body);

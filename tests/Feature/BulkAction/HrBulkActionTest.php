@@ -109,7 +109,13 @@ class HrBulkActionTest extends TestCase
 
         $this->assertSame([$mine->id], $response->json('data.ids'));
 
-        $body = $this->asCollege($collegeA, $admin)->get($response->json('data.redirect'))->streamedContent();
+        $redirect = $response->json('data.redirect');
+        $this->assertIsString($redirect, 'The bulk endpoint must hand back a redirect to the CSV endpoint.');
+
+        $csv = $this->asCollege($collegeA, $admin)->get($redirect)->assertOk();
+        $this->assertStringContainsString('employees-export-', (string) $csv->headers->get('Content-Disposition'));
+
+        $body = $csv->streamedContent();
         $this->assertStringContainsString('EMP-A-100', $body);
         $this->assertStringNotContainsString('EMP-B-200', $body);
     }
@@ -189,14 +195,22 @@ class HrBulkActionTest extends TestCase
             'ids' => [$document->id],
         ])->assertOk();
 
-        $body = $this->asCollege($college, $admin)->get($response->json('data.redirect'))->streamedContent();
+        $redirect = $response->json('data.redirect');
+        $this->assertIsString($redirect, 'The bulk endpoint must hand back a redirect to the CSV endpoint.');
 
-        // The shared CsvStreamExport prefixes every download with a UTF-8 BOM for
-        // Excel (an established, unit-tested project convention), so the header is
-        // asserted as PARSED fields after that BOM — exactly how StudentExportTest
-        // and CsvStreamExportTest read a CSV.
+        $csv = $this->asCollege($college, $admin)->get($redirect)->assertOk();
+        $this->assertStringContainsString('employee-documents-export-', (string) $csv->headers->get('Content-Disposition'));
+
+        $body = $csv->streamedContent();
+
+        // The shared CsvStreamExport leads every download with a UTF-8 BOM for
+        // Excel — the project-wide convention StudentExportTest and
+        // CsvStreamExportTest pin — and fputcsv quotes every field containing a
+        // space (Excel-safe, not a defect). The header is therefore validated as
+        // PARSED fields, with the BOM removed before str_getcsv() so it can never
+        // end up inside the first field.
         $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
-        $lines = array_values(array_filter(explode("\n", trim(substr($body, 3)))));
+        $lines = array_values(array_filter(explode("\n", trim(str_replace("\xEF\xBB\xBF", '', $body)))));
 
         // Metadata the listing shows: name, employee, type, dates, file name, size.
         $this->assertStringContainsString('Employment Contract', $body);
@@ -204,7 +218,7 @@ class HrBulkActionTest extends TestCase
         $this->assertStringContainsString('EMP-DOC-BULK', $body);
         $this->assertSame(
             ['Document', 'Employee', 'Employee code', 'Type', 'Issue date', 'Expiry date', 'Validity', 'File', 'Size (KB)'],
-            str_getcsv(rtrim($lines[0], "\r"))
+            str_getcsv(rtrim($lines[0], "\r"), ',', '"', '\\')
         );
 
         // ...and never the private path, the stored file name or free-text remarks.
@@ -326,7 +340,13 @@ class HrBulkActionTest extends TestCase
             'ids' => [$payroll->id],
         ])->assertOk();
 
-        $body = $this->asCollege($college, $admin)->get($response->json('data.redirect'))->streamedContent();
+        $redirect = $response->json('data.redirect');
+        $this->assertIsString($redirect, 'The bulk endpoint must hand back a redirect to the CSV endpoint.');
+
+        $csv = $this->asCollege($college, $admin)->get($redirect)->assertOk();
+        $this->assertStringContainsString('payrolls-export-', (string) $csv->headers->get('Content-Disposition'));
+
+        $body = str_replace("\xEF\xBB\xBF", '', $csv->streamedContent());
 
         $this->assertStringContainsString('EMP-PAY-BULK', $body);
         $this->assertStringContainsString('41000', $body);
