@@ -25,8 +25,16 @@
             }
             bar.dataset.bulkInit = 'true';
 
-            // Find context table or container
-            var container = bar.closest('.panel') || document.body;
+            // Find context table or container.
+            //
+            // A list page may declare its OWN selection scope with
+            // `data-bulk-scope` (the Academic listings do exactly that: their
+            // tables live in `.card` boxes that must keep their existing markup).
+            // That explicit scope wins; otherwise the shared `.panel` convention
+            // is used, and a page with neither keeps the original
+            // whole-document behaviour — so this hook changes nothing for every
+            // list that does not opt in.
+            var container = bar.closest('[data-bulk-scope]') || bar.closest('.panel') || document.body;
             var selectAll = container.querySelector('[data-select-all]');
             var rowCheckboxes = Array.prototype.slice.call(container.querySelectorAll('[data-select-row]'));
             var countBadge = bar.querySelector('[data-selected-count]');

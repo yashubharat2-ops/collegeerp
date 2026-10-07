@@ -260,6 +260,112 @@ class AcademicBulkActionTest extends TestCase
         }
     }
 
+    /**
+     * The bulk layer is ADDITIVE: it must not restyle or restructure the
+     * Academic screens.
+     *
+     * Each page keeps the shell it had before bulk actions existed — the intro /
+     * header row, the search filter, the card (or card grid), the table class and
+     * the pagination — and gains exactly ONE selectable list: one explicit
+     * `data-bulk-scope`, one bulk toolbar and one select-all. That explicit scope
+     * is what makes the shared script resolve this page's table without wrapping
+     * it in a `.panel` it never had (the Academic cards are `.card`).
+     *
+     * The checks below are deliberately about the rendered shape rather than the
+     * Blade source, so a future change to any of the six pages that reintroduces
+     * a wrapper, a duplicate toolbar or a restyled container fails here.
+     */
+    public function test_academic_listings_preserve_their_pre_bulk_action_layout(): void
+    {
+        $college = $this->makeCollege('ACUI');
+        $user = $this->makeUserWithPermissions($college, $this->academicPermissions());
+        $this->academicContext($college, 'ACUI');
+
+        $pages = [
+            // route · original container class · original intro row class · intro text · renders a table?
+            [
+                'academic-subject-enrollments.index',
+                '<div class="card overflow-x-auto">',
+                'class="flex justify-between mb-5"',
+                'Operational subject choices by student and term.',
+                true,
+            ],
+            [
+                // Sections are CARDS, not a table: the grid and the card links stay as they were.
+                'academic-sections.index',
+                '<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">',
+                'class="mb-5 text-slate-500"',
+                'Operational view of Platform sections. Sections are not managed here.',
+                false,
+            ],
+            [
+                'academic-timetables.index',
+                '<div class="card overflow-x-auto">',
+                'class="flex justify-between mb-5"',
+                'Conflicts are checked for faculty, section and room.',
+                true,
+            ],
+            [
+                'academic-attendance.index',
+                '<div class="card overflow-x-auto">',
+                'class="mb-5 text-slate-500"',
+                'Marking and corrections are tenant-safe',
+                true,
+            ],
+            [
+                // The calendar card never had a scroll wrapper and must not gain one.
+                'academic-calendar.index',
+                '<div class="card">',
+                'class="flex justify-between mb-5"',
+                'Events are extensible and scoped to the active college.',
+                true,
+            ],
+            [
+                'academic-workload.index',
+                '<div class="card overflow-x-auto">',
+                'class="mb-5 text-slate-500"',
+                'Derived from active timetable entries',
+                true,
+            ],
+        ];
+
+        foreach ($pages as [$route, $container, $introClass, $introText, $hasTable]) {
+            $response = $this->asCollege($college, $user)->get(route($route));
+
+            $response->assertOk();
+            $response->assertSee($introText, false);
+
+            $html = $response->getContent();
+
+            // The original page shell is untouched — exactly one of each.
+            $this->assertSame(1, substr_count($html, $container), "{$route} must keep its original container markup.");
+            $this->assertSame(1, substr_count($html, $introClass), "{$route} must keep its original intro row.");
+            if ($hasTable) {
+                $this->assertSame(1, substr_count($html, 'class="table"'), "{$route} must keep the shared table styling.");
+            }
+
+            // Exactly ONE selectable list: one scope, one toolbar, one select-all.
+            $this->assertSame(1, substr_count($html, 'data-bulk-scope'), "{$route} must declare exactly one selection scope.");
+            $this->assertSame(1, substr_count($html, 'data-bulk-selection'), "{$route} must render exactly one bulk toolbar.");
+            $this->assertSame(1, substr_count($html, 'data-select-all'), "{$route} must render exactly one select-all.");
+            $this->assertStringContainsString('data-bulk-action="export"', $html);
+        }
+
+        // The subject-enrollment page keeps its search filter and header action.
+        $searchPage = $this->asCollege($college, $user)->get(route('academic-subject-enrollments.index'))->getContent();
+
+        $this->assertStringContainsString('<form class="mb-4">', $searchPage);
+        $this->assertStringContainsString('name="search"', $searchPage);
+        $this->assertStringContainsString('class="btn-primary"', $searchPage);
+
+        // The section cards stay links to the section detail screen.
+        $sectionsPage = $this->asCollege($college, $user)->get(route('academic-sections.index'))->getContent();
+
+        $this->assertStringContainsString('class="card hover:border-indigo-400"', $sectionsPage);
+        // The section checkbox must not follow the card link when it is clicked.
+        $this->assertStringContainsString('event.stopPropagation()', $sectionsPage);
+    }
+
     // ------------------------------------------------------------ export flow
 
     public function test_bulk_export_returns_an_authorized_csv_selection(): void
