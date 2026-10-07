@@ -77,7 +77,7 @@ class AcademicsUiContractTest extends TestCase
         $checked = 0;
 
         foreach (File::allFiles(resource_path('views/academics')) as $view) {
-            foreach ($this->matches('/<form\b[^>]*>.*?<\/form>/s', $view->getContents()) as $form) {
+            foreach ($this->assertMatchesPattern('/<form\b[^>]*>.*?<\/form>/s', $view->getContents()) as $form) {
                 // Filter / search forms are GET: they hold no save control.
                 if (! preg_match('/method="post"/i', $form)) {
                     continue;
@@ -88,7 +88,7 @@ class AcademicsUiContractTest extends TestCase
 
                 $this->assertStringContainsString('@csrf', $form, "{$name} must keep its CSRF token.");
 
-                $buttons = $this->matches('/<button\b[^>]*>\s*[^<]+\s*<\/button>/', $form);
+                $buttons = $this->assertMatchesPattern('/<button\b[^>]*>\s*[^<]+\s*<\/button>/', $form);
 
                 $this->assertNotEmpty(
                     $buttons,
@@ -115,7 +115,7 @@ class AcademicsUiContractTest extends TestCase
     {
         $tokens = [];
 
-        foreach ($this->matches('/class="([^"]*)"/', $blade, 1) as $attribute) {
+        foreach ($this->assertMatchesPattern('/class="([^"]*)"/', $blade, 1) as $attribute) {
             foreach (preg_split('/\s+/', trim($attribute)) ?: [] as $token) {
                 if ($token !== '') {
                     $tokens[] = $token;
@@ -127,9 +127,17 @@ class AcademicsUiContractTest extends TestCase
     }
 
     /**
+     * Every match of $pattern in $subject (the $group-th capture group).
+     *
+     * Deliberately NOT called `matches()`: PHPUnit's Assert::matches() is final,
+     * so a method with that name in a TestCase subclass is a fatal error
+     * ("Cannot override final method PHPUnit\Framework\Assert::matches()") and it
+     * breaks the whole suite, not just this file. The name used here is absent
+     * from the whole Assert + TestCase API.
+     *
      * @return array<int, string>
      */
-    private function matches(string $pattern, string $subject, int $group = 0): array
+    private function assertMatchesPattern(string $pattern, string $subject, int $group = 0): array
     {
         preg_match_all($pattern, $subject, $found);
 
