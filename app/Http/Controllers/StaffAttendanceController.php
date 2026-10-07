@@ -12,6 +12,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StaffAttendanceController extends Controller
 {
@@ -36,6 +40,45 @@ class StaffAttendanceController extends Controller
             'statuses' => StaffAttendance::STATUSES,
             'filters' => $filters,
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Staff Attendance list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped, re-queried
+     * inside the active college through the model's college scope) and
+     * `staff_attendance.view` is re-checked here. Read-only: correcting a day's
+     * attendance stays a single-record workflow with its own controller action
+     * and audit trail.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', StaffAttendance::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $attendances = StaffAttendance::query()
+            ->with('employee')
+            ->whereIn('staff_attendances.id', $ids)
+            ->orderBy('staff_attendances.id')
+            ->get();
+
+        $rows = $attendances->map(fn (StaffAttendance $attendance): array => [
+            $attendance->attendance_date?->format('Y-m-d'),
+            $attendance->employee?->full_name,
+            $attendance->employee?->employee_code,
+            $attendance->status,
+            $attendance->remarks,
+        ]);
+
+        $audit->record('staff_attendance.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $attendances->count(),
+        ]);
+
+        return CsvStreamExport::make('staff-attendance-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Date', 'Employee', 'Employee code', 'Status', 'Remarks'])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

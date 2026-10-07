@@ -11,6 +11,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PayrollController extends Controller
 {
@@ -27,6 +31,50 @@ class PayrollController extends Controller
         if ($filters['pay_period'] ?? null) $query->whereDate('pay_period', $filters['pay_period'].'-01');
         if ($filters['status'] ?? null) $query->where('status', $filters['status']);
         return view('payrolls.index', ['payrolls' => $query->paginate(20)->withQueryString(), 'employees' => $this->employees(), 'statuses' => Payroll::STATUSES, 'filters' => $filters]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Staff Salary / Payroll list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped, re-queried
+     * inside the active college through the model's college scope) and
+     * `payrolls.view` is re-checked here. The figures are the stored server-side
+     * snapshot PayrollService produced — the export never recalculates them — and
+     * running or cancelling a payroll stays a single-record action, so no salary
+     * can change from a checkbox.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', Payroll::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $payrolls = Payroll::query()
+            ->with('employee')
+            ->whereIn('payrolls.id', $ids)
+            ->orderBy('payrolls.id')
+            ->get();
+
+        $rows = $payrolls->map(fn (Payroll $payroll): array => [
+            $payroll->pay_period?->format('Y-m'),
+            $payroll->employee?->full_name,
+            $payroll->employee?->employee_code,
+            $payroll->gross_amount,
+            $payroll->total_deductions,
+            $payroll->net_amount,
+            $payroll->status,
+        ]);
+
+        $audit->record('payrolls.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $payrolls->count(),
+        ]);
+
+        return CsvStreamExport::make('payrolls-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Pay period', 'Employee', 'Employee code', 'Gross', 'Deductions', 'Net', 'Status',
+            ])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

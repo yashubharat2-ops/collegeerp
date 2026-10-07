@@ -11,6 +11,9 @@ use App\Services\Audit\AuditLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Platform Faculty/Staff and HR Employee management share this controller and
@@ -100,6 +103,53 @@ class FacultyController extends Controller
             'employmentTypes' => Faculty::EMPLOYMENT_TYPES,
             'isHr' => $this->isHrRoute(),
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Staff / Employee list.
+     *
+     * The HR screen lists the shared Platform Faculty/Staff records (one employee
+     * record per college across Academic and HR), so ids are treated as a request,
+     * never as data (normalised, capped, re-queried inside the active college
+     * through the model's college scope) and `faculties.view` is re-checked here.
+     * The CSV carries the columns the listing shows — never a government id, bank
+     * or credential field — and nothing is written: employee status and pay
+     * details are changed through their own screens.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', Faculty::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $faculties = Faculty::query()
+            ->with(['department', 'designationMaster'])
+            ->whereIn('faculties.id', $ids)
+            ->orderBy('faculties.id')
+            ->get();
+
+        $rows = $faculties->map(fn (Faculty $faculty): array => [
+            $faculty->full_name,
+            $faculty->employee_code,
+            $faculty->department?->name ?? 'College level',
+            $faculty->displayDesignation() ?? '',
+            $faculty->employment_type ? ucwords(str_replace('_', ' ', $faculty->employment_type)) : '',
+            $faculty->email,
+            $faculty->phone,
+            $faculty->status,
+        ]);
+
+        $audit->record('employees.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $faculties->count(),
+        ]);
+
+        return CsvStreamExport::make('employees-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Name', 'Employee code', 'Department', 'Designation', 'Employment type',
+                'Email', 'Phone', 'Status',
+            ])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

@@ -209,25 +209,35 @@ Route::middleware('auth')->group(function () {
         Route::resource('subjects', SubjectController::class)->except('show');
         // HR / Staff Management reuses the existing Platform Faculty/Staff and
         // Department records. These aliases do not create duplicate masters.
+        Route::get('employees/export', [EmployeeController::class, 'export'])->name('employees.export');
         Route::resource('employees', EmployeeController::class);
         Route::resource('staff', EmployeeController::class);
         Route::resource('faculties', FacultyController::class)->except('show');
         Route::get('faculties/{faculty}', [FacultyController::class, 'show'])->name('faculties.show');
+        Route::get('staff-departments/export', [DepartmentController::class, 'export'])->name('staff-departments.export');
         Route::resource('staff-departments', DepartmentController::class)->except('show');
+        Route::get('designations/export', [DesignationController::class, 'export'])->name('designations.export');
         Route::resource('designations', DesignationController::class);
         Route::get('employee-documents/{employee_document}/download', [EmployeeDocumentController::class, 'download'])->name('employee-documents.download');
+        Route::get('employee-documents/export', [EmployeeDocumentController::class, 'export'])->name('employee-documents.export');
         Route::resource('employee-documents', EmployeeDocumentController::class);
 
         // HR Phase 1 additions: tenant-scoped operational records and live reports.
+        Route::get('staff-attendance/export', [StaffAttendanceController::class, 'export'])->name('staff-attendance.export');
         Route::resource('staff-attendance', StaffAttendanceController::class)->except('show');
+        Route::get('leave-types/export', [LeaveTypeController::class, 'export'])->name('leave-types.export');
         Route::resource('leave-types', LeaveTypeController::class)->except('show');
         Route::post('leave-requests/{leave_request}/approve', [LeaveRequestController::class, 'approve'])->name('leave-requests.approve');
         Route::post('leave-requests/{leave_request}/reject', [LeaveRequestController::class, 'reject'])->name('leave-requests.reject');
         Route::post('leave-requests/{leave_request}/cancel', [LeaveRequestController::class, 'cancel'])->name('leave-requests.cancel');
+        Route::get('leave-requests/export', [LeaveRequestController::class, 'export'])->name('leave-requests.export');
         Route::resource('leave-requests', LeaveRequestController::class)->except('show');
+        Route::get('salary-structures/export', [SalaryStructureController::class, 'export'])->name('salary-structures.export');
         Route::resource('salary-structures', SalaryStructureController::class);
+        Route::get('salary-components/export', [SalaryComponentController::class, 'export'])->name('salary-components.export');
         Route::resource('salary-components', SalaryComponentController::class)->except('show');
         Route::post('payrolls/{payroll}/cancel', [PayrollController::class, 'cancel'])->name('payrolls.cancel');
+        Route::get('payrolls/export', [PayrollController::class, 'export'])->name('payrolls.export');
         Route::resource('payrolls', PayrollController::class)->only(['index', 'create', 'store', 'show']);
 
         Route::resource('faculty-subject-assignments', FacultySubjectAssignmentController::class)->except('show');
@@ -440,36 +450,44 @@ Route::middleware('auth')->group(function () {
 
         // Finance / Fees — Fee Structure foundation (structure definitions only;
         // no money moves here).
+        Route::get('fee-structures/export', [FeeStructureController::class, 'export'])->name('fee-structures.export');
         Route::resource('fee-structures', FeeStructureController::class)->except('show');
 
         // Finance / Fees — Fee Categories: the classification of fee heads.
+        Route::get('fee-categories/export', [FeeCategoryController::class, 'export'])->name('fee-categories.export');
         Route::resource('fee-categories', FeeCategoryController::class)->except('show');
 
         // Finance / Fees — Student Fee Assignment: an existing fee structure
         // assigned to an existing student enrollment.
+        Route::get('student-fee-assignments/export', [StudentFeeAssignmentController::class, 'export'])->name('student-fee-assignments.export');
         Route::resource('student-fee-assignments', StudentFeeAssignmentController::class)->except('show');
 
         // Finance / Fees — Fee Collection: the only screen that moves money in.
         Route::post('fee-collections/{fee_collection}/cancel', [FeePaymentController::class, 'cancel'])->name('fee-collections.cancel');
+        Route::get('fee-collections/export', [FeePaymentController::class, 'export'])->name('fee-collections.export');
         Route::resource('fee-collections', FeePaymentController::class)->except('show');
 
         // Finance / Fees — Receipts: derived from successful collections, so
         // read-only (no create/update/delete routes exist).
         Route::get('receipts', [FeeReceiptController::class, 'index'])->name('receipts.index');
+        Route::get('receipts/export', [FeeReceiptController::class, 'export'])->name('receipts.export');
         Route::get('receipts/{fee_payment}/print', [FeeReceiptController::class, 'print'])->name('receipts.print');
         Route::get('receipts/{fee_payment}', [FeeReceiptController::class, 'show'])->name('receipts.show');
 
         // Finance / Fees — Due / Outstanding Fees: derived ledger, read-only.
+        Route::get('fee-dues/export', [FeeDueController::class, 'export'])->name('fee-dues.export');
         Route::get('fee-dues', [FeeDueController::class, 'index'])->name('fee-dues.index');
 
         // Finance / Fees — Fee Discounts / Concessions.
         Route::post('fee-concessions/{fee_concession}/approve', [FeeConcessionController::class, 'approve'])->name('fee-concessions.approve');
+        Route::get('fee-concessions/export', [FeeConcessionController::class, 'export'])->name('fee-concessions.export');
         Route::resource('fee-concessions', FeeConcessionController::class)->except('show');
 
         // Finance / Fees — Refunds against actual collections. No delete route:
         // refund records are never removed.
         Route::post('refunds/{refund}/approve', [FeeRefundController::class, 'approve'])->name('refunds.approve');
         Route::post('refunds/{refund}/process', [FeeRefundController::class, 'process'])->name('refunds.process');
+        Route::get('refunds/export', [FeeRefundController::class, 'export'])->name('refunds.export');
         Route::resource('refunds', FeeRefundController::class)->except(['show', 'destroy']);
 
         // Finance / Fees — Fee Reports: read-only aggregation of the records above.

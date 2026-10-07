@@ -14,6 +14,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LeaveRequestController extends Controller
 {
@@ -37,6 +41,51 @@ class LeaveRequestController extends Controller
         if ($filters['from'] ?? null) $query->whereDate('to_date', '>=', $filters['from']);
         if ($filters['to'] ?? null) $query->whereDate('from_date', '<=', $filters['to']);
         return view('leave_requests.index', ['requests' => $query->paginate(20)->withQueryString(), 'employees' => $this->employees(), 'statuses' => LeaveRequest::STATUSES, 'filters' => $filters]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Leave Management list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped, re-queried
+     * inside the active college through the model's college scope) and
+     * `leave_requests.view` is re-checked here. Read-only: approving, rejecting
+     * and cancelling leave change an employee's balance under the overlap rule
+     * enforced by LeaveRequestService, so they stay single-record decisions.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', LeaveRequest::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $requests = LeaveRequest::query()
+            ->with(['employee', 'leaveType'])
+            ->whereIn('leave_requests.id', $ids)
+            ->orderBy('leave_requests.id')
+            ->get();
+
+        $rows = $requests->map(fn (LeaveRequest $leaveRequest): array => [
+            $leaveRequest->employee?->full_name,
+            $leaveRequest->employee?->employee_code,
+            $leaveRequest->leaveType?->name,
+            $leaveRequest->from_date?->format('Y-m-d'),
+            $leaveRequest->to_date?->format('Y-m-d'),
+            $leaveRequest->days,
+            $leaveRequest->status,
+            $leaveRequest->reason,
+        ]);
+
+        $audit->record('leave_requests.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $requests->count(),
+        ]);
+
+        return CsvStreamExport::make('leave-requests-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Employee', 'Employee code', 'Leave type', 'From', 'To', 'Days',
+                'Status', 'Reason',
+            ])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

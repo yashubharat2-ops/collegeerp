@@ -16,6 +16,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 
 class EmployeeDocumentController extends Controller
 {
@@ -56,6 +58,55 @@ class EmployeeDocumentController extends Controller
             'document_type' => $request->input('document_type'),
             'employees' => $this->employeeOptions(),
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection of employee-document METADATA.
+     *
+     * Ids are treated as a request, never as data (normalised, capped, re-queried
+     * inside the active college through the model's college scope) and
+     * `employee_documents.view` is re-checked here.
+     *
+     * Only the columns the listing shows are exported: the private server path
+     * (`file_path`) and any free-text remarks are never queried, so a document
+     * path or a typed-in identity number cannot leak into a download. The file
+     * itself is still served exclusively by the authorized download route.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', EmployeeDocument::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $documents = EmployeeDocument::query()
+            ->with(['employee', 'documentTypeMaster'])
+            ->whereIn('employee_documents.id', $ids)
+            ->orderBy('employee_documents.id')
+            ->get();
+
+        $rows = $documents->map(fn (EmployeeDocument $document): array => [
+            $document->document_name,
+            $document->employee?->full_name,
+            $document->employee?->employee_code,
+            $document->document_type ?: $document->documentTypeMaster?->name,
+            $document->issue_date?->format('Y-m-d'),
+            $document->expiry_date?->format('Y-m-d'),
+            $document->expiry_date === null ? 'No expiry' : ($document->isExpired() ? 'Expired' : 'Valid'),
+            $document->original_filename,
+            $document->sizeInKb(),
+        ]);
+
+        $audit->record('employee_documents.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $documents->count(),
+        ]);
+
+        return CsvStreamExport::make('employee-documents-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Document', 'Employee', 'Employee code', 'Type', 'Issue date',
+                'Expiry date', 'Validity', 'File', 'Size (KB)',
+            ])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

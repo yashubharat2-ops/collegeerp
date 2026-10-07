@@ -3,7 +3,7 @@
 @section('title', 'Fee Structures')
 
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Fee Structures</h2>
@@ -61,12 +61,32 @@
             </div>
         </div>
     </form>
+    {{-- Bulk selection over the filtered fee structures. Export only: a structure
+         and its components are validated as one plan by FeeStructureService, so
+         plans are edited one at a time. The shared handler re-queries every
+         ticked id inside the active college and re-authorizes each structure
+         through FeeStructurePolicy before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="fee_structures">
+        @if(auth()->user()?->hasPermission('fee_structures.view'))
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export selected
+            </button>
+        @endif
+    </x-list.bulk-selection-bar>
+
+    <div class="mb-4 mt-2 flex items-center gap-2 text-xs text-slate-500">
+        <x-list.select-all id="fee-structures-select-all" />
+        <label for="fee-structures-select-all" class="cursor-pointer">Select all fee structures on this page</label>
+    </div>
 
     <div class="mt-6 space-y-4">
         @forelse($structures as $structure)
             <div class="rounded-2xl border border-slate-200 p-5">
                 <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+                    <div class="flex items-start gap-3">
+                        <span class="mt-1"><x-list.row-checkbox :id="$structure->id" /></span>
+                        <div>
                         <p class="text-base font-semibold text-slate-900">
                             {{ $structure->name }} <span class="text-sm font-normal text-slate-500">({{ $structure->code }})</span>
                         </p>
@@ -76,6 +96,7 @@
                             {{ $structure->academicTerm?->name ?? 'Whole academic year' }}
                         </p>
                         <p class="mt-1 text-xs text-slate-500">{{ $structure->description }}</p>
+                        </div>
                     </div>
                     <div class="flex items-center gap-2">
                         <span class="rounded-full px-3 py-1 text-xs font-semibold {{ $structure->status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">{{ ucfirst($structure->status) }}</span>

@@ -15,6 +15,10 @@ use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Fee Structure (Finance / Fees foundation).
@@ -72,6 +76,72 @@ class FeeStructureController extends Controller
             'academic_term_id' => $request->input('academic_term_id'),
             'status' => $request->input('status'),
         ]));
+    }
+
+    /**
+     * CSV export of a bulk selection from the Fee Structures list.
+     *
+     * The same contract as every other list export: `ids` is a request, never
+     * data — the values are normalised and capped by ListSelection, re-queried
+     * inside the active college through the model's own college scope, and the
+     * user is re-authorized for the module before a single row is written.
+     *
+     * One line per configured component, exactly as the card shows them (a
+     * structure without components exports one summary line). Nothing is
+     * recalculated and nothing is written: fee structures are edited through
+     * their own screen, one plan at a time.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', FeeStructure::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $structures = FeeStructure::query()
+            ->with([
+                'academicYear', 'program', 'academicTerm',
+                'items' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
+            ])
+            ->whereIn('fee_structures.id', $ids)
+            ->orderBy('fee_structures.id')
+            ->get();
+
+        $rows = $structures->flatMap(function (FeeStructure $structure) {
+            $head = [
+                $structure->name,
+                $structure->code,
+                $structure->academicYear?->name,
+                $structure->program?->name,
+                $structure->academicTerm?->name ?? 'Whole academic year',
+                $structure->status,
+            ];
+
+            if ($structure->items->isEmpty()) {
+                return [array_merge($head, [null, null, null, null, null])];
+            }
+
+            return $structure->items
+                ->map(fn ($item): array => array_merge($head, [
+                    $item->sort_order,
+                    $item->name,
+                    $item->amount,
+                    $item->description,
+                    $item->status,
+                ]))
+                ->all();
+        });
+
+        $audit->record('fee_structures.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $structures->count(),
+        ]);
+
+        return CsvStreamExport::make('fee-structures-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Fee structure', 'Code', 'Academic year', 'Program', 'Term', 'Structure status',
+                '#', 'Fee category / Name', 'Amount', 'Description', 'Component status',
+            ])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

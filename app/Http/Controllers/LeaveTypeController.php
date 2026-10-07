@@ -10,6 +10,9 @@ use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LeaveTypeController extends Controller
 {
@@ -22,6 +25,45 @@ class LeaveTypeController extends Controller
         if ($request->filled('search')) $query->where(fn ($q) => $q->where('name', 'like', '%'.$request->input('search').'%')->orWhere('code', 'like', '%'.$request->input('search').'%'));
         if (in_array($request->input('status'), LeaveType::STATUSES, true)) $query->where('status', $request->input('status'));
         return view('leave_types.index', ['leaveTypes' => $query->paginate(20)->withQueryString(), 'filters' => $request->only(['search', 'status']), 'statuses' => LeaveType::STATUSES]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Leave Types list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped, re-queried
+     * inside the active college through the model's college scope) and
+     * `leave_types.view` is re-checked here. The request count is the same live
+     * count the listing shows and nothing is written.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', LeaveType::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $leaveTypes = LeaveType::query()
+            ->withCount('requests')
+            ->whereIn('leave_types.id', $ids)
+            ->orderBy('leave_types.id')
+            ->get();
+
+        $rows = $leaveTypes->map(fn (LeaveType $type): array => [
+            $type->name,
+            $type->code,
+            $type->max_days_per_year,
+            $type->requests_count,
+            $type->status,
+            $type->description,
+        ]);
+
+        $audit->record('leave_types.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $leaveTypes->count(),
+        ]);
+
+        return CsvStreamExport::make('leave-types-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Name', 'Code', 'Max days / year', 'Requests', 'Status', 'Description'])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View { $this->authorize('create', LeaveType::class); return view('leave_types.create', ['statuses' => LeaveType::STATUSES]); }

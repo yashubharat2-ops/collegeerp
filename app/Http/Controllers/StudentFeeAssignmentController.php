@@ -13,6 +13,10 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Student Fee Assignment (Finance / Fees).
@@ -76,6 +80,59 @@ class StudentFeeAssignmentController extends Controller
                 'status' => $request->input('status'),
             ],
         ]));
+    }
+
+    /**
+     * CSV export of a bulk selection from the Student Fee Assignments list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped, re-queried
+     * inside the active college through the model's college scope) and the module
+     * permission is re-checked here. The money columns come from the same
+     * FeeDuesService ledger the listing uses — the export never adds up a balance
+     * of its own — and nothing is written: assignments are changed one at a time.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', StudentFeeAssignment::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $assignments = StudentFeeAssignment::query()
+            ->with(['studentEnrollment.student', 'studentEnrollment.academicYear', 'studentEnrollment.program', 'feeStructure'])
+            ->whereIn('student_fee_assignments.id', $ids)
+            ->orderBy('student_fee_assignments.id')
+            ->get();
+
+        $ledger = $this->dues->ledgerFor($assignments);
+
+        $rows = $assignments->map(function (StudentFeeAssignment $assignment) use ($ledger): array {
+            $summary = $ledger[$assignment->getKey()] ?? [];
+
+            return [
+                $assignment->studentEnrollment?->student?->fullName(),
+                $assignment->studentEnrollment?->enrollment_number,
+                $assignment->studentEnrollment?->academicYear?->name,
+                $assignment->studentEnrollment?->program?->code,
+                $assignment->feeStructure?->name,
+                $assignment->assigned_amount,
+                $summary['concession'] ?? 0,
+                $summary['net_collected'] ?? 0,
+                $summary['outstanding'] ?? 0,
+                $assignment->status,
+            ];
+        });
+
+        $audit->record('student_fee_assignments.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $assignments->count(),
+        ]);
+
+        return CsvStreamExport::make('student-fee-assignments-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Student', 'Enrollment', 'Year', 'Program', 'Fee structure',
+                'Assigned', 'Concession', 'Collected', 'Outstanding', 'Status',
+            ])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

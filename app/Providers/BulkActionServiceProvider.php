@@ -23,6 +23,24 @@ use App\Domain\Examination\BulkActions\GradeScaleBulkExportHandler;
 use App\Domain\Examination\BulkActions\MarksheetBulkExportHandler;
 use App\Domain\Examination\BulkActions\ResultCalculationBulkExportHandler;
 use App\Domain\Examination\BulkActions\ResultPublishingBulkExportHandler;
+use App\Domain\Finance\BulkActions\FeeCategoryBulkExportHandler;
+use App\Domain\Finance\BulkActions\FeeCollectionBulkExportHandler;
+use App\Domain\Finance\BulkActions\FeeConcessionBulkExportHandler;
+use App\Domain\Finance\BulkActions\FeeDueBulkExportHandler;
+use App\Domain\Finance\BulkActions\FeeStructureBulkExportHandler;
+use App\Domain\Finance\BulkActions\ReceiptBulkExportHandler;
+use App\Domain\Finance\BulkActions\RefundBulkExportHandler;
+use App\Domain\Finance\BulkActions\StudentFeeAssignmentBulkExportHandler;
+use App\Domain\HR\BulkActions\DesignationBulkExportHandler;
+use App\Domain\HR\BulkActions\EmployeeDocumentBulkExportHandler;
+use App\Domain\HR\BulkActions\LeaveRequestBulkExportHandler;
+use App\Domain\HR\BulkActions\LeaveTypeBulkExportHandler;
+use App\Domain\HR\BulkActions\PayrollBulkExportHandler;
+use App\Domain\HR\BulkActions\SalaryComponentBulkExportHandler;
+use App\Domain\HR\BulkActions\SalaryStructureBulkExportHandler;
+use App\Domain\HR\BulkActions\StaffAttendanceBulkExportHandler;
+use App\Domain\HR\BulkActions\StaffDepartmentBulkExportHandler;
+use App\Domain\HR\BulkActions\StaffEmployeeBulkExportHandler;
 use App\Domain\Student\BulkActions\EnrollmentBulkExportHandler;
 use App\Domain\Student\BulkActions\EnrollmentBulkStatusHandler;
 use App\Domain\Student\BulkActions\StudentBulkDocumentHandler;
@@ -114,5 +132,42 @@ class BulkActionServiceProvider extends ServiceProvider
             // program ids and subject ids can never be mixed in one selection.
             ->register('exam_reports', 'export', ExamReportProgramBulkExportHandler::class)
             ->register('exam_report_subjects', 'export', ExamReportSubjectBulkExportHandler::class);
+
+        // Finance / Fees — every scrollable Finance listing registers exactly one
+        // read-only handler. Money must never be moved from a checkbox: collecting
+        // a fee, issuing/cancelling a receipt, approving a refund or a concession,
+        // re-assigning a fee plan and modifying a ledger all stay single-record
+        // workflows with their own controller actions, services, policies and audit
+        // trails. Each handler re-queries the ticked ids inside the active college
+        // and re-authorizes every record through its own policy before the CSV
+        // endpoint streams; receipts and dues (derived from collections and
+        // assignments) re-authorize the underlying record.
+        $registry
+            ->register('fee_structures', 'export', FeeStructureBulkExportHandler::class)
+            ->register('fee_categories', 'export', FeeCategoryBulkExportHandler::class)
+            ->register('student_fee_assignments', 'export', StudentFeeAssignmentBulkExportHandler::class)
+            ->register('fee_collections', 'export', FeeCollectionBulkExportHandler::class)
+            ->register('receipts', 'export', ReceiptBulkExportHandler::class)
+            ->register('fee_dues', 'export', FeeDueBulkExportHandler::class)
+            ->register('fee_concessions', 'export', FeeConcessionBulkExportHandler::class)
+            ->register('refunds', 'export', RefundBulkExportHandler::class);
+
+        // Human Resource (HR) — staff, masters, documents, attendance, leave and
+        // salary / payroll. As in Finance, the whole family is export-only: pay
+        // figures, payroll runs, attendance corrections, leave decisions and
+        // employee status are produced by their existing services, never by a bulk
+        // selection. The employee-document CSV is metadata only — the private file
+        // path is never queried, so it cannot leak into a download.
+        $registry
+            ->register('staff_employees', 'export', StaffEmployeeBulkExportHandler::class)
+            ->register('staff_departments', 'export', StaffDepartmentBulkExportHandler::class)
+            ->register('designations', 'export', DesignationBulkExportHandler::class)
+            ->register('employee_documents', 'export', EmployeeDocumentBulkExportHandler::class)
+            ->register('staff_attendance', 'export', StaffAttendanceBulkExportHandler::class)
+            ->register('leave_requests', 'export', LeaveRequestBulkExportHandler::class)
+            ->register('leave_types', 'export', LeaveTypeBulkExportHandler::class)
+            ->register('salary_structures', 'export', SalaryStructureBulkExportHandler::class)
+            ->register('salary_components', 'export', SalaryComponentBulkExportHandler::class)
+            ->register('payrolls', 'export', PayrollBulkExportHandler::class);
     }
 }

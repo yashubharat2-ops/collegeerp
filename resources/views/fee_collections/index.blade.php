@@ -3,7 +3,7 @@
 @section('title', 'Fee Collection')
 
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Fee Collection</h2>
@@ -81,12 +81,24 @@
             <a class="button !bg-slate-200 !text-slate-700" href="{{ route('fee-collections.index') }}">Reset</a>
         </div>
     </form>
+    {{-- Bulk selection over the filtered fee collections list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="fee_collections">
+        @if(auth()->user()?->hasPermission('fee_collections.view'))
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export selected
+            </button>
+        @endif
+    </x-list.bulk-selection-bar>
 
     <div class="mt-6 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
                     <th class="py-2">Payment No</th>
+                    <th class="w-10 py-2"><x-list.select-all /></th>
                     <th>Date</th>
                     <th>Student</th>
                     <th>Program</th>
@@ -101,6 +113,7 @@
                 @forelse($payments as $payment)
                     <tr class="border-b">
                         <td class="py-2 font-medium">{{ $payment->payment_number }}</td>
+                        <td class="py-2"><x-list.row-checkbox :id="$payment->id" /></td>
                         <td>{{ $payment->payment_date?->format('Y-m-d') }}</td>
                         <td>{{ $payment->studentEnrollment?->student?->fullName() ?? '—' }}</td>
                         <td>{{ $payment->studentEnrollment?->program?->code ?? '—' }}</td>
@@ -138,7 +151,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-4 text-slate-500" colspan="9">No collections recorded for this selection.</td></tr>
+                    <tr><td class="py-4 text-slate-500" colspan="10">No collections recorded for this selection.</td></tr>
                 @endforelse
             </tbody>
         </table>

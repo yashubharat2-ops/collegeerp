@@ -13,6 +13,10 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Fee Discounts / Concessions (Finance / Fees).
@@ -62,6 +66,62 @@ class FeeConcessionController extends Controller
                 'type' => $request->input('type'),
             ],
         ]));
+    }
+
+    /**
+     * CSV export of a bulk selection from the Concessions / Discounts list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped, re-queried
+     * inside the active college through the model's college scope) and the module
+     * permission is re-checked here. Read-only: approving a concession changes
+     * what a student owes, so it keeps its own permitted action, its own service
+     * rules and its own audit trail.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', FeeConcession::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $concessions = FeeConcession::query()
+            ->with([
+                'studentFeeAssignment.studentEnrollment.student',
+                'studentFeeAssignment.studentEnrollment.program',
+                'studentFeeAssignment.feeStructure',
+                'approver',
+            ])
+            ->whereIn('fee_concessions.id', $ids)
+            ->orderBy('fee_concessions.id')
+            ->get();
+
+        $rows = $concessions->map(function (FeeConcession $concession): array {
+            $assignment = $concession->studentFeeAssignment;
+
+            return [
+                $assignment?->studentEnrollment?->student?->fullName(),
+                $assignment?->studentEnrollment?->enrollment_number,
+                $assignment?->feeStructure?->name,
+                $concession->type,
+                $concession->value,
+                $concession->amount,
+                $concession->reason,
+                $concession->status,
+                $concession->approved_at?->format('Y-m-d'),
+                $concession->approver?->name,
+            ];
+        });
+
+        $audit->record('fee_concessions.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $concessions->count(),
+        ]);
+
+        return CsvStreamExport::make('fee-concessions-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Student', 'Enrollment', 'Fee structure', 'Type', 'Value', 'Amount',
+                'Reason', 'Status', 'Approved at', 'Approved by',
+            ])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View
