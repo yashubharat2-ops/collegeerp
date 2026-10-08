@@ -3,7 +3,7 @@
 @section('title', 'Asset Assignment')
 
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Asset Assignment</h2>
@@ -45,10 +45,18 @@
         </div>
     </form>
 
+    {{-- Bulk selection over the filtered asset-assignments list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="inventory_assignments">
+        @if(auth()->user()?->hasPermission('inventory_assignments.view'))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-6 overflow-x-auto">
         <table class="w-full min-w-[64rem] text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-2"><x-list.select-all /></th>
                     <th class="py-2">Asset</th>
                     <th>Serial</th>
                     <th>Assignee</th>
@@ -62,6 +70,7 @@
             <tbody>
                 @forelse($assignments as $assignment)
                     <tr class="border-b">
+                        <td class="py-2"><x-list.row-checkbox :id="$assignment->id" /></td>
                         <td class="font-medium">
                             {{ $assignment->item?->name ?? '—' }}
                             <span class="ml-1 font-mono text-xs text-slate-500">{{ $assignment->item?->code }}</span>
@@ -92,7 +101,7 @@
                         <td class="text-slate-600">{{ $assignment->creator?->name ?? '—' }}</td>
                     </tr>
                 @empty
-                    <tr><td class="py-4 text-slate-500" colspan="8">No assignments recorded yet for this college.</td></tr>
+                    <tr><td class="py-4 text-slate-500" colspan="9">No assignments recorded yet for this college.</td></tr>
                 @endforelse
             </tbody>
         </table>

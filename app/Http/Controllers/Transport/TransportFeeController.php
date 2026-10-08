@@ -9,9 +9,13 @@ use App\Http\Requests\Transport\CollectTransportFeeRequest;
 use App\Http\Requests\Transport\StoreStudentTransportFeeAssignmentRequest;
 use App\Http\Requests\Transport\UpdateStudentTransportFeeAssignmentRequest;
 use App\Models\{AcademicYear, FeePayment, StudentTransportAssignment, StudentTransportFeeAssignment, TransportFeeStructure, TransportRoute};
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\{RedirectResponse, Request};
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Transport Fees (Transport Phase 2) — student transport fee assignments.
@@ -66,6 +70,69 @@ class TransportFeeController extends Controller
                 'status' => $request->input('status'),
             ],
         ]));
+    }
+
+    /**
+     * CSV export of a bulk selection from the Transport Fees list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `transport_fees.view` is re-checked here. Collected / outstanding
+     * are the same LIVE ledger figures the listing derives from the existing
+     * Finance fee_payments rows; amounts are exported as stored, never
+     * recalculated. An export never collects, cancels or re-assigns a fee.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', StudentTransportFeeAssignment::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $feeAssignments = StudentTransportFeeAssignment::query()
+            ->with([
+                'studentTransportAssignment.studentEnrollment.student:id,first_name,middle_name,last_name,student_number',
+                'studentTransportAssignment:id,student_enrollment_id,transport_route_id,transport_stop_id',
+                'studentTransportAssignment.transportRoute:id,name,code',
+                'studentTransportAssignment.transportStop:id,name,code',
+                'transportFeeStructure:id,name,code',
+                'academicYear:id,name',
+            ])
+            ->whereIn('student_transport_fee_assignments.id', $ids)
+            ->orderByDesc('student_transport_fee_assignments.id')
+            ->get();
+
+        $ledger = $this->fees->ledgerFor($feeAssignments);
+
+        $rows = $feeAssignments->map(function (StudentTransportFeeAssignment $feeAssignment) use ($ledger): array {
+            $summary = $ledger[$feeAssignment->getKey()] ?? null;
+
+            return [
+                $feeAssignment->studentTransportAssignment?->studentEnrollment?->student?->student_number,
+                trim(implode(' ', array_filter([
+                    $feeAssignment->studentTransportAssignment?->studentEnrollment?->student?->first_name,
+                    $feeAssignment->studentTransportAssignment?->studentEnrollment?->student?->last_name,
+                ]))),
+                $feeAssignment->studentTransportAssignment?->transportRoute?->name,
+                $feeAssignment->studentTransportAssignment?->transportStop?->name,
+                $feeAssignment->transportFeeStructure?->name,
+                $feeAssignment->academicYear?->name,
+                $feeAssignment->effective_from?->format('Y-m-d'),
+                $feeAssignment->effective_until?->format('Y-m-d'),
+                $feeAssignment->amount,
+                number_format((float) ($summary['net_collected'] ?? 0), 2, '.', ''),
+                number_format((float) ($summary['outstanding'] ?? 0), 2, '.', ''),
+                $feeAssignment->status,
+            ];
+        });
+
+        $audit->record('transport_fees.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $feeAssignments->count(),
+        ]);
+
+        return CsvStreamExport::make('transport-fees-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Student number', 'Student', 'Route', 'Stop', 'Structure', 'Academic year', 'Effective from', 'Effective until', 'Amount', 'Collected', 'Outstanding', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

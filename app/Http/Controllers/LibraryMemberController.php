@@ -7,10 +7,14 @@ use App\Domain\Library\Support\LibraryFormOptions;
 use App\Http\Requests\LibraryMember\StoreLibraryMemberRequest;
 use App\Http\Requests\LibraryMember\UpdateLibraryMemberRequest;
 use App\Models\LibraryMember;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Library Members (Library Management).
@@ -60,6 +64,50 @@ class LibraryMemberController extends Controller
             'status' => $request->input('status'),
             'statuses' => LibraryMember::STATUSES,
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Library Members list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `library_members.view` is re-checked here. The columns are the ones
+     * the listing shows — no identity number is stored on the membership, and
+     * none is exported. Nothing is written.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', LibraryMember::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $members = LibraryMember::query()
+            ->with(['studentEnrollment.student', 'studentEnrollment.academicYear', 'studentEnrollment.program'])
+            ->whereIn('library_members.id', $ids)
+            ->orderBy('library_members.member_code')
+            ->orderBy('library_members.id')
+            ->get();
+
+        $rows = $members->map(fn (LibraryMember $member): array => [
+            $member->member_code,
+            $member->studentName(),
+            $member->studentEnrollment?->student?->student_number,
+            $member->studentEnrollment?->enrollment_number,
+            $member->studentEnrollment?->academicYear?->name,
+            $member->studentEnrollment?->program?->name,
+            $member->membership_date?->format('Y-m-d'),
+            $member->expiry_date?->format('Y-m-d'),
+            $member->status,
+        ]);
+
+        $audit->record('library_members.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $members->count(),
+        ]);
+
+        return CsvStreamExport::make('library-members-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Member code', 'Student', 'Student number', 'Enrollment', 'Academic year', 'Program', 'Membership date', 'Expiry date', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

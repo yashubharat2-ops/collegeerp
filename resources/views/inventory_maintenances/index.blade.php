@@ -3,7 +3,7 @@
 @section('title', 'Asset Maintenance')
 
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Asset Maintenance</h2>
@@ -47,10 +47,18 @@
         </div>
     </form>
 
+    {{-- Bulk selection over the filtered maintenance list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="inventory_maintenance">
+        @if(auth()->user()?->hasPermission('inventory_maintenance.view'))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-6 overflow-x-auto">
         <table class="w-full min-w-[64rem] text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-2"><x-list.select-all /></th>
                     <th class="py-2">Title</th>
                     <th>Asset</th>
                     <th>Type</th>
@@ -65,6 +73,7 @@
             <tbody>
                 @forelse($maintenances as $maintenance)
                     <tr class="border-b">
+                        <td class="py-2"><x-list.row-checkbox :id="$maintenance->id" /></td>
                         <td class="font-medium">
                             {{ $maintenance->title }}
                             @if($maintenance->description)
@@ -97,7 +106,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-4 text-slate-500" colspan="9">No maintenance recorded yet for this college.</td></tr>
+                    <tr><td class="py-4 text-slate-500" colspan="10">No maintenance recorded yet for this college.</td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -11,6 +11,9 @@ use App\Domain\Academic\BulkActions\AcademicWorkloadBulkExportHandler;
 use App\Domain\Admission\BulkActions\AdmissionBulkCancelHandler;
 use App\Domain\Admission\BulkActions\AdmissionBulkCompleteHandler;
 use App\Domain\Admission\BulkActions\AdmissionBulkExportHandler;
+use App\Domain\Certificates\BulkActions\CertificateBulkExportHandler;
+use App\Domain\Certificates\BulkActions\CertificateTemplateBulkExportHandler;
+use App\Domain\Certificates\BulkActions\CertificateTypeBulkExportHandler;
 use App\Domain\Examination\BulkActions\ExamAttendanceBulkExportHandler;
 use App\Domain\Examination\BulkActions\ExamMarkBulkExportHandler;
 use App\Domain\Examination\BulkActions\ExamReportProgramBulkExportHandler;
@@ -31,6 +34,13 @@ use App\Domain\Finance\BulkActions\FeeStructureBulkExportHandler;
 use App\Domain\Finance\BulkActions\ReceiptBulkExportHandler;
 use App\Domain\Finance\BulkActions\RefundBulkExportHandler;
 use App\Domain\Finance\BulkActions\StudentFeeAssignmentBulkExportHandler;
+use App\Domain\Hostel\BulkActions\HostelAllocationBulkExportHandler;
+use App\Domain\Hostel\BulkActions\HostelAttendanceBulkExportHandler;
+use App\Domain\Hostel\BulkActions\HostelBedBulkExportHandler;
+use App\Domain\Hostel\BulkActions\HostelBuildingBulkExportHandler;
+use App\Domain\Hostel\BulkActions\HostelBulkExportHandler;
+use App\Domain\Hostel\BulkActions\HostelFeeAssignmentBulkExportHandler;
+use App\Domain\Hostel\BulkActions\HostelRoomBulkExportHandler;
 use App\Domain\HR\BulkActions\DesignationBulkExportHandler;
 use App\Domain\HR\BulkActions\EmployeeDocumentBulkExportHandler;
 use App\Domain\HR\BulkActions\LeaveRequestBulkExportHandler;
@@ -41,6 +51,23 @@ use App\Domain\HR\BulkActions\SalaryStructureBulkExportHandler;
 use App\Domain\HR\BulkActions\StaffAttendanceBulkExportHandler;
 use App\Domain\HR\BulkActions\StaffDepartmentBulkExportHandler;
 use App\Domain\HR\BulkActions\StaffEmployeeBulkExportHandler;
+use App\Domain\Inventory\BulkActions\InventoryAssetReturnBulkExportHandler;
+use App\Domain\Inventory\BulkActions\InventoryAssignmentBulkExportHandler;
+use App\Domain\Inventory\BulkActions\InventoryCategoryBulkExportHandler;
+use App\Domain\Inventory\BulkActions\InventoryGoodsReceiptBulkExportHandler;
+use App\Domain\Inventory\BulkActions\InventoryIssueBulkExportHandler;
+use App\Domain\Inventory\BulkActions\InventoryItemBulkExportHandler;
+use App\Domain\Inventory\BulkActions\InventoryMaintenanceBulkExportHandler;
+use App\Domain\Inventory\BulkActions\InventoryPurchaseOrderBulkExportHandler;
+use App\Domain\Inventory\BulkActions\InventoryStockAdjustmentBulkExportHandler;
+use App\Domain\Inventory\BulkActions\InventoryTransactionBulkExportHandler;
+use App\Domain\Inventory\BulkActions\InventoryVendorBulkExportHandler;
+use App\Domain\Library\BulkActions\BookBulkExportHandler;
+use App\Domain\Library\BulkActions\BookCopyBulkExportHandler;
+use App\Domain\Library\BulkActions\LibraryFineBulkExportHandler;
+use App\Domain\Library\BulkActions\LibraryMemberBulkExportHandler;
+use App\Domain\Library\BulkActions\LibraryRenewalBulkExportHandler;
+use App\Domain\Library\BulkActions\LibraryTransactionBulkExportHandler;
 use App\Domain\Student\BulkActions\EnrollmentBulkExportHandler;
 use App\Domain\Student\BulkActions\EnrollmentBulkStatusHandler;
 use App\Domain\Student\BulkActions\StudentBulkDocumentHandler;
@@ -48,6 +75,13 @@ use App\Domain\Student\BulkActions\StudentBulkExportHandler;
 use App\Domain\Student\BulkActions\StudentBulkIdCardHandler;
 use App\Domain\Student\BulkActions\StudentBulkPdfHandler;
 use App\Domain\Student\BulkActions\StudentBulkPrintHandler;
+use App\Domain\Transport\BulkActions\StudentTransportAssignmentBulkExportHandler;
+use App\Domain\Transport\BulkActions\StudentTransportFeeAssignmentBulkExportHandler;
+use App\Domain\Transport\BulkActions\TransportDriverBulkExportHandler;
+use App\Domain\Transport\BulkActions\TransportRouteBulkExportHandler;
+use App\Domain\Transport\BulkActions\TransportStopBulkExportHandler;
+use App\Domain\Transport\BulkActions\VehicleBulkExportHandler;
+use App\Domain\Transport\BulkActions\VehicleDocumentBulkExportHandler;
 use App\Support\BulkAction\BulkActionRegistry;
 use Illuminate\Support\ServiceProvider;
 
@@ -169,5 +203,82 @@ class BulkActionServiceProvider extends ServiceProvider
             ->register('salary_structures', 'export', SalaryStructureBulkExportHandler::class)
             ->register('salary_components', 'export', SalaryComponentBulkExportHandler::class)
             ->register('payrolls', 'export', PayrollBulkExportHandler::class);
+
+        // Library — the whole circulation family is export-only. Books, copies,
+        // members, issues, renewals and fines are read out exactly as stored;
+        // no bulk issue, return, renewal, fine assessment / waiver / payment or
+        // deletion exists — circulation stays a single-record workflow with its
+        // own services, policies and audit trail.
+        $registry
+            ->register('books', 'export', BookBulkExportHandler::class)
+            ->register('book_copies', 'export', BookCopyBulkExportHandler::class)
+            ->register('library_members', 'export', LibraryMemberBulkExportHandler::class)
+            ->register('library_transactions', 'export', LibraryTransactionBulkExportHandler::class)
+            ->register('library_renewals', 'export', LibraryRenewalBulkExportHandler::class)
+            ->register('library_fines', 'export', LibraryFineBulkExportHandler::class);
+
+        // Transport — masters, secure document metadata, assignments and fees.
+        // Stops share one action across the flat Stops page and the per-route
+        // stops listing (both show TransportStop records). The vehicle-document
+        // CSV is metadata only — the private file path never leaves the server,
+        // the file itself streams through the authorized download route. The
+        // driver CSV never carries the license number (a government identity
+        // document number). No bulk assignment, fee collection or document
+        // mutation exists.
+        $registry
+            ->register('vehicles', 'export', VehicleBulkExportHandler::class)
+            ->register('transport_drivers', 'export', TransportDriverBulkExportHandler::class)
+            ->register('transport_routes', 'export', TransportRouteBulkExportHandler::class)
+            ->register('transport_stops', 'export', TransportStopBulkExportHandler::class)
+            ->register('vehicle_documents', 'export', VehicleDocumentBulkExportHandler::class)
+            ->register('student_transport_assignments', 'export', StudentTransportAssignmentBulkExportHandler::class)
+            ->register('transport_fees', 'export', StudentTransportFeeAssignmentBulkExportHandler::class);
+
+        // Hostel — masters (hostel → building → room → bed), allocations,
+        // fees and attendance. The fee CSV reuses the same live ledger the
+        // listing derives from Finance fee_payments. The existing bulk
+        // attendance MARKING screen is a mutation workflow and is untouched;
+        // the attendance export only reads the marked records. No bulk
+        // allocation, vacating, fee collection or attendance mutation exists.
+        $registry
+            ->register('hostels', 'export', HostelBulkExportHandler::class)
+            ->register('hostel_buildings', 'export', HostelBuildingBulkExportHandler::class)
+            ->register('hostel_rooms', 'export', HostelRoomBulkExportHandler::class)
+            ->register('hostel_beds', 'export', HostelBedBulkExportHandler::class)
+            ->register('hostel_allocations', 'export', HostelAllocationBulkExportHandler::class)
+            ->register('hostel_fees', 'export', HostelFeeAssignmentBulkExportHandler::class)
+            ->register('hostel_attendance', 'export', HostelAttendanceBulkExportHandler::class);
+
+        // Inventory / Asset Management — masters, purchase orders and the
+        // immutable stock ledger, plus the Phase 3 custody and maintenance
+        // rows. The three stock-movement modules share the ledger model but
+        // are separate module keys with their own permission, and each
+        // handler accepts only the movement types its listing shows. The
+        // Asset Return export accepts only ACTIVE assignments, exactly like
+        // its listing. No bulk stock, issue / return, assignment / return,
+        // purchase or maintenance mutation exists.
+        $registry
+            ->register('inventory_categories', 'export', InventoryCategoryBulkExportHandler::class)
+            ->register('inventory_items', 'export', InventoryItemBulkExportHandler::class)
+            ->register('inventory_vendors', 'export', InventoryVendorBulkExportHandler::class)
+            ->register('inventory_purchase_orders', 'export', InventoryPurchaseOrderBulkExportHandler::class)
+            ->register('inventory_goods_receipts', 'export', InventoryGoodsReceiptBulkExportHandler::class)
+            ->register('inventory_stock_adjustments', 'export', InventoryStockAdjustmentBulkExportHandler::class)
+            ->register('inventory_transactions', 'export', InventoryTransactionBulkExportHandler::class)
+            ->register('inventory_issues', 'export', InventoryIssueBulkExportHandler::class)
+            ->register('inventory_assignments', 'export', InventoryAssignmentBulkExportHandler::class)
+            ->register('inventory_asset_returns', 'export', InventoryAssetReturnBulkExportHandler::class)
+            ->register('inventory_maintenance', 'export', InventoryMaintenanceBulkExportHandler::class);
+
+        // Certificates — the register screen covers every certificate type
+        // (TC, Bonafide, Character, Course Completion, Migration, Provisional,
+        // Custom) at every stage, so one action serves them all. Types and
+        // templates are manage screens with their own permission families.
+        // No bulk request, generation, issuance, verification or deletion
+        // exists — the workflow stays single-record.
+        $registry
+            ->register('certificates', 'export', CertificateBulkExportHandler::class)
+            ->register('certificate_types', 'export', CertificateTypeBulkExportHandler::class)
+            ->register('certificate_templates', 'export', CertificateTemplateBulkExportHandler::class);
     }
 }

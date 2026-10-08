@@ -5,8 +5,12 @@ namespace App\Http\Controllers\Inventory;
 use App\Domain\Inventory\Support\InventoryFormOptions;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryStockMovement;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Inventory Transactions (Inventory / Asset Management, Phase 2 final).
@@ -71,5 +75,52 @@ class InventoryTransactionController extends Controller
                 'to' => $to,
             ],
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Inventory Transactions ledger.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `inventory_transactions.view` is re-checked here. The columns are
+     * the ones the listing shows. The ledger is immutable: an export never
+     * writes a movement.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewTransactions', InventoryStockMovement::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $movements = InventoryStockMovement::query()
+            ->with(['item:id,name,code,unit', 'purchaseOrder:id,number', 'creator:id,name'])
+            ->whereIn('inventory_stock_movements.id', $ids)
+            ->orderByDesc('inventory_stock_movements.movement_date')
+            ->orderByDesc('inventory_stock_movements.id')
+            ->get();
+
+        $rows = $movements->map(fn (InventoryStockMovement $movement): array => [
+            $movement->movement_date?->format('Y-m-d'),
+            $movement->item?->name,
+            $movement->item?->code,
+            $movement->type,
+            $movement->direction,
+            $movement->quantity,
+            $movement->item?->unit,
+            $movement->balance_after,
+            $movement->reference,
+            $movement->reason,
+            $movement->purchaseOrder?->number,
+            $movement->creator?->name,
+        ]);
+
+        $audit->record('inventory_transactions.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $movements->count(),
+        ]);
+
+        return CsvStreamExport::make('inventory-transactions-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Date', 'Item', 'Item code', 'Type', 'Direction', 'Quantity', 'Unit', 'On hand after', 'Reference', 'Reason', 'PO', 'Recorded by'])
+            ->streamFromCollection($rows);
     }
 }

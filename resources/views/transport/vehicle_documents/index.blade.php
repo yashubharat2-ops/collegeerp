@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Vehicle Documents')
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Vehicle Documents</h2>
@@ -46,10 +46,18 @@
         </div>
     </form>
 
+    {{-- Bulk selection over the filtered vehicle-documents list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. The CSV is metadata only — never the private file path. --}}
+    <x-list.bulk-selection-bar module="vehicle_documents">
+        @if(auth()->user()?->hasPermission('vehicle_documents.view'))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-8 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-3"><x-list.select-all /></th>
                     <th class="py-3">Vehicle</th>
                     <th>Type</th>
                     <th>Document</th>
@@ -64,6 +72,7 @@
             @forelse($documents as $doc)
                 @php($status = $doc->documentStatus())
                 <tr class="border-b">
+                    <td class="py-3"><x-list.row-checkbox :id="$doc->id" /></td>
                     <td class="py-3 font-medium">{{ $doc->vehicle?->registration_number ?? '—' }}</td>
                     <td>{{ $doc->typeLabel() }}</td>
                     <td class="text-xs">{{ $doc->document_number ?? '—' }}</td>
@@ -104,7 +113,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td class="py-6 text-slate-500" colspan="8">No vehicle documents found.</td></tr>
+                <tr><td class="py-6 text-slate-500" colspan="9">No vehicle documents found.</td></tr>
             @endforelse
             </tbody>
         </table>

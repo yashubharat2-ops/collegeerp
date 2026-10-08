@@ -9,6 +9,8 @@ use App\Http\Requests\Transport\UpdateVehicleDocumentRequest;
 use App\Models\{Vehicle, VehicleDocument};
 use App\Services\Audit\AuditLogService;
 use App\Services\Files\SecureFileService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use Illuminate\Http\{RedirectResponse, Request};
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
@@ -70,6 +72,53 @@ class VehicleDocumentController extends Controller
             'document_status' => $request->input('document_status'),
             'vehicles' => $this->vehicleOptions(),
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Vehicle Documents list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `vehicle_documents.view` is re-checked here. The CSV is METADATA
+     * ONLY — vehicle, type, document number, validity dates and status, the
+     * original filename and its size. The private server path (`file_path`)
+     * is never queried into the export, and the file itself is still served
+     * exclusively by the authorized download route. Nothing is written.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', VehicleDocument::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $documents = VehicleDocument::query()
+            ->with(['vehicle:id,college_id,registration_number', 'uploadedBy:id,name'])
+            ->whereIn('vehicle_documents.id', $ids)
+            ->orderByDesc('vehicle_documents.created_at')
+            ->orderByDesc('vehicle_documents.id')
+            ->get();
+
+        $rows = $documents->map(fn (VehicleDocument $document): array => [
+            $document->vehicle?->registration_number,
+            $document->typeLabel(),
+            $document->document_number,
+            $document->issue_date?->format('Y-m-d'),
+            $document->expiry_date?->format('Y-m-d'),
+            $document->documentStatus(),
+            $document->original_filename,
+            $document->sizeInKb(),
+            $document->created_at?->format('Y-m-d H:i'),
+            $document->uploadedBy?->name,
+        ]);
+
+        $audit->record('vehicle_documents.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $documents->count(),
+        ]);
+
+        return CsvStreamExport::make('vehicle-documents-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Vehicle', 'Type', 'Document number', 'Issue date', 'Expiry date', 'Validity', 'File', 'Size (KB)', 'Uploaded at', 'Uploaded by'])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

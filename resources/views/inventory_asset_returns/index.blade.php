@@ -3,7 +3,7 @@
 @section('title', 'Asset Return')
 
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Asset Return</h2>
@@ -33,10 +33,18 @@
         </p>
     @endunless
 
+    {{-- Bulk selection over the paginated list of assets currently out. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes each
+         record before the CSV endpoint streams. Recording returns stays a single-record action. --}}
+    <x-list.bulk-selection-bar module="inventory_asset_returns">
+        @if(auth()->user()?->hasPermission('inventory_asset_returns.view'))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-6 overflow-x-auto">
         <table class="w-full min-w-[64rem] text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-2"><x-list.select-all /></th>
                     <th class="py-2">Asset</th>
                     <th>Serial</th>
                     <th>Assignee</th>
@@ -49,6 +57,7 @@
             <tbody>
                 @forelse($assignments as $assignment)
                     <tr class="border-b align-top">
+                        <td class="py-2"><x-list.row-checkbox :id="$assignment->id" /></td>
                         <td class="font-medium">
                             {{ $assignment->item?->name ?? '—' }}
                             <span class="ml-1 font-mono text-xs text-slate-500">{{ $assignment->item?->code }}</span>
@@ -76,7 +85,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-4 text-slate-500" colspan="7">No assets are currently out. Nothing to return.</td></tr>
+                    <tr><td class="py-4 text-slate-500" colspan="8">No assets are currently out. Nothing to return.</td></tr>
                 @endforelse
             </tbody>
         </table>

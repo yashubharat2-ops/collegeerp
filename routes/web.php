@@ -178,6 +178,12 @@ Route::middleware('auth')->group(function () {
             foreach (['requests', 'generation', 'issuance', 'verification'] as $stage) {
                 Route::get('/'.$stage, 'index')->defaults('certificate_stage', $stage)->name($stage.'.index');
             }
+            // Bulk CSV exports: the register (all types / stages), the types
+            // screen and the templates screen. They re-resolve the ticked ids
+            // inside the active college.
+            Route::get('/export', 'export')->name('export');
+            Route::get('/types/export', 'exportTypes')->name('types.export');
+            Route::get('/templates/export', 'exportTemplates')->name('templates.export');
             Route::get('/templates/index', 'templates')->name('templates.index');
             Route::get('/reports/index', 'reports')->name('reports.index');
             Route::post('/', 'store')->name('store');
@@ -498,6 +504,7 @@ Route::middleware('auth')->group(function () {
         Route::get('library/dashboard', LibraryDashboardController::class)->name('library.dashboard');
 
         // Library Management — Books: the book master (a title, not a copy).
+        Route::get('books/export', [BookController::class, 'export'])->name('books.export');
         Route::resource('books', BookController::class);
 
         // Library Management — Book Categories.
@@ -509,20 +516,30 @@ Route::middleware('auth')->group(function () {
 
         // Library Management — Phase 2. Copies, members, issue/return and
         // renewals. Circulation history has no delete route.
+        Route::get('book-copies/export', [BookCopyController::class, 'export'])->name('book-copies.export');
         Route::resource('book-copies', BookCopyController::class);
+        Route::get('library-members/export', [LibraryMemberController::class, 'export'])->name('library-members.export');
         Route::resource('library-members', LibraryMemberController::class);
         Route::post('library-transactions/{library_transaction}/return', [LibraryTransactionController::class, 'returnCopy'])->name('library-transactions.return');
         Route::post('library-transactions/{library_transaction}/lost', [LibraryTransactionController::class, 'markLost'])->name('library-transactions.lost');
+        Route::get('library-transactions/export', [LibraryTransactionController::class, 'export'])->name('library-transactions.export');
         Route::resource('library-transactions', LibraryTransactionController::class)->except('destroy');
+        Route::get('library-renewals/export', [LibraryRenewalController::class, 'export'])->name('library-renewals.export');
         Route::resource('library-renewals', LibraryRenewalController::class)->only(['index', 'create', 'store', 'show']);
+        Route::get('library-fines/export', [LibraryFineController::class, 'export'])->name('library-fines.export');
         Route::get('library-fines', [LibraryFineController::class, 'index'])->name('library-fines.index');
         Route::post('library-fines', [LibraryFineController::class, 'store'])->name('library-fines.store');
         Route::post('library-fines/{library_fine}/pay', [LibraryFineController::class, 'pay'])->name('library-fines.pay');
 
-        // Transport Phase 1 — tenant-scoped masters only.
+        // Transport Phase 1 — tenant-scoped masters only. Each master listing's
+        // bulk "Export selected" action streams its CSV from these endpoints;
+        // they re-resolve the ticked ids inside the active college.
         Route::get('transport/dashboard', TransportDashboardController::class)->name('transport.dashboard');
+        Route::get('vehicles/export', [VehicleController::class, 'export'])->name('vehicles.export');
         Route::resource('vehicles', VehicleController::class)->except('show')->parameters(['vehicles' => 'record']);
+        Route::get('transport-drivers/export', [TransportDriverController::class, 'export'])->name('transport-drivers.export');
         Route::resource('transport-drivers', TransportDriverController::class)->except('show')->parameters(['transport-drivers' => 'record']);
+        Route::get('transport-routes/export', [TransportRouteController::class, 'export'])->name('transport-routes.export');
         Route::resource('transport-routes', TransportRouteController::class)->except('show')->parameters(['transport-routes' => 'record']);
         Route::resource('transport-routes.transport-stops', TransportStopController::class)->except('show')->parameters(['transport-stops' => 'record'])->names([
             'index' => 'transport-stops.index',
@@ -535,19 +552,24 @@ Route::middleware('auth')->group(function () {
 
         // Transport Phase 2 — flat cross-route stop listing for the "Stops"
         // navigation entry (per-route stop management stays nested above).
+        // The stop CSV export is shared by both stop listings.
+        Route::get('transport-stops/export', [TransportStopController::class, 'export'])->name('transport-stops.export');
         Route::get('transport-stops', [TransportStopController::class, 'indexAll'])->name('transport-stops.list');
 
         // Transport Phase 2 — Vehicle Documents (secure private files).
         Route::get('vehicle-documents/{vehicle_document}/download', [VehicleDocumentController::class, 'download'])->name('vehicle-documents.download');
+        Route::get('vehicle-documents/export', [VehicleDocumentController::class, 'export'])->name('vehicle-documents.export');
         Route::resource('vehicle-documents', VehicleDocumentController::class)->except('show')->parameters(['vehicle-documents' => 'vehicle_document']);
 
         // Transport Phase 2 — Student Transport Assignment (existing enrollments
         // onto existing routes/stops; no duplicate masters).
+        Route::get('transport-assignments/export', [StudentTransportAssignmentController::class, 'export'])->name('transport-assignments.export');
         Route::resource('transport-assignments', StudentTransportAssignmentController::class)->except('show')->parameters(['transport-assignments' => 'transport_assignment']);
 
         // Transport Phase 2 — Transport Fees. Collections reuse the existing
         // Finance fee_payments rows (see FeeCollectionService::collectTransportFee).
         Route::post('transport-fees/{transport_fee}/collect', [TransportFeeController::class, 'collect'])->name('transport-fees.collect');
+        Route::get('transport-fees/export', [TransportFeeController::class, 'export'])->name('transport-fees.export');
         Route::resource('transport-fees', TransportFeeController::class)->except('show')->parameters(['transport-fees' => 'transport_fee']);
         Route::resource('transport-fee-structures', TransportFeeStructureController::class)->except('show')->parameters(['transport-fee-structures' => 'transport_fee_structure']);
 
@@ -556,19 +578,28 @@ Route::middleware('auth')->group(function () {
 
         // Hostel Management — Phase 1 masters + Phase 2 allocations and fees.
         // The dashboard is read-only and aggregated live (no dashboard tables).
+        // Each listing's bulk "Export selected" action streams its CSV from
+        // these endpoints; they re-resolve the ticked ids inside the active
+        // college.
         Route::get('hostels/dashboard', HostelDashboardController::class)->name('hostels.dashboard');
+        Route::get('hostels/export', [HostelController::class, 'export'])->name('hostels.export');
         Route::resource('hostels', HostelController::class)->except('show')->parameters(['hostels' => 'hostel']);
+        Route::get('hostel-buildings/export', [HostelBuildingController::class, 'export'])->name('hostel-buildings.export');
         Route::resource('hostel-buildings', HostelBuildingController::class)->except('show')->parameters(['hostel-buildings' => 'building']);
+        Route::get('hostel-rooms/export', [HostelRoomController::class, 'export'])->name('hostel-rooms.export');
         Route::resource('hostel-rooms', HostelRoomController::class)->except('show')->parameters(['hostel-rooms' => 'room']);
+        Route::get('hostel-beds/export', [HostelBedController::class, 'export'])->name('hostel-beds.export');
         Route::resource('hostel-beds', HostelBedController::class)->except('show')->parameters(['hostel-beds' => 'bed']);
 
         // Hostel Management Phase 2 — Hostel Allocation (existing enrollments to existing beds).
         Route::post('hostel-allocations/{allocation}/vacate', [HostelAllocationController::class, 'vacate'])->name('hostel-allocations.vacate');
         Route::post('hostel-allocations/{allocation}/cancel', [HostelAllocationController::class, 'cancel'])->name('hostel-allocations.cancel');
+        Route::get('hostel-allocations/export', [HostelAllocationController::class, 'export'])->name('hostel-allocations.export');
         Route::resource('hostel-allocations', HostelAllocationController::class)->parameters(['hostel-allocations' => 'allocation']);
 
         // Hostel Management Phase 2 — Hostel Fees. Collections reuse existing Finance fee_payments rows.
         Route::post('hostel-fees/{fee}/collect', [HostelFeeController::class, 'collect'])->name('hostel-fees.collect');
+        Route::get('hostel-fees/export', [HostelFeeController::class, 'export'])->name('hostel-fees.export');
         Route::resource('hostel-fees', HostelFeeController::class)->except('show')->parameters(['hostel-fees' => 'fee']);
         Route::resource('hostel-fee-structures', HostelFeeStructureController::class)->except('show')->parameters(['hostel-fee-structures' => 'fee_structure']);
 
@@ -576,6 +607,7 @@ Route::middleware('auth')->group(function () {
         // registered before the resource so "bulk" is not captured as an id.
         Route::get('hostel-attendance/bulk', [HostelAttendanceController::class, 'bulk'])->name('hostel-attendance.bulk');
         Route::post('hostel-attendance/bulk', [HostelAttendanceController::class, 'storeBulk'])->name('hostel-attendance.bulk.store');
+        Route::get('hostel-attendance/export', [HostelAttendanceController::class, 'export'])->name('hostel-attendance.export');
         Route::resource('hostel-attendance', HostelAttendanceController::class)->except('show')->parameters(['hostel-attendance' => 'hostel_attendance']);
 
         // Hostel Management Phase 3 — Hostel Reports (read-only; GET only).
@@ -640,8 +672,11 @@ Route::middleware('auth')->group(function () {
         // and aggregated live (no dashboard tables). Items and assets share
         // one master.
         Route::get('inventory/dashboard', InventoryDashboardController::class)->name('inventory.dashboard');
+        Route::get('inventory-categories/export', [InventoryCategoryController::class, 'export'])->name('inventory-categories.export');
         Route::resource('inventory-categories', InventoryCategoryController::class)->except('show')->parameters(['inventory-categories' => 'inventory_category']);
+        Route::get('inventory-items/export', [InventoryItemController::class, 'export'])->name('inventory-items.export');
         Route::resource('inventory-items', InventoryItemController::class)->except('show')->parameters(['inventory-items' => 'inventory_item']);
+        Route::get('inventory-vendors/export', [InventoryVendorController::class, 'export'])->name('inventory-vendors.export');
         Route::resource('inventory-vendors', InventoryVendorController::class)->except('show')->parameters(['inventory-vendors' => 'inventory_vendor']);
 
         // Inventory / Asset Management — Phase 2 final structure.
@@ -657,21 +692,25 @@ Route::middleware('auth')->group(function () {
         Route::post('inventory-purchase-orders/{purchase_order}/cancel', [InventoryPurchaseOrderController::class, 'cancel'])->name('inventory-purchase-orders.cancel');
         Route::get('inventory-purchase-orders/{purchase_order}/receive', [InventoryPurchaseOrderController::class, 'receiveForm'])->name('inventory-purchase-orders.receive.create');
         Route::post('inventory-purchase-orders/{purchase_order}/receive', [InventoryPurchaseOrderController::class, 'receive'])->name('inventory-purchase-orders.receive.store');
+        Route::get('inventory-purchase-orders/export', [InventoryPurchaseOrderController::class, 'export'])->name('inventory-purchase-orders.export');
         Route::resource('inventory-purchase-orders', InventoryPurchaseOrderController::class)->parameters(['inventory-purchase-orders' => 'purchase_order']);
 
         // Goods Receipt / Stock In — incoming stock (purchase_receipt + stock_in).
         // Manual stock_in is recorded here; PO receipts are booked via PO receive
         // but listed here as well.
+        Route::get('inventory-goods-receipts/export', [InventoryGoodsReceiptController::class, 'export'])->name('inventory-goods-receipts.export');
         Route::get('inventory-goods-receipts', [InventoryGoodsReceiptController::class, 'index'])->name('inventory-goods-receipts.index');
         Route::get('inventory-goods-receipts/create', [InventoryGoodsReceiptController::class, 'create'])->name('inventory-goods-receipts.create');
         Route::post('inventory-goods-receipts', [InventoryGoodsReceiptController::class, 'store'])->name('inventory-goods-receipts.store');
 
         // Stock Adjustment — corrections and stock_out, each generating a transaction.
+        Route::get('inventory-stock-adjustments/export', [InventoryStockAdjustmentController::class, 'export'])->name('inventory-stock-adjustments.export');
         Route::get('inventory-stock-adjustments', [InventoryStockAdjustmentController::class, 'index'])->name('inventory-stock-adjustments.index');
         Route::get('inventory-stock-adjustments/create', [InventoryStockAdjustmentController::class, 'create'])->name('inventory-stock-adjustments.create');
         Route::post('inventory-stock-adjustments', [InventoryStockAdjustmentController::class, 'store'])->name('inventory-stock-adjustments.store');
 
         // Inventory Transactions — immutable ledger (refactored Stock Movements).
+        Route::get('inventory-transactions/export', [InventoryTransactionController::class, 'export'])->name('inventory-transactions.export');
         Route::get('inventory-transactions', [InventoryTransactionController::class, 'index'])->name('inventory-transactions.index');
 
         // Backward compatibility: old Stock Movements routes still work via the
@@ -694,17 +733,21 @@ Route::middleware('auth')->group(function () {
         //     (history preserved); a re-assignment is a new row.
         //   - Asset Maintenance: work orders always linked to an existing
         //     asset; optional vendor reuses the Phase 1 vendor master.
+        Route::get('inventory-issues/export', [InventoryIssueController::class, 'export'])->name('inventory-issues.export');
         Route::get('inventory-issues', [InventoryIssueController::class, 'index'])->name('inventory-issues.index');
         Route::get('inventory-issues/create', [InventoryIssueController::class, 'create'])->name('inventory-issues.create');
         Route::post('inventory-issues', [InventoryIssueController::class, 'store'])->name('inventory-issues.store');
 
+        Route::get('inventory-assignments/export', [InventoryAssignmentController::class, 'export'])->name('inventory-assignments.export');
         Route::get('inventory-assignments', [InventoryAssignmentController::class, 'index'])->name('inventory-assignments.index');
         Route::get('inventory-assignments/create', [InventoryAssignmentController::class, 'create'])->name('inventory-assignments.create');
         Route::post('inventory-assignments', [InventoryAssignmentController::class, 'store'])->name('inventory-assignments.store');
 
+        Route::get('inventory-asset-returns/export', [InventoryAssetReturnController::class, 'export'])->name('inventory-asset-returns.export');
         Route::get('inventory-asset-returns', [InventoryAssetReturnController::class, 'index'])->name('inventory-asset-returns.index');
         Route::post('inventory-asset-returns', [InventoryAssetReturnController::class, 'store'])->name('inventory-asset-returns.store');
 
+        Route::get('inventory-maintenances/export', [InventoryMaintenanceController::class, 'export'])->name('inventory-maintenances.export');
         Route::get('inventory-maintenances', [InventoryMaintenanceController::class, 'index'])->name('inventory-maintenances.index');
         Route::get('inventory-maintenances/create', [InventoryMaintenanceController::class, 'create'])->name('inventory-maintenances.create');
         Route::post('inventory-maintenances', [InventoryMaintenanceController::class, 'store'])->name('inventory-maintenances.store');
@@ -729,4 +772,6 @@ Route::middleware('auth')->group(function () {
 });
 
 // Reuse the same auth / tenant middleware and resource policies.
+require __DIR__.'/administration.php';
+icies.
 require __DIR__.'/administration.php';

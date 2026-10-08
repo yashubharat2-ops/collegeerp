@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Hostel Fees')
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Hostel Fees</h2>
@@ -44,10 +44,18 @@
         </div>
     </form>
 
+    {{-- Bulk selection over the filtered hostel-fee list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="hostel_fees">
+        @if(auth()->user()?->hasPermission('hostel_fees.view'))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-6 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead class="border-b bg-slate-50 text-slate-500">
                 <tr>
+                    <th class="w-10 px-3 py-3"><x-list.select-all /></th>
                     <th class="whitespace-nowrap px-3 py-3">Student</th>
                     <th class="whitespace-nowrap px-3 py-3">Hostel / Bed</th>
                     <th class="whitespace-nowrap px-3 py-3">Structure</th>
@@ -63,6 +71,7 @@
                 @forelse($feeAssignments as $feeAssignment)
                     @php($summary = $feeAssignment->ledger ?? null)
                     <tr>
+                        <td class="px-3 py-3"><x-list.row-checkbox :id="$feeAssignment->id" /></td>
                         <td class="whitespace-nowrap px-3 py-3 font-medium">
                             {{ $feeAssignment->hostelAllocation?->studentEnrollment?->student?->first_name }} {{ $feeAssignment->hostelAllocation?->studentEnrollment?->student?->last_name }}
                             <span class="block text-xs text-slate-500">{{ $feeAssignment->hostelAllocation?->studentEnrollment?->student?->student_number }}</span>
@@ -102,7 +111,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="9" class="px-3 py-8 text-center text-slate-500">No hostel fee assignments found.</td></tr>
+                    <tr><td colspan="10" class="px-3 py-8 text-center text-slate-500">No hostel fee assignments found.</td></tr>
                 @endforelse
             </tbody>
         </table>

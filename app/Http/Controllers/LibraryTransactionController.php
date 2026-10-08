@@ -9,10 +9,14 @@ use App\Http\Requests\LibraryTransaction\ReturnLibraryTransactionRequest;
 use App\Http\Requests\LibraryTransaction\StoreLibraryTransactionRequest;
 use App\Http\Requests\LibraryTransaction\UpdateLibraryTransactionRequest;
 use App\Models\LibraryTransaction;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Issue / Return (Library Management).
@@ -85,6 +89,54 @@ class LibraryTransactionController extends Controller
                 'book_copy_id' => $request->input('book_copy_id'),
             ],
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Issue / Return register.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `library_transactions.view` is re-checked here. The columns are the
+     * ones the listing shows. The register is append-only history: an export
+     * never issues, returns or marks a copy lost.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', LibraryTransaction::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $transactions = LibraryTransaction::query()
+            ->with([
+                'bookCopy.book:id,title,code',
+                'libraryMember.studentEnrollment.student',
+            ])
+            ->withCount('renewals')
+            ->whereIn('library_transactions.id', $ids)
+            ->orderByDesc('library_transactions.issued_on')
+            ->orderByDesc('library_transactions.id')
+            ->get();
+
+        $rows = $transactions->map(fn (LibraryTransaction $transaction): array => [
+            $transaction->bookCopy?->accession_number,
+            $transaction->bookCopy?->book?->title,
+            $transaction->libraryMember?->studentName(),
+            $transaction->libraryMember?->member_code,
+            $transaction->issued_on?->format('Y-m-d'),
+            $transaction->due_on?->format('Y-m-d'),
+            $transaction->returned_on?->format('Y-m-d'),
+            $transaction->renewals_count,
+            $transaction->status,
+        ]);
+
+        $audit->record('library_transactions.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $transactions->count(),
+        ]);
+
+        return CsvStreamExport::make('library-transactions-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Accession', 'Book', 'Member', 'Member code', 'Issued on', 'Due on', 'Returned on', 'Renewals', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

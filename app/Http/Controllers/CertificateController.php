@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\{Certificate, CertificateTemplate, CertificateType, StudentEnrollment, StudentTransfer};
 use App\Services\Audit\AuditLogService;
 use App\Services\Certificates\{CertificateCatalog, CertificateWorkflow};
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CertificateController extends Controller
 {
@@ -48,6 +51,129 @@ class CertificateController extends Controller
         ]);
         $certificate = $workflow->request($data);
         return redirect()->route('certificates.show', $certificate)->with('success', 'Certificate requested.');
+    }
+
+    /**
+     * CSV export of a bulk selection from the certificate register.
+     *
+     * One register screen covers every certificate type at every stage, so
+     * the ticked ids identify the records and the stage stays a view filter.
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `certificates.view` is re-checked here. The template snapshot, the
+     * data snapshot and the free-text purpose are never exported. Requesting,
+     * generating, issuing or verifying a certificate stays a single-record
+     * workflow.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->permit('certificates.view');
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $certificates = Certificate::query()
+            ->with(['type:id,name,code', 'student:id,first_name,middle_name,last_name,student_number', 'enrollment:id,student_id,enrollment_number'])
+            ->whereIn('certificates.id', $ids)
+            ->orderBy('certificates.id')
+            ->get();
+
+        $rows = $certificates->map(fn (Certificate $certificate): array => [
+            $certificate->id,
+            $certificate->number,
+            $certificate->type?->name,
+            $certificate->student?->fullName(),
+            $certificate->student?->student_number,
+            $certificate->enrollment?->enrollment_number,
+            $certificate->status,
+            $certificate->created_at?->format('Y-m-d H:i'),
+            $certificate->generated_at?->format('Y-m-d H:i'),
+            $certificate->issued_at?->format('Y-m-d H:i'),
+            $certificate->last_verified_at?->format('Y-m-d H:i'),
+        ]);
+
+        $audit->record('certificates.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $certificates->count(),
+        ]);
+
+        return CsvStreamExport::make('certificates-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Request', 'Number', 'Type', 'Student', 'Student number', 'Enrollment', 'Status', 'Requested at', 'Generated at', 'Issued at', 'Last verified at'])
+            ->streamFromCollection($rows);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Certificate Types screen.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `certificate_types.manage` is re-checked here. Managing a type
+     * stays on its own screen.
+     */
+    public function exportTypes(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->permit('certificate_types.manage');
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $types = CertificateType::query()
+            ->withCount('templates')
+            ->whereIn('certificate_types.id', $ids)
+            ->orderBy('certificate_types.id')
+            ->get();
+
+        $rows = $types->map(fn (CertificateType $type): array => [
+            $type->name,
+            $type->code,
+            $type->description,
+            $type->templates_count,
+            $type->builtin_key ? 'Group 1 built-in' : 'College-defined',
+        ]);
+
+        $audit->record('certificate_types.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $types->count(),
+        ]);
+
+        return CsvStreamExport::make('certificate-types-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Name', 'Short code', 'Description', 'Templates', 'Origin'])
+            ->streamFromCollection($rows);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Certificate Templates screen.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `certificate_templates.manage` is re-checked here. The body is the
+     * plain-text template exactly as stored. Adding or revising a template
+     * stays on its own screen.
+     */
+    public function exportTemplates(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->permit('certificate_templates.manage');
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $templates = CertificateTemplate::query()
+            ->with('type:id,name,code')
+            ->whereIn('certificate_templates.id', $ids)
+            ->orderBy('certificate_templates.id')
+            ->get();
+
+        $rows = $templates->map(fn (CertificateTemplate $template): array => [
+            $template->name,
+            $template->type?->name,
+            $template->body,
+        ]);
+
+        $audit->record('certificate_templates.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $templates->count(),
+        ]);
+
+        return CsvStreamExport::make('certificate-templates-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Name', 'Type', 'Body'])
+            ->streamFromCollection($rows);
     }
 
     public function show(int $certificate)

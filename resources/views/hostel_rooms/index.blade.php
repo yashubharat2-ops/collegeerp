@@ -3,7 +3,7 @@
 @section('title', 'Rooms')
 
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Rooms</h2>
@@ -51,10 +51,18 @@
         </div>
     </form>
 
+    {{-- Bulk selection over the filtered rooms list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="hostel_rooms">
+        @if(auth()->user()?->hasPermission('hostel_rooms.view'))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-6 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-2"><x-list.select-all /></th>
                     <th class="py-2">Room</th>
                     <th>Building / Block</th>
                     <th>Hostel</th>
@@ -68,6 +76,7 @@
             <tbody>
                 @forelse($rooms as $room)
                     <tr class="border-b">
+                        <td class="py-2"><x-list.row-checkbox :id="$room->id" /></td>
                         <td class="py-2 font-medium">{{ $room->room_number }}</td>
                         <td>{{ $room->building?->name ?? '—' }}</td>
                         <td>{{ $room->building?->hostel?->name ?? $room->hostel?->name ?? '—' }}</td>
@@ -95,7 +104,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-4 text-slate-500" colspan="8">No rooms configured yet for this college.</td></tr>
+                    <tr><td class="py-4 text-slate-500" colspan="9">No rooms configured yet for this college.</td></tr>
                 @endforelse
             </tbody>
         </table>
