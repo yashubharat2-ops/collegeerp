@@ -3,6 +3,7 @@
 namespace Tests\Feature\BulkAction;
 
 use App\Models\College;
+use App\Models\Faculty;
 use App\Models\StudentTransportAssignment;
 use App\Models\StudentTransportFeeAssignment;
 use App\Models\TransportDriver;
@@ -13,6 +14,7 @@ use App\Models\Vehicle;
 use App\Models\VehicleDocument;
 use App\Support\BulkAction\BulkActionRegistry;
 use App\Support\BulkAction\BulkExportHandler;
+use Illuminate\Support\Str;
 use Tests\Feature\Students\StudentTestHelpers;
 use Tests\TestCase;
 
@@ -92,8 +94,11 @@ class TransportBulkActionTest extends TestCase
 
     private function makeStop(College $college, TransportRoute $route, string $code, int $sequence = 1): TransportStop
     {
-        return $this->master(TransportStop::class, $college, [
-            'route_id' => $route->id,
+        // TransportStop keeps route_id out of $fillable (the master screen owns
+        // the route), so it is assigned as a property — the same convention the
+        // existing Transport fixtures use. transport_stops.route_id is NOT NULL
+        // with a composite FK to transport_routes.
+        $stop = new TransportStop([
             'name' => 'Stop '.$code,
             'code' => $code,
             'sequence' => $sequence,
@@ -101,11 +106,27 @@ class TransportBulkActionTest extends TestCase
             'drop_time' => '17:30',
             'status' => 'active',
         ]);
+        $stop->college_id = $college->id;
+        $stop->route_id = $route->id;
+        $stop->save();
+
+        return $stop;
     }
 
     private function makeDriver(College $college, string $licenseNumber): TransportDriver
     {
+        // transport_drivers.faculty_id is NOT NULL with a faculties FK: a driver
+        // is always an existing staff member, so create one first.
+        $staff = Faculty::create([
+            'college_id' => $college->id,
+            'employee_code' => 'EMP-'.strtoupper(Str::random(6)),
+            'first_name' => 'Driver',
+            'last_name' => 'Staff',
+            'status' => 'active',
+        ]);
+
         return $this->master(TransportDriver::class, $college, [
+            'faculty_id' => $staff->id,
             'license_number' => $licenseNumber,
             'license_type' => 'Heavy passenger',
             'license_expiry' => '2028-12-31',

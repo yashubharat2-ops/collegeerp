@@ -279,6 +279,9 @@ class LibraryBulkActionTest extends TestCase
         $this->assertSame(BookCopy::STATUS_ISSUED, $copy->fresh()->status);
         $this->assertSame(LibraryTransaction::STATUS_ISSUED, $transaction->fresh()->status);
         $this->assertSame('pending', $fine->fresh()->status);
-        $this->assertSame(0, (float) $fine->fresh()->paid_amount);
+        // paid_amount is a decimal:2 cast (a string like "0.00"), so the
+        // numeric check uses the project's money-assertion convention instead
+        // of a strict int/float comparison — the amount must stay unpaid.
+        $this->assertEqualsWithDelta(0.0, (float) $fine->fresh()->paid_amount, 0.001);
     }
 }

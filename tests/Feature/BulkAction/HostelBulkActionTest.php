@@ -189,10 +189,21 @@ class HostelBulkActionTest extends TestCase
         $this->assertSame(2, $response->json('skipped_unauthorized'));
 
         $csv = $this->asCollege($college, $manager)->get($response->json('data.redirect'))->assertOk();
-        $body = $csv->streamedContent();
 
-        $this->assertStringContainsString('11', $body);
-        $this->assertStringNotContainsString('12', $body);
+        // Parse the CSV (BOM stripped first) and assert on the exact rows: the
+        // live bed 11 is exported as the only data row, so neither the
+        // soft-deleted bed 12 nor the nonexistent id 999999 is exported as a
+        // record. A global substring check is not precise enough here — "12"
+        // legitimately occurs inside other field values such as a room number.
+        $body = preg_replace('/^\xEF\xBB\xBF/', '', $csv->streamedContent()) ?? '';
+        $rows = array_map(
+            fn (string $line): array => str_getcsv(rtrim($line, "\r"), ',', '"', '\\'),
+            array_values(array_filter(explode("\n", trim($body))))
+        );
+
+        $this->assertCount(2, $rows, 'The export must contain the header row and exactly one bed row.');
+        $this->assertSame(['Bed', 'Room', 'Building', 'Hostel', 'Description', 'Status'], $rows[0]);
+        $this->assertSame('11', $rows[1][0], 'The live bed is exported as a record.');
     }
 
     public function test_hostel_fee_export_streams_a_bom_prefixed_csv_with_live_ledger(): void

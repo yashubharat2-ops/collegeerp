@@ -250,7 +250,14 @@ class InventoryBulkActionTest extends TestCase
         ])->assertOk();
 
         $this->assertSame([$receipt->id], $response->json('data.ids'));
-        $this->assertSame(1, $response->json('skipped_unauthorized'));
+
+        // The adjustment id IS found and policy-authorized (same college, not
+        // deleted); the handler's own type rule drops it from the export ids.
+        // The shared contract does not count acceptsRecord() rejections as
+        // "unauthorized" — skipped_unauthorized only covers missing / foreign /
+        // policy-denied ids (see BulkActionHandler::execute). The narrowing is
+        // proven by data.ids and by the hand-edited URL check below.
+        $this->assertSame(0, $response->json('skipped_unauthorized'));
 
         // The endpoint re-applies the same narrowing: a hand-edited URL that
         // carries an adjustment id cannot widen the download past receipts.
@@ -283,7 +290,12 @@ class InventoryBulkActionTest extends TestCase
         ])->assertOk();
 
         $this->assertSame([$active->id], $response->json('data.ids'));
-        $this->assertSame(1, $response->json('skipped_unauthorized'));
+
+        // Same shared contract as the goods-receipt rule: the returned
+        // assignment is found and (this module has no per-record policy) not
+        // denied, then dropped by the handler's active-only rule — which is not
+        // counted as "unauthorized". The narrowing is proven by data.ids.
+        $this->assertSame(0, $response->json('skipped_unauthorized'));
 
         $csv = $this->asCollege($college, $manager)->get($response->json('data.redirect'))->assertOk();
         $body = $csv->streamedContent();

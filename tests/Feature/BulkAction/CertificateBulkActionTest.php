@@ -48,9 +48,13 @@ class CertificateBulkActionTest extends TestCase
 
     private function provision(College $college): void
     {
+        // The tenant context stays set for the whole test, exactly like
+        // CertificateManagementTest::setUp: CertificateType is tenant-scoped
+        // (CollegeScope), so direct model reads in the test body — such as
+        // CertificateType::firstOrFail() — resolve only while the active
+        // college is pinned. HTTP requests re-resolve it per request.
         app(TenantContext::class)->set($college);
         app(CertificateCatalog::class)->provision($college->id);
-        app(TenantContext::class)->clear();
     }
 
     private function makeCertificate(College $college, CertificateType $type, array $overrides = []): Certificate
