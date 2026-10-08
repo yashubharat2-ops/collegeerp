@@ -773,5 +773,3 @@ Route::middleware('auth')->group(function () {
 
 // Reuse the same auth / tenant middleware and resource policies.
 require __DIR__.'/administration.php';
-icies.
-require __DIR__.'/administration.php';
