@@ -1,7 +1,8 @@
 <?php
 namespace App\Http\Controllers;
 use App\Models\{AcademicAttendance,AcademicCalendarEvent,AcademicSubjectEnrollment,AcademicTimetable,AcademicYear,AcademicTerm,Campus,Faculty,Program,Section,Student,StudentEnrollment,Subject};
-use Carbon\Carbon; use App\Support\Tenancy\TenantContext; use Illuminate\Http\Request; use Illuminate\Support\Facades\DB; use Illuminate\Validation\Rule;
+use App\Domain\Academic\Services\FacultyWorkloadService;
+use App\Support\Tenancy\TenantContext; use Illuminate\Http\Request; use Illuminate\Support\Facades\DB; use Illuminate\Validation\Rule;
 class AcademicsController extends Controller {
  private function college():int{return (int)app(TenantContext::class)->require()->id;}
  private function authorizePermission(string $p):void{abort_unless(auth()->user()?->hasPermission($p,$this->college()),403);}
@@ -30,22 +31,13 @@ class AcademicsController extends Controller {
  public function calendar(Request $r){$this->authorizePermission('academic_calendar.view');$items=AcademicCalendarEvent::with(['academicYear','academicTerm'])->orderBy('start_date')->paginate(30);return view('academics.calendar.index',compact('items'));}
  public function createCalendar(){ $this->authorizePermission('academic_calendar.create');return view('academics.calendar.form',$this->lists()); }
  public function storeCalendar(Request $r){$this->authorizePermission('academic_calendar.create');$v=$r->validate(['title'=>'required|string|max:255','event_type'=>'required|string|max:50','start_date'=>'required|date','end_date'=>'required|date|after_or_equal:start_date','academic_year_id'=>$this->refRules('academic_years'),'academic_term_id'=>['nullable',...$this->refRules('academic_terms')],'description'=>'nullable|string','status'=>'required|in:draft,published,cancelled']);AcademicCalendarEvent::create($v+['college_id'=>$this->college()]);return redirect()->route('academic-calendar.index')->with('success','Calendar event created.');}
- public function workload(){
+ public function workload(FacultyWorkloadService $workload){
   $this->authorizePermission('academic_workload.view');
-  // Keep the grouped/paginated query portable: duration arithmetic is performed
-  // in PHP because SQLite and MySQL do not share a time-difference function.
-  $items=AcademicTimetable::query()->select('faculty_id','subject_id','section_id','academic_year_id','academic_term_id',DB::raw('count(*) as periods'))->where('status','active')->with(['faculty','subject','section','academicYear','academicTerm'])->groupBy('faculty_id','subject_id','section_id','academic_year_id','academic_term_id')->paginate(30);
-  $items->getCollection()->transform(function($item){
-   $item->weekly_hours=$this->weeklyHoursFor($item);
-   return $item;
-  });
+  // The grouping, the portable PHP duration arithmetic and the group's
+  // representative timetable id (the value the listing's bulk selection posts)
+  // all live in ONE place — FacultyWorkloadService — so the workload screen and
+  // its CSV export can never derive a different workload for the same group.
+  $items=$workload->paginate();
   return view('academics.workload.index',compact('items'));
- }
- private function weeklyHoursFor(AcademicTimetable $group):float{
-  return (float) AcademicTimetable::query()->where('status','active')->where('faculty_id',$group->faculty_id)->where('subject_id',$group->subject_id)->where('section_id',$group->section_id)->where('academic_year_id',$group->academic_year_id)->where('academic_term_id',$group->academic_term_id)->get(['start_time','end_time'])->sum(function($entry){
-   $start=Carbon::parse($entry->start_time); $end=Carbon::parse($entry->end_time);
-   if($end->lessThan($start)) $end->addDay();
-   return $start->diffInMinutes($end)/60;
-  });
  }
 }

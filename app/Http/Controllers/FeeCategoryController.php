@@ -11,6 +11,10 @@ use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Fee Categories (Finance / Fees).
@@ -55,6 +59,45 @@ class FeeCategoryController extends Controller
             'statuses' => FeeCategory::STATUSES,
             'feeCategories' => FeeFormOptions::feeCategories(),
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Fee Categories list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped, re-queried
+     * inside the active college through the model's college scope) and the module
+     * permission is re-checked here. The component count is the same live count
+     * the listing shows. Read-only: categories have no bulk mutation.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', FeeCategory::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $categories = FeeCategory::query()
+            ->withCount('feeStructureItems')
+            ->whereIn('fee_categories.id', $ids)
+            ->orderBy('fee_categories.name')
+            ->orderBy('fee_categories.id')
+            ->get();
+
+        $rows = $categories->map(fn (FeeCategory $category): array => [
+            $category->name,
+            $category->code,
+            $category->description,
+            $category->fee_structure_items_count,
+            $category->status,
+        ]);
+
+        $audit->record('fee_categories.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $categories->count(),
+        ]);
+
+        return CsvStreamExport::make('fee-categories-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Name', 'Code', 'Description', 'Fee components', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

@@ -227,10 +227,23 @@
         </div>
     @else
         {{-- Attendance records list with filters. --}}
+        {{-- Bulk selection: export only. Marking, correcting and deleting
+             attendance keeps its existing per-record and board paths, which
+             resolve eligibility server-side — no bulk status write is exposed. --}}
+        <x-list.bulk-selection-bar module="exam_attendance">
+            @if(auth()->user()?->hasPermission('exam_attendance.view'))
+                <button type="button" data-bulk-action="export"
+                        class="button !py-2 !text-xs font-semibold">
+                    Export selected
+                </button>
+            @endif
+        </x-list.bulk-selection-bar>
+
         <div class="mt-8 overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead>
                     <tr class="border-b text-slate-500">
+                        <th class="w-10 py-3"><x-list.select-all /></th>
                         <th class="py-3">Enrollment No.</th>
                         <th>Student</th>
                         <th>Examination</th>
@@ -245,6 +258,7 @@
                 <tbody>
                     @forelse($attendances as $attendance)
                         <tr class="border-b">
+                            <td class="py-3"><x-list.row-checkbox :id="$attendance->id" /></td>
                             <td class="py-3 font-medium">{{ $attendance->studentEnrollment?->enrollment_number ?? '—' }}</td>
                             <td>{{ $attendance->studentEnrollment?->student?->fullName() ?? '—' }}</td>
                             <td>{{ $attendance->examSchedule?->examination?->name ?? '—' }}</td>
@@ -283,7 +297,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td class="py-6 text-slate-500" colspan="9">No exam attendance records found. Select an exam schedule above to start marking.</td>
+                            <td class="py-6 text-slate-500" colspan="10">No exam attendance records found. Select an exam schedule above to start marking.</td>
                         </tr>
                     @endforelse
                 </tbody>

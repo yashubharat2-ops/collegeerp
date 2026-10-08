@@ -5,9 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Examination;
 use App\Models\ExamReport;
 use App\Models\Program;
+use App\Services\Audit\AuditLogService;
 use App\Services\Examinations\ExamReportService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Exam Reports — read-only published-result summaries (Examinations Phase 4).
@@ -46,6 +51,96 @@ class ExamReportController extends Controller
             'programSummaries' => $this->reports->programSummaries($examinationId, $programId),
             'subjectSummaries' => $this->reports->subjectSummaries($examinationId, $programId),
         ]);
+    }
+
+    /**
+     * CSV of the report's selected lines — the PROGRAM-WISE or the SUBJECT-WISE
+     * summary, whichever table the selection came from.
+     *
+     * The report screen has no rows of its own: every figure is a live COUNT over
+     * published results. A report line is therefore keyed by the real,
+     * college-scoped record it summarises (a Program or a Subject), which is what
+     * the listing's checkboxes carry and what the bulk action handler re-queried
+     * inside the active college before returning the ids this endpoint receives.
+     *
+     * Two guarantees keep the CSV identical to what was on screen:
+     *
+     *  1. the group (`programs` / `subjects`) is validated against a fixed
+     *     allow-list — never taken on trust from the URL;
+     *  2. the screen's own filters are re-applied, and the examination / program
+     *     filter values are re-checked against the active college's option lists
+     *     (exactly like `index()`), so a forged filter id yields an empty report
+     *     rather than cross-tenant rows.
+     *
+     * The report stays read-only: nothing here writes a result, a mark or a grade.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', ExamReport::class);
+
+        $group = $request->input('group') === 'subjects' ? 'subjects' : 'programs';
+
+        $examinations = Examination::query()->orderByDesc('id')->get(['id', 'name', 'code']);
+        $programs = Program::query()->orderBy('name')->get(['id', 'name', 'code']);
+
+        $examinationId = $this->selectedExaminationId($request, $examinations);
+        $programId = $this->optionalFilter($request->input('program_id'), $programs);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $audit->record('exam_reports.exported', null, [], [
+            'group' => $group,
+            'examination_id' => $examinationId,
+            'program_id' => $programId,
+            'selected_ids' => count($ids),
+        ]);
+
+        return $group === 'subjects'
+            ? $this->subjectExport($this->reports->subjectSummaryRows($ids, $examinationId, $programId))
+            : $this->programExport($this->reports->programSummaryRows($ids, $examinationId, $programId));
+    }
+
+    /**
+     * @param  Collection<int, object>  $rows
+     */
+    private function programExport($rows): StreamedResponse
+    {
+        return CsvStreamExport::make('exam-report-programs-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Program', 'Code', 'Total', 'Pass', 'Fail', 'Absent', 'Withheld', 'Incomplete', 'Pass rate %'])
+            ->map(fn (object $row): array => [
+                $row->name,
+                $row->code,
+                $row->total,
+                $row->pass_count,
+                $row->fail_count,
+                $row->absent_count,
+                $row->withheld_count,
+                $row->incomplete_count,
+                $row->pass_rate,
+            ])
+            ->streamFromCollection($rows);
+    }
+
+    /**
+     * @param  Collection<int, object>  $rows
+     */
+    private function subjectExport($rows): StreamedResponse
+    {
+        return CsvStreamExport::make('exam-report-subjects-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Subject', 'Code', 'Max marks', 'Total', 'Pass', 'Fail', 'Absent', 'Withheld', 'Incomplete', 'Pass rate %'])
+            ->map(fn (object $row): array => [
+                $row->name,
+                $row->code,
+                $row->max_marks,
+                $row->total,
+                $row->pass_count,
+                $row->fail_count,
+                $row->absent_count,
+                $row->withheld_count,
+                $row->incomplete_count,
+                $row->pass_rate,
+            ])
+            ->streamFromCollection($rows);
     }
 
     /**

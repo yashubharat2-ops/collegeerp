@@ -15,6 +15,10 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Fee Collection (Finance / Fees).
@@ -48,6 +52,53 @@ class FeePaymentController extends Controller
             'total' => FeeLedger::money($this->filteredQuery($request)->sum('amount')),
             'selected' => $this->selectedFilters($request),
         ]));
+    }
+
+    /**
+     * CSV export of a bulk selection from the Fee Collection list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped, re-queried
+     * inside the active college through the model's college scope) and the module
+     * permission is re-checked here. Read-only by construction: collecting a fee,
+     * editing a payment and cancelling a receipt each stay single-record
+     * workflows with their own service rules and audit trail, so no money can
+     * move from a checkbox.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', FeePayment::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $payments = FeePayment::query()
+            ->with(['studentEnrollment.student', 'studentEnrollment.program', 'feeStructure', 'collector'])
+            ->whereIn('fee_payments.id', $ids)
+            ->orderBy('fee_payments.id')
+            ->get();
+
+        $rows = $payments->map(fn (FeePayment $payment): array => [
+            $payment->payment_number,
+            $payment->payment_date?->format('Y-m-d'),
+            $payment->studentEnrollment?->student?->fullName(),
+            $payment->studentEnrollment?->enrollment_number,
+            $payment->studentEnrollment?->program?->code,
+            ucfirst(str_replace('_', ' ', (string) $payment->payment_mode)),
+            $payment->reference_number,
+            $payment->amount,
+            $payment->status,
+        ]);
+
+        $audit->record('fee_collections.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $payments->count(),
+        ]);
+
+        return CsvStreamExport::make('fee-collections-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Payment no', 'Date', 'Student', 'Enrollment', 'Program', 'Mode',
+                'Reference', 'Amount', 'Status',
+            ])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

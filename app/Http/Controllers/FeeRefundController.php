@@ -13,6 +13,10 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Refunds (Finance / Fees).
@@ -67,6 +71,66 @@ class FeeRefundController extends Controller
                 'to' => $request->input('to'),
             ],
         ]));
+    }
+
+    /**
+     * CSV export of a bulk selection from the Refunds list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped, re-queried
+     * inside the active college through the model's college scope) and the module
+     * permission is re-checked here. Read-only: approving and processing a refund
+     * move money and stay single-record workflows handled by FeeRefundService.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', FeeRefund::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $refunds = FeeRefund::query()
+            ->with([
+                'payment.studentEnrollment.student',
+                'payment.studentEnrollment.program',
+                'payment.feeStructure',
+                'approver',
+                'processor',
+            ])
+            ->whereIn('fee_refunds.id', $ids)
+            ->orderBy('fee_refunds.id')
+            ->get();
+
+        $rows = $refunds->map(function (FeeRefund $refund): array {
+            $payment = $refund->payment;
+
+            return [
+                $refund->refund_number,
+                $refund->refund_date?->format('Y-m-d'),
+                $payment?->studentEnrollment?->student?->fullName(),
+                $payment?->studentEnrollment?->enrollment_number,
+                $payment?->payment_number,
+                $payment?->amount,
+                $refund->amount,
+                $refund->reason,
+                $refund->status,
+                $refund->approved_at?->format('Y-m-d'),
+                $refund->approver?->name,
+                $refund->processed_at?->format('Y-m-d'),
+                $refund->processor?->name,
+            ];
+        });
+
+        $audit->record('refunds.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $refunds->count(),
+        ]);
+
+        return CsvStreamExport::make('refunds-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Refund no', 'Date', 'Student', 'Enrollment', 'Payment no', 'Payment amount',
+                'Refund amount', 'Reason', 'Status', 'Approved at', 'Approved by',
+                'Processed at', 'Processed by',
+            ])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

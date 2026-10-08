@@ -14,10 +14,22 @@
     </div>
 
     <form method="GET" action="{{ route('exam-reports.index') }}" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <select class="input" name="examination_id">
-            @foreach($examinations as $exam)
-                <option value="{{ $exam->id }}" @selected($examinationId === $exam->id)>{{ $exam->name }} ({{ $exam->code }})</option>
-            @endforeach
+        {{-- The examination control always explains itself: a college with no
+             examinations yet gets a disabled placeholder instead of an empty
+             select, and the meaningless submit is disabled with it (the same
+             @disabled($collection->isEmpty()) convention the library and
+             certificate forms use). Otherwise the list starts with an explicit
+             "Select examination" option; leaving it empty submits no filter and
+             the controller falls back to its usual default examination. --}}
+        <select class="input" name="examination_id" @disabled($examinations->isEmpty())>
+            @if($examinations->isEmpty())
+                <option value="">No examinations available</option>
+            @else
+                <option value="">Select examination</option>
+                @foreach($examinations as $exam)
+                    <option value="{{ $exam->id }}" @selected($examinationId === $exam->id)>{{ $exam->name }} ({{ $exam->code }})</option>
+                @endforeach
+            @endif
         </select>
         <select class="input" name="program_id">
             <option value="">All programs</option>
@@ -26,7 +38,7 @@
             @endforeach
         </select>
         <div class="flex gap-2">
-            <button class="button" type="submit">Show report</button>
+            <button class="button" type="submit" @disabled($examinations->isEmpty())>Show report</button>
             <a class="button !bg-slate-200 !text-slate-700" href="{{ route('exam-reports.index') }}">Reset</a>
         </div>
     </form>
@@ -67,11 +79,31 @@
             </div>
         </div>
 
+        <div data-bulk-scope>
+        {{-- Every figure in this summary is a live COUNT over published results,
+             so a line is keyed by the real Program row it summarises: the checkbox
+             value is that program id, which the handler re-queries inside the
+             active college before the export endpoint re-aggregates exactly those
+             programs. The screen's own filters travel with the action as bulk
+             parameters and are re-validated server-side, so the CSV reports the
+             same scope as the line on screen. --}}
         <h3 class="mt-8 text-sm font-semibold text-slate-900">Program-wise summary</h3>
+
+        <x-list.bulk-selection-bar module="exam_reports">
+            @if(auth()->user()?->hasPermission('exam_reports.view'))
+                <button type="button" data-bulk-action="export"
+                        data-bulk-param-examination-id="{{ $examinationId }}"
+                        data-bulk-param-program-id="{{ $programId }}"
+                        class="button !py-2 !text-xs font-semibold">
+                    Export selected
+                </button>
+            @endif
+        </x-list.bulk-selection-bar>
         <div class="mt-3 overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead>
                     <tr class="border-b text-slate-500">
+                        <th class="w-10 py-3"><x-list.select-all id="exam-reports-program-select-all" /></th>
                         <th class="py-3">Program</th>
                         <th class="text-right">Total</th>
                         <th class="text-right">Pass</th>
@@ -85,6 +117,7 @@
                 <tbody>
                     @forelse($programSummaries as $program)
                         <tr class="border-b">
+                            <td class="py-3"><x-list.row-checkbox :id="$program->id" /></td>
                             <td class="py-3 font-medium">{{ $program->name }} ({{ $program->code }})</td>
                             <td class="text-right">{{ $program->total }}</td>
                             <td class="text-right">{{ $program->pass_count }}</td>
@@ -96,19 +129,36 @@
                         </tr>
                     @empty
                         <tr>
-                            <td class="py-6 text-slate-500" colspan="8">No program data for the selected filters.</td>
+                            <td class="py-6 text-slate-500" colspan="9">No program data for the selected filters.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
         <div class="mt-4">{{ $programSummaries->links() }}</div>
+        </div>
 
+        <div data-bulk-scope>
+        {{-- The subject-wise sibling: the same contract, keyed by the Subject rows
+             it summarises and posted as its OWN module, so a program id and a
+             subject id can never end up in one selection. --}}
         <h3 class="mt-8 text-sm font-semibold text-slate-900">Subject-wise summary</h3>
+
+        <x-list.bulk-selection-bar module="exam_report_subjects">
+            @if(auth()->user()?->hasPermission('exam_reports.view'))
+                <button type="button" data-bulk-action="export"
+                        data-bulk-param-examination-id="{{ $examinationId }}"
+                        data-bulk-param-program-id="{{ $programId }}"
+                        class="button !py-2 !text-xs font-semibold">
+                    Export selected
+                </button>
+            @endif
+        </x-list.bulk-selection-bar>
         <div class="mt-3 overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead>
                     <tr class="border-b text-slate-500">
+                        <th class="w-10 py-3"><x-list.select-all id="exam-reports-subject-select-all" /></th>
                         <th class="py-3">Subject</th>
                         <th class="text-right">Max Marks</th>
                         <th class="text-right">Total</th>
@@ -123,6 +173,7 @@
                 <tbody>
                     @forelse($subjectSummaries as $subject)
                         <tr class="border-b">
+                            <td class="py-3"><x-list.row-checkbox :id="$subject->id" /></td>
                             <td class="py-3 font-medium">{{ $subject->name }} ({{ $subject->code }})</td>
                             <td class="text-right">{{ $subject->max_marks ?? '—' }}</td>
                             <td class="text-right">{{ $subject->total }}</td>
@@ -135,13 +186,14 @@
                         </tr>
                     @empty
                         <tr>
-                            <td class="py-6 text-slate-500" colspan="9">No subject data for the selected filters.</td>
+                            <td class="py-6 text-slate-500" colspan="10">No subject data for the selected filters.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
         <div class="mt-4">{{ $subjectSummaries->links() }}</div>
+        </div>
     @endif
 </div>
 @endsection

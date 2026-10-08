@@ -21,6 +21,34 @@
     .quick-link { @apply flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700; }
     .alert-success { @apply mb-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-700; }
     .alert-error { @apply mb-5 rounded-xl bg-rose-50 p-4 text-sm text-rose-700; }
+
+    /*
+     * ACADEMIC MODULE (resources/views/academics/**) — the three class names
+     * those screens have always used.
+     *
+     * Every Academic Blade view is written against `.card`, `.table` and
+     * `.btn-primary`, but no stylesheet in the project ever defined them: the
+     * rest of the ERP names the same things `.panel`, `.button` and a
+     * utility-styled <table>. Because Tailwind's preflight resets form controls
+     * (background, border and padding all become empty), an undefined class on a
+     * <button> renders as plain text — which is exactly how the Academic forms'
+     * "Save enrollment" / "Save timetable" / "Save event" buttons were reported.
+     *
+     * They are defined here with the project's EXISTING design tokens so those
+     * screens finally render in the same visual language as every other module:
+     *   `.card`        → the `.panel` card  (white, slate-200 border, rounded-2xl, p-6)
+     *   `.table`       → the shared list table (`w-full text-left text-sm`, py-3 cells)
+     *   `.btn-primary` → the `.button` primary action (indigo-600, rounded-xl, focus ring)
+     *
+     * No Academic markup had to change: the classes its views already carry now
+     * resolve. Only the Academic screens use these three names (verified across
+     * resources/views/**), so nothing else is affected.
+     */
+    .card { @apply rounded-2xl border border-slate-200 bg-white p-6 shadow-sm; }
+    .table { @apply w-full text-left text-sm; }
+    .table th { @apply border-b border-slate-200 py-3 font-semibold text-slate-500; }
+    .table td { @apply border-b border-slate-100 py-3; }
+    .btn-primary { @apply inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300; }
     /*
      * List dropdown menus (resources/views/components/list/dropdown.blade.php) are
      * NOT styled here: that component owns public/css/erp-dropdown.css, a static

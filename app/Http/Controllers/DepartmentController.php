@@ -11,6 +11,9 @@ use App\Services\Audit\AuditLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DepartmentController extends Controller
 {
@@ -37,6 +40,45 @@ class DepartmentController extends Controller
             'search' => trim((string) $request->input('search')),
             'status' => $request->input('status'),
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Staff Departments list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped, re-queried
+     * inside the active college through the model's college scope) and
+     * `departments.view` is re-checked here. Departments are the shared Platform
+     * master used by the Academic and the HR screens, so this screen is
+     * export-only.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', Department::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $departments = Department::query()
+            ->with('campus')
+            ->whereIn('departments.id', $ids)
+            ->orderBy('departments.id')
+            ->get();
+
+        $rows = $departments->map(fn (Department $department): array => [
+            $department->name,
+            $department->code,
+            $department->campus?->name ?? 'College level',
+            $department->status,
+            $department->description,
+        ]);
+
+        $audit->record('staff_departments.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $departments->count(),
+        ]);
+
+        return CsvStreamExport::make('staff-departments-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Name', 'Code', 'Campus', 'Status', 'Description'])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

@@ -4,7 +4,7 @@
 
 @section('content')
 @php($routePrefix = $isHr ? 'employees' : 'faculties')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">{{ $isHr ? 'Staff / Employee' : 'Faculty / Staff' }}</h2>
@@ -47,12 +47,24 @@
             @endif
         </div>
     </form>
+    {{-- Bulk selection over the filtered staff records list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="staff_employees">
+        @if(auth()->user()?->hasPermission('faculties.view'))
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export selected
+            </button>
+        @endif
+    </x-list.bulk-selection-bar>
 
     <div class="mt-8 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
                     <th class="py-3">Name</th>
+                    <th class="w-10 py-3"><x-list.select-all /></th>
                     <th>Employee Code</th>
                     <th>Department</th>
                     <th>Designation</th>
@@ -66,6 +78,7 @@
                 @forelse($faculties as $fac)
                     <tr class="border-b">
                         <td class="py-3 font-medium">{{ $fac->full_name }}</td>
+                        <td class="py-3"><x-list.row-checkbox :id="$fac->id" /></td>
                         <td>{{ $fac->employee_code }}</td>
                         <td>{{ $fac->department?->name ?? '— (college level)' }}</td>
                         <td>{{ $fac->displayDesignation() ?? '—' }}</td>
@@ -93,7 +106,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-6 text-slate-500" colspan="8">No employees found.</td></tr>
+                    <tr><td class="py-6 text-slate-500" colspan="9">No employees found.</td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -3,7 +3,7 @@
 @section('title', 'Fee Discounts / Concessions')
 
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Fee Discounts / Concessions</h2>
@@ -64,12 +64,24 @@
             <button class="button" type="submit">Filter</button>
         </div>
     </form>
+    {{-- Bulk selection over the filtered concessions list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="fee_concessions">
+        @if(auth()->user()?->hasPermission('fee_concessions.view'))
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export selected
+            </button>
+        @endif
+    </x-list.bulk-selection-bar>
 
     <div class="mt-6 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
                     <th class="py-2">Student</th>
+                    <th class="w-10 py-2"><x-list.select-all /></th>
                     <th>Fee Structure</th>
                     <th>Type</th>
                     <th class="text-right">Value</th>
@@ -84,6 +96,7 @@
                 @forelse($concessions as $concession)
                     <tr class="border-b">
                         <td class="py-2 font-medium">{{ $concession->studentFeeAssignment?->studentEnrollment?->student?->fullName() ?? '—' }}</td>
+                        <td class="py-2"><x-list.row-checkbox :id="$concession->id" /></td>
                         <td>{{ $concession->studentFeeAssignment?->feeStructure?->name ?? '—' }}</td>
                         <td>{{ ucfirst($concession->type) }}</td>
                         <td class="text-right">{{ $concession->type === 'percentage' ? number_format((float) $concession->value, 2).'%' : number_format((float) $concession->value, 2) }}</td>
@@ -124,7 +137,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-4 text-slate-500" colspan="9">No concessions recorded for this selection.</td></tr>
+                    <tr><td class="py-4 text-slate-500" colspan="10">No concessions recorded for this selection.</td></tr>
                 @endforelse
             </tbody>
         </table>

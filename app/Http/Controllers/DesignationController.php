@@ -9,6 +9,9 @@ use App\Services\Audit\AuditLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DesignationController extends Controller
 {
@@ -38,6 +41,45 @@ class DesignationController extends Controller
             'search' => trim((string) $request->input('search')),
             'status' => $request->input('status'),
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Designations list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped, re-queried
+     * inside the active college through the model's college scope) and
+     * `designations.view` is re-checked here. The employee count is the same live
+     * count the listing shows and nothing is written.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', Designation::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $designations = Designation::query()
+            ->withCount('employees')
+            ->whereIn('designations.id', $ids)
+            ->orderBy('designations.name')
+            ->orderBy('designations.id')
+            ->get();
+
+        $rows = $designations->map(fn (Designation $designation): array => [
+            $designation->name,
+            $designation->code,
+            $designation->description,
+            $designation->employees_count,
+            $designation->status,
+        ]);
+
+        $audit->record('designations.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $designations->count(),
+        ]);
+
+        return CsvStreamExport::make('designations-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Name', 'Code', 'Description', 'Employees', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

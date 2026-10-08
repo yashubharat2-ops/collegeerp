@@ -3,7 +3,7 @@
 @section('title', 'Student Fee Assignment')
 
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Student Fee Assignment</h2>
@@ -64,12 +64,24 @@
             </div>
         </div>
     </form>
+    {{-- Bulk selection over the filtered fee assignments list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="student_fee_assignments">
+        @if(auth()->user()?->hasPermission('student_fee_assignments.view'))
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export selected
+            </button>
+        @endif
+    </x-list.bulk-selection-bar>
 
     <div class="mt-6 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
                     <th class="py-2">Student</th>
+                    <th class="w-10 py-2"><x-list.select-all /></th>
                     <th>Enrollment</th>
                     <th>Year / Program</th>
                     <th>Fee Structure</th>
@@ -85,6 +97,7 @@
                 @forelse($assignments as $assignment)
                     <tr class="border-b">
                         <td class="py-2 font-medium">{{ $assignment->studentEnrollment?->student?->fullName() ?? '—' }}</td>
+                        <td class="py-2"><x-list.row-checkbox :id="$assignment->id" /></td>
                         <td>{{ $assignment->studentEnrollment?->enrollment_number ?? '—' }}</td>
                         <td>{{ $assignment->studentEnrollment?->academicYear?->name ?? '—' }} · {{ $assignment->studentEnrollment?->program?->code ?? '—' }}</td>
                         <td>{{ $assignment->feeStructure?->name ?? '—' }}</td>
@@ -114,7 +127,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-4 text-slate-500" colspan="10">No fee structures assigned yet for this college.</td></tr>
+                    <tr><td class="py-4 text-slate-500" colspan="11">No fee structures assigned yet for this college.</td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -57,10 +57,23 @@
         </div>
     </form>
 
+    {{-- Bulk selection: export only. Like a marksheet, a grade card is derived
+         from a PUBLISHED result, so the checkbox values are those result ids and
+         the published-only rule is re-applied per record by the handler. --}}
+    <x-list.bulk-selection-bar module="grade_cards">
+        @if(auth()->user()?->hasPermission('grade_cards.view'))
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export selected
+            </button>
+        @endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-6 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-3"><x-list.select-all /></th>
                     <th class="py-3">Enrollment No.</th>
                     <th>Student</th>
                     <th>Examination</th>
@@ -74,6 +87,7 @@
             <tbody>
                 @forelse($results as $result)
                     <tr class="border-b">
+                        <td class="py-3"><x-list.row-checkbox :id="$result->id" /></td>
                         <td class="py-3 font-medium">{{ $result->studentEnrollment?->enrollment_number }}</td>
                         <td>{{ $result->studentEnrollment?->student?->fullName() }}</td>
                         <td>{{ $result->examination?->name }}</td>
@@ -91,7 +105,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td class="py-6 text-slate-500" colspan="8">No published results found for the selected filters.</td>
+                        <td class="py-6 text-slate-500" colspan="9">No published results found for the selected filters.</td>
                     </tr>
                 @endforelse
             </tbody>

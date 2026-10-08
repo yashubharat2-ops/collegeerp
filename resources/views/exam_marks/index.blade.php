@@ -225,10 +225,24 @@
         </div>
     @else
         {{-- Marks records list with filters. --}}
+        {{-- Bulk selection: export only, by design. Marks are the single source of
+             truth for every calculated result, so no bulk marks edit, bulk
+             pass/fail override or bulk status change exists — entering,
+             correcting and deleting marks stays on the existing per-record paths. --}}
+        <x-list.bulk-selection-bar module="exam_marks">
+            @if(auth()->user()?->hasPermission('exam_marks.view'))
+                <button type="button" data-bulk-action="export"
+                        class="button !py-2 !text-xs font-semibold">
+                    Export selected
+                </button>
+            @endif
+        </x-list.bulk-selection-bar>
+
         <div class="mt-8 overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead>
                     <tr class="border-b text-slate-500">
+                        <th class="w-10 py-3"><x-list.select-all /></th>
                         <th class="py-3">Enrollment No.</th>
                         <th>Student</th>
                         <th>Examination</th>
@@ -242,6 +256,7 @@
                 <tbody>
                     @forelse($marks as $mark)
                         <tr class="border-b">
+                            <td class="py-3"><x-list.row-checkbox :id="$mark->id" /></td>
                             <td class="py-3 font-medium">{{ $mark->studentEnrollment?->enrollment_number ?? '—' }}</td>
                             <td>{{ $mark->studentEnrollment?->student?->fullName() ?? '—' }}</td>
                             <td>{{ $mark->examSchedule?->examination?->name ?? '—' }}</td>
@@ -286,7 +301,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td class="py-6 text-slate-500" colspan="8">No marks entries found. Select an exam schedule above to start entering marks.</td>
+                            <td class="py-6 text-slate-500" colspan="9">No marks entries found. Select an exam schedule above to start entering marks.</td>
                         </tr>
                     @endforelse
                 </tbody>

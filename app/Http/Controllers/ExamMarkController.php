@@ -15,11 +15,15 @@ use App\Models\Section;
 use App\Models\Subject;
 use App\Services\Audit\AuditLogService;
 use App\Services\Examinations\ExamEligibilityService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Marks Entry (Examinations Phase 2).
@@ -59,6 +63,24 @@ class ExamMarkController extends Controller
             return $this->scheduleBoard($request, $schedule);
         }
 
+        return view('exam_marks.index', array_merge($this->filterOptions(), [
+            'marks' => $this->listQuery($request)->paginate(15)->withQueryString(),
+            'schedule' => null,
+            'enrollments' => null,
+            'existingByEnrollment' => collect(),
+            'locked' => false,
+            'filters' => $this->currentFilters($request),
+        ]));
+    }
+
+    /**
+     * The marks RECORD list query (the mode without a selected schedule).
+     *
+     * Shared by `index()` and `export()`. The entry grid is deliberately not part
+     * of it: that mode lists eligible enrollments with input controls.
+     */
+    private function listQuery(Request $request): Builder
+    {
         $query = ExamMark::query()
             ->with([
                 'examSchedule.examination',
@@ -98,14 +120,67 @@ class ExamMarkController extends Controller
             $query->where('status', $request->input('status'));
         }
 
-        return view('exam_marks.index', array_merge($this->filterOptions(), [
-            'marks' => $query->paginate(15)->withQueryString(),
-            'schedule' => null,
-            'enrollments' => null,
-            'existingByEnrollment' => collect(),
-            'locked' => false,
-            'filters' => $this->currentFilters($request),
-        ]));
+        return $query;
+    }
+
+    /**
+     * CSV of the filtered marks entries, or of an authorized selection of them.
+     *
+     * Destination of the listing's bulk "Export selected" action: the handler
+     * re-queried and authorized each id through ExamMarkPolicy, and this endpoint
+     * re-applies the same filters and re-resolves the ids inside the active
+     * college.
+     *
+     * Marks are THE source of truth for every calculated result, so this module
+     * is strictly export-only: no bulk marks edit, no bulk pass/fail override and
+     * no bulk status change exists — entering, correcting and deleting marks
+     * stays on the existing per-record, validated and audited paths.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', ExamMark::class);
+
+        $query = $this->listQuery($request)->reorder('exam_marks.id');
+
+        $ids = ListSelection::ids($request->input('ids', []));
+        if ($ids !== []) {
+            $query->whereIn('exam_marks.id', $ids);
+        }
+
+        $audit->record('exam_marks.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => (clone $query)->count(),
+        ]);
+
+        return CsvStreamExport::make('exam-marks-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Examination', 'Subject', 'Exam date', 'Enrollment number', 'Student number',
+                'Student', 'Program', 'Section', 'Obtained marks', 'Max marks', 'Passing marks',
+                'Status', 'Entered by', 'Entered at', 'Remarks',
+            ])
+            ->map(function (ExamMark $mark): array {
+                $schedule = $mark->examSchedule;
+                $enrollment = $mark->studentEnrollment;
+
+                return [
+                    $schedule?->examination?->name,
+                    $schedule?->subject?->name,
+                    $schedule?->exam_date?->format('Y-m-d'),
+                    $enrollment?->enrollment_number,
+                    $enrollment?->student?->student_number,
+                    $enrollment?->student?->fullName(),
+                    $enrollment?->program?->name,
+                    $enrollment?->section?->name,
+                    $mark->obtained_marks,
+                    $mark->max_marks,
+                    $mark->passing_marks,
+                    $mark->status,
+                    $mark->enteredBy?->name,
+                    $mark->entered_at?->format('Y-m-d H:i'),
+                    $mark->remarks,
+                ];
+            })
+            ->streamFromQuery($query);
     }
 
     /**

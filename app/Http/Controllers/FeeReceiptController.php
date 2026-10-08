@@ -11,6 +11,10 @@ use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Receipts (Finance / Fees).
@@ -58,6 +62,53 @@ class FeeReceiptController extends Controller
                 'to' => $request->input('to'),
             ],
         ]));
+    }
+
+    /**
+     * CSV export of a bulk selection from the Receipts list.
+     *
+     * A receipt is a derived view of one successful collection, so the selectable
+     * record is that FeePayment row. Ids are treated as a request, never as data
+     * (normalised, capped, re-queried inside the active college through the
+     * model's college scope) and the module permission is re-checked here.
+     * Receipts have no create/update/delete routes at all: this screen cannot
+     * mutate money.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', FeeReceipt::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $receipts = FeePayment::query()
+            ->with(['studentEnrollment.student', 'studentEnrollment.academicYear', 'studentEnrollment.program', 'feeStructure', 'collector'])
+            ->whereIn('fee_payments.id', $ids)
+            ->orderBy('fee_payments.id')
+            ->get();
+
+        $rows = $receipts->map(fn (FeePayment $payment): array => [
+            $payment->payment_number,
+            $payment->payment_date?->format('Y-m-d'),
+            $payment->studentEnrollment?->student?->fullName(),
+            $payment->studentEnrollment?->academicYear?->name,
+            $payment->studentEnrollment?->program?->code,
+            ucfirst(str_replace('_', ' ', (string) $payment->payment_mode)),
+            $payment->reference_number,
+            $payment->amount,
+            $payment->status,
+        ]);
+
+        $audit->record('receipts.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $receipts->count(),
+        ]);
+
+        return CsvStreamExport::make('receipts-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Receipt no', 'Date', 'Student', 'Year', 'Program', 'Mode',
+                'Reference', 'Amount', 'Status',
+            ])
+            ->streamFromCollection($rows);
     }
 
     public function show(string $fee_payment): View

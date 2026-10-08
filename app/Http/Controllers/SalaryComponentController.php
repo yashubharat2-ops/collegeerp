@@ -12,6 +12,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Validation\ValidationException;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SalaryComponentController extends Controller
 {
@@ -23,6 +26,50 @@ class SalaryComponentController extends Controller
         $query = SalaryComponent::query()->with('structure')->orderBy('salary_structure_id')->orderBy('sort_order')->orderBy('id');
         if ($request->filled('salary_structure_id')) $query->where('salary_structure_id', $request->integer('salary_structure_id'));
         return view('salary_components.index', ['components' => $query->paginate(30)->withQueryString(), 'structures' => SalaryStructure::query()->orderBy('name')->get(['id', 'name']), 'filterStructure' => $request->input('salary_structure_id')]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Staff Salary / Payroll screen.
+     *
+     * Ids are treated as a request, never as data (normalised, capped, re-queried
+     * inside the active college through the model's college scope) and
+     * `salary_components.view` is re-checked here. These values are the structure
+     * configuration the listing shows; no payroll calculation runs and nothing is
+     * written.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', SalaryComponent::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $components = SalaryComponent::query()
+            ->with('structure')
+            ->whereIn('salary_components.id', $ids)
+            ->orderBy('salary_components.id')
+            ->get();
+
+        $rows = $components->map(fn (SalaryComponent $component): array => [
+            $component->structure?->name,
+            $component->name,
+            $component->code,
+            ucfirst((string) $component->component_type),
+            ucfirst((string) $component->calculation_type),
+            $component->basis ?: 'gross',
+            $component->value,
+        ]);
+
+        $audit->record('salary_components.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $components->count(),
+        ]);
+
+        return CsvStreamExport::make('salary-components-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Structure', 'Component', 'Code', 'Component type', 'Calculation',
+                'Basis', 'Value',
+            ])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

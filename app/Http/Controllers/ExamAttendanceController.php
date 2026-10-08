@@ -15,11 +15,15 @@ use App\Models\Section;
 use App\Models\Subject;
 use App\Services\Audit\AuditLogService;
 use App\Services\Examinations\ExamEligibilityService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Exam Attendance (Examinations Phase 2).
@@ -55,6 +59,24 @@ class ExamAttendanceController extends Controller
             return $this->scheduleBoard($request, $schedule);
         }
 
+        return view('exam_attendance.index', array_merge($this->filterOptions(), [
+            'attendances' => $this->listQuery($request)->paginate(15)->withQueryString(),
+            'schedule' => null,
+            'enrollments' => null,
+            'existingByEnrollment' => collect(),
+            'locked' => false,
+            'filters' => $this->currentFilters($request),
+        ]));
+    }
+
+    /**
+     * The attendance RECORD list query (the mode without a selected schedule).
+     *
+     * Shared by `index()` and `export()`. The marking board is deliberately not
+     * part of it: that mode lists eligible enrollments, not attendance rows.
+     */
+    private function listQuery(Request $request): Builder
+    {
         $query = ExamAttendance::query()
             ->with([
                 'examSchedule.examination',
@@ -94,14 +116,62 @@ class ExamAttendanceController extends Controller
             $query->where('attendance_status', $request->input('attendance_status'));
         }
 
-        return view('exam_attendance.index', array_merge($this->filterOptions(), [
-            'attendances' => $query->paginate(15)->withQueryString(),
-            'schedule' => null,
-            'enrollments' => null,
-            'existingByEnrollment' => collect(),
-            'locked' => false,
-            'filters' => $this->currentFilters($request),
-        ]));
+        return $query;
+    }
+
+    /**
+     * CSV of the filtered exam attendance records, or of an authorized
+     * selection of them.
+     *
+     * Destination of the listing's bulk "Export selected" action. The handler
+     * already re-queried and authorized the ids through ExamAttendancePolicy;
+     * this endpoint shape-checks them (ListSelection), re-applies the same
+     * filters and re-resolves every id inside the active college.
+     *
+     * Read only: marking, correcting and deleting attendance keeps its existing
+     * per-record paths — no bulk status write is exposed anywhere.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', ExamAttendance::class);
+
+        $query = $this->listQuery($request)->reorder('exam_attendances.id');
+
+        $ids = ListSelection::ids($request->input('ids', []));
+        if ($ids !== []) {
+            $query->whereIn('exam_attendances.id', $ids);
+        }
+
+        $audit->record('exam_attendance.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => (clone $query)->count(),
+        ]);
+
+        return CsvStreamExport::make('exam-attendance-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Examination', 'Subject', 'Exam date', 'Enrollment number', 'Student number',
+                'Student', 'Program', 'Section', 'Attendance status', 'Marked by', 'Marked at', 'Remarks',
+            ])
+            ->map(function (ExamAttendance $attendance): array {
+                $schedule = $attendance->examSchedule;
+                $enrollment = $attendance->studentEnrollment;
+
+                return [
+                    $schedule?->examination?->name,
+                    $schedule?->subject?->name,
+                    $schedule?->exam_date?->format('Y-m-d'),
+                    $enrollment?->enrollment_number,
+                    $enrollment?->student?->student_number,
+                    $enrollment?->student?->fullName(),
+                    $enrollment?->program?->name,
+                    $enrollment?->section?->name,
+                    $attendance->attendance_status,
+                    $attendance->markedBy?->name,
+                    $attendance->marked_at?->format('Y-m-d H:i'),
+                    $attendance->remarks,
+                ];
+            })
+            ->streamFromQuery($query);
     }
 
     /**

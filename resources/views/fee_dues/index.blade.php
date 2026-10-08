@@ -3,7 +3,7 @@
 @section('title', 'Due / Outstanding Fees')
 
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Due / Outstanding Fees</h2>
@@ -74,6 +74,17 @@
             <a class="button !bg-slate-200 !text-slate-700" href="{{ route('fee-dues.index') }}">Reset</a>
         </div>
     </form>
+    {{-- Bulk selection over the filtered due rows list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="fee_dues">
+        @if(auth()->user()?->hasPermission('fee_dues.view'))
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export selected
+            </button>
+        @endif
+    </x-list.bulk-selection-bar>
 
     <div class="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <div class="rounded-2xl border border-slate-200 bg-white p-4">
@@ -107,6 +118,7 @@
             <thead>
                 <tr class="border-b text-slate-500">
                     <th class="py-2">Student</th>
+                    <th class="w-10 py-2"><x-list.select-all /></th>
                     <th>Enrollment</th>
                     <th>Year / Program</th>
                     <th>Fee Structure</th>
@@ -123,6 +135,7 @@
                 @forelse($dues as $assignment)
                     <tr class="border-b">
                         <td class="py-2 font-medium">{{ $assignment->studentEnrollment?->student?->fullName() ?? '—' }}</td>
+                        <td class="py-2"><x-list.row-checkbox :id="$assignment->id" /></td>
                         <td>{{ $assignment->studentEnrollment?->enrollment_number ?? '—' }}</td>
                         <td>{{ $assignment->studentEnrollment?->academicYear?->name ?? '—' }} · {{ $assignment->studentEnrollment?->program?->code ?? '—' }}</td>
                         <td>{{ $assignment->feeStructure?->name ?? '—' }}</td>
@@ -147,7 +160,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-4 text-slate-500" colspan="11">No fee assignments match this selection.</td></tr>
+                    <tr><td class="py-4 text-slate-500" colspan="12">No fee assignments match this selection.</td></tr>
                 @endforelse
             </tbody>
         </table>

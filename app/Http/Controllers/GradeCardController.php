@@ -9,10 +9,14 @@ use App\Models\ExamResult;
 use App\Models\GradeCard;
 use App\Models\Program;
 use App\Models\Section;
+use App\Services\Audit\AuditLogService;
 use App\Services\Examinations\ResultQueryService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Grade Cards — printable published examination results with grades, grade
@@ -46,6 +50,66 @@ class GradeCardController extends Controller
             'filters' => $this->query->currentFilters($request),
             'resultStatuses' => ExamResult::RESULT_STATUSES,
         ]));
+    }
+
+    /**
+     * CSV of the filtered grade-card list, or of an authorized selection of it.
+     *
+     * Same contract as the marksheet export: a grade card exists only for a
+     * PUBLISHED result, so the published-only rule is applied here
+     * unconditionally, the ids were already re-queried inside the active college
+     * and authorized per record by the bulk action handler, and the screen's
+     * filters are re-applied through the shared ResultQueryService.
+     *
+     * The CSV is the grade-card summary line (grade, grade scale, result,
+     * publication date); per-subject grade points and credits stay in the
+     * printed grade card. No identity number and no file path is exported.
+     * Read-only: nothing is written by this endpoint.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', GradeCard::class);
+
+        $query = $this->query
+            ->applyFilters($this->query->baseQuery(false), $request, false)
+            ->with(['examination', 'studentEnrollment.student', 'studentEnrollment.program', 'studentEnrollment.section', 'gradeScale'])
+            ->reorder('exam_results.id');
+
+        $ids = ListSelection::ids($request->input('ids', []));
+        if ($ids !== []) {
+            $query->whereIn('exam_results.id', $ids);
+        }
+
+        $audit->record('grade_cards.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => (clone $query)->count(),
+        ]);
+
+        return CsvStreamExport::make('grade-cards-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Enrollment number', 'Student number', 'Student', 'Examination', 'Program', 'Section',
+                'Grade scale', 'Grade', 'Total obtained', 'Total max', 'Percentage', 'Result status', 'Published at',
+            ])
+            ->map(function (ExamResult $result): array {
+                $enrollment = $result->studentEnrollment;
+
+                return [
+                    $enrollment?->enrollment_number,
+                    $enrollment?->student?->student_number,
+                    $enrollment?->student?->fullName(),
+                    $result->examination?->name,
+                    $enrollment?->program?->name,
+                    $enrollment?->section?->name,
+                    $result->gradeScale?->name,
+                    $result->overall_grade,
+                    $result->total_obtained_marks,
+                    $result->total_max_marks,
+                    $result->percentage,
+                    $result->result_status,
+                    $result->published_at?->format('Y-m-d'),
+                ];
+            })
+            ->streamFromQuery($query);
     }
 
     public function show(string $result, TenantContext $tenant): View

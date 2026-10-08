@@ -3,7 +3,7 @@
 @section('title', 'Refunds')
 
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Refunds</h2>
@@ -64,12 +64,24 @@
             <button class="button" type="submit">Filter</button>
         </div>
     </form>
+    {{-- Bulk selection over the filtered refunds list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="refunds">
+        @if(auth()->user()?->hasPermission('refunds.view'))
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export selected
+            </button>
+        @endif
+    </x-list.bulk-selection-bar>
 
     <div class="mt-6 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
                     <th class="py-2">Refund No</th>
+                    <th class="w-10 py-2"><x-list.select-all /></th>
                     <th>Date</th>
                     <th>Student</th>
                     <th>Payment No</th>
@@ -85,6 +97,7 @@
                 @forelse($refunds as $refund)
                     <tr class="border-b">
                         <td class="py-2 font-medium">{{ $refund->refund_number }}</td>
+                        <td class="py-2"><x-list.row-checkbox :id="$refund->id" /></td>
                         <td>{{ $refund->refund_date?->format('Y-m-d') }}</td>
                         <td>{{ $refund->payment?->studentEnrollment?->student?->fullName() ?? '—' }}</td>
                         <td>{{ $refund->payment?->payment_number ?? '—' }}</td>
@@ -132,7 +145,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-4 text-slate-500" colspan="10">No refunds recorded for this selection.</td></tr>
+                    <tr><td class="py-4 text-slate-500" colspan="11">No refunds recorded for this selection.</td></tr>
                 @endforelse
             </tbody>
         </table>
