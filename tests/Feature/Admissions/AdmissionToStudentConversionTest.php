@@ -112,7 +112,7 @@ class AdmissionToStudentConversionTest extends TestCase
     {
         $college = $this->makeCollege('ADTI');
         $admin = $this->makeUserWithPermissions($college, [
-            'admissions.view', 'admissions.update',
+            'admissions.view', 'admissions.update', 'students.create', 'student_enrollments.create',
         ]);
         $admission = $this->makeAdmission($college, ['status' => 'completed']);
 
@@ -126,6 +126,24 @@ class AdmissionToStudentConversionTest extends TestCase
             ->assertSee('data-bulk-action="export"', false)
             ->assertSee('data-bulk-action="complete"', false)
             ->assertSee('data-bulk-action="cancel"', false);
+    }
+
+    public function test_list_hides_convert_from_users_without_both_create_permissions(): void
+    {
+        $college = $this->makeCollege('ADTN');
+        // Edit rights alone must not reveal a conversion action the backend would refuse.
+        $editor = $this->makeUserWithPermissions($college, ['admissions.view', 'admissions.update']);
+        // Student create alone is not enough: enrollment create is also required.
+        $studentOnly = $this->makeUserWithPermissions($college, ['admissions.view', 'admissions.update', 'students.create']);
+        $admission = $this->makeAdmission($college, ['status' => 'completed']);
+
+        foreach ([$editor, $studentOnly] as $user) {
+            $this->asCollege($college, $user)
+                ->get(route('admissions.index'))
+                ->assertOk()
+                ->assertDontSee('Convert to Student')
+                ->assertDontSee(route('students.convert', $admission->application_id), false);
+        }
     }
 
     public function test_from_admission_form_reuses_student_create_and_prefills(): void
@@ -408,7 +426,11 @@ class AdmissionToStudentConversionTest extends TestCase
     public function test_completed_admission_converts_through_existing_application_route(): void
     {
         $college = $this->makeCollege('ADCM');
-        $admin = $this->makeUserWithPermissions($college, ['admissions.view', 'students.create']);
+        // Conversion creates a Student AND its first enrollment, so both create
+        // permissions are required (the backend returns 403 without either).
+        $admin = $this->makeUserWithPermissions($college, [
+            'admissions.view', 'students.create', 'student_enrollments.create',
+        ]);
         $admission = $this->makeAdmission($college, ['status' => 'completed']);
 
         $this->asCollege($college, $admin)

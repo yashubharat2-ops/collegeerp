@@ -85,7 +85,7 @@ trait PhaseDAdmissionFixtures
         $year = $this->phaseDYear($college);
         $application = $this->phaseDApplication($college, $applicant, 'admitted', ['academic_year_id' => $year->id]);
 
-        return Admission::withoutGlobalScopes()->create(array_merge([
+        $admission = Admission::withoutGlobalScopes()->create(array_merge([
             'college_id' => $college->id,
             'academic_year_id' => $year->id,
             'application_id' => $application->id,
@@ -94,6 +94,11 @@ trait PhaseDAdmissionFixtures
             'admission_date' => '2026-07-01',
             'status' => 'active',
         ], $overrides));
+
+        // `Admission::application()` is tenant-scoped (CollegeScope fails closed
+        // outside a request), so a lazy load in a test returns null. Attach the
+        // application this fixture just created, which is in the same college.
+        return $admission->setRelation('application', $application);
     }
 
     /**
