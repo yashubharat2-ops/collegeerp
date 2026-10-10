@@ -2,9 +2,9 @@
 
 namespace App\Domain\Student\Actions;
 
+use App\Domain\Admission\Services\AdmissionConversionLock;
 use App\Domain\Student\Services\StudentService;
 use App\Models\AcademicYear;
-use App\Models\AdmissionApplication;
 use App\Models\Program;
 use App\Models\Student;
 use App\Services\Audit\AuditLogService;
@@ -27,8 +27,8 @@ use Illuminate\Validation\ValidationException;
  * - Person data is snapshotted from the admission applicant, so the Student
  *   stays stable independently of the applicant record.
  * - Processing the same application twice returns the existing student (no
- *   duplicates). The application row is locked first to serialize concurrent
- *   double-submission.
+ *   duplicates). The application row is locked first (shared with the admission
+ *   route via AdmissionConversionLock) to serialize concurrent submissions.
  * - The initial StudentEnrollment is created only when the application carries
  *   an academic year (and program) for the active college.
  */
@@ -39,23 +39,19 @@ class ConvertApplicationToStudent
     public function __construct(
         private readonly StudentService $students,
         private readonly AuditLogService $audit,
+        private readonly AdmissionConversionLock $conversionLock,
     ) {}
 
     public function execute(int $applicationId, int $collegeId): Student
     {
         return DB::transaction(function () use ($applicationId, $collegeId): Student {
-            // Tenant-safe re-resolution: a foreign-college id 404s here.
-            $application = AdmissionApplication::withoutGlobalScopes()
-                ->where('college_id', $collegeId)
-                ->lockForUpdate()
-                ->findOrFail($applicationId);
+            // Serialize on the application row (shared with the admission route),
+            // tenant-scoped: a foreign-college id 404s here.
+            $application = $this->conversionLock->lockApplication($applicationId, $collegeId);
 
-            // Idempotency: a prior conversion of this application returns the
-            // existing live student instead of creating a duplicate.
-            $existing = Student::withoutGlobalScopes()
-                ->where('college_id', $collegeId)
-                ->where('admission_application_id', $application->id)
-                ->first();
+            // Idempotency: a prior conversion of this application (by either
+            // route) returns the existing student. Nothing is written.
+            $existing = $this->conversionLock->existingStudentFor($application->id, $collegeId);
 
             if ($existing) {
                 return $existing;

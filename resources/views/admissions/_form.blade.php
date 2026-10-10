@@ -9,7 +9,7 @@
             <select class="input mt-1" id="application_id" name="application_id" required>
                 <option value="">— Select application —</option>
                 @foreach($applications as $app)
-                    <option value="{{ $app->id }}" @selected((int) old('application_id', $selectedApplicationId ?? 0) === $app->id)>{{ $app->application_number }} — {{ $app->applicant->first_name }} {{ $app->applicant->last_name }} ({{ $app->status }})</option>
+                    <option value="{{ $app->id }}" @selected((int) old('application_id', $selectedApplicationId ?? 0) === $app->id)>{{ $app->application_number }} — {{ $app->applicant?->first_name ?? '—' }} {{ $app->applicant?->last_name }} ({{ $app->status }})</option>
                 @endforeach
             </select>
             <p class="mt-1 text-xs text-rose-600">@error('application_id'){{ $message }}@enderror</p>
@@ -17,8 +17,8 @@
         @else
         <div class="md:col-span-2">
             <p class="text-sm"><span class="font-semibold">Admission Number:</span> {{ $admission->admission_number }}</p>
-            <p class="text-sm"><span class="font-semibold">Applicant:</span> {{ $admission->applicant->first_name }} {{ $admission->applicant->last_name }}</p>
-            <p class="text-sm"><span class="font-semibold">Application:</span> {{ $admission->application->application_number }}</p>
+            <p class="text-sm"><span class="font-semibold">Applicant:</span> {{ $admission->applicant?->first_name ?? '—' }} {{ $admission->applicant?->last_name }}</p>
+            <p class="text-sm"><span class="font-semibold">Application:</span> {{ $admission->application?->application_number ?? '—' }}</p>
         </div>
         @endif
         <div>

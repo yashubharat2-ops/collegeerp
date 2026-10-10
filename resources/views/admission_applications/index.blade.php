@@ -44,10 +44,31 @@
         </div>
     </form>
 
+    <x-list.bulk-selection-bar module="admission_applications">
+        @can('viewAny', App\Models\AdmissionApplication::class)
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export
+            </button>
+        @endcan
+        @if(auth()->user()?->hasPermission('admission_applications.update'))
+            <x-list.dropdown label="Review" size="sm">
+                @foreach(['under_review' => 'Under review', 'approved' => 'Approved', 'rejected' => 'Rejected'] as $reviewStatus => $reviewLabel)
+                    <x-list.dropdown-item
+                        data-bulk-action="review"
+                        data-bulk-param-status="{{ $reviewStatus }}"
+                        data-confirm="Move the selected applications to {{ strtolower($reviewLabel) }}? Each move must be allowed by the admission workflow; others are skipped and reported. Admission is never done in bulk."
+                    >Set → {{ $reviewLabel }}</x-list.dropdown-item>
+                @endforeach
+            </x-list.dropdown>
+        @endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-8 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-3"><x-list.select-all /></th>
                     <th class="py-3">Application No</th>
                     <th>Applicant</th>
                     <th>Academic Year</th>
@@ -61,10 +82,15 @@
             <tbody>
                 @forelse($applications as $application)
                     <tr class="border-b">
+                        <td class="py-3"><x-list.row-checkbox :id="$application->id" /></td>
                         <td class="py-3 font-medium">{{ $application->application_number }}</td>
                         <td>
-                            <span class="font-medium">{{ $application->applicant->first_name }} {{ $application->applicant->last_name }}</span>
-                            <p class="text-xs text-slate-500">{{ $application->applicant->email ?? '' }} {{ $application->applicant->phone ?? '' }}</p>
+                            @if($application->applicant)
+                                <span class="font-medium">{{ $application->applicant->first_name }} {{ $application->applicant->last_name }}</span>
+                                <p class="text-xs text-slate-500">{{ $application->applicant->email ?? '' }} {{ $application->applicant->phone ?? '' }}</p>
+                            @else
+                                <span class="text-xs italic text-rose-600">Applicant record missing</span>
+                            @endif
                         </td>
                         <td>{{ $application->academicYear?->name ?? '—' }}</td>
                         <td>{{ $application->program?->name ?? '—' }}</td>
@@ -96,7 +122,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-6 text-slate-500" colspan="8">No applications found.</td></tr>
+                    <tr><td class="py-6 text-slate-500" colspan="9">No applications found.</td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -43,10 +43,31 @@
         </div>
     </form>
 
+    <x-list.bulk-selection-bar module="admission_enquiries">
+        @can('viewAny', App\Models\AdmissionEnquiry::class)
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export
+            </button>
+        @endcan
+        @if(auth()->user()?->hasPermission('admission_enquiries.update'))
+            <x-list.dropdown label="Change status" size="sm">
+                @foreach(\App\Models\AdmissionEnquiry::BULK_TARGET_STATUSES as $targetStatus)
+                    <x-list.dropdown-item
+                        data-bulk-action="change_status"
+                        data-bulk-param-status="{{ $targetStatus }}"
+                        data-confirm="Set the selected enquiries to {{ str_replace('_', ' ', $targetStatus) }}? Enquiries whose current status does not allow that change are skipped and reported."
+                    >Change Status → {{ ucfirst(str_replace('_', ' ', $targetStatus)) }}</x-list.dropdown-item>
+                @endforeach
+            </x-list.dropdown>
+        @endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-8 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-3"><x-list.select-all /></th>
                     <th class="py-3">Enquiry No</th>
                     <th>Applicant</th>
                     <th>Academic Year</th>
@@ -60,10 +81,15 @@
             <tbody>
                 @forelse($enquiries as $enquiry)
                     <tr class="border-b">
+                        <td class="py-3"><x-list.row-checkbox :id="$enquiry->id" /></td>
                         <td class="py-3 font-medium">{{ $enquiry->enquiry_number }}</td>
                         <td>
-                            <span class="font-medium">{{ $enquiry->applicant->first_name }} {{ $enquiry->applicant->last_name }}</span>
-                            <p class="text-xs text-slate-500">{{ $enquiry->applicant->email ?? '' }} {{ $enquiry->applicant->phone ?? '' }}</p>
+                            @if($enquiry->applicant)
+                                <span class="font-medium">{{ $enquiry->applicant->first_name }} {{ $enquiry->applicant->last_name }}</span>
+                                <p class="text-xs text-slate-500">{{ $enquiry->applicant->email ?? '' }} {{ $enquiry->applicant->phone ?? '' }}</p>
+                            @else
+                                <span class="text-xs italic text-rose-600">Applicant record missing</span>
+                            @endif
                         </td>
                         <td>{{ $enquiry->academicYear?->name ?? '—' }}</td>
                         <td>{{ $enquiry->program?->name ?? '—' }}</td>
@@ -95,7 +121,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-6 text-slate-500" colspan="8">No enquiries found.</td></tr>
+                    <tr><td class="py-6 text-slate-500" colspan="9">No enquiries found.</td></tr>
                 @endforelse
             </tbody>
         </table>

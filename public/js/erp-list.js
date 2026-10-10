@@ -118,6 +118,26 @@
                         return;
                     }
 
+                    // Optional, opt-in: data-bulk-inputs="section_id" copies the value of
+                    // the bar's field [data-bulk-input="section_id"] into parameters[section_id].
+                    // Triggers that do not declare it behave exactly as before.
+                    var bulkInputKeys = (btn.getAttribute('data-bulk-inputs') || '').split(/\s+/).filter(Boolean);
+                    var bulkInputValues = {};
+                    var bulkInputMissing = bulkInputKeys.some(function (key) {
+                        var field = bar.querySelector('[data-bulk-input="' + key + '"]');
+                        var value = field ? String(field.value || '') : '';
+                        if (value === '') {
+                            return true;
+                        }
+                        bulkInputValues[key] = value;
+                        return false;
+                    });
+
+                    if (bulkInputMissing) {
+                        alert('Please choose a value before running this action.');
+                        return;
+                    }
+
                     if (confirmMsg && !window.confirm(confirmMsg)) {
                         return;
                     }
@@ -172,6 +192,14 @@
                         paramInput.name = 'parameters[' + key + ']';
                         paramInput.value = attr.value;
                         form.appendChild(paramInput);
+                    });
+
+                    Object.keys(bulkInputValues).forEach(function (key) {
+                        var inputParam = document.createElement('input');
+                        inputParam.type = 'hidden';
+                        inputParam.name = 'parameters[' + key + ']';
+                        inputParam.value = bulkInputValues[key];
+                        form.appendChild(inputParam);
                     });
 
                     document.body.appendChild(form);

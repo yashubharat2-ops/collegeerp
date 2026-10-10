@@ -7,7 +7,7 @@
         @if(isset($application))
         <div class="md:col-span-2">
             <p class="text-sm"><span class="font-semibold">Application Number:</span> {{ $application->application_number }}</p>
-            <p class="text-sm mt-1"><span class="font-semibold">Applicant:</span> {{ $application->applicant->first_name }} {{ $application->applicant->last_name }} — {{ $application->applicant->email ?? $application->applicant->phone }}</p>
+            <p class="text-sm mt-1"><span class="font-semibold">Applicant:</span> {{ $application->applicant?->first_name ?? '—' }} {{ $application->applicant?->last_name }} — {{ $application->applicant?->email ?? $application->applicant?->phone ?? '—' }}</p>
             <p class="text-sm mt-1"><span class="font-semibold">Submitted:</span> {{ $application->submitted_at?->format('Y-m-d H:i') ?? 'Not submitted (draft)' }}</p>
         </div>
         @else
@@ -48,7 +48,7 @@
             <select class="input mt-1" id="enquiry_id" name="enquiry_id">
                 <option value="">— No enquiry link —</option>
                 @foreach($enquiries as $enq)
-                    <option value="{{ $enq->id }}" @selected((int) old('enquiry_id', $application->enquiry_id ?? 0) === $enq->id)>{{ $enq->enquiry_number }} — {{ $enq->applicant->first_name }} {{ $enq->applicant->last_name }}</option>
+                    <option value="{{ $enq->id }}" @selected((int) old('enquiry_id', $application->enquiry_id ?? 0) === $enq->id)>{{ $enq->enquiry_number }} — {{ $enq->applicant?->first_name ?? '—' }} {{ $enq->applicant?->last_name }}</option>
                 @endforeach
             </select>
             <p class="mt-1 text-xs text-rose-600">@error('enquiry_id'){{ $message }}@enderror</p>

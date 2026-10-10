@@ -21,6 +21,27 @@ class AdmissionEnquiry extends Model
 {
     use HasFactory, SoftDeletes, BelongsToCollege;
 
+    /** Every status the enquiry form accepts. */
+    public const STATUSES = ['new', 'contacted', 'followed_up', 'converted', 'closed', 'dropped'];
+
+    /**
+     * Statuses a BULK status change may set. `converted` is deliberately absent:
+     * it is a workflow outcome, never a bulk write.
+     */
+    public const BULK_TARGET_STATUSES = ['contacted', 'followed_up', 'closed', 'dropped'];
+
+    /**
+     * Allowed bulk transitions, keyed by the current status. A status with no entry
+     * (for example `converted`) cannot be changed in bulk at all.
+     */
+    public const BULK_TRANSITIONS = [
+        'new' => ['contacted', 'followed_up', 'closed', 'dropped'],
+        'contacted' => ['followed_up', 'closed', 'dropped'],
+        'followed_up' => ['contacted', 'closed', 'dropped'],
+        'closed' => ['contacted', 'followed_up'],
+        'dropped' => ['contacted', 'followed_up'],
+    ];
+
     protected $fillable = [
         'college_id',
         'applicant_id',

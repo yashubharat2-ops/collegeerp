@@ -2,6 +2,7 @@
 
 namespace App\Domain\Student\Actions;
 
+use App\Domain\Admission\Services\AdmissionConversionLock;
 use App\Domain\Student\Services\StudentService;
 use App\Models\AcademicYear;
 use App\Models\Admission;
@@ -26,18 +27,44 @@ class ConvertAdmissionToStudent
     public function __construct(
         private readonly StudentService $students,
         private readonly AuditLogService $audit,
+        private readonly AdmissionConversionLock $conversionLock,
     ) {}
 
     /**
+     * Converts the admission and returns its student.
+     *
+     * Duplicate outcome (shared with the application route): if the application
+     * already has a student, that student is returned and nothing is written. The
+     * caller can tell the two cases apart with `Student::$wasRecentlyCreated`.
+     *
      * @param  array<string, mixed>  $profile  Validated Student-form payload
      */
     public function execute(int $admissionId, int $collegeId, array $profile): Student
     {
         return DB::transaction(function () use ($admissionId, $collegeId, $profile): Student {
+            // Learn the owning application (tenant-scoped, unlocked), then lock the
+            // APPLICATION row first: the same serialization point the application
+            // route uses, so the two conversion paths can never interleave.
+            $linked = Admission::withoutGlobalScopes()
+                ->where('college_id', $collegeId)
+                ->whereKey($admissionId)
+                ->firstOrFail();
+
+            if (! $linked->application_id) {
+                throw ValidationException::withMessages([
+                    'admission' => 'This admission is not linked to an application and cannot be converted.',
+                ]);
+            }
+
+            $this->conversionLock->lockApplication((int) $linked->application_id, $collegeId);
+
+            // Re-read the admission under the application lock (status may have
+            // changed while we waited).
             $admission = Admission::withoutGlobalScopes()
                 ->where('college_id', $collegeId)
+                ->whereKey($admissionId)
                 ->lockForUpdate()
-                ->findOrFail($admissionId);
+                ->firstOrFail();
 
             if ($admission->status === 'cancelled') {
                 throw ValidationException::withMessages([
@@ -45,15 +72,10 @@ class ConvertAdmissionToStudent
                 ]);
             }
 
-            $existing = Student::withoutGlobalScopes()
-                ->where('college_id', $collegeId)
-                ->where('admission_application_id', $admission->application_id)
-                ->first();
+            $existing = $this->conversionLock->existingStudentFor((int) $admission->application_id, $collegeId);
 
             if ($existing) {
-                throw ValidationException::withMessages([
-                    'admission' => 'This admission has already been converted to a student.',
-                ]);
+                return $existing->load(['enrollments']);
             }
 
             $yearId = $profile['academic_year_id'] ?? $admission->academic_year_id;

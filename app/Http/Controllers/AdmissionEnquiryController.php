@@ -16,6 +16,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdmissionEnquiryController extends Controller
 {
@@ -62,6 +65,49 @@ class AdmissionEnquiryController extends Controller
             'academicYears' => $this->academicYearOptions(),
             'programs' => $this->programOptions(),
         ]);
+    }
+
+    /**
+     * CSV export of the selected enquiries (or all visible ones when no selection).
+     * Tenant-scoped; read-only; counts-only audit entry.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', AdmissionEnquiry::class);
+
+        $query = AdmissionEnquiry::query()->with(['applicant', 'academicYear', 'program'])->orderBy('id');
+
+        $ids = ListSelection::ids($request->input('ids', []));
+        if ($ids !== []) {
+            $query->whereIn('admission_enquiries.id', $ids);
+        }
+
+        $audit->record('admission_enquiries.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => (clone $query)->count(),
+        ]);
+
+        return CsvStreamExport::make('admission-enquiries-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Enquiry number', 'Applicant', 'Email', 'Phone', 'Academic year', 'Program',
+                'Source', 'Status', 'Enquired at', 'Next follow-up', 'Remarks',
+            ])
+            ->map(function (AdmissionEnquiry $enquiry): array {
+                return CsvStreamExport::safeRow([
+                    $enquiry->enquiry_number,
+                    trim(($enquiry->applicant?->first_name ?? '').' '.($enquiry->applicant?->last_name ?? '')),
+                    $enquiry->applicant?->email,
+                    $enquiry->applicant?->phone,
+                    $enquiry->academicYear?->name,
+                    $enquiry->program?->name,
+                    $enquiry->source,
+                    $enquiry->status,
+                    $enquiry->enquired_at?->format('Y-m-d'),
+                    $enquiry->next_follow_up_at?->format('Y-m-d'),
+                    $enquiry->remarks,
+                ]);
+            })
+            ->streamFromQuery($query);
     }
 
     public function create(): View

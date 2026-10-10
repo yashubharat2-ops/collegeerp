@@ -56,6 +56,19 @@
                     >Change Status → {{ ucfirst($enrollmentStatus) }}</x-list.dropdown-item>
                 @endforeach
             </x-list.dropdown>
+            {{-- Section assignment: the server re-checks tenant, academic year and program
+                 for every selected enrollment and changes nothing if any does not match. --}}
+            <select class="input !py-1 !text-xs" data-bulk-input="section_id" aria-label="Target section for the selected enrollments">
+                <option value="">Choose section…</option>
+                @foreach($sections as $bulkSection)
+                    <option value="{{ $bulkSection->id }}">{{ $bulkSection->name }} — {{ $bulkSection->academicYear?->name ?? '—' }} / {{ $bulkSection->program?->name ?? '—' }}</option>
+                @endforeach
+            </select>
+            <button type="button" data-bulk-action="assign_section" data-bulk-inputs="section_id"
+                    class="button !py-2 !text-xs font-semibold !bg-indigo-700 hover:!bg-indigo-800"
+                    data-confirm="Assign the selected enrollments to this section? Every selected enrollment must already belong to the section's academic year and program. If any does not, nothing is changed.">
+                Assign section
+            </button>
         @endif
     </x-list.bulk-selection-bar>
 

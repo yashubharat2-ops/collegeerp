@@ -69,7 +69,13 @@
                 <tr class="border-b">
                     <td class="py-3"><x-list.row-checkbox :id="$adm->id" /></td>
                     <td class="font-medium">{{ $adm->admission_number }}</td>
-                    <td>{{ $adm->applicant->first_name }} {{ $adm->applicant->last_name }}<p class="text-xs text-slate-500">{{ $adm->applicant->email ?? '' }}</p></td>
+                    <td>
+                        @if($adm->applicant)
+                            {{ $adm->applicant->first_name }} {{ $adm->applicant->last_name }}<p class="text-xs text-slate-500">{{ $adm->applicant->email ?? '' }}</p>
+                        @else
+                            <span class="text-xs italic text-rose-600">Applicant record missing</span>
+                        @endif
+                    </td>
                     <td class="text-xs">{{ $adm->application->application_number ?? '—' }}</td>
                     <td>{{ $adm->academicYear?->name ?? '—' }}</td>
                     <td>{{ $adm->program?->name ?? '—' }}</td>
@@ -89,7 +95,7 @@
                                 @if($convertedEnrollment)
                                     <a class="button !py-1 !text-xs font-semibold !bg-slate-200 !text-slate-700" href="{{ route('student-enrollments.index', ['student_id' => $convertedStudent->id]) }}">View Enrollment</a>
                                 @endif
-                            @elseif($canConvert)
+                            @elseif($canConvert && auth()->user()?->can('create', App\Models\Student::class) && auth()->user()?->can('create', App\Models\StudentEnrollment::class))
                                 <form method="POST" action="{{ route('students.convert', $adm->application_id) }}">
                                     @csrf
                                     <button class="button !py-1 !text-xs font-semibold !bg-emerald-600 hover:!bg-emerald-700" type="submit">Convert to Student</button>
@@ -97,7 +103,7 @@
                             @endif
                             @can('update', $adm)
                                 <a class="text-xs font-semibold text-indigo-600 hover:underline" href="{{ route('admissions.edit', $adm) }}">Edit</a>
-                                @if($adm->status !== 'cancelled')
+                                @if($adm->status !== 'cancelled' && $convertedStudent === null)
                                 <form method="POST" action="{{ route('admissions.cancel', $adm) }}" onsubmit="return confirm('Cancel admission {{ $adm->admission_number }}?')">
                                     @csrf
                                     <button class="text-xs font-semibold text-amber-600 hover:underline" type="submit">Cancel</button>

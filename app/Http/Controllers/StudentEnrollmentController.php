@@ -50,6 +50,7 @@ class StudentEnrollmentController extends Controller
             'status' => $request->input('status'),
             'students' => Student::query()->orderBy('first_name')->orderBy('last_name')->get(['id', 'student_number', 'first_name', 'last_name']),
             'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(['id', 'name', 'code']),
+            'sections' => $this->sectionOptions(),
         ]);
     }
 

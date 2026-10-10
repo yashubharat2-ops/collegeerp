@@ -97,7 +97,7 @@ class AdmissionController extends Controller
                 'Academic year', 'Program', 'Admission date', 'Status', 'Remarks',
             ])
             ->map(function (Admission $admission): array {
-                return [
+                return CsvStreamExport::safeRow([
                     $admission->admission_number,
                     trim(($admission->applicant?->first_name ?? '').' '.($admission->applicant?->last_name ?? '')),
                     $admission->applicant?->email,
@@ -107,7 +107,7 @@ class AdmissionController extends Controller
                     $admission->admission_date?->format('Y-m-d'),
                     $admission->status,
                     $admission->remarks,
-                ];
+                ]);
             })
             ->streamFromQuery($query);
     }

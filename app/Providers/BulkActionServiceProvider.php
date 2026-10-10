@@ -8,9 +8,14 @@ use App\Domain\Academic\BulkActions\AcademicSectionBulkExportHandler;
 use App\Domain\Academic\BulkActions\AcademicSubjectEnrollmentBulkExportHandler;
 use App\Domain\Academic\BulkActions\AcademicTimetableBulkExportHandler;
 use App\Domain\Academic\BulkActions\AcademicWorkloadBulkExportHandler;
+use App\Domain\Admission\BulkActions\AdmissionApplicantBulkExportHandler;
+use App\Domain\Admission\BulkActions\AdmissionApplicationBulkExportHandler;
+use App\Domain\Admission\BulkActions\AdmissionApplicationBulkReviewHandler;
 use App\Domain\Admission\BulkActions\AdmissionBulkCancelHandler;
 use App\Domain\Admission\BulkActions\AdmissionBulkCompleteHandler;
 use App\Domain\Admission\BulkActions\AdmissionBulkExportHandler;
+use App\Domain\Admission\BulkActions\AdmissionEnquiryBulkExportHandler;
+use App\Domain\Admission\BulkActions\AdmissionEnquiryBulkStatusHandler;
 use App\Domain\Certificates\BulkActions\CertificateBulkExportHandler;
 use App\Domain\Certificates\BulkActions\CertificateTemplateBulkExportHandler;
 use App\Domain\Certificates\BulkActions\CertificateTypeBulkExportHandler;
@@ -69,6 +74,7 @@ use App\Domain\Library\BulkActions\LibraryMemberBulkExportHandler;
 use App\Domain\Library\BulkActions\LibraryRenewalBulkExportHandler;
 use App\Domain\Library\BulkActions\LibraryTransactionBulkExportHandler;
 use App\Domain\Student\BulkActions\EnrollmentBulkExportHandler;
+use App\Domain\Student\BulkActions\EnrollmentBulkSectionHandler;
 use App\Domain\Student\BulkActions\EnrollmentBulkStatusHandler;
 use App\Domain\Student\BulkActions\StudentBulkDocumentHandler;
 use App\Domain\Student\BulkActions\StudentBulkExportHandler;
@@ -118,9 +124,21 @@ class BulkActionServiceProvider extends ServiceProvider
             ->register('admissions', 'cancel', AdmissionBulkCancelHandler::class)
             ->register('admissions', 'complete', AdmissionBulkCompleteHandler::class);
 
+        // ADMISSION ENQUIRIES / APPLICANTS / APPLICATIONS — Phase D. Enquiries get a
+        // validated bulk status change (never `converted`); all three get a CSV
+        // export. Applications also get a bulk review limited to workflow-approved
+        // outcomes (no bulk admit). Admission conversion stays single-record.
+        $registry
+            ->register('admission_enquiries', 'export', AdmissionEnquiryBulkExportHandler::class)
+            ->register('admission_enquiries', 'change_status', AdmissionEnquiryBulkStatusHandler::class)
+            ->register('admission_applicants', 'export', AdmissionApplicantBulkExportHandler::class)
+            ->register('admission_applications', 'export', AdmissionApplicationBulkExportHandler::class)
+            ->register('admission_applications', 'review', AdmissionApplicationBulkReviewHandler::class);
+
         $registry
             ->register('enrollments', 'export', EnrollmentBulkExportHandler::class)
-            ->register('enrollments', 'change_status', EnrollmentBulkStatusHandler::class);
+            ->register('enrollments', 'change_status', EnrollmentBulkStatusHandler::class)
+            ->register('enrollments', 'assign_section', EnrollmentBulkSectionHandler::class);
 
         // ACADEMIC — one `export` action per Academic listing. The module keys
         // are exactly the `module` attribute the listing's bulk bar renders, and
