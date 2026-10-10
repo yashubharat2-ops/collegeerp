@@ -9,6 +9,9 @@ use App\Services\Audit\AuditLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdmissionApplicantController extends Controller
 {
@@ -38,6 +41,50 @@ class AdmissionApplicantController extends Controller
             'search' => trim((string) $request->input('search')),
             'status' => $request->input('status'),
         ]);
+    }
+
+    /**
+     * CSV export of the selected applicants (or all visible ones when no selection).
+     *
+     * Identity and sensitive columns are never exported: the column list is
+     * explicit (no address, no document data, no secrets), and the audit entry
+     * records counts only.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', AdmissionApplicant::class);
+
+        $query = AdmissionApplicant::query()->orderBy('first_name')->orderBy('last_name')->orderBy('id');
+
+        $ids = ListSelection::ids($request->input('ids', []));
+        if ($ids !== []) {
+            $query->whereIn('admission_applicants.id', $ids);
+        }
+
+        $audit->record('admission_applicants.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => (clone $query)->count(),
+        ]);
+
+        return CsvStreamExport::make('admission-applicants-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'First name', 'Middle name', 'Last name', 'Email', 'Phone', 'Alternate phone',
+                'Gender', 'Date of birth', 'Status',
+            ])
+            ->map(function (AdmissionApplicant $applicant): array {
+                return CsvStreamExport::safeRow([
+                    $applicant->first_name,
+                    $applicant->middle_name,
+                    $applicant->last_name,
+                    $applicant->email,
+                    $applicant->phone,
+                    $applicant->alternate_phone,
+                    $applicant->gender,
+                    $applicant->date_of_birth?->format('Y-m-d'),
+                    $applicant->status,
+                ]);
+            })
+            ->streamFromQuery($query);
     }
 
     public function create(): View
@@ -79,6 +126,14 @@ class AdmissionApplicantController extends Controller
     {
         $model = $this->findScoped($admission_applicant);
         $this->authorize('delete', $model);
+
+        // Refuse while live records still point at this applicant. Soft-deleting
+        // it would leave those records without their applicant (their list pages
+        // would then show a blank name or fail), and their history must stay intact.
+        $blocker = $model->deletionBlocker();
+        if ($blocker !== null) {
+            return back()->withErrors(['applicant' => $blocker]);
+        }
 
         $snapshot = $model->only(self::AUDITED);
         $model->delete();

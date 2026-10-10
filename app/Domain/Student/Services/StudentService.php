@@ -371,8 +371,31 @@ class StudentService
     public function updateEnrollment(StudentEnrollment $enrollment, array $data, int $collegeId): StudentEnrollment
     {
         return DB::transaction(function () use ($enrollment, $data, $collegeId): StudentEnrollment {
-            if ($enrollment->college_id !== $collegeId) {
-                abort(404);
+            // Serialize with createEnrollment(): lock the OWNING student row first
+            // (the same lock createEnrollment takes), then re-read the enrollment
+            // under that lock. The caller's model may be stale (another request
+            // may have reactivated or cancelled it since it was loaded), so every
+            // check below runs against the committed state, never the passed copy.
+            $student = Student::withoutGlobalScopes()
+                ->where('college_id', $collegeId)
+                ->whereKey($enrollment->student_id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $student) {
+                abort(404, 'Student not found in this college context.');
+            }
+
+            $enrollment = StudentEnrollment::withoutGlobalScopes()
+                ->where('college_id', $collegeId)
+                ->where('student_id', $student->id)
+                ->whereNull('deleted_at')
+                ->whereKey($enrollment->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $enrollment) {
+                abort(404, 'Enrollment not found in this college context.');
             }
 
             $year = \App\Models\AcademicYear::query()->find($enrollment->academic_year_id);

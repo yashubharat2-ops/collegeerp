@@ -26,6 +26,36 @@ class CsvStreamExport
     }
 
     /**
+     * Neutralise spreadsheet formula injection for one cell.
+     *
+     * A text value that a spreadsheet would read as a formula (leading =, +, -,
+     * @, tab or carriage return) is prefixed with an apostrophe so it is shown as
+     * text. Opt-in: the Admission-module exports apply it to every row they write;
+     * other exports keep their existing output unchanged.
+     */
+    public static function safeCell(mixed $value): mixed
+    {
+        if (! is_string($value) || $value === '') {
+            return $value;
+        }
+
+        return in_array($value[0], ['=', '+', '-', '@', "\t", "\r"], true)
+            ? "'".$value
+            : $value;
+    }
+
+    /**
+     * Apply {@see safeCell()} to every cell of a row.
+     *
+     * @param  array<int|string, mixed>  $row
+     * @return array<int|string, mixed>
+     */
+    public static function safeRow(array $row): array
+    {
+        return array_map([self::class, 'safeCell'], $row);
+    }
+
+    /**
      * Define CSV header row (column titles).
      *
      * @param array<int, string> $headers

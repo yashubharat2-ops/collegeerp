@@ -27,10 +27,20 @@
         </div>
     </form>
 
+    <x-list.bulk-selection-bar module="admission_applicants">
+        @can('viewAny', App\Models\AdmissionApplicant::class)
+            <button type="button" data-bulk-action="export"
+                    class="button !py-2 !text-xs font-semibold">
+                Export
+            </button>
+        @endcan
+    </x-list.bulk-selection-bar>
+
     <div class="mt-8 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-3"><x-list.select-all /></th>
                     <th class="py-3">Name</th>
                     <th>Email</th>
                     <th>Phone</th>
@@ -41,6 +51,7 @@
             <tbody>
                 @forelse($applicants as $applicant)
                     <tr class="border-b">
+                        <td class="py-3"><x-list.row-checkbox :id="$applicant->id" /></td>
                         <td class="py-3 font-medium">
                             {{ $applicant->first_name }} {{ $applicant->middle_name }} {{ $applicant->last_name }}
                             @if($applicant->gender)
@@ -70,7 +81,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-6 text-slate-500" colspan="5">No applicants found.</td></tr>
+                    <tr><td class="py-6 text-slate-500" colspan="6">No applicants found.</td></tr>
                 @endforelse
             </tbody>
         </table>

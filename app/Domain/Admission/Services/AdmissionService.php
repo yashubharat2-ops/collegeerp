@@ -7,6 +7,7 @@ use App\Models\AcademicYear;
 use App\Models\Admission;
 use App\Models\AdmissionApplication;
 use App\Models\Program;
+use App\Models\Student;
 use App\Services\Audit\AuditLogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -25,6 +26,7 @@ class AdmissionService
     public function __construct(
         private readonly GenerateAdmissionNumber $numberGenerator,
         private readonly AuditLogService $audit,
+        private readonly AdmissionConversionLock $conversionLock,
     ) {}
 
     /**
@@ -109,17 +111,64 @@ class AdmissionService
         return $admission;
     }
 
+    /**
+     * Whether a live (not soft-deleted) Student exists for this admission's
+     * application, in the admission's own college. Soft-deleted students do not
+     * count: they are already gone from the student records.
+     */
+    public function hasLiveStudent(Admission $admission): bool
+    {
+        if (! $admission->application_id) {
+            return false;
+        }
+
+        return Student::withoutGlobalScopes()
+            ->where('college_id', $admission->college_id)
+            ->where('admission_application_id', $admission->application_id)
+            ->whereNull('deleted_at')
+            ->lockForUpdate()
+            ->first(['id']) !== null;
+    }
+
+    /**
+     * Cancel an admission.
+     *
+     * Blocked while a live student exists for its application: cancelling would
+     * leave an active student pointing at a cancelled admission. The student is
+     * never auto-cancelled or deleted; the operator must resolve it first.
+     *
+     * The check runs under the application row lock shared with the conversion
+     * routes, so a concurrent conversion cannot slip in between the check and the
+     * cancel.
+     *
+     * @throws ValidationException when a live student exists
+     */
     public function cancelAdmission(Admission $admission, ?string $remarks = null): Admission
     {
-        $old = $admission->only(['status']);
+        return DB::transaction(function () use ($admission, $remarks): Admission {
+            if ($admission->application_id) {
+                $this->conversionLock->lockApplication(
+                    (int) $admission->application_id,
+                    (int) $admission->college_id,
+                );
+            }
 
-        $admission->update([
-            'status' => 'cancelled',
-            'remarks' => $remarks ?? $admission->remarks,
-        ]);
+            if ($this->hasLiveStudent($admission)) {
+                throw ValidationException::withMessages([
+                    'admission' => 'This admission cannot be cancelled because a student record already exists for its application. The student was not changed.',
+                ]);
+            }
 
-        $this->audit->record('admission.cancelled', $admission, $old, $admission->only(['status']));
+            $old = $admission->only(['status']);
 
-        return $admission;
+            $admission->update([
+                'status' => 'cancelled',
+                'remarks' => $remarks ?? $admission->remarks,
+            ]);
+
+            $this->audit->record('admission.cancelled', $admission, $old, $admission->only(['status']));
+
+            return $admission;
+        });
     }
 }

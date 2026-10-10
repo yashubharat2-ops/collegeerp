@@ -7,6 +7,7 @@ use App\Domain\Student\Actions\ConvertApplicationToStudent;
 use App\Domain\Student\Services\StudentHistoryService;
 use App\Domain\Student\Services\StudentListService;
 use App\Domain\Student\Services\StudentService;
+use App\Http\Requests\Student\StoreStudentFromAdmissionRequest;
 use App\Http\Requests\Student\StoreStudentRequest;
 use App\Http\Requests\Student\UpdateStudentRequest;
 use App\Models\AcademicYear;
@@ -267,7 +268,7 @@ class StudentController extends Controller
      */
     public function createFromAdmission(Request $request, string $admission): View|RedirectResponse
     {
-        $this->authorize('create', Student::class);
+        $this->authorizeConversion();
 
         $model = Admission::query()->with(['applicant', 'application', 'academicYear', 'program', 'student.enrollments'])->findOrFail($admission);
 
@@ -292,12 +293,20 @@ class StudentController extends Controller
         ]));
     }
 
-    public function storeFromAdmission(StoreStudentRequest $request, string $admission, ConvertAdmissionToStudent $action): RedirectResponse
+    public function storeFromAdmission(StoreStudentFromAdmissionRequest $request, string $admission, ConvertAdmissionToStudent $action): RedirectResponse
     {
         $collegeId = app(TenantContext::class)->id();
         $model = Admission::query()->findOrFail($admission);
 
         $student = $action->execute((int) $model->id, $collegeId, $request->validated());
+
+        // Duplicate outcome: the admission already has a student. Nothing was
+        // written; send the operator to that student with a clear message.
+        if (! $student->wasRecentlyCreated) {
+            return redirect()->route('students.show', $student)
+                ->with('success', 'This admission has already been converted to student '.$student->student_number.'. No new student was created.');
+        }
+
         $enrollment = $student->enrollments->first();
 
         $message = 'Student '.$student->student_number.' created from admission '.$model->admission_number.'.';
@@ -435,13 +444,31 @@ class StudentController extends Controller
      */
     public function convert(string $admission_application, ConvertApplicationToStudent $action): RedirectResponse
     {
-        $this->authorize('create', Student::class);
+        $this->authorizeConversion();
 
         $collegeId = app(TenantContext::class)->id();
 
         $student = $action->execute((int) $admission_application, $collegeId);
 
+        // Duplicate outcome (shared with the admission route): the application
+        // already has a student; nothing was written, so say so.
+        if (! $student->wasRecentlyCreated) {
+            return redirect()->route('students.show', $student)
+                ->with('success', 'This application has already been converted to student '.$student->student_number.'. No new student was created.');
+        }
+
         return redirect()->route('students.show', $student)->with('success', 'Application converted to student '.$student->student_number.'.');
+    }
+
+    /**
+     * Both conversion routes create a Student AND its first StudentEnrollment in
+     * one transaction, so both permissions are required, on the backend, before
+     * any lookup or write.
+     */
+    private function authorizeConversion(): void
+    {
+        $this->authorize('create', Student::class);
+        $this->authorize('create', StudentEnrollment::class);
     }
 
     /**

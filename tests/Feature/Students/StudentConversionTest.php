@@ -14,7 +14,7 @@ class StudentConversionTest extends TestCase
     public function test_approved_application_converts_to_student_with_initial_enrollment(): void
     {
         $college = $this->makeCollege('CAPP');
-        $admin = $this->makeUserWithPermissions($college, ['students.create']);
+        $admin = $this->makeUserWithPermissions($college, ['students.create', 'student_enrollments.create']);
         $year = $this->makeYear($college);
         $program = $this->makeProgram($college);
         $application = $this->makeApprovedApplication($college, $year, $program, 'approved');
@@ -43,7 +43,7 @@ class StudentConversionTest extends TestCase
     public function test_admitted_application_converts_successfully(): void
     {
         $college = $this->makeCollege('CADM');
-        $admin = $this->makeUserWithPermissions($college, ['students.create']);
+        $admin = $this->makeUserWithPermissions($college, ['students.create', 'student_enrollments.create']);
         $year = $this->makeYear($college);
         $application = $this->makeApprovedApplication($college, $year, null, 'admitted');
 
@@ -57,7 +57,7 @@ class StudentConversionTest extends TestCase
     public function test_draft_application_cannot_convert(): void
     {
         $college = $this->makeCollege('CDRAFT');
-        $admin = $this->makeUserWithPermissions($college, ['students.create']);
+        $admin = $this->makeUserWithPermissions($college, ['students.create', 'student_enrollments.create']);
         $year = $this->makeYear($college);
         $application = $this->makeApprovedApplication($college, $year, null, 'draft');
 
@@ -71,7 +71,7 @@ class StudentConversionTest extends TestCase
     public function test_rejected_application_cannot_convert(): void
     {
         $college = $this->makeCollege('CREJ');
-        $admin = $this->makeUserWithPermissions($college, ['students.create']);
+        $admin = $this->makeUserWithPermissions($college, ['students.create', 'student_enrollments.create']);
         $year = $this->makeYear($college);
         $application = $this->makeApprovedApplication($college, $year, null, 'rejected');
 
@@ -85,7 +85,7 @@ class StudentConversionTest extends TestCase
     public function test_cancelled_application_cannot_convert(): void
     {
         $college = $this->makeCollege('CCAN');
-        $admin = $this->makeUserWithPermissions($college, ['students.create']);
+        $admin = $this->makeUserWithPermissions($college, ['students.create', 'student_enrollments.create']);
         $year = $this->makeYear($college);
         $application = $this->makeApprovedApplication($college, $year, null, 'cancelled');
 
@@ -99,7 +99,7 @@ class StudentConversionTest extends TestCase
     public function test_submitted_application_cannot_convert_without_approval(): void
     {
         $college = $this->makeCollege('CSUB');
-        $admin = $this->makeUserWithPermissions($college, ['students.create']);
+        $admin = $this->makeUserWithPermissions($college, ['students.create', 'student_enrollments.create']);
         $year = $this->makeYear($college);
         $application = $this->makeApprovedApplication($college, $year, null, 'submitted');
 
@@ -113,7 +113,7 @@ class StudentConversionTest extends TestCase
     public function test_duplicate_conversion_is_idempotent(): void
     {
         $college = $this->makeCollege('CIDEM');
-        $admin = $this->makeUserWithPermissions($college, ['students.create']);
+        $admin = $this->makeUserWithPermissions($college, ['students.create', 'student_enrollments.create']);
         $year = $this->makeYear($college);
         $application = $this->makeApprovedApplication($college, $year, null, 'approved');
 
@@ -129,7 +129,7 @@ class StudentConversionTest extends TestCase
     {
         $collegeA = $this->makeCollege('CTENA');
         $collegeB = $this->makeCollege('CTENB');
-        $adminA = $this->makeUserWithPermissions($collegeA, ['students.create']);
+        $adminA = $this->makeUserWithPermissions($collegeA, ['students.create', 'student_enrollments.create']);
         $yearB = $this->makeYear($collegeB);
         $applicationB = $this->makeApprovedApplication($collegeB, $yearB, null, 'approved');
 
@@ -158,7 +158,7 @@ class StudentConversionTest extends TestCase
     public function test_conversion_audits_the_student_and_enrollment(): void
     {
         $college = $this->makeCollege('CAUD');
-        $admin = $this->makeUserWithPermissions($college, ['students.create']);
+        $admin = $this->makeUserWithPermissions($college, ['students.create', 'student_enrollments.create']);
         $year = $this->makeYear($college);
         $application = $this->makeApprovedApplication($college, $year, null, 'approved');
 
@@ -168,5 +168,39 @@ class StudentConversionTest extends TestCase
         // No double-audit: conversion writes a single "student.converted" entry.
         $this->assertDatabaseHas('audit_logs', ['action' => 'student.converted', 'subject_id' => $student->id]);
         $this->assertDatabaseMissing('audit_logs', ['action' => 'student.created', 'subject_id' => $student->id]);
+    }
+
+    public function test_conversion_requires_enrollment_create_permission_and_writes_nothing(): void
+    {
+        $college = $this->makeCollege('CENRL');
+        // Holds the student permission but NOT the enrollment permission. The
+        // conversion also creates the first enrollment, so it must be refused.
+        $studentOnly = $this->makeUserWithPermissions($college, ['students.create']);
+        $year = $this->makeYear($college);
+        $application = $this->makeApprovedApplication($college, $year, null, 'approved');
+
+        $this->asCollege($college, $studentOnly)
+            ->post(route('students.convert', $application))
+            ->assertForbidden();
+
+        $this->assertSame(0, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame(0, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
+    }
+
+    public function test_duplicate_conversion_reports_existing_student_honestly(): void
+    {
+        $college = $this->makeCollege('CDUPM');
+        $admin = $this->makeUserWithPermissions($college, ['students.create', 'student_enrollments.create']);
+        $year = $this->makeYear($college);
+        $application = $this->makeApprovedApplication($college, $year, null, 'approved');
+
+        $this->asCollege($college, $admin)->post(route('students.convert', $application))->assertSessionHas('success');
+
+        $this->asCollege($college, $admin)
+            ->post(route('students.convert', $application))
+            ->assertSessionHas('success', fn (string $message): bool => str_contains($message, 'already been converted')
+                && str_contains($message, 'No new student was created'));
+
+        $this->assertSame(1, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
     }
 }

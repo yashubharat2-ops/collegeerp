@@ -112,7 +112,7 @@ class AdmissionToStudentConversionTest extends TestCase
     {
         $college = $this->makeCollege('ADTI');
         $admin = $this->makeUserWithPermissions($college, [
-            'admissions.view', 'admissions.update',
+            'admissions.view', 'admissions.update', 'students.create', 'student_enrollments.create',
         ]);
         $admission = $this->makeAdmission($college, ['status' => 'completed']);
 
@@ -126,6 +126,24 @@ class AdmissionToStudentConversionTest extends TestCase
             ->assertSee('data-bulk-action="export"', false)
             ->assertSee('data-bulk-action="complete"', false)
             ->assertSee('data-bulk-action="cancel"', false);
+    }
+
+    public function test_list_hides_convert_from_users_without_both_create_permissions(): void
+    {
+        $college = $this->makeCollege('ADTN');
+        // Edit rights alone must not reveal a conversion action the backend would refuse.
+        $editor = $this->makeUserWithPermissions($college, ['admissions.view', 'admissions.update']);
+        // Student create alone is not enough: enrollment create is also required.
+        $studentOnly = $this->makeUserWithPermissions($college, ['admissions.view', 'admissions.update', 'students.create']);
+        $admission = $this->makeAdmission($college, ['status' => 'completed']);
+
+        foreach ([$editor, $studentOnly] as $user) {
+            $this->asCollege($college, $user)
+                ->get(route('admissions.index'))
+                ->assertOk()
+                ->assertDontSee('Convert to Student')
+                ->assertDontSee(route('students.convert', $admission->application_id), false);
+        }
     }
 
     public function test_from_admission_form_reuses_student_create_and_prefills(): void
@@ -228,7 +246,7 @@ class AdmissionToStudentConversionTest extends TestCase
         $this->assertDatabaseMissing('audit_logs', ['action' => 'student.created', 'subject_id' => $student->id]);
     }
 
-    public function test_duplicate_conversion_is_rejected(): void
+    public function test_duplicate_conversion_is_idempotent_and_writes_nothing(): void
     {
         $college = $this->makeCollege('ADDUP');
         $admin = $this->makeUserWithPermissions($college, [
@@ -247,18 +265,99 @@ class AdmissionToStudentConversionTest extends TestCase
             ->post(route('admissions.convert.store', $admission), $payload)
             ->assertSessionHas('success');
 
+        // The second submission returns the existing student: nothing new is written,
+        // and the (different) profile input is not applied.
         $this->asCollege($college, $admin)
-            ->post(route('admissions.convert.store', $admission), $payload)
-            ->assertSessionHasErrors('admission');
+            ->post(route('admissions.convert.store', $admission), array_merge($payload, ['first_name' => 'Changed']))
+            ->assertSessionHas('success', fn (string $message): bool => str_contains($message, 'already been converted')
+                && str_contains($message, 'No new student was created'));
+
+        $this->assertSame(1, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame(1, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame('Kiran', Student::withoutGlobalScopes()->where('college_id', $college->id)->first()->first_name);
+    }
+
+    public function test_conversion_requires_enrollment_create_permission(): void
+    {
+        $college = $this->makeCollege('ADENR');
+        // Student permission only: the conversion would also create an enrollment.
+        $studentOnly = $this->makeUserWithPermissions($college, ['admissions.view', 'students.create']);
+        $admission = $this->makeAdmission($college);
+
+        $this->asCollege($college, $studentOnly)
+            ->get(route('admissions.convert.create', $admission))
+            ->assertForbidden();
+
+        $this->asCollege($college, $studentOnly)
+            ->post(route('admissions.convert.store', $admission), [
+                'first_name' => 'Kiran',
+                'status' => 'active',
+                'academic_year_id' => $admission->academic_year_id,
+                'program_id' => $admission->program_id,
+            ])
+            ->assertForbidden();
+
+        $this->assertSame(0, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame(0, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
+    }
+
+    public function test_admission_after_application_conversion_returns_the_existing_student(): void
+    {
+        $college = $this->makeCollege('ADXP1');
+        $admin = $this->makeUserWithPermissions($college, [
+            'admissions.view', 'students.create', 'student_enrollments.create', 'students.view',
+        ]);
+        $admission = $this->makeAdmission($college);
+
+        // The application route converts first (the admission's application is 'admitted').
+        $this->asCollege($college, $admin)
+            ->post(route('students.convert', $admission->application_id))
+            ->assertSessionHas('success');
+
+        // The admission route must not create a second student for the same application.
+        $this->asCollege($college, $admin)
+            ->post(route('admissions.convert.store', $admission), [
+                'first_name' => 'Kiran',
+                'status' => 'active',
+                'academic_year_id' => $admission->academic_year_id,
+                'program_id' => $admission->program_id,
+            ])
+            ->assertSessionHas('success', fn (string $message): bool => str_contains($message, 'No new student was created'));
 
         $this->assertSame(1, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
         $this->assertSame(1, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
     }
 
+    public function test_cancel_is_blocked_while_a_live_student_exists_for_the_admission(): void
+    {
+        $college = $this->makeCollege('ADCXL');
+        $admin = $this->makeUserWithPermissions($college, [
+            'admissions.view', 'admissions.update', 'students.create', 'student_enrollments.create', 'students.view',
+        ]);
+        $admission = $this->makeAdmission($college);
+
+        $this->asCollege($college, $admin)
+            ->post(route('admissions.convert.store', $admission), [
+                'first_name' => 'Kiran',
+                'status' => 'active',
+                'academic_year_id' => $admission->academic_year_id,
+                'program_id' => $admission->program_id,
+            ])
+            ->assertSessionHas('success');
+
+        $this->asCollege($college, $admin)
+            ->post(route('admissions.cancel', $admission), ['remarks' => 'Withdrawn'])
+            ->assertSessionHasErrors('admission');
+
+        // Nothing changed: the admission stays active and the student stays live.
+        $this->assertSame('active', Admission::withoutGlobalScopes()->find($admission->id)->status);
+        $this->assertSame(1, Student::withoutGlobalScopes()->where('college_id', $college->id)->whereNull('deleted_at')->count());
+    }
+
     public function test_cancelled_admission_cannot_convert(): void
     {
         $college = $this->makeCollege('ADCAN');
-        $admin = $this->makeUserWithPermissions($college, ['admissions.view', 'students.create']);
+        $admin = $this->makeUserWithPermissions($college, ['admissions.view', 'students.create', 'student_enrollments.create']);
         $admission = $this->makeAdmission($college, ['status' => 'cancelled']);
 
         $this->asCollege($college, $admin)
@@ -277,7 +376,7 @@ class AdmissionToStudentConversionTest extends TestCase
         $collegeA = $this->makeCollege('ADTA');
         $collegeB = $this->makeCollege('ADTB');
         $viewer = $this->makeUserWithPermissions($collegeA, ['admissions.view']);
-        $adminA = $this->makeUserWithPermissions($collegeA, ['admissions.view', 'students.create']);
+        $adminA = $this->makeUserWithPermissions($collegeA, ['admissions.view', 'students.create', 'student_enrollments.create']);
         $admissionB = $this->makeAdmission($collegeB);
 
         $this->asCollege($collegeA, $viewer)
@@ -327,7 +426,11 @@ class AdmissionToStudentConversionTest extends TestCase
     public function test_completed_admission_converts_through_existing_application_route(): void
     {
         $college = $this->makeCollege('ADCM');
-        $admin = $this->makeUserWithPermissions($college, ['admissions.view', 'students.create']);
+        // Conversion creates a Student AND its first enrollment, so both create
+        // permissions are required (the backend returns 403 without either).
+        $admin = $this->makeUserWithPermissions($college, [
+            'admissions.view', 'students.create', 'student_enrollments.create',
+        ]);
         $admission = $this->makeAdmission($college, ['status' => 'completed']);
 
         $this->asCollege($college, $admin)

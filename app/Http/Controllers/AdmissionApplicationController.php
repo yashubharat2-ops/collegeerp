@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Admission\Actions\CreateApplication;
-use App\Domain\Admission\Services\AdmissionApplicationWorkflow;
+use App\Domain\Admission\Services\AdmissionApplicationStatusService;
 use App\Http\Requests\AdmissionApplication\StoreAdmissionApplicationRequest;
 use App\Http\Requests\AdmissionApplication\UpdateAdmissionApplicationRequest;
 use App\Models\AcademicYear;
@@ -16,6 +16,9 @@ use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdmissionApplicationController extends Controller
 {
@@ -75,6 +78,47 @@ class AdmissionApplicationController extends Controller
         ]);
     }
 
+    /**
+     * CSV export of the selected applications (or all visible ones when no selection).
+     * Tenant-scoped; read-only; counts-only audit entry.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', AdmissionApplication::class);
+
+        $query = AdmissionApplication::query()->with(['applicant', 'academicYear', 'program'])->orderBy('id');
+
+        $ids = ListSelection::ids($request->input('ids', []));
+        if ($ids !== []) {
+            $query->whereIn('admission_applications.id', $ids);
+        }
+
+        $audit->record('admission_applications.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => (clone $query)->count(),
+        ]);
+
+        return CsvStreamExport::make('admission-applications-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders([
+                'Application number', 'Applicant', 'Email', 'Phone', 'Academic year', 'Program',
+                'Status', 'Submitted at', 'Remarks',
+            ])
+            ->map(function (AdmissionApplication $application): array {
+                return CsvStreamExport::safeRow([
+                    $application->application_number,
+                    trim(($application->applicant?->first_name ?? '').' '.($application->applicant?->last_name ?? '')),
+                    $application->applicant?->email,
+                    $application->applicant?->phone,
+                    $application->academicYear?->name,
+                    $application->program?->name,
+                    $application->status,
+                    $application->submitted_at?->format('Y-m-d H:i'),
+                    $application->remarks,
+                ]);
+            })
+            ->streamFromQuery($query);
+    }
+
     public function create(): View
     {
         $this->authorize('create', AdmissionApplication::class);
@@ -120,25 +164,21 @@ class AdmissionApplicationController extends Controller
         ]);
     }
 
-    public function update(UpdateAdmissionApplicationRequest $request, string $admission_application, AuditLogService $audit): RedirectResponse
+    public function update(UpdateAdmissionApplicationRequest $request, string $admission_application, AuditLogService $audit, AdmissionApplicationStatusService $statuses): RedirectResponse
     {
         $model = $this->findScoped($admission_application);
         $old = $model->only(self::AUDITED);
 
         $data = $request->validated();
 
-        // Enforce configurable workflow transitions
+        // Workflow transitions and the server-side submitted_at stamp are owned by
+        // AdmissionApplicationStatusService, shared with the bulk review action.
         $newStatus = $data['status'] ?? $model->status;
-        if (! AdmissionApplicationWorkflow::canTransition($model->status, $newStatus)) {
-            return back()->withErrors(['status' => 'Invalid status transition from '.$model->status.' to '.$newStatus.'. Allowed: '.implode(', ', AdmissionApplicationWorkflow::allowedFrom($model->status))])->withInput();
+        if (! $statuses->canTransition($model->status, $newStatus)) {
+            return back()->withErrors(['status' => 'Invalid status transition from '.$model->status.' to '.$newStatus.'. Allowed: '.implode(', ', $statuses->allowedFrom($model->status))])->withInput();
         }
 
-        // Server-side submission stamping: the first transition out of draft
-        // records when the application was submitted. The timestamp is never
-        // accepted from the browser, and history is preserved (never cleared).
-        if ($newStatus !== 'draft' && $model->submitted_at === null) {
-            $data['submitted_at'] = now();
-        }
+        $data = $statuses->attributesForStatus($model, $newStatus, $data);
 
         $model->update($data);
         $audit->record('admission_application.updated', $model, $old, $model->only(self::AUDITED));

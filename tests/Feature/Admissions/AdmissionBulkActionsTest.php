@@ -141,13 +141,39 @@ class AdmissionBulkActionsTest extends TestCase
         $deleted->delete();
         $foreign = $this->makeAdmission($collegeB, ['admission_number' => 'ADM-FOR']);
 
-        $response = $this->execute($collegeA, $operator, 'export', [$own->id, $deleted->id, $foreign->id, 'x', 999999]);
+        // Only well-formed integer ids here: a malformed id ('x') is rejected by
+        // validation for the whole request (see the malformed-id test below).
+        // Deleted, foreign and nonexistent ids are valid integers and are skipped.
+        $response = $this->execute($collegeA, $operator, 'export', [$own->id, $deleted->id, $foreign->id, 999999]);
         $response->assertRedirect();
 
-        $target = $response->headers->get('Location');
-        $this->assertStringStartsWith(route('admissions.export'), (string) $target);
-        parse_str((string) parse_url((string) $target, PHP_URL_QUERY), $query);
+        $target = (string) $response->headers->get('Location');
+        $this->assertStringStartsWith(route('admissions.export'), $target);
+        parse_str((string) parse_url($target, PHP_URL_QUERY), $query);
         $this->assertSame([(string) $own->id], array_map('strval', (array) ($query['ids'] ?? [])));
+
+        // Follow the redirect: the CSV holds only the authorized admission.
+        $csv = $this->asCollege($collegeA, $operator)->get($target)->assertOk()->streamedContent();
+        $this->assertStringContainsString('ADM-OWN', $csv);
+        $this->assertStringNotContainsString('ADM-DEL', $csv);
+        $this->assertStringNotContainsString('ADM-FOR', $csv);
+    }
+
+    public function test_a_malformed_id_rejects_the_whole_export_selection(): void
+    {
+        $college = $this->makeCollege('ABXM');
+        $operator = $this->makeUserWithPermissions($college, ['admissions.view']);
+        $own = $this->makeAdmission($college, ['admission_number' => 'ADM-MAL']);
+
+        // Phase D rule: a malformed id is a validation error for the whole request.
+        // Nothing is silently dropped and no export is prepared.
+        $response = $this->execute($college, $operator, 'export', [$own->id, 'x']);
+
+        $response->assertSessionHasErrors(['ids.1']);
+        $this->assertStringNotContainsString(
+            route('admissions.export'),
+            (string) $response->headers->get('Location')
+        );
     }
 
     public function test_export_streams_authorized_rows_without_identity_numbers(): void

@@ -56,6 +56,30 @@ class AdmissionApplicant extends Model
         return $this->hasMany(AdmissionApplication::class, 'applicant_id');
     }
 
+    /**
+     * Why this applicant cannot be deleted yet, or null when it can.
+     *
+     * Live (not soft-deleted) enquiries, applications and admissions all point at
+     * this applicant and keep showing its name. Soft-deleting it would leave them
+     * without an applicant, so the delete is refused with a clear reason instead.
+     */
+    public function deletionBlocker(): ?string
+    {
+        if ($this->admissions()->exists()) {
+            return 'This applicant cannot be deleted because admissions still refer to them. Cancel or resolve those first.';
+        }
+
+        if ($this->applications()->exists()) {
+            return 'This applicant cannot be deleted because admission applications still refer to them. Delete or resolve those first.';
+        }
+
+        if ($this->enquiries()->exists()) {
+            return 'This applicant cannot be deleted because admission enquiries still refer to them. Delete or resolve those first.';
+        }
+
+        return null;
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

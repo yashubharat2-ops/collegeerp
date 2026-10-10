@@ -248,9 +248,14 @@ Route::middleware('auth')->group(function () {
 
         Route::resource('faculty-subject-assignments', FacultySubjectAssignmentController::class)->except('show');
         Route::get('admission/dashboard', AdmissionDashboardController::class)->name('admission.dashboard');
+        // Bulk CSV exports are declared before the resource routes so the static
+        // "…/export" segment is never read as a record id.
+        Route::get('admission-applicants/export', [AdmissionApplicantController::class, 'export'])->name('admission-applicants.export');
         Route::resource('admission-applicants', AdmissionApplicantController::class)->except('show');
+        Route::get('admission-enquiries/export', [AdmissionEnquiryController::class, 'export'])->name('admission-enquiries.export');
         Route::get('admission-enquiries/duplicate-check', [AdmissionEnquiryController::class, 'duplicateCheck'])->name('admission-enquiries.duplicate-check');
         Route::resource('admission-enquiries', AdmissionEnquiryController::class)->except('show');
+        Route::get('admission-applications/export', [AdmissionApplicationController::class, 'export'])->name('admission-applications.export');
         Route::resource('admission-applications', AdmissionApplicationController::class)->except('show');
         Route::resource('admission-document-types', AdmissionDocumentTypeController::class)->except('show');
         Route::get('admission-documents/{admission_document}/download', [AdmissionDocumentController::class, 'download'])->name('admission-documents.download');
