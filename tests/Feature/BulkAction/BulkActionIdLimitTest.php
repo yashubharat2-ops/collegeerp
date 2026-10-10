@@ -24,7 +24,7 @@ class BulkActionIdLimitTest extends TestCase
 
     private const ENDPOINT = 'bulk-actions.execute';
 
-    private function post(College $college, User $user, array $ids, string $action = 'cancel'): TestResponse
+    private function submitBulkPost(College $college, User $user, array $ids, string $action = 'cancel'): TestResponse
     {
         return $this->asCollege($college, $user)->post(route(self::ENDPOINT), [
             'module' => 'admissions',
@@ -79,7 +79,7 @@ class BulkActionIdLimitTest extends TestCase
         $ids = array_merge([$admission->id], range(1000000, 1000199));
         $this->assertCount(201, $ids);
 
-        $this->post($college, $admin, $ids)->assertSessionHasErrors(['ids']);
+        $this->submitBulkPost($college, $admin, $ids)->assertSessionHasErrors(['ids']);
 
         $this->assertStringContainsString('at most 200', (string) session('errors')->first('ids'));
 
@@ -105,7 +105,7 @@ class BulkActionIdLimitTest extends TestCase
         $ids = range(1000000, 1000199);
         $this->assertCount(200, $ids);
 
-        $response = $this->post($college, $admin, $ids, 'export');
+        $response = $this->submitBulkPost($college, $admin, $ids, 'export');
 
         // The ids are valid: the request reaches the handler. It finds none of them in
         // this college, so the handler (not validation) refuses the action.
@@ -117,11 +117,11 @@ class BulkActionIdLimitTest extends TestCase
         $college = $this->makeCollege('LIMITBAD');
         $admin = $this->admin($college);
 
-        $this->post($college, $admin, ['abc'])->assertSessionHasErrors(['ids.0']);
-        $this->post($college, $admin, [1.5])->assertSessionHasErrors(['ids.0']);
-        $this->post($college, $admin, [0])->assertSessionHasErrors(['ids.0']);
-        $this->post($college, $admin, [-4])->assertSessionHasErrors(['ids.0']);
-        $this->post($college, $admin, [['nested']])->assertSessionHasErrors(['ids.0']);
+        $this->submitBulkPost($college, $admin, ['abc'])->assertSessionHasErrors(['ids.0']);
+        $this->submitBulkPost($college, $admin, [1.5])->assertSessionHasErrors(['ids.0']);
+        $this->submitBulkPost($college, $admin, [0])->assertSessionHasErrors(['ids.0']);
+        $this->submitBulkPost($college, $admin, [-4])->assertSessionHasErrors(['ids.0']);
+        $this->submitBulkPost($college, $admin, [['nested']])->assertSessionHasErrors(['ids.0']);
     }
 
     public function test_an_empty_selection_is_rejected(): void
@@ -129,6 +129,6 @@ class BulkActionIdLimitTest extends TestCase
         $college = $this->makeCollege('LIMITEMP');
         $admin = $this->admin($college);
 
-        $this->post($college, $admin, [])->assertSessionHasErrors(['ids']);
+        $this->submitBulkPost($college, $admin, [])->assertSessionHasErrors(['ids']);
     }
 }
