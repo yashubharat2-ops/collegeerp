@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Stops')
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Stops</h2>
@@ -18,9 +18,16 @@
         <button class="button">Filter</button>
         <a class="button !bg-slate-200 !text-slate-700" href="{{ route('transport-stops.list') }}">Reset</a>
     </form>
+    {{-- Bulk selection over the filtered stops list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="transport_stops">
+        @if(auth()->user()?->hasPermission('transport_routes.view'))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif
+    </x-list.bulk-selection-bar>
     <div class="mt-6 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead class="border-b bg-slate-50 text-slate-500"><tr>
+                <th class="w-10 px-3 py-3"><x-list.select-all /></th>
                 <th class="whitespace-nowrap px-3 py-3">Route</th>
                 <th class="whitespace-nowrap px-3 py-3">Name</th>
                 <th class="whitespace-nowrap px-3 py-3">Code</th>
@@ -34,6 +41,7 @@
             <tbody class="divide-y">
                 @forelse($records as $record)
                     <tr>
+                        <td class="px-3 py-3"><x-list.row-checkbox :id="$record->id" /></td>
                         <td class="whitespace-nowrap px-3 py-3">{{ $record->route?->name ?? '—' }}</td>
                         <td class="whitespace-nowrap px-3 py-3">{{ $record->name }}</td>
                         <td class="whitespace-nowrap px-3 py-3">{{ $record->code }}</td>
@@ -51,7 +59,7 @@
                         </div></td>
                     </tr>
                 @empty
-                    <tr><td colspan="9" class="px-3 py-8 text-center text-slate-500">No stops found.</td></tr>
+                    <tr><td colspan="10" class="px-3 py-8 text-center text-slate-500">No stops found.</td></tr>
                 @endforelse
             </tbody>
         </table>

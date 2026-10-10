@@ -7,6 +7,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Hostel\StoreHostelRequest;
 use App\Http\Requests\Hostel\UpdateHostelRequest;
 use App\Models\Hostel;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -68,6 +72,49 @@ class HostelController extends Controller
                 'gender' => $request->input('gender'),
             ],
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Hostels list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `hostels.view` is re-checked here. The building / room / bed counts
+     * are the same live counts the listing shows; nothing is written.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', Hostel::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $hostels = Hostel::query()
+            ->withCount(['buildings', 'rooms', 'beds'])
+            ->whereIn('hostels.id', $ids)
+            ->orderBy('hostels.name')
+            ->orderBy('hostels.id')
+            ->get();
+
+        $rows = $hostels->map(fn (Hostel $hostel): array => [
+            $hostel->name,
+            $hostel->code,
+            $hostel->hostel_type,
+            $hostel->gender,
+            $hostel->address,
+            $hostel->buildings_count,
+            $hostel->rooms_count,
+            $hostel->beds_count,
+            $hostel->status,
+        ]);
+
+        $audit->record('hostels.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $hostels->count(),
+        ]);
+
+        return CsvStreamExport::make('hostels-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Name', 'Code', 'Type', 'Gender', 'Address', 'Buildings', 'Rooms', 'Beds', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

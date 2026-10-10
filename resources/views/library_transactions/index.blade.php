@@ -3,7 +3,7 @@
 @section('title', 'Issue / Return')
 
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Issue / Return</h2>
@@ -43,10 +43,18 @@
         </div>
     </form>
 
+    {{-- Bulk selection over the filtered circulation list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="library_transactions">
+        @if(auth()->user()?->hasPermission('library_transactions.view'))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-6 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-2"><x-list.select-all /></th>
                     <th class="py-2">Copy</th>
                     <th>Member</th>
                     <th>Issued</th>
@@ -59,6 +67,7 @@
             <tbody>
                 @forelse($transactions as $transaction)
                     <tr class="border-b">
+                        <td class="py-2"><x-list.row-checkbox :id="$transaction->id" /></td>
                         <td class="py-2">
                             <a class="font-medium text-indigo-700 hover:underline" href="{{ route('library-transactions.show', $transaction) }}">{{ $transaction->bookCopy?->accession_number ?? 'Copy' }}</a>
                             <div class="max-w-xs truncate text-xs text-slate-500">{{ $transaction->bookCopy?->book?->title ?? '—' }}</div>
@@ -86,7 +95,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-4 text-slate-500" colspan="7">No issues recorded yet for this college.</td></tr>
+                    <tr><td class="py-4 text-slate-500" colspan="8">No issues recorded yet for this college.</td></tr>
                 @endforelse
             </tbody>
         </table>

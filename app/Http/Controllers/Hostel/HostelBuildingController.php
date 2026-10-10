@@ -8,10 +8,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Hostel\StoreHostelBuildingRequest;
 use App\Http\Requests\Hostel\UpdateHostelBuildingRequest;
 use App\Models\HostelBuilding;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Buildings / Blocks (Hostel Management).
@@ -68,6 +72,49 @@ class HostelBuildingController extends Controller
                 'hostel_id' => $request->input('hostel_id'),
             ],
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Buildings / Blocks list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `hostel_buildings.view` is re-checked here. The room / bed counts
+     * are the same live counts the listing shows; nothing is written.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', HostelBuilding::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $buildings = HostelBuilding::query()
+            ->with('hostel:id,name,code')
+            ->withCount(['rooms', 'beds'])
+            ->whereIn('hostel_buildings.id', $ids)
+            ->orderBy('hostel_buildings.hostel_id')
+            ->orderBy('hostel_buildings.name')
+            ->orderBy('hostel_buildings.id')
+            ->get();
+
+        $rows = $buildings->map(fn (HostelBuilding $building): array => [
+            $building->name,
+            $building->code,
+            $building->hostel?->name,
+            $building->floors,
+            $building->rooms_count,
+            $building->beds_count,
+            $building->status,
+        ]);
+
+        $audit->record('hostel_buildings.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $buildings->count(),
+        ]);
+
+        return CsvStreamExport::make('hostel-buildings-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Building', 'Code', 'Hostel', 'Floors', 'Rooms', 'Beds', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

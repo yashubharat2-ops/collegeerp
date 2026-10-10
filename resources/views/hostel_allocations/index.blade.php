@@ -3,7 +3,7 @@
 @section('title', 'Hostel Allocations')
 
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Hostel Allocations</h2>
@@ -70,10 +70,18 @@
         </div>
     </form>
 
+    {{-- Bulk selection over the filtered allocations list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="hostel_allocations">
+        @if(auth()->user()?->hasPermission('hostel_allocations.view'))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-6 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-2"><x-list.select-all /></th>
                     <th class="py-2">Student</th>
                     <th>Enrollment</th>
                     <th>Academic Year</th>
@@ -89,6 +97,7 @@
             <tbody>
                 @forelse($allocations as $allocation)
                     <tr class="border-b">
+                        <td class="py-2"><x-list.row-checkbox :id="$allocation->id" /></td>
                         <td class="py-2 font-medium">
                             {{ $allocation->studentEnrollment?->student?->first_name }} {{ $allocation->studentEnrollment?->student?->last_name }}
                             <span class="block text-xs text-slate-500">{{ $allocation->studentEnrollment?->student?->student_number ?? '—' }}</span>
@@ -139,7 +148,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-4 text-slate-500" colspan="10">No hostel allocations found for this college.</td></tr>
+                    <tr><td class="py-4 text-slate-500" colspan="11">No hostel allocations found for this college.</td></tr>
                 @endforelse
             </tbody>
         </table>

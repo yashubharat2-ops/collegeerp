@@ -3,7 +3,7 @@
 @section('title', 'Hostel Attendance')
 
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Hostel Attendance</h2>
@@ -50,10 +50,18 @@
         </div>
     </form>
 
+    {{-- Bulk selection over the filtered attendance list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. The listing's own bulk MARKING screen is a separate mutation workflow and stays untouched. --}}
+    <x-list.bulk-selection-bar module="hostel_attendance">
+        @if(auth()->user()?->hasPermission('hostel_attendance.view'))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-6 overflow-x-auto">
         <table class="w-full min-w-[760px] text-left text-sm">
             <thead>
                 <tr class="border-b text-slate-500">
+                    <th class="w-10 py-2 pr-3"><x-list.select-all /></th>
                     <th class="py-2 pr-3">Date</th>
                     <th class="py-2 pr-3">Student</th>
                     <th class="py-2 pr-3">Hostel</th>
@@ -75,6 +83,7 @@
                         };
                     @endphp
                     <tr class="border-b">
+                        <td class="py-2 pr-3"><x-list.row-checkbox :id="$attendance->id" /></td>
                         <td class="whitespace-nowrap py-2 pr-3">{{ $attendance->attendance_date?->format('d M Y') }}</td>
                         <td class="whitespace-nowrap py-2 pr-3 font-medium">
                             {{ $attendance->studentEnrollment?->student?->first_name }} {{ $attendance->studentEnrollment?->student?->last_name }}
@@ -107,7 +116,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-4 text-slate-500" colspan="8">No hostel attendance records found for this college.</td></tr>
+                    <tr><td class="py-4 text-slate-500" colspan="9">No hostel attendance records found for this college.</td></tr>
                 @endforelse
             </tbody>
         </table>

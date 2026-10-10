@@ -70,7 +70,7 @@ class AdmissionToStudentConversionTest extends TestCase
             'status' => 'admitted',
         ]);
 
-        return Admission::withoutGlobalScopes()->create(array_merge([
+        $admission = Admission::withoutGlobalScopes()->create(array_merge([
             'college_id' => $college->id,
             'academic_year_id' => $year->id,
             'program_id' => $program->id,
@@ -80,6 +80,15 @@ class AdmissionToStudentConversionTest extends TestCase
             'admission_date' => '2026-07-15',
             'status' => 'active',
         ], $overrides));
+
+        // The returned admission carries its valid application/applicant chain
+        // in memory: lazy-loading $admission->applicant inside a test body runs
+        // the tenant scope, which matches no rows until a request has pinned
+        // the active college (the POST payload is built before any request).
+        $admission->setRelation('application', $application);
+        $admission->setRelation('applicant', $applicant);
+
+        return $admission;
     }
 
     public function test_sidebar_lists_enquiries_before_applicants(): void
@@ -87,12 +96,16 @@ class AdmissionToStudentConversionTest extends TestCase
         $college = $this->makeCollege('ADNV');
         $admin = $this->makeUserWithPermissions($college, ['admissions.view']);
 
-        $html = $this->asCollege($college, $admin)->get(route('admissions.index'))->assertOk()->getContent();
-        $enquiries = strpos($html, 'admission-enquiries.index');
-        $applicants = strpos($html, 'admission-applicants.index');
-        $this->assertNotFalse($enquiries);
-        $this->assertNotFalse($applicants);
-        $this->assertLessThan($applicants, $enquiries);
+        // The sidebar renders real hrefs (route URIs), never route names, so
+        // the order is asserted on the rendered links — the same convention
+        // the Transport navigation tests use for sidebar order.
+        $this->asCollege($college, $admin)
+            ->get(route('admissions.index'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'href="'.route('admission-enquiries.index').'"',
+                'href="'.route('admission-applicants.index').'"',
+            ], false);
     }
 
     public function test_list_is_titled_final_admissions_and_offers_convert(): void
@@ -123,17 +136,39 @@ class AdmissionToStudentConversionTest extends TestCase
         ]);
         $admission = $this->makeAdmission($college);
 
-        $this->asCollege($college, $admin)
+        $response = $this->asCollege($college, $admin)
             ->get(route('admissions.convert.create', $admission))
-            ->assertOk()
+            ->assertOk();
+
+        $response
             ->assertSee('New Student from Admission')
             ->assertSee('Kiran')
             ->assertSee('Mehta')
             ->assertSee($admission->applicant->email)
             ->assertSee('name="academic_year_id"', false)
-            ->assertSee('name="program_id"', false)
-            ->assertSee(route('admissions.convert.store', $admission), false)
-            ->assertDontSee(route('students.store'), false);
+            ->assertSee('name="program_id"', false);
+
+        // The conversion form under test is the <form> that posts to the
+        // conversion endpoint — matched, never assumed. The action assertions
+        // are scoped to that form's markup: the page chrome (sidebar, header)
+        // links to the Students module, and the form's own Cancel button links
+        // to the students INDEX (the same URI as route('students.store')), so
+        // a page-wide or raw-substring check would false-positive on
+        // navigation instead of the form under test.
+        $html = $response->getContent();
+        $matched = preg_match(
+            '/<form\b[^>]*\baction="'.preg_quote(route('admissions.convert.store', $admission), '/').'"[^>]*>.*?<\/form>/s',
+            $html,
+            $matches
+        );
+        $this->assertSame(1, $matched, 'The conversion form must post to the conversion endpoint.');
+        $formHtml = $matches[0];
+
+        $this->assertStringNotContainsString(
+            'action="'.route('students.store').'"',
+            $formHtml,
+            'The conversion form must not carry the direct Student create/store form action.'
+        );
     }
 
     public function test_direct_new_student_is_unchanged(): void

@@ -10,12 +10,16 @@ use App\Http\Requests\Hostel\StoreHostelAttendanceRequest;
 use App\Http\Requests\Hostel\UpdateHostelAttendanceRequest;
 use App\Models\HostelAllocation;
 use App\Models\HostelAttendance;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Hostel Attendance (Hostel Management Phase 3).
@@ -85,6 +89,66 @@ class HostelAttendanceController extends Controller
                 'attendance_status' => $filters['attendance_status'] ?? '',
             ],
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Hostel Attendance list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `hostel_attendance.view` is re-checked here. The columns are the
+     * ones the listing shows. The listing's own bulk MARKING screen is a
+     * separate mutation workflow; an export never marks, corrects or deletes
+     * an attendance record.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', HostelAttendance::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $attendances = HostelAttendance::query()
+            ->with([
+                'studentEnrollment.student:id,first_name,middle_name,last_name,student_number',
+                'studentEnrollment:id,student_id,enrollment_number',
+                'allocation.hostel:id,name',
+                'allocation.building:id,name',
+                'allocation.room:id,room_number',
+                'allocation.bed:id,bed_number',
+                'allocation:id,hostel_id,hostel_building_id,hostel_room_id,hostel_bed_id,student_enrollment_id',
+                'marker:id,name',
+            ])
+            ->whereIn('hostel_attendances.id', $ids)
+            ->orderByDesc('hostel_attendances.attendance_date')
+            ->orderByDesc('hostel_attendances.id')
+            ->get();
+
+        $rows = $attendances->map(fn (HostelAttendance $attendance): array => [
+            $attendance->attendance_date?->format('Y-m-d'),
+            $attendance->studentEnrollment?->student?->student_number,
+            trim(implode(' ', array_filter([
+                $attendance->studentEnrollment?->student?->first_name,
+                $attendance->studentEnrollment?->student?->last_name,
+            ]))),
+            $attendance->studentEnrollment?->enrollment_number,
+            $attendance->allocation?->hostel?->name,
+            $attendance->allocation?->building?->name,
+            $attendance->allocation?->room?->room_number,
+            $attendance->allocation?->bed?->bed_number,
+            $attendance->attendance_status,
+            $attendance->remarks,
+            $attendance->marked_at?->format('Y-m-d H:i'),
+            $attendance->marker?->name,
+        ]);
+
+        $audit->record('hostel_attendance.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $attendances->count(),
+        ]);
+
+        return CsvStreamExport::make('hostel-attendance-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Date', 'Student number', 'Student', 'Enrollment', 'Hostel', 'Building', 'Room', 'Bed', 'Status', 'Remarks', 'Marked at', 'Marked by'])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

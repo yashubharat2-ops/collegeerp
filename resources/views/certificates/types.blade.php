@@ -12,7 +12,12 @@
         <button class="button">Create certificate type</button>
     </form>
 </div>
-<div class="panel overflow-x-auto"><table class="w-full text-left"><thead><tr><th>Name</th><th>Short code</th><th>Description</th><th>Templates</th><th>Origin</th></tr></thead><tbody>
-@foreach($types as $type)<tr class="border-t"><td class="py-3">{{ $type->name }}</td><td>{{ $type->code }}</td><td>{{ $type->description }}</td><td>{{ $type->templates_count }}</td><td>{{ $type->builtin_key ? 'Group 1 built-in' : 'College-defined' }}</td></tr>@endforeach
+<div class="panel overflow-x-auto" data-bulk-scope>
+{{-- Bulk selection over the certificate types table. Export only — the shared handler re-queries every ticked id inside the active college and re-checks certificate_types.manage before the CSV endpoint streams. --}}
+<x-list.bulk-selection-bar module="certificate_types">
+@if(auth()->user()->hasPermission('certificate_types.manage'))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif
+</x-list.bulk-selection-bar>
+<table class="w-full text-left"><thead><tr><th class="w-10"><x-list.select-all /></th><th>Name</th><th>Short code</th><th>Description</th><th>Templates</th><th>Origin</th></tr></thead><tbody>
+@foreach($types as $type)<tr class="border-t"><td class="py-3"><x-list.row-checkbox :id="$type->id" /></td><td class="py-3">{{ $type->name }}</td><td>{{ $type->code }}</td><td>{{ $type->description }}</td><td>{{ $type->templates_count }}</td><td>{{ $type->builtin_key ? 'Group 1 built-in' : 'College-defined' }}</td></tr>@endforeach
 </tbody></table></div>
 @endsection

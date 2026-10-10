@@ -8,6 +8,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Hostel\StoreHostelBedRequest;
 use App\Http\Requests\Hostel\UpdateHostelBedRequest;
 use App\Models\HostelBed;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -80,6 +84,50 @@ class HostelBedController extends Controller
                 'room_id' => $request->input('room_id'),
             ],
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Beds list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `hostel_beds.view` is re-checked here. The columns are the ones the
+     * listing shows; occupancy stays derived from allocations. Nothing is
+     * written.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', HostelBed::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $beds = HostelBed::query()
+            ->with(['hostel:id,name', 'building:id,name', 'room:id,room_number'])
+            ->whereIn('hostel_beds.id', $ids)
+            ->orderBy('hostel_beds.hostel_id')
+            ->orderBy('hostel_beds.building_id')
+            ->orderBy('hostel_beds.room_id')
+            ->orderBy('hostel_beds.bed_number')
+            ->orderBy('hostel_beds.id')
+            ->get();
+
+        $rows = $beds->map(fn (HostelBed $bed): array => [
+            $bed->bed_number,
+            $bed->room?->room_number,
+            $bed->building?->name,
+            $bed->hostel?->name,
+            $bed->description,
+            $bed->status,
+        ]);
+
+        $audit->record('hostel_beds.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $beds->count(),
+        ]);
+
+        return CsvStreamExport::make('hostel-beds-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Bed', 'Room', 'Building', 'Hostel', 'Description', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

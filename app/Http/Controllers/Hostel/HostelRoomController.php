@@ -8,10 +8,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Hostel\StoreHostelRoomRequest;
 use App\Http\Requests\Hostel\UpdateHostelRoomRequest;
 use App\Models\HostelRoom;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Rooms (Hostel Management).
@@ -76,6 +80,51 @@ class HostelRoomController extends Controller
                 'building_id' => $request->input('building_id'),
             ],
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Rooms list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `hostel_rooms.view` is re-checked here. The bed count is the same
+     * live count the listing shows; nothing is written.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', HostelRoom::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $rooms = HostelRoom::query()
+            ->with(['hostel:id,name', 'building:id,hostel_id,name,code', 'building.hostel:id,name'])
+            ->withCount('beds')
+            ->whereIn('hostel_rooms.id', $ids)
+            ->orderBy('hostel_rooms.hostel_id')
+            ->orderBy('hostel_rooms.building_id')
+            ->orderBy('hostel_rooms.room_number')
+            ->orderBy('hostel_rooms.id')
+            ->get();
+
+        $rows = $rooms->map(fn (HostelRoom $room): array => [
+            $room->room_number,
+            $room->building?->name,
+            $room->hostel?->name,
+            $room->floor,
+            $room->room_type,
+            $room->beds_count,
+            $room->capacity,
+            $room->status,
+        ]);
+
+        $audit->record('hostel_rooms.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $rooms->count(),
+        ]);
+
+        return CsvStreamExport::make('hostel-rooms-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Room', 'Building', 'Hostel', 'Floor', 'Type', 'Beds', 'Capacity', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

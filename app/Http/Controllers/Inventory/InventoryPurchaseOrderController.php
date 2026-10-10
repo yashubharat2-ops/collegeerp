@@ -9,6 +9,10 @@ use App\Http\Requests\Inventory\ReceiveInventoryPurchaseOrderRequest;
 use App\Http\Requests\Inventory\StoreInventoryPurchaseOrderRequest;
 use App\Http\Requests\Inventory\UpdateInventoryPurchaseOrderRequest;
 use App\Models\InventoryPurchaseOrder;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -69,6 +73,47 @@ class InventoryPurchaseOrderController extends Controller
                 'vendor_id' => $request->input('vendor_id'),
             ],
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Purchase Orders list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `inventory_purchase_orders.view` is re-checked here. The total is
+     * exported exactly as stored; an export never submits, receives or
+     * cancels an order.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', InventoryPurchaseOrder::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $orders = InventoryPurchaseOrder::query()
+            ->with('vendor:id,name,code')
+            ->whereIn('inventory_purchase_orders.id', $ids)
+            ->orderByDesc('inventory_purchase_orders.po_date')
+            ->orderByDesc('inventory_purchase_orders.id')
+            ->get();
+
+        $rows = $orders->map(fn (InventoryPurchaseOrder $order): array => [
+            $order->number,
+            $order->po_date?->format('Y-m-d'),
+            $order->vendor?->name,
+            $order->expected_date?->format('Y-m-d'),
+            $order->status,
+            $order->total_amount,
+        ]);
+
+        $audit->record('inventory_purchase_orders.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $orders->count(),
+        ]);
+
+        return CsvStreamExport::make('inventory-purchase-orders-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Order', 'Date', 'Vendor', 'Expected date', 'Status', 'Total'])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

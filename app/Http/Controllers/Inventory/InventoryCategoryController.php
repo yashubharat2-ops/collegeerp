@@ -7,6 +7,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\StoreInventoryCategoryRequest;
 use App\Http\Requests\Inventory\UpdateInventoryCategoryRequest;
 use App\Models\InventoryCategory;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -54,6 +58,45 @@ class InventoryCategoryController extends Controller
             'status' => $request->input('status'),
             'statuses' => InventoryCategory::STATUSES,
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Item Categories list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `inventory_categories.view` is re-checked here. The item count is
+     * the same live count the listing shows; nothing is written.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', InventoryCategory::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $categories = InventoryCategory::query()
+            ->withCount('items')
+            ->whereIn('inventory_categories.id', $ids)
+            ->orderBy('inventory_categories.name')
+            ->orderBy('inventory_categories.id')
+            ->get();
+
+        $rows = $categories->map(fn (InventoryCategory $category): array => [
+            $category->name,
+            $category->code,
+            $category->description,
+            $category->items_count,
+            $category->status,
+        ]);
+
+        $audit->record('inventory_categories.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $categories->count(),
+        ]);
+
+        return CsvStreamExport::make('inventory-categories-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Name', 'Code', 'Description', 'Items', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

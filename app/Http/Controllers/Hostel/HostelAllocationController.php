@@ -12,11 +12,15 @@ use App\Models\AcademicYear;
 use App\Models\Hostel;
 use App\Models\HostelAllocation;
 use App\Models\StudentEnrollment;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Hostel Allocations (Hostel Management Phase 2).
@@ -83,6 +87,63 @@ class HostelAllocationController extends Controller
                 'student_enrollment_id' => $request->input('student_enrollment_id'),
             ],
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Hostel Allocations list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `hostel_allocations.view` is re-checked here. The columns are the
+     * ones the listing shows. An export never allocates, vacates or cancels a
+     * bed.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', HostelAllocation::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $allocations = HostelAllocation::query()
+            ->with([
+                'studentEnrollment.student:id,first_name,middle_name,last_name,student_number',
+                'studentEnrollment:id,student_id,enrollment_number',
+                'academicYear:id,name',
+                'hostel:id,name',
+                'building:id,name',
+                'room:id,room_number',
+                'bed:id,bed_number',
+            ])
+            ->whereIn('hostel_allocations.id', $ids)
+            ->orderByDesc('hostel_allocations.allocation_date')
+            ->orderByDesc('hostel_allocations.id')
+            ->get();
+
+        $rows = $allocations->map(fn (HostelAllocation $allocation): array => [
+            $allocation->studentEnrollment?->student?->student_number,
+            trim(implode(' ', array_filter([
+                $allocation->studentEnrollment?->student?->first_name,
+                $allocation->studentEnrollment?->student?->last_name,
+            ]))),
+            $allocation->studentEnrollment?->enrollment_number,
+            $allocation->academicYear?->name,
+            $allocation->hostel?->name,
+            $allocation->building?->name,
+            $allocation->room?->room_number,
+            $allocation->bed?->bed_number,
+            $allocation->allocation_date?->format('Y-m-d'),
+            $allocation->vacated_date?->format('Y-m-d'),
+            $allocation->status,
+        ]);
+
+        $audit->record('hostel_allocations.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $allocations->count(),
+        ]);
+
+        return CsvStreamExport::make('hostel-allocations-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Student number', 'Student', 'Enrollment', 'Academic year', 'Hostel', 'Building', 'Room', 'Bed', 'Allocation date', 'Vacated date', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

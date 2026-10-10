@@ -37,10 +37,14 @@
     <p class="text-sm text-slate-500">Verification is restricted to your active college and recorded in the audit trail.</p>
 </div>
 @endif
-<div class="panel overflow-x-auto">
-<table class="w-full text-left"><thead><tr><th>Request</th><th>Type</th><th>Student</th><th>Status</th><th>Number</th><th></th></tr></thead><tbody>
-@forelse($certificates as $certificate)<tr class="border-t"><td class="py-3">#{{ $certificate->id }}</td><td>{{ $certificate->type?->name }}</td><td>{{ $certificate->student?->fullName() }}</td><td>{{ ucfirst($certificate->status) }}</td><td>{{ $certificate->number ?? 'Not issued' }}</td><td><a href="{{ route('certificates.show', $certificate) }}">Open / {{ $stage === 'generation' ? 'Generate' : ($stage === 'issuance' ? 'Issue' : 'Review') }}</a></td></tr>
-@empty<tr><td colspan="6" class="py-6">No certificates at this stage.</td></tr>@endforelse
+<div class="panel overflow-x-auto" data-bulk-scope>
+{{-- Bulk selection over the paginated certificate register (every type at every stage). Export only — the shared handler re-queries every ticked id inside the active college and re-checks certificates.view before the CSV endpoint streams. --}}
+<x-list.bulk-selection-bar module="certificates">
+@if(auth()->user()->hasPermission('certificates.view'))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif
+</x-list.bulk-selection-bar>
+<table class="w-full text-left"><thead><tr><th class="w-10"><x-list.select-all /></th><th>Request</th><th>Type</th><th>Student</th><th>Status</th><th>Number</th><th></th></tr></thead><tbody>
+@forelse($certificates as $certificate)<tr class="border-t"><td class="py-3"><x-list.row-checkbox :id="$certificate->id" /></td><td class="py-3">#{{ $certificate->id }}</td><td>{{ $certificate->type?->name }}</td><td>{{ $certificate->student?->fullName() }}</td><td>{{ ucfirst($certificate->status) }}</td><td>{{ $certificate->number ?? 'Not issued' }}</td><td><a href="{{ route('certificates.show', $certificate) }}">Open / {{ $stage === 'generation' ? 'Generate' : ($stage === 'issuance' ? 'Issue' : 'Review') }}</a></td></tr>
+@empty<tr><td colspan="7" class="py-6">No certificates at this stage.</td></tr>@endforelse
 </tbody></table>{{ $certificates->links() }}
 </div>
 @endsection

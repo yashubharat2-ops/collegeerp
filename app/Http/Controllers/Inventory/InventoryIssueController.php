@@ -7,6 +7,10 @@ use App\Domain\Inventory\Support\InventoryFormOptions;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\StoreInventoryIssueRequest;
 use App\Models\InventoryIssue;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -69,6 +73,52 @@ class InventoryIssueController extends Controller
                 'to' => $to,
             ],
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Item Issue / Allocation list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `inventory_issues.view` is re-checked here. The recipient name is
+     * resolved with the model's own accessor. Issues are append-only: an
+     * export never issues stock or reverses an issue.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', InventoryIssue::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $issues = InventoryIssue::query()
+            ->with(['item:id,name,code,unit', 'recipient', 'creator:id,name'])
+            ->whereIn('inventory_issues.id', $ids)
+            ->orderByDesc('inventory_issues.movement_date')
+            ->orderByDesc('inventory_issues.id')
+            ->get();
+
+        $rows = $issues->map(fn (InventoryIssue $issue): array => [
+            $issue->movement_date?->format('Y-m-d'),
+            $issue->number,
+            $issue->item?->name,
+            $issue->item?->code,
+            $issue->quantity,
+            $issue->item?->unit,
+            $issue->recipientName(),
+            $issue->issued_to_type,
+            $issue->purpose,
+            $issue->reference,
+            $issue->creator?->name,
+        ]);
+
+        $audit->record('inventory_issues.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $issues->count(),
+        ]);
+
+        return CsvStreamExport::make('inventory-issues-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Date', 'Issue #', 'Item', 'Item code', 'Quantity', 'Unit', 'Recipient', 'Recipient type', 'Purpose', 'Reference', 'Recorded by'])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

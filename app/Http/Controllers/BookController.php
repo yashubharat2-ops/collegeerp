@@ -7,10 +7,14 @@ use App\Domain\Library\Support\LibraryFormOptions;
 use App\Http\Requests\Book\StoreBookRequest;
 use App\Http\Requests\Book\UpdateBookRequest;
 use App\Models\Book;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Books (Library Management) — the bibliographic master.
@@ -80,6 +84,48 @@ class BookController extends Controller
                 'author_id' => $request->input('author_id'),
             ],
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Books list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `books.view` is re-checked here. The columns are the ones the listing
+     * shows; nothing is written.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', Book::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $books = Book::query()
+            ->with(['category:id,name,code', 'publisher:id,name', 'authors:id,name'])
+            ->whereIn('books.id', $ids)
+            ->orderBy('books.title')
+            ->orderBy('books.id')
+            ->get();
+
+        $rows = $books->map(fn (Book $book): array => [
+            $book->title,
+            $book->code,
+            $book->isbn,
+            $book->category?->name,
+            $book->authors->isNotEmpty() ? $book->authorNames() : null,
+            $book->publisher?->name,
+            $book->publication_year,
+            $book->status,
+        ]);
+
+        $audit->record('books.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $books->count(),
+        ]);
+
+        return CsvStreamExport::make('books-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Title', 'Code', 'ISBN', 'Category', 'Authors', 'Publisher', 'Year', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

@@ -7,6 +7,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Transport\StoreStudentTransportAssignmentRequest;
 use App\Http\Requests\Transport\UpdateStudentTransportAssignmentRequest;
 use App\Models\{AcademicYear, StudentEnrollment, StudentTransportAssignment, TransportRoute, TransportStop};
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\{RedirectResponse, Request};
 use Illuminate\View\View;
@@ -55,6 +59,58 @@ class StudentTransportAssignmentController extends Controller
                 'status' => $request->input('status'),
             ],
         ]));
+    }
+
+    /**
+     * CSV export of a bulk selection from the Student Transport Assignment
+     * list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `student_transport_assignments.view` is re-checked here. The columns
+     * are the ones the listing shows; nothing is written.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', StudentTransportAssignment::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $assignments = StudentTransportAssignment::query()
+            ->with([
+                'studentEnrollment.student:id,first_name,middle_name,last_name,student_number',
+                'studentEnrollment:id,student_id,enrollment_number',
+                'academicYear:id,name',
+                'transportRoute:id,name,code',
+                'transportStop:id,name,code,route_id,sequence',
+            ])
+            ->whereIn('student_transport_assignments.id', $ids)
+            ->orderByDesc('student_transport_assignments.id')
+            ->get();
+
+        $rows = $assignments->map(fn (StudentTransportAssignment $assignment): array => [
+            $assignment->studentEnrollment?->student?->student_number,
+            trim(implode(' ', array_filter([
+                $assignment->studentEnrollment?->student?->first_name,
+                $assignment->studentEnrollment?->student?->last_name,
+            ]))),
+            $assignment->studentEnrollment?->enrollment_number,
+            $assignment->academicYear?->name,
+            $assignment->transportRoute?->name,
+            $assignment->transportStop?->name,
+            $assignment->start_date?->format('Y-m-d'),
+            $assignment->end_date?->format('Y-m-d'),
+            $assignment->status,
+        ]);
+
+        $audit->record('student_transport_assignments.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $assignments->count(),
+        ]);
+
+        return CsvStreamExport::make('transport-assignments-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Student number', 'Student', 'Enrollment', 'Academic year', 'Route', 'Stop', 'Start date', 'End date', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

@@ -8,6 +8,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\StoreInventoryItemRequest;
 use App\Http\Requests\Inventory\UpdateInventoryItemRequest;
 use App\Models\InventoryItem;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -75,6 +79,50 @@ class InventoryItemController extends Controller
                 'category_id' => $request->input('category_id'),
             ],
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Items / Assets list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `inventory_items.view` is re-checked here. Quantities are exported
+     * exactly as stored; an export never adjusts stock.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', InventoryItem::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $items = InventoryItem::query()
+            ->with('category:id,name,code')
+            ->whereIn('inventory_items.id', $ids)
+            ->orderBy('inventory_items.name')
+            ->orderBy('inventory_items.id')
+            ->get();
+
+        $rows = $items->map(fn (InventoryItem $item): array => [
+            $item->name,
+            $item->code,
+            $item->category?->name,
+            $item->item_type,
+            $item->brand,
+            $item->model,
+            $item->serial_number,
+            $item->quantity,
+            $item->unit,
+            $item->status,
+        ]);
+
+        $audit->record('inventory_items.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $items->count(),
+        ]);
+
+        return CsvStreamExport::make('inventory-items-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Name', 'Code', 'Category', 'Type', 'Brand', 'Model', 'Serial', 'Quantity', 'Unit', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

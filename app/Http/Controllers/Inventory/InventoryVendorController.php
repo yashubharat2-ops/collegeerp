@@ -7,6 +7,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\StoreInventoryVendorRequest;
 use App\Http\Requests\Inventory\UpdateInventoryVendorRequest;
 use App\Models\InventoryVendor;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -57,6 +61,47 @@ class InventoryVendorController extends Controller
             'status' => $request->input('status'),
             'statuses' => InventoryVendor::STATUSES,
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Vendors list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `inventory_vendors.view` is re-checked here. The columns are the
+     * ones the listing shows; nothing is written.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', InventoryVendor::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $vendors = InventoryVendor::query()
+            ->whereIn('inventory_vendors.id', $ids)
+            ->orderBy('inventory_vendors.name')
+            ->orderBy('inventory_vendors.id')
+            ->get();
+
+        $rows = $vendors->map(fn (InventoryVendor $vendor): array => [
+            $vendor->name,
+            $vendor->code,
+            $vendor->contact_person,
+            $vendor->phone,
+            $vendor->email,
+            $vendor->address,
+            $vendor->gst_number,
+            $vendor->status,
+        ]);
+
+        $audit->record('inventory_vendors.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $vendors->count(),
+        ]);
+
+        return CsvStreamExport::make('inventory-vendors-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Name', 'Code', 'Contact person', 'Phone', 'Email', 'Address', 'GST number', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

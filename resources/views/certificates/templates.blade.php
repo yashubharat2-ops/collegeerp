@@ -13,6 +13,15 @@
         <button class="button">Add template</button>
     </form>
 </div>
-@forelse($templates as $template)<div class="panel mb-4"><h2 class="panel-title">{{ $template->name }} — {{ $template->type?->name }}</h2><pre class="whitespace-pre-wrap font-sans">{{ $template->body }}</pre></div>@empty<p>No templates yet. Add a college-approved template before generating a certificate.</p>@endforelse
+<div data-bulk-scope>
+{{-- Bulk selection over the paginated templates list. Export only — the shared handler re-queries every ticked id inside the active college and re-checks certificate_templates.manage before the CSV endpoint streams. --}}
+<x-list.bulk-selection-bar module="certificate_templates">
+@if(auth()->user()->hasPermission('certificate_templates.manage'))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif
+</x-list.bulk-selection-bar>
+@if($templates->isNotEmpty())
+    <label class="mb-2 inline-flex items-center gap-2 text-xs font-semibold text-slate-600"><x-list.select-all /> Select all on this page</label>
+@endif
+@forelse($templates as $template)<div class="panel mb-4"><div class="flex items-start justify-between gap-3"><h2 class="panel-title">{{ $template->name }} — {{ $template->type?->name }}</h2><x-list.row-checkbox :id="$template->id" /></div><pre class="whitespace-pre-wrap font-sans">{{ $template->body }}</pre></div>@empty<p>No templates yet. Add a college-approved template before generating a certificate.</p>@endforelse
 {{ $templates->links() }}
+</div>
 @endsection

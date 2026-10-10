@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Student Transport Assignment')
 @section('content')
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Student Transport Assignment</h2>
@@ -51,10 +51,18 @@
         </div>
     </form>
 
+    {{-- Bulk selection over the filtered assignment list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="student_transport_assignments">
+        @if(auth()->user()?->hasPermission('student_transport_assignments.view'))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif
+    </x-list.bulk-selection-bar>
+
     <div class="mt-6 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead class="border-b bg-slate-50 text-slate-500">
                 <tr>
+                    <th class="w-10 px-3 py-3"><x-list.select-all /></th>
                     <th class="whitespace-nowrap px-3 py-3">Student</th>
                     <th class="whitespace-nowrap px-3 py-3">Enrollment</th>
                     <th class="whitespace-nowrap px-3 py-3">Academic Year</th>
@@ -68,6 +76,7 @@
             <tbody class="divide-y">
                 @forelse($assignments as $assignment)
                     <tr>
+                        <td class="px-3 py-3"><x-list.row-checkbox :id="$assignment->id" /></td>
                         <td class="whitespace-nowrap px-3 py-3 font-medium">
                             {{ $assignment->studentEnrollment?->student?->first_name }} {{ $assignment->studentEnrollment?->student?->last_name }}
                             <span class="block text-xs text-slate-500">{{ $assignment->studentEnrollment?->student?->student_number }}</span>
@@ -93,7 +102,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="px-3 py-8 text-center text-slate-500">No student transport assignments found.</td></tr>
+                    <tr><td colspan="9" class="px-3 py-8 text-center text-slate-500">No student transport assignments found.</td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -2,7 +2,7 @@
 @section('title', $title)
 @section('content')
 @php($params = $parent ? ['transport_route' => $parent->id] : [])
-<div class="panel">
+<div class="panel" data-bulk-scope>
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">{{ $title }}{{ $parent ? ' — '.$parent->name : '' }}</h2>
@@ -20,9 +20,16 @@
         <button class="button">Filter</button>
         <a class="button !bg-slate-200 !text-slate-700" href="{{ route($routeName.'.index', $params) }}">Reset</a>
     </form>
+    {{-- Bulk selection over the filtered master list. Export only — the shared
+         handler re-queries every ticked id inside the active college and re-authorizes
+         each record before the CSV endpoint streams. --}}
+    <x-list.bulk-selection-bar module="{{ $bulkModule }}">
+        @if(auth()->user()?->hasPermission($bulkPermission))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif
+    </x-list.bulk-selection-bar>
     <div class="mt-6 overflow-x-auto">
         <table class="w-full text-left text-sm">
             <thead class="border-b bg-slate-50 text-slate-500"><tr>
+                <th class="w-10 px-3 py-3"><x-list.select-all /></th>
                 @foreach($fields as $field => $type)
                     @if(!in_array($field, ['remarks', 'description', 'landmark']))<th class="whitespace-nowrap px-3 py-3">{{ $field === 'faculty_id' ? 'Staff' : \Illuminate\Support\Str::headline($field) }}</th>@endif
                 @endforeach
@@ -31,6 +38,7 @@
             <tbody class="divide-y">
                 @forelse($records as $record)
                     <tr>
+                        <td class="px-3 py-3"><x-list.row-checkbox :id="$record->id" /></td>
                         @foreach($fields as $field => $type)
                             @if(!in_array($field, ['remarks', 'description', 'landmark']))
                                 <td class="whitespace-nowrap px-3 py-3">{{ $field === 'faculty_id' ? ($record->faculty?->full_name ?? 'Archived staff') : ($record->$field ?? '—') }}</td>
@@ -47,7 +55,7 @@
                         </div></td>
                     </tr>
                 @empty
-                    <tr><td colspan="{{ count($fields) + 1 }}" class="px-3 py-8 text-center text-slate-500">No records found.</td></tr>
+                    <tr><td colspan="{{ count($fields) + 2 }}" class="px-3 py-8 text-center text-slate-500">No records found.</td></tr>
                 @endforelse
             </tbody>
         </table>

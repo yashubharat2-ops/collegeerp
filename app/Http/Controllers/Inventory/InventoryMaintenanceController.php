@@ -8,9 +8,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\StoreInventoryMaintenanceRequest;
 use App\Http\Requests\Inventory\UpdateInventoryMaintenanceRequest;
 use App\Models\InventoryMaintenance;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Asset Maintenance (Inventory / Asset Management, Phase 3).
@@ -65,6 +69,53 @@ class InventoryMaintenanceController extends Controller
                 'status' => $request->input('status'),
             ],
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Asset Maintenance list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `inventory_maintenance.view` is re-checked here. The columns are
+     * the ones the listing shows. An export never schedules, starts or
+     * completes a work order.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', InventoryMaintenance::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $maintenances = InventoryMaintenance::query()
+            ->with(['item:id,name,code,serial_number', 'vendor:id,name,code', 'creator:id,name'])
+            ->whereIn('inventory_maintenances.id', $ids)
+            ->orderByDesc('inventory_maintenances.updated_at')
+            ->orderByDesc('inventory_maintenances.id')
+            ->get();
+
+        $rows = $maintenances->map(fn (InventoryMaintenance $maintenance): array => [
+            $maintenance->title,
+            $maintenance->item?->name,
+            $maintenance->item?->code,
+            $maintenance->item?->serial_number,
+            $maintenance->maintenance_type,
+            $maintenance->status,
+            $maintenance->scheduled_on?->format('Y-m-d'),
+            $maintenance->completed_on?->format('Y-m-d'),
+            $maintenance->cost,
+            $maintenance->vendor?->name,
+            $maintenance->performed_by,
+            $maintenance->creator?->name,
+        ]);
+
+        $audit->record('inventory_maintenance.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $maintenances->count(),
+        ]);
+
+        return CsvStreamExport::make('inventory-maintenances-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Title', 'Asset', 'Item code', 'Serial', 'Type', 'Status', 'Scheduled on', 'Completed on', 'Cost', 'Vendor', 'Performed by', 'Recorded by'])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

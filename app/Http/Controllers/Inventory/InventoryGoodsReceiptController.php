@@ -8,9 +8,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\StoreInventoryGoodsReceiptRequest;
 use App\Models\InventoryItem;
 use App\Models\InventoryStockMovement;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Goods Receipt / Stock In (Inventory / Asset Management, Phase 2 final).
@@ -74,6 +78,57 @@ class InventoryGoodsReceiptController extends Controller
                 'to' => $to,
             ],
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Goods Receipt / Stock In list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `inventory_goods_receipts.view` is re-checked here. The query is
+     * narrowed to the incoming movement types the listing shows, so a
+     * hand-edited URL can never widen the download past goods receipts. The
+     * ledger is immutable: an export never books or reverses a movement.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewGoodsReceipts', InventoryStockMovement::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $movements = InventoryStockMovement::query()
+            ->with(['item:id,name,code,unit', 'purchaseOrder:id,number', 'creator:id,name'])
+            ->whereIn('type', [
+                InventoryStockMovement::TYPE_PURCHASE_RECEIPT,
+                InventoryStockMovement::TYPE_STOCK_IN,
+            ])
+            ->whereIn('inventory_stock_movements.id', $ids)
+            ->orderByDesc('inventory_stock_movements.movement_date')
+            ->orderByDesc('inventory_stock_movements.id')
+            ->get();
+
+        $rows = $movements->map(fn (InventoryStockMovement $movement): array => [
+            $movement->movement_date?->format('Y-m-d'),
+            $movement->item?->name,
+            $movement->item?->code,
+            $movement->type,
+            $movement->quantity,
+            $movement->item?->unit,
+            $movement->balance_after,
+            $movement->reference,
+            $movement->purchaseOrder?->number,
+            $movement->reason,
+            $movement->creator?->name,
+        ]);
+
+        $audit->record('inventory_goods_receipts.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $movements->count(),
+        ]);
+
+        return CsvStreamExport::make('inventory-goods-receipts-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Date', 'Item', 'Item code', 'Type', 'Quantity', 'Unit', 'On hand after', 'Reference', 'PO', 'Reason', 'Recorded by'])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

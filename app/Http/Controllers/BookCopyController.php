@@ -7,6 +7,10 @@ use App\Domain\Library\Support\LibraryFormOptions;
 use App\Http\Requests\BookCopy\StoreBookCopyRequest;
 use App\Http\Requests\BookCopy\UpdateBookCopyRequest;
 use App\Models\BookCopy;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -66,6 +70,47 @@ class BookCopyController extends Controller
             'books' => LibraryFormOptions::books(),
             'filters' => ['book_id' => $request->input('book_id')],
         ]);
+    }
+
+    /**
+     * CSV export of a bulk selection from the Book Copies list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `book_copies.view` is re-checked here. The columns are the ones the
+     * listing shows; nothing is written.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', BookCopy::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $copies = BookCopy::query()
+            ->with('book:id,title,code')
+            ->whereIn('book_copies.id', $ids)
+            ->orderBy('book_copies.accession_number')
+            ->orderBy('book_copies.id')
+            ->get();
+
+        $rows = $copies->map(fn (BookCopy $copy): array => [
+            $copy->accession_number,
+            $copy->book?->title,
+            $copy->copy_number,
+            $copy->barcode,
+            $copy->location,
+            $copy->condition,
+            $copy->status,
+        ]);
+
+        $audit->record('book_copies.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $copies->count(),
+        ]);
+
+        return CsvStreamExport::make('book-copies-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Accession', 'Book', 'Copy', 'Barcode', 'Location', 'Condition', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(Request $request): View

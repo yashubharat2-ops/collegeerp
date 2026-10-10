@@ -13,6 +13,10 @@ use App\Models\FeePayment;
 use App\Models\HostelAllocation;
 use App\Models\HostelFeeAssignment;
 use App\Models\HostelFeeStructure;
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -68,6 +72,69 @@ class HostelFeeController extends Controller
                 'status' => $request->input('status'),
             ],
         ]));
+    }
+
+    /**
+     * CSV export of a bulk selection from the Hostel Fees list.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and `hostel_fees.view` is re-checked here. Collected / outstanding are
+     * the same LIVE ledger figures the listing derives from the existing
+     * Finance fee_payments rows; amounts are exported as stored, never
+     * recalculated. An export never collects, cancels or re-assigns a fee.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', HostelFeeAssignment::class);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $feeAssignments = HostelFeeAssignment::query()
+            ->with([
+                'hostelAllocation.studentEnrollment.student:id,first_name,middle_name,last_name,student_number',
+                'hostelAllocation:id,student_enrollment_id,hostel_id,hostel_bed_id',
+                'hostelAllocation.hostel:id,name',
+                'hostelAllocation.bed:id,bed_number',
+                'feeStructure:id,name,code',
+                'academicYear:id,name',
+            ])
+            ->whereIn('hostel_fee_assignments.id', $ids)
+            ->orderByDesc('hostel_fee_assignments.id')
+            ->get();
+
+        $ledger = $this->fees->ledgerFor($feeAssignments);
+
+        $rows = $feeAssignments->map(function (HostelFeeAssignment $feeAssignment) use ($ledger): array {
+            $summary = $ledger[$feeAssignment->getKey()] ?? null;
+
+            return [
+                $feeAssignment->hostelAllocation?->studentEnrollment?->student?->student_number,
+                trim(implode(' ', array_filter([
+                    $feeAssignment->hostelAllocation?->studentEnrollment?->student?->first_name,
+                    $feeAssignment->hostelAllocation?->studentEnrollment?->student?->last_name,
+                ]))),
+                $feeAssignment->hostelAllocation?->hostel?->name,
+                $feeAssignment->hostelAllocation?->bed?->bed_number,
+                $feeAssignment->feeStructure?->name,
+                $feeAssignment->academicYear?->name,
+                $feeAssignment->effective_from?->format('Y-m-d'),
+                $feeAssignment->effective_until?->format('Y-m-d'),
+                $feeAssignment->assigned_amount,
+                number_format((float) ($summary['net_collected'] ?? 0), 2, '.', ''),
+                number_format((float) ($summary['outstanding'] ?? 0), 2, '.', ''),
+                $feeAssignment->status,
+            ];
+        });
+
+        $audit->record('hostel_fees.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $feeAssignments->count(),
+        ]);
+
+        return CsvStreamExport::make('hostel-fees-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders(['Student number', 'Student', 'Hostel', 'Bed', 'Structure', 'Academic year', 'Effective from', 'Effective until', 'Amount', 'Collected', 'Outstanding', 'Status'])
+            ->streamFromCollection($rows);
     }
 
     public function create(): View

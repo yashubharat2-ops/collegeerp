@@ -5,8 +5,13 @@ namespace App\Http\Controllers\Transport;
 use App\Domain\Transport\Services\TransportMasterService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Transport\TransportMasterRequest;
-use App\Models\{Faculty, TransportDriver, TransportRoute, TransportStop};
+use App\Models\{Faculty, TransportDriver, TransportRoute, TransportStop, Vehicle};
+use App\Services\Audit\AuditLogService;
+use App\Support\Export\CsvStreamExport;
+use App\Support\Listing\ListSelection;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /** Explicit scoped resolution happens after tenant middleware, never implicit binding. */
 abstract class TransportMasterController extends Controller
@@ -36,7 +41,99 @@ abstract class TransportMasterController extends Controller
     private function viewData(Request $request): array
     {
         return ['model' => $this->model, 'title' => $this->title, 'routeName' => $this->routeName,
-            'parent' => $this->resolveParent($request), 'fields' => $this->model::FIELDS, 'statuses' => $this->model::STATUSES];
+            'parent' => $this->resolveParent($request), 'fields' => $this->model::FIELDS, 'statuses' => $this->model::STATUSES,
+            'bulkModule' => $this->bulkModule(), 'bulkPermission' => $this->bulkPermission()];
+    }
+
+    /**
+     * The shared bulk-action module key of this master (what the listing's
+     * bulk bar posts to `bulk-actions.execute`).
+     */
+    private function bulkModule(): string
+    {
+        return match ($this->model) {
+            Vehicle::class => 'vehicles',
+            TransportDriver::class => 'transport_drivers',
+            TransportRoute::class => 'transport_routes',
+            TransportStop::class => 'transport_stops',
+            default => Str::snake(class_basename($this->model)),
+        };
+    }
+
+    /**
+     * The view permission that gates this master's bulk export button.
+     */
+    private function bulkPermission(): string
+    {
+        return match ($this->model) {
+            Vehicle::class => 'vehicles.view',
+            TransportDriver::class => 'transport_drivers.view',
+            TransportRoute::class, TransportStop::class => 'transport_routes.view',
+            default => Str::snake(class_basename($this->model)).'.view',
+        };
+    }
+
+    /**
+     * CSV export of a bulk selection from the master listing.
+     *
+     * Ids are treated as a request, never as data (normalised, capped,
+     * re-queried inside the active college through the model's college scope)
+     * and the master's view permission is re-checked here. The columns are
+     * the ones the listing shows (long free-text fields excluded); for
+     * drivers the linked staff member is resolved instead of the raw id, and
+     * the license number — a government identity document number — is never
+     * exported. Nothing is written.
+     */
+    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    {
+        $this->authorize('viewAny', $this->model);
+
+        $ids = ListSelection::ids($request->input('ids', []));
+
+        $query = $this->model::query()->whereIn((new $this->model)->qualifyColumn('id'), $ids);
+        if ($this->model === TransportDriver::class) {
+            $query->with('faculty');
+        }
+        if ($this->model === TransportStop::class) {
+            $query->with('route:id,name,code');
+        }
+
+        $order = isset($this->model::FIELDS['name']) ? 'name' : array_key_first($this->model::FIELDS);
+        $records = $query->orderBy($order)->orderBy('id')->get();
+
+        $fields = array_filter(
+            array_keys($this->model::FIELDS),
+            fn (string $field): bool => ! in_array($field, ['remarks', 'description', 'landmark', 'license_number'], true)
+        );
+
+        $headers = [$this->model === TransportStop::class ? 'Route' : null];
+        foreach ($fields as $field) {
+            $headers[] = $field === 'faculty_id' ? 'Staff' : Str::headline($field);
+        }
+        $headers = array_values(array_filter($headers, fn ($header) => $header !== null));
+
+        $rows = $records->map(function ($record) use ($fields): array {
+            $row = [];
+            if ($record instanceof TransportStop) {
+                $row[] = $record->route?->name;
+            }
+            foreach ($fields as $field) {
+                $row[] = $field === 'faculty_id'
+                    ? ($record->faculty?->full_name ?? 'Archived staff')
+                    : $record->{$field};
+            }
+
+            return $row;
+        });
+
+        $audit->record(str_replace('-', '_', $this->routeName).'.exported', null, [], [
+            'selected_ids' => count($ids),
+            'rows' => $records->count(),
+        ]);
+
+        return CsvStreamExport::make($this->routeName.'-export-'.now()->format('Y-m-d').'.csv')
+            ->withHeaders($headers)
+            ->streamFromCollection($rows);
     }
 
     public function index(Request $request)
