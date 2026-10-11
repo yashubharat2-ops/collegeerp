@@ -18,7 +18,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *
  * One live record per student + academic year + academic term; the rule is
  * enforced transactionally in StudentAcademicRecordService, mirroring the
- * duplicate-active-enrollment protection in StudentService.
+ * all-status enrollment tuple protection in StudentService.
  *
  * Deliberately result-agnostic: no marks or grades live here. The future
  * Examination/Result module attaches to this record (and to the optional

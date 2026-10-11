@@ -84,9 +84,15 @@ class CertificateWorkflow
                 $transfer = StudentTransfer::where('student_id', $certificate->student_id)
                     ->where('enrollment_id', $certificate->student_enrollment_id)->lockForUpdate()->findOrFail($certificate->student_transfer_id);
                 $this->ensure($transfer->status === 'approved' && $transfer->tc_status !== 'cancelled', 'The linked transfer is no longer approved.');
-                // Adopt an already-issued legacy TC without issuing it twice or changing its number/date.
-                if (! $transfer->isTcIssued()) {
-                    $transfer = $this->transfers->issue($transfer, $collegeId, auth()->id());
+                // Adoption is metadata-only: retain valid legacy values and do
+                // not replay issuance mutations against historical enrollments.
+                if ($transfer->isTcIssued()) {
+                    $this->ensure(
+                        $this->hasCompleteLegacyTcIssueMetadata($transfer),
+                        'The linked legacy transfer certificate is missing a valid TC number or issue date and cannot be adopted.'
+                    );
+                } else {
+                    $transfer = $this->transfers->issue($transfer, $collegeId, auth()->id(), collegeLockHeld: true);
                 }
                 $number = $transfer->tc_number;
                 $issuedAt = $transfer->tc_issue_date;
@@ -111,6 +117,26 @@ class CertificateWorkflow
             $this->audit->record('certificate.verified', $certificate, [], ['number' => $number, 'status' => 'issued']);
             return $certificate;
         });
+    }
+
+    private function hasCompleteLegacyTcIssueMetadata(StudentTransfer $transfer): bool
+    {
+        $number = $transfer->getRawOriginal('tc_number');
+        $issueDate = $transfer->getRawOriginal('tc_issue_date');
+
+        if (! is_string($number) || trim($number) === '' || ! is_string($issueDate) || trim($issueDate) === '') {
+            return false;
+        }
+
+        // Validate the raw DATE value before touching its Eloquent date cast: a
+        // malformed legacy value must fail cleanly instead of being normalized.
+        $dateValue = trim($issueDate);
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $dateValue);
+        $errors = \DateTimeImmutable::getLastErrors();
+
+        return $date !== false
+            && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))
+            && $date->format('Y-m-d') === $dateValue;
     }
 
     private function ensure(bool $condition, string $message): void

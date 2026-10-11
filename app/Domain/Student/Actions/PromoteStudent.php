@@ -5,6 +5,7 @@ namespace App\Domain\Student\Actions;
 use App\Domain\Student\Services\StudentService;
 use App\Models\AcademicTerm;
 use App\Models\AcademicYear;
+use App\Models\College;
 use App\Models\Program;
 use App\Models\Section;
 use App\Models\Student;
@@ -139,22 +140,52 @@ class PromoteStudent
                 abort(404, 'Promotion not found in this college context.');
             }
 
+            // Number generation and other student lifecycle workflows serialize
+            // on College. Acquire it before promotion/student/enrollment rows.
+            College::query()->whereKey($collegeId)->lockForUpdate()->firstOrFail();
+
+            // The controller's model may have been loaded before another request
+            // approved/cancelled this promotion. Serialize decisions on the
+            // promotion row, then make the state decision from the locked row.
+            $promotion = $this->lockPromotion($promotion, $collegeId);
+
             if (! $promotion->isPending()) {
                 throw ValidationException::withMessages([
                     'status' => 'Only a pending promotion can be approved. Current status: '.$promotion->status.'.',
                 ]);
             }
 
+            // Re-resolve both sides of the source relationship after acquiring
+            // the student lock. College scope, explicit tenant ownership, and
+            // student ownership must all still agree with the locked promotion.
             $student = $this->lockStudent($collegeId, (int) $promotion->student_id);
 
-            // Re-resolve the source enrollment tenant-scoped: it must still exist.
             $source = $promotion->source_enrollment_id
-                ? StudentEnrollment::query()->where('student_id', $student->id)->find($promotion->source_enrollment_id)
+                ? StudentEnrollment::query()
+                    ->where('college_id', $collegeId)
+                    ->where('student_id', $student->id)
+                    ->lockForUpdate()
+                    ->find($promotion->source_enrollment_id)
                 : null;
 
             if (! $source) {
                 throw ValidationException::withMessages([
                     'source_enrollment_id' => 'The source enrollment is no longer available for this student, so the promotion cannot be approved.',
+                ]);
+            }
+
+            // These statuses are re-read only after both rows are locked. TC
+            // issuance withdraws both records; a pending promotion must not
+            // create a new active enrollment for either withdrawn record.
+            if ($student->status === 'withdrawn') {
+                throw ValidationException::withMessages([
+                    'student_id' => 'A withdrawn student cannot receive a new active enrollment through promotion.',
+                ]);
+            }
+
+            if ($source->status === 'withdrawn') {
+                throw ValidationException::withMessages([
+                    'source_enrollment_id' => 'A withdrawn source enrollment cannot be promoted into a new active enrollment.',
                 ]);
             }
 
@@ -171,9 +202,10 @@ class PromoteStudent
             $targetTermId = $this->resolveTerm($promotion->target_academic_term_id, (int) $targetYear->id);
             $targetSectionId = $this->resolveSection($promotion->target_section_id, (int) $targetYear->id, $promotion->target_program_id);
 
-            $this->assertNoTargetEnrollment($collegeId, $student->id, (int) $targetYear->id, $promotion->target_program_id);
-
             // 1. Create the target enrollment (server-generated number, audited).
+            // StudentService remains the single duplicate-tuple authority; use
+            // the promotion-specific field/message if a tuple appeared after
+            // request time.
             $target = $this->students->createEnrollment([
                 'student_id' => $student->id,
                 'academic_year_id' => $targetYear->id,
@@ -182,7 +214,12 @@ class PromoteStudent
                 'enrollment_date' => $promotion->effective_date?->toDateString() ?? now()->toDateString(),
                 'status' => 'active',
                 'remarks' => 'Created by promotion from enrollment '.$source->enrollment_number.'.',
-            ], $collegeId, $targetYear->code, audit: true);
+            ], $collegeId, $targetYear->code,
+                audit: true,
+                duplicateErrorField: 'target_academic_year_id',
+                duplicateErrorMessage: 'The student already has an enrollment for the target academic year and program.',
+                collegeLockHeld: true,
+            );
 
             // 2. Preserve history: the source enrollment stays, status completed.
             if ($source->status !== 'completed') {
@@ -214,9 +251,9 @@ class PromoteStudent
     public function cancel(StudentPromotion $promotion, int $collegeId, ?int $userId = null): StudentPromotion
     {
         return DB::transaction(function () use ($promotion, $collegeId, $userId): StudentPromotion {
-            if ((int) $promotion->college_id !== (int) $collegeId) {
-                abort(404, 'Promotion not found in this college context.');
-            }
+            // Use the locked database state, not the caller's potentially stale
+            // model, so an approval that committed first cannot be overwritten.
+            $promotion = $this->lockPromotion($promotion, $collegeId);
 
             if (! $promotion->isPending()) {
                 throw ValidationException::withMessages([
@@ -235,6 +272,29 @@ class PromoteStudent
 
             return $promotion;
         });
+    }
+
+    /**
+     * Re-read a promotion under its tenant scope and serialize its terminal
+     * decision. The passed model supplies its key and an early tenant check;
+     * its persisted state is re-read because it may be stale when called.
+     */
+    private function lockPromotion(StudentPromotion $promotion, int $collegeId): StudentPromotion
+    {
+        if ((int) $promotion->college_id !== (int) $collegeId) {
+            abort(404, 'Promotion not found in this college context.');
+        }
+
+        $locked = StudentPromotion::query()
+            ->where('college_id', $collegeId)
+            ->lockForUpdate()
+            ->find($promotion->getKey());
+
+        if (! $locked) {
+            abort(404, 'Promotion not found in this college context.');
+        }
+
+        return $locked;
     }
 
     private function lockStudent(int $collegeId, int $studentId): Student
@@ -318,15 +378,7 @@ class PromoteStudent
      */
     private function assertNoTargetEnrollment(int $collegeId, int $studentId, int $yearId, ?int $programId): void
     {
-        $exists = StudentEnrollment::withoutGlobalScopes()
-            ->where('college_id', $collegeId)
-            ->where('student_id', $studentId)
-            ->where('academic_year_id', $yearId)
-            ->where('program_id', $programId)
-            ->whereNull('deleted_at')
-            ->exists();
-
-        if ($exists) {
+        if ($this->students->hasNonDeletedEnrollmentForTuple($collegeId, $studentId, $yearId, $programId)) {
             throw ValidationException::withMessages([
                 'target_academic_year_id' => 'The student already has an enrollment for the target academic year and program.',
             ]);

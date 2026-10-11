@@ -5,7 +5,7 @@ namespace App\Domain\Admission\Services;
 use App\Domain\Admission\Actions\GenerateAdmissionNumber;
 use App\Models\AcademicYear;
 use App\Models\Admission;
-use App\Models\AdmissionApplication;
+use App\Models\College;
 use App\Models\Program;
 use App\Models\Student;
 use App\Services\Audit\AuditLogService;
@@ -36,13 +36,19 @@ class AdmissionService
     public function createFromApplication(array $data, int $collegeId): Admission
     {
         return DB::transaction(function () use ($data, $collegeId): Admission {
-            // Re-resolve application within tenant to prevent cross-college forged id
-            $application = AdmissionApplication::query()->findOrFail($data['application_id']);
-
-            // Application must belong to same college (scope ensures, but double-check)
-            if ((int) $application->college_id !== $collegeId) {
+            // Application is the first lock shared with both conversion routes.
+            // College is acquired next, before number scans or Admission rows.
+            $application = $this->conversionLock->lockApplication(
+                (int) $data['application_id'],
+                $collegeId,
+            );
+            // The lock helper disables global scopes for explicit tenant
+            // filtering; keep the former soft-delete exclusion of this path.
+            if ($application->trashed()) {
                 abort(404);
             }
+
+            College::query()->whereKey($collegeId)->lockForUpdate()->firstOrFail();
 
             // Prevent duplicate admission for same application
             $existing = Admission::withoutGlobalScopes()

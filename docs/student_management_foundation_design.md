@@ -127,12 +127,89 @@ college-admin roles, exactly like the Admission module.
 
 - Students accumulate `StudentEnrollment` rows across academic years.
 - `created_by`/`updated_by` + timestamps + soft deletes preserve the audit/history trail.
-- Duplicate **active** enrollment prevention (same student/year/program) is done
-  transactionally in `StudentService::createEnrollment` (student-row lock +
-  conflict check), deliberately **not** via a hard composite unique — a hard
-  unique would occupy its key after a soft delete and block legitimate
-  re-enrollment. Once the production DB engine is fixed, this becomes a partial
-  unique index (`WHERE deleted_at IS NULL`) per `docs/architecture.md`.
+- Exactly one non-soft-deleted enrollment may occupy a
+  `(college_id, student_id, academic_year_id, program_id)` tuple, across **all**
+  statuses. `section_id` is not part of the tuple. A `NULL` `program_id` is one
+  shared group for that student/year/college, not a way to create multiple
+  program-less enrollments.
+- `StudentService::createEnrollment()` is the central transactional create
+  path for the form, imports, conversions and promotions. It locks College
+  before Student, re-resolves tenant-owned references and applies the same
+  tuple predicate everywhere. Soft-deleted rows remain as history and do not
+  block a later enrollment.
+- Ordinary single-record and bulk status changes cannot move a `completed`,
+  `cancelled` or `withdrawn` enrollment back to `active`. Promotion completion
+  and TC withdrawal remain supported internal transitions; no reactivation UI
+  or permission was added.
+- No database uniqueness migration or migration run is part of this work. The
+  production database engine/version is not confirmed, and no historical rows
+  are modified. Before considering any future index, run this **read-only**
+  preflight and review every returned tuple:
+
+  ```sql
+  SELECT college_id, student_id, academic_year_id, program_id, COUNT(*) AS live_enrollments
+  FROM student_enrollments
+  WHERE deleted_at IS NULL
+  GROUP BY college_id, student_id, academic_year_id, program_id
+  HAVING COUNT(*) > 1
+  ORDER BY college_id, student_id, academic_year_id, program_id;
+  ```
+
+  `GROUP BY` includes the `program_id IS NULL` group, and statuses are
+  intentionally not separated because every non-deleted status occupies the
+  same tuple. Do not delete or rewrite historical records to make a future
+  constraint fit.
+
+### Lifecycle lock order and operational notes
+
+- Direct enrollment creation takes **College → Student → Enrollment**; the
+  enrollment number is computed while the College lock is already held.
+  Student creation now generates its number inside the write transaction,
+  before inserting Student / optional first Enrollment, so there is no
+  Student → College inversion.
+- Promotion approval uses **College → Promotion → Student → source Enrollment**
+  and revalidates Student/source statuses only after those rows are locked.
+  The target enrollment goes through `StudentService` while the College lock
+  remains held.
+- Standalone TC issuance uses **College → Transfer → Student → all live
+  Enrollments ordered by id**. It proceeds only when there are no active
+  enrollments or the sole active enrollment is linked to that transfer. TC
+  numbering uses the already-held College lock.
+- Certificate issuance retains its existing
+  **College → Certificate → Type → Transfer** sequence. Its nested TC service
+  call is passed the already-held College lock and follows Transfer → Student →
+  Enrollment, so it introduces no Certificate/TC inversion.
+- Admission creation and both admission-to-student conversion routes acquire
+  the Application row first, then College, before locking or inserting an
+  Admission, Student or Enrollment row. The admission-based conversion performs
+  only an unlocked, tenant-filtered read before its transaction to discover the
+  linked application ID; it re-locks and verifies the Admission after acquiring
+  Application → College. Admission cancellation takes Application, checks for
+  a linked Student and then updates Admission; it never acquires College. In the
+  traced admission create/convert/cancel paths, no workflow holds College and
+  then waits for an Application or Admission lock.
+- `StudentImportService` is intentionally all-or-nothing and wraps the file in
+  one transaction. Its first number-generation lock on College therefore stays
+  held through that import's commit, which can delay other number-generating
+  writes in the same college on large files. This preserves existing atomic
+  import semantics; no counter table or per-row partial-commit behavior was
+  introduced.
+- The production database engine, version and isolation level are not confirmed.
+  Number generators choose a max sequence with ordinary `pluck` reads and probe
+  candidates with ordinary `exists` reads after locking College. Snapshot
+  behavior is engine/isolation/transaction-context dependent: PostgreSQL
+  `REPEATABLE READ` pins a transaction snapshot at its first statement (which
+  may be a `SELECT ... FOR UPDATE`), while InnoDB uses current reads for locking
+  statements but its ordinary reads can reuse a read view established earlier
+  in an enclosing transaction. A wait for College therefore does not portably
+  guarantee a fresh later scan. Existing per-college number unique indexes
+  remain the final duplicate barrier; a stale scan can still make the write
+  fail instead of selecting the next number. Verify the production engine,
+  version, isolation and transaction nesting, then run a concurrent,
+  multi-connection test where one number-generation transaction waits for
+  another to commit before scanning. No engine-specific current-read behavior
+  is assumed. SQLite test defaults do not establish production `FOR UPDATE`
+  behavior.
 
 ---
 

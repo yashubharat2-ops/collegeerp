@@ -6,6 +6,7 @@ use App\Models\{Certificate, CertificateTemplate, CertificateType, College, Stud
 use App\Services\Certificates\CertificateCatalog;
 use App\Support\Tenancy\TenantContext;
 use Database\Seeders\CertificateManagementSeeder;
+use Illuminate\Support\Facades\DB;
 use Tests\Feature\Students\StudentTestHelpers;
 use Tests\TestCase;
 
@@ -211,6 +212,66 @@ class CertificateManagementTest extends TestCase
         $this->assertSame('2025-07-01', $certificate->fresh()->issued_at->toDateString());
     }
 
+    public function test_legacy_tc_adoption_with_multiple_active_enrollments_preserves_every_existing_status(): void
+    {
+        $type = CertificateType::where('code', 'TC')->firstOrFail();
+        $student = $this->enrollment->student;
+        $nextYear = $this->makeNextYear($this->college, '2027');
+        $otherActive = $this->makeEnrollment($this->college, $student, $nextYear, $this->enrollment->program, [
+            'enrollment_number' => 'ENR-CERT-LEGACY-2',
+        ]);
+        $transfer = $this->makeTransfer($this->college, $student, [
+            'enrollment_id' => $this->enrollment->id,
+            'status' => 'approved',
+            'tc_status' => 'issued',
+            'tc_number' => 'TC-2025-0043',
+            'tc_issue_date' => '2025-07-02',
+        ]);
+        $certificate = $this->requestCertificate($type, ['student_transfer_id' => $transfer->id]);
+        $this->post(route('certificates.generate', $certificate), ['certificate_template_id' => $this->template($type)->id])
+            ->assertSessionHasNoErrors();
+
+        // Adopting an already-issued legacy TC is metadata-only: it must not
+        // reissue the TC or choose/withdraw enrollments to repair old data.
+        $this->post(route('certificates.issue', $certificate))->assertSessionHasNoErrors();
+
+        $this->assertSame('issued', $certificate->fresh()->status);
+        $this->assertSame('TC-2025-0043', $certificate->fresh()->number);
+        $this->assertSame('2025-07-02', $certificate->fresh()->issued_at->toDateString());
+        $this->assertSame('issued', $transfer->fresh()->tc_status);
+        $this->assertSame('TC-2025-0043', $transfer->fresh()->tc_number);
+        $this->assertSame('2025-07-02', $transfer->fresh()->tc_issue_date->toDateString());
+        $this->assertSame('active', $this->enrollment->fresh()->status);
+        $this->assertSame('active', $otherActive->fresh()->status);
+        $this->assertSame('active', $student->fresh()->status);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_transfer.issued', 'subject_id' => $transfer->id]);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_enrollment.updated', 'subject_id' => $this->enrollment->id]);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_enrollment.updated', 'subject_id' => $otherActive->id]);
+    }
+
+    public function test_legacy_tc_adoption_rejects_a_missing_tc_number(): void
+    {
+        $this->assertLegacyTcAdoptionRejected(['tc_number' => null]);
+    }
+
+    public function test_legacy_tc_adoption_rejects_a_missing_tc_issue_date(): void
+    {
+        $this->assertLegacyTcAdoptionRejected(['tc_issue_date' => null]);
+    }
+
+    public function test_legacy_tc_adoption_rejects_when_both_legacy_fields_are_missing(): void
+    {
+        $this->assertLegacyTcAdoptionRejected([
+            'tc_number' => null,
+            'tc_issue_date' => null,
+        ]);
+    }
+
+    public function test_legacy_tc_adoption_rejects_an_invalid_tc_issue_date(): void
+    {
+        $this->assertLegacyTcAdoptionRejected([], '2025-02-30');
+    }
+
     public function test_permissions_are_enforced_on_every_endpoint(): void
     {
         $certificate = $this->requestCertificate(CertificateType::where('code', 'BON')->firstOrFail());
@@ -232,5 +293,53 @@ class CertificateManagementTest extends TestCase
         $this->post(route('certificates.types.store'), ['name' => 'Bad', 'code' => 'bad/code', 'description' => 'No'])->assertSessionHasErrors('code');
         $this->post(route('certificates.templates.store'), ['certificate_type_id' => CertificateType::first()->id, 'name' => 'Unsafe', 'body' => '{{ config("app.key") }}'])->assertSessionHasErrors('body');
         $this->assertSame(7, CertificateType::count());
+    }
+
+    /**
+     * Exercise corrupt legacy rows without repairing them during adoption.
+     * A raw date update simulates malformed historical data while bypassing
+     * Eloquent's date cast on assignment.
+     */
+    private function assertLegacyTcAdoptionRejected(array $overrides = [], ?string $rawIssueDate = null): void
+    {
+        $type = CertificateType::where('code', 'TC')->firstOrFail();
+        $transfer = $this->makeTransfer($this->college, $this->enrollment->student, array_merge([
+            'enrollment_id' => $this->enrollment->id,
+            'status' => 'approved',
+            'tc_status' => 'issued',
+            'tc_number' => 'TC-2025-0099',
+            'tc_issue_date' => '2025-07-03',
+        ], $overrides));
+
+        if ($rawIssueDate !== null) {
+            DB::table('student_transfers')->where('id', $transfer->id)->update(['tc_issue_date' => $rawIssueDate]);
+        }
+
+        $transfer = $transfer->fresh();
+        $legacyNumber = $transfer->getRawOriginal('tc_number');
+        $legacyIssueDate = $transfer->getRawOriginal('tc_issue_date');
+        $certificate = $this->requestCertificate($type, ['student_transfer_id' => $transfer->id]);
+        $this->post(route('certificates.generate', $certificate), ['certificate_template_id' => $this->template($type)->id])
+            ->assertSessionHasNoErrors();
+
+        $this->post(route('certificates.issue', $certificate))->assertSessionHasErrors('certificate');
+
+        $this->assertSame('generated', $certificate->fresh()->status);
+        $this->assertNull($certificate->fresh()->number);
+        $this->assertNull($certificate->fresh()->issued_at);
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => 'certificate.issued',
+            'subject_id' => $certificate->id,
+        ]);
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => 'student_transfer.issued',
+            'subject_id' => $transfer->id,
+        ]);
+
+        $unchangedTransfer = $transfer->fresh();
+        $this->assertSame('approved', $unchangedTransfer->status);
+        $this->assertSame('issued', $unchangedTransfer->tc_status);
+        $this->assertSame($legacyNumber, $unchangedTransfer->getRawOriginal('tc_number'));
+        $this->assertSame($legacyIssueDate, $unchangedTransfer->getRawOriginal('tc_issue_date'));
     }
 }

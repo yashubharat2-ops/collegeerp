@@ -29,7 +29,8 @@ deliberately **not** part of this milestone.
 - **Academic years / programs / sections / enrollments**: the optional first
   enrollment is created by the existing `StudentService::createEnrollment()`
   (same tenant-scoped checks, same college-row-locked `ENR-…` number generator,
-  same duplicate-active protection, same audit entry).
+  same all-status tuple guard—including the shared NULL-program group—and same
+  audit entry).
 - **Student documents** (`student_documents`, `AdmissionDocumentType`): only
   linked, never duplicated.
 - **RBAC, policies, audit log, tenant context, private file service**: all

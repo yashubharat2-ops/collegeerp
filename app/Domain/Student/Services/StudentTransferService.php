@@ -3,6 +3,7 @@
 namespace App\Domain\Student\Services;
 
 use App\Domain\Student\Actions\GenerateTcNumber;
+use App\Models\College;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentTransfer;
@@ -180,11 +181,24 @@ class StudentTransferService
      * Issue the TC: mints the number, optionally attaches the scanned TC, and
      * marks the student + linked enrollment as withdrawn. Nothing is deleted.
      */
-    public function issue(StudentTransfer $transfer, int $collegeId, ?int $userId = null, ?string $issueDate = null, ?UploadedFile $file = null): StudentTransfer
-    {
-        return DB::transaction(function () use ($transfer, $collegeId, $userId, $issueDate, $file): StudentTransfer {
+    public function issue(
+        StudentTransfer $transfer,
+        int $collegeId,
+        ?int $userId = null,
+        ?string $issueDate = null,
+        ?UploadedFile $file = null,
+        bool $collegeLockHeld = false,
+    ): StudentTransfer {
+        return DB::transaction(function () use ($transfer, $collegeId, $userId, $issueDate, $file, $collegeLockHeld): StudentTransfer {
             $this->assertOwnedByCollege($transfer, $collegeId);
-            \App\Models\College::whereKey($collegeId)->lockForUpdate()->firstOrFail();
+
+            // CertificateWorkflow already holds College before Certificate →
+            // Type → Transfer. The standalone TC route acquires the same root
+            // lock here; neither path acquires College after Student/Enrollment.
+            if (! $collegeLockHeld) {
+                College::query()->whereKey($collegeId)->lockForUpdate()->firstOrFail();
+            }
+
             $transfer = StudentTransfer::where('college_id', $collegeId)->lockForUpdate()->findOrFail($transfer->id);
 
             if (! $transfer->isApproved()) {
@@ -209,8 +223,33 @@ class StudentTransferService
                 abort(404, 'Student not found in this college context.');
             }
 
+            // Lock every live enrollment for this tenant + student in a stable
+            // order. The Student row lock also serializes central enrollment
+            // creation, so an active row cannot appear during this check.
+            $studentEnrollments = StudentEnrollment::withoutGlobalScopes()
+                ->where('college_id', $collegeId)
+                ->where('student_id', $student->id)
+                ->whereNull('deleted_at')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+            $activeEnrollments = $studentEnrollments->where('status', 'active')->values();
+
+            if ($activeEnrollments->count() > 1) {
+                throw ValidationException::withMessages([
+                    'enrollment_id' => 'This student has multiple active enrollments in this college. Reconcile them before issuing a transfer certificate; no records were changed.',
+                ]);
+            }
+
+            $onlyActiveEnrollment = $activeEnrollments->first();
+            if ($onlyActiveEnrollment && (int) $onlyActiveEnrollment->id !== (int) $transfer->enrollment_id) {
+                throw ValidationException::withMessages([
+                    'enrollment_id' => 'The student\'s only active enrollment is not linked to this transfer request. Reconcile the request before issuing a transfer certificate; no records were changed.',
+                ]);
+            }
+
             $tcIssueDate = $issueDate ?: now()->toDateString();
-            $tcNumber = $this->tcNumbers->execute($collegeId, substr($tcIssueDate, 0, 4));
+            $tcNumber = $this->tcNumbers->executeWithCollegeLock($collegeId, substr($tcIssueDate, 0, 4));
 
             $old = $transfer->only(self::AUDITED);
 

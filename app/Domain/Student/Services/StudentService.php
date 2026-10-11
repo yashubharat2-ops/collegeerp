@@ -5,6 +5,7 @@ namespace App\Domain\Student\Services;
 use App\Domain\Student\Actions\GenerateStudentNumber;
 use App\Domain\Student\Actions\GenerateEnrollmentNumber;
 use App\Domain\Student\Support\Aadhaar;
+use App\Models\College;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Services\Audit\AuditLogService;
@@ -87,7 +88,6 @@ class StudentService
 
         $attributes = $profile['attributes'];
         $attributes['college_id'] = $collegeId;
-        $attributes['student_number'] = $this->studentNumbers->execute($collegeId, $academicYearCode);
         $attributes['admission_date'] = $admissionDate ?? ($attributes['admission_date'] ?? now()->toDateString());
 
         // Stored before the row so the portrait can simply be part of the
@@ -100,6 +100,9 @@ class StudentService
 
         try {
             return DB::transaction(function () use ($attributes, $profile, $collegeId, $academicYearCode, $audit): Student {
+                // Generate the number inside the write transaction so the
+                // college lock protects both number selection and insertion.
+                $attributes['student_number'] = $this->studentNumbers->execute($collegeId, $academicYearCode);
                 $student = Student::create($attributes);
 
                 if ($profile['enrollment'] !== null) {
@@ -107,6 +110,7 @@ class StudentService
                         $profile['enrollment'] + ['student_id' => $student->id],
                         $collegeId,
                         $academicYearCode,
+                        collegeLockHeld: true,
                     );
                 }
 
@@ -267,19 +271,35 @@ class StudentService
     /**
      * Create an enrollment for a tenant-owned, tenant-scoped student.
      *
-     * Tenant-aware validation with transactional duplicate-active protection:
-     * the student row is locked for update, the academic year/program are
-     * re-resolved through their CollegeScope (foreign-college ids resolve to
-     * null), and the enrollment number is generated server-side.
+     * The college is locked before the student, establishing the same
+     * College → Student → Enrollment order used by number generation and
+     * promotion/TC workflows. All non-soft-deleted statuses occupy the
+     * student/year/program tuple; NULL program IDs are one shared group, and
+     * section is deliberately not part of the tuple. Callers that already hold
+     * this transaction's college lock may set $collegeLockHeld to avoid a
+     * redundant row-lock query.
      */
-    public function createEnrollment(array $data, int $collegeId, ?string $academicYearCode = null, bool $audit = true): StudentEnrollment
-    {
-        return DB::transaction(function () use ($data, $collegeId, $academicYearCode, $audit): StudentEnrollment {
+    public function createEnrollment(
+        array $data,
+        int $collegeId,
+        ?string $academicYearCode = null,
+        bool $audit = true,
+        ?string $duplicateErrorField = null,
+        ?string $duplicateErrorMessage = null,
+        bool $collegeLockHeld = false,
+    ): StudentEnrollment {
+        return DB::transaction(function () use ($data, $collegeId, $academicYearCode, $audit, $duplicateErrorField, $duplicateErrorMessage, $collegeLockHeld): StudentEnrollment {
             $studentId = $data['student_id'];
             $yearId = $data['academic_year_id'];
             $programId = $data['program_id'] ?? null;
 
-            // Lock the student row to serialize active-duplicate detection, and
+            // College first: the locked row serializes number generation and
+            // avoids a Student → College inversion with promotion / TC flows.
+            if (! $collegeLockHeld) {
+                College::query()->whereKey($collegeId)->lockForUpdate()->firstOrFail();
+            }
+
+            // Lock the student row to serialize duplicate-tuple validation and
             // verify same-college ownership.
             $student = Student::withoutGlobalScopes()
                 ->where('college_id', $collegeId)
@@ -326,21 +346,10 @@ class StudentService
                 }
             }
 
-            // No duplicate ACTIVE enrollment for the same student/year/program.
-            // Note: the section is an attribute of the enrollment and takes no
-            // part in this key — being in two sections of the same year/program
-            // is still one duplicate enrollment.
-            $duplicate = StudentEnrollment::withoutGlobalScopes()
-                ->where('college_id', $collegeId)
-                ->where('student_id', $studentId)
-                ->where('academic_year_id', $yearId)
-                ->where('program_id', $programId)
-                ->whereNull('deleted_at')
-                ->exists();
-
-            if ($duplicate) {
+            if ($this->hasNonDeletedEnrollmentForTuple($collegeId, (int) $studentId, (int) $yearId, $programId)) {
                 throw ValidationException::withMessages([
-                    'student_id' => 'An active enrollment already exists for this student, academic year and program.',
+                    ($duplicateErrorField ?? 'student_id') => $duplicateErrorMessage
+                        ?? 'A non-deleted enrollment already exists for this student, academic year and program.',
                 ]);
             }
 
@@ -350,7 +359,7 @@ class StudentService
                 'academic_year_id' => $yearId,
                 'program_id' => $programId,
                 'section_id' => $sectionId,
-                'enrollment_number' => $this->enrollmentNumbers->execute($collegeId, $academicYearCode ?? $year->code),
+                'enrollment_number' => $this->enrollmentNumbers->executeWithCollegeLock($collegeId, $academicYearCode ?? $year->code),
                 'enrollment_date' => $data['enrollment_date'] ?? now()->toDateString(),
                 'status' => $data['status'] ?? 'active',
                 'remarks' => $data['remarks'] ?? null,
@@ -365,6 +374,32 @@ class StudentService
     }
 
     /**
+     * Whether a non-soft-deleted enrollment occupies this tuple, independent
+     * of status. A nullable program is compared as SQL NULL, so all NULL
+     * program enrollments form the same group.
+     */
+    public function hasNonDeletedEnrollmentForTuple(
+        int $collegeId,
+        int $studentId,
+        int $academicYearId,
+        ?int $programId,
+        ?int $exceptEnrollmentId = null,
+    ): bool {
+        $query = StudentEnrollment::withoutGlobalScopes()
+            ->where('college_id', $collegeId)
+            ->where('student_id', $studentId)
+            ->where('academic_year_id', $academicYearId)
+            ->where('program_id', $programId)
+            ->whereNull('deleted_at');
+
+        if ($exceptEnrollmentId !== null) {
+            $query->whereKeyNot($exceptEnrollmentId);
+        }
+
+        return $query->exists();
+    }
+
+    /**
      * Update an enrollment. FKs stay tenant-scoped and can never be re-pointed
      * at another college's academic year/program.
      */
@@ -374,8 +409,8 @@ class StudentService
             // Serialize with createEnrollment(): lock the OWNING student row first
             // (the same lock createEnrollment takes), then re-read the enrollment
             // under that lock. The caller's model may be stale (another request
-            // may have reactivated or cancelled it since it was loaded), so every
-            // check below runs against the committed state, never the passed copy.
+            // may have changed status since it was loaded), so every check below
+            // runs against the committed state, never the passed copy.
             $student = Student::withoutGlobalScopes()
                 ->where('college_id', $collegeId)
                 ->whereKey($enrollment->student_id)
@@ -439,24 +474,31 @@ class StudentService
                 }
             }
 
-            // Reject a status reactivation that would collide with another live
-            // enrollment of the same student/year/program.
             $newStatus = $data['status'] ?? $enrollment->status;
-            if ($newStatus === 'active' && $enrollment->status !== 'active') {
-                $duplicate = StudentEnrollment::withoutGlobalScopes()
-                    ->where('college_id', $collegeId)
-                    ->where('student_id', $enrollment->student_id)
-                    ->where('academic_year_id', $enrollment->academic_year_id)
-                    ->where('program_id', $enrollment->program_id)
-                    ->whereNull('deleted_at')
-                    ->whereKeyNot($enrollment->id)
-                    ->exists();
 
-                if ($duplicate) {
-                    throw ValidationException::withMessages([
-                        'status' => 'Another active enrollment already exists for this student, academic year and program.',
-                    ]);
-                }
+            // Ordinary status actions cannot reverse terminal lifecycle states.
+            // Promotion completion and TC withdrawal use this same service but
+            // move in the allowed internal direction (to completed/withdrawn).
+            if ($newStatus === 'active' && in_array($enrollment->status, ['completed', 'cancelled', 'withdrawn'], true)) {
+                throw ValidationException::withMessages([
+                    'status' => 'A completed, cancelled or withdrawn enrollment cannot be changed back to active.',
+                ]);
+            }
+
+            // Keep the tuple check for any non-terminal legacy status that may
+            // be reactivated by an internal caller; ordinary terminal states
+            // have already been rejected above.
+            if ($newStatus === 'active' && $enrollment->status !== 'active'
+                && $this->hasNonDeletedEnrollmentForTuple(
+                    $collegeId,
+                    (int) $enrollment->student_id,
+                    (int) $enrollment->academic_year_id,
+                    $enrollment->program_id === null ? null : (int) $enrollment->program_id,
+                    (int) $enrollment->id,
+                )) {
+                throw ValidationException::withMessages([
+                    'status' => 'Another non-deleted enrollment already exists for this student, academic year and program.',
+                ]);
             }
 
             $old = $enrollment->only(self::AUDITED_ENROLLMENT);

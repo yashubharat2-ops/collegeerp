@@ -136,7 +136,7 @@ class StudentEnrollmentManagementTest extends TestCase
         $this->assertSame(0, StudentEnrollment::withoutGlobalScopes()->where('college_id', $collegeA->id)->count());
     }
 
-    public function test_duplicate_active_enrollment_for_same_student_year_program_is_prevented(): void
+    public function test_duplicate_non_deleted_enrollment_for_same_student_year_program_is_prevented(): void
     {
         $college = $this->makeCollege('EMDUP');
         $admin = $this->makeUserWithPermissions($college, ['student_enrollments.create']);

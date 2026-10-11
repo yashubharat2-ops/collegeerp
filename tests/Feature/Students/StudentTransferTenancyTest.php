@@ -3,6 +3,7 @@
 namespace Tests\Feature\Students;
 
 use App\Models\Student;
+use App\Models\StudentEnrollment;
 use App\Models\StudentTransfer;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -63,6 +64,48 @@ class StudentTransferTenancyTest extends TestCase
 
         $this->assertSame('pending', $foreign->fresh()->status);
         $this->assertNull($foreign->fresh()->tc_number);
+    }
+
+    public function test_tc_active_enrollment_check_is_scoped_to_the_same_college(): void
+    {
+        $collegeA = $this->makeCollege('TRTEN-ACT');
+        $collegeB = $this->makeCollege('TRTEN-OTH');
+        $adminA = $this->makeUserWithPermissions($collegeA, ['student_transfers.view', 'student_transfers.create', 'student_transfers.update', 'student_transfers.approve']);
+        $studentA = $this->makeStudent($collegeA, ['student_number' => 'STU-TEN-ACT']);
+        $yearA = $this->makeYear($collegeA, '2026');
+        $programA = $this->makeProgram($collegeA);
+        $own = $this->makeEnrollment($collegeA, $studentA, $yearA, $programA, ['enrollment_number' => 'ENR-TEN-ACT']);
+
+        $yearB = $this->makeYear($collegeB, '2026');
+        $programB = $this->makeProgram($collegeB);
+        // Deliberately seed a cross-tenant enrollment row for this same student
+        // to prove TC issuance counts only rows whose college_id matches A.
+        $foreign = StudentEnrollment::withoutGlobalScopes()->create([
+            'college_id' => $collegeB->id,
+            'student_id' => $studentA->id,
+            'academic_year_id' => $yearB->id,
+            'program_id' => $programB->id,
+            'enrollment_number' => 'ENR-TEN-FOREIGN',
+            'enrollment_date' => now()->toDateString(),
+            'status' => 'active',
+        ]);
+
+        $this->asCollege($collegeA, $adminA)
+            ->post(route('student-transfers.store'), [
+                'student_id' => $studentA->id,
+                'enrollment_id' => $own->id,
+                'transfer_date' => '2026-08-01',
+                'reason' => 'Relocation',
+            ])
+            ->assertSessionHasNoErrors();
+        $transfer = StudentTransfer::withoutGlobalScopes()->where('college_id', $collegeA->id)->firstOrFail();
+        $this->asCollege($collegeA, $adminA)->post(route('student-transfers.approve', $transfer))->assertSessionHas('success');
+        $this->asCollege($collegeA, $adminA)->post(route('student-transfers.issue', $transfer))->assertSessionHas('success');
+
+        $this->assertSame('withdrawn', $studentA->fresh()->status);
+        $this->assertSame('withdrawn', $own->fresh()->status);
+        $this->assertSame('active', $foreign->fresh()->status);
+        $this->assertSame($collegeB->id, $foreign->fresh()->college_id);
     }
 
     public function test_foreign_student_and_enrollment_are_rejected(): void

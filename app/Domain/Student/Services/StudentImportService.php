@@ -24,8 +24,8 @@ use Throwable;
  * This is a dedicated create-many workflow, not a Student List bulk action.
  * Rows are streamed from disk, the whole file is validated before any write,
  * and every accepted row is created through {@see StudentService::createStudent()}
- * so student numbers, first enrollments, tenant checks and duplicate-active
- * enrollment protection stay on the existing path.
+ * so student numbers, first enrollments, tenant checks and all-status
+ * enrollment-tuple protection stay on the existing path.
  *
  * Sensitive identity values (Aadhaar, government ID numbers) never appear in
  * validation messages, cache payloads, audit summaries or exceptions.

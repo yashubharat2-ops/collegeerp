@@ -25,8 +25,8 @@ use Illuminate\Validation\ValidationException;
  * somehow bypassed the Form Request.
  *
  * One live record per student + academic year + academic term, enforced
- * transactionally under a student-row lock, mirroring the duplicate-active
- * enrollment protection in StudentService.
+ * transactionally under a student-row lock, mirroring the all-status
+ * enrollment-tuple protection in StudentService.
  */
 class StudentAcademicRecordService
 {
