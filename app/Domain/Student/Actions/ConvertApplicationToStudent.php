@@ -2,6 +2,7 @@
 
 namespace App\Domain\Student\Actions;
 
+use App\Domain\Admission\Services\AdmissionConversionGuard;
 use App\Domain\Admission\Services\AdmissionConversionLock;
 use App\Domain\Student\Services\StudentService;
 use App\Models\AcademicYear;
@@ -29,6 +30,11 @@ use Illuminate\Validation\ValidationException;
  * - Processing the same application twice returns the existing student (no
  *   duplicates). The application row is locked first (shared with the admission
  *   route via AdmissionConversionLock) to serialize concurrent submissions.
+ * - A cancelled admission never converts: when the application's admission in
+ *   this college is cancelled the conversion is refused, even though the
+ *   application itself may still read "admitted" (cancelling an admission does
+ *   not change its application). The same rule guards the admission route, see
+ *   {@see AdmissionConversionGuard}.
  * - The initial StudentEnrollment is created only when the application carries
  *   an academic year (and program) for the active college.
  */
@@ -40,6 +46,7 @@ class ConvertApplicationToStudent
         private readonly StudentService $students,
         private readonly AuditLogService $audit,
         private readonly AdmissionConversionLock $conversionLock,
+        private readonly AdmissionConversionGuard $conversionGuard,
     ) {}
 
     public function execute(int $applicationId, int $collegeId): Student
@@ -64,6 +71,10 @@ class ConvertApplicationToStudent
                     'application_id' => 'Only approved or admitted applications can be converted to a student. Current status: '.$application->status,
                 ]);
             }
+
+            // A cancelled admission blocks conversion regardless of the
+            // application's status (cancelling does not change the application).
+            $this->conversionGuard->assertLinkedAdmissionNotCancelled($application->id, $collegeId, 'application_id');
 
             $yearId = $application->academic_year_id;
             $programId = $application->program_id;

@@ -137,17 +137,50 @@ class StudentBulkActionsTest extends TestCase
         $deleted->delete();
         $foreign = $this->makeStudent($collegeB, ['first_name' => 'Foreign', 'student_number' => 'STU-THEIRS']);
 
-        // The client claims all three, plus junk.
-        $response = $this->execute($collegeA, $operator, 'export', [$own->id, $deleted->id, $foreign->id, 'DROP TABLE students', '999999']);
+        // The client claims the own, deleted and foreign ids, plus a well-formed
+        // integer that matches no record. Every id is a valid integer, so the
+        // request passes validation and the handler decides what is exported.
+        // (A malformed id is a different case: it rejects the whole request, see
+        // the test below.)
+        $nonexistent = 999999;
+        $response = $this->execute($collegeA, $operator, 'export', [$own->id, $deleted->id, $foreign->id, $nonexistent]);
 
-        $authorized = $this->idsFromRedirect($response, 'students.export');
+        // The redirect carries exactly the one authorized id.
+        $response->assertRedirect(route('students.export', ['ids' => [$own->id]]));
+        $this->assertSame([$own->id], $this->idsFromRedirect($response, 'students.export'));
 
-        $this->assertSame([$own->id], $authorized);
+        // The skipped records are reported, not silently swallowed: 3 of the 4
+        // requested ids were not exported.
+        $response->assertSessionHas(
+            'success',
+            'Export prepared for 1 student. (3 unauthorized/invalid records were skipped).'
+        );
 
-        // The skipped records are reported, not silently swallowed.
-        parse_str((string) parse_url((string) $response->headers->get('Location'), PHP_URL_QUERY), $query);
-        $this->assertSame([(string) $own->id], array_map('strval', (array) $query['ids']));
-        $response->assertSessionHas('success', fn ($message) => str_contains((string) $message, '1 student'));
+        // Follow the link the handler produced: only the authorized student is in the CSV.
+        $csv = $this->asCollege($collegeA, $operator)
+            ->get((string) $response->headers->get('Location'))
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertStringContainsString('STU-MINE', $csv);
+        $this->assertStringNotContainsString('STU-DELETED', $csv);
+        $this->assertStringNotContainsString('STU-THEIRS', $csv);
+    }
+
+    public function test_a_malformed_id_rejects_the_whole_selection_and_exports_nothing(): void
+    {
+        [$college, $operator] = $this->collegeWithActions('SBA3M', ['students.view', 'students.export']);
+        $valid = $this->makeStudent($college, ['first_name' => 'Valid', 'student_number' => 'STU-VALID-MAL']);
+
+        // Phase D contract: a malformed id fails validation for the WHOLE POST. It is
+        // neither coerced nor silently dropped, so no handler runs and no export
+        // link is produced, even for the valid id in the same selection.
+        $response = $this->execute($college, $operator, 'export', [$valid->id, 'DROP TABLE students']);
+
+        $response->assertRedirect()->assertSessionHasErrors(['ids.1']);
+        $this->assertStringNotContainsString('students/export', (string) $response->headers->get('Location'));
+        $response->assertSessionMissing('success');
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'students.exported', 'college_id' => $college->id]);
     }
 
     public function test_a_user_without_the_per_record_policy_ability_authorizes_nothing(): void

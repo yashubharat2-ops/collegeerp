@@ -2,6 +2,7 @@
 
 namespace App\Domain\Student\Actions;
 
+use App\Domain\Admission\Services\AdmissionConversionGuard;
 use App\Domain\Admission\Services\AdmissionConversionLock;
 use App\Domain\Student\Services\StudentService;
 use App\Models\AcademicYear;
@@ -21,6 +22,11 @@ use Illuminate\Validation\ValidationException;
  * so student numbers, the optional first enrollment, duplicate-active
  * protection and tenant checks stay on the existing path. The admission
  * provenance link is set server-side and is never taken from the browser.
+ *
+ * Business rules are shared with the application route
+ * ({@see ConvertApplicationToStudent}): the same application lock, the same
+ * idempotent "existing student" outcome, and the same refusal of a cancelled
+ * admission ({@see AdmissionConversionGuard}).
  */
 class ConvertAdmissionToStudent
 {
@@ -28,6 +34,7 @@ class ConvertAdmissionToStudent
         private readonly StudentService $students,
         private readonly AuditLogService $audit,
         private readonly AdmissionConversionLock $conversionLock,
+        private readonly AdmissionConversionGuard $conversionGuard,
     ) {}
 
     /**
@@ -66,17 +73,20 @@ class ConvertAdmissionToStudent
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if ($admission->status === 'cancelled') {
-                throw ValidationException::withMessages([
-                    'admission' => 'A cancelled admission cannot be converted to a student.',
-                ]);
-            }
-
+            // Idempotency first, exactly as the application route: a student that
+            // already exists for this application is returned, nothing is written.
             $existing = $this->conversionLock->existingStudentFor((int) $admission->application_id, $collegeId);
 
             if ($existing) {
                 return $existing->load(['enrollments']);
             }
+
+            // A cancelled admission never converts (shared rule, same lock held).
+            $this->conversionGuard->assertLinkedAdmissionNotCancelled(
+                (int) $admission->application_id,
+                $collegeId,
+                'admission',
+            );
 
             $yearId = $profile['academic_year_id'] ?? $admission->academic_year_id;
             $programId = $profile['program_id'] ?? $admission->program_id;
