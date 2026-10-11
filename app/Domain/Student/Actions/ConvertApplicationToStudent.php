@@ -6,6 +6,7 @@ use App\Domain\Admission\Services\AdmissionConversionGuard;
 use App\Domain\Admission\Services\AdmissionConversionLock;
 use App\Domain\Student\Services\StudentService;
 use App\Models\AcademicYear;
+use App\Models\College;
 use App\Models\Program;
 use App\Models\Student;
 use App\Services\Audit\AuditLogService;
@@ -55,6 +56,9 @@ class ConvertApplicationToStudent
             // Serialize on the application row (shared with the admission route),
             // tenant-scoped: a foreign-college id 404s here.
             $application = $this->conversionLock->lockApplication($applicationId, $collegeId);
+
+            // Shared lifecycle order: Application → College → Student / Enrollment.
+            College::query()->whereKey($collegeId)->lockForUpdate()->firstOrFail();
 
             // Idempotency: a prior conversion of this application (by either
             // route) returns the existing student. Nothing is written.
@@ -128,6 +132,7 @@ class ConvertApplicationToStudent
                     $collegeId,
                     $year->code,
                     audit: false,
+                    collegeLockHeld: true,
                 );
             }
 

@@ -7,6 +7,7 @@ use App\Domain\Admission\Services\AdmissionConversionLock;
 use App\Domain\Student\Services\StudentService;
 use App\Models\AcademicYear;
 use App\Models\Admission;
+use App\Models\College;
 use App\Models\Program;
 use App\Models\Section;
 use App\Models\Student;
@@ -19,8 +20,8 @@ use Illuminate\Validation\ValidationException;
  *
  * The operator reviews (and may complete) the existing Student Create form
  * first; this action then writes through {@see StudentService::createStudent()}
- * so student numbers, the optional first enrollment, duplicate-active
- * protection and tenant checks stay on the existing path. The admission
+ * so student numbers, the optional first enrollment, all-status enrollment
+ * tuple protection and tenant checks stay on the existing path. The admission
  * provenance link is set server-side and is never taken from the browser.
  *
  * Business rules are shared with the application route
@@ -48,30 +49,39 @@ class ConvertAdmissionToStudent
      */
     public function execute(int $admissionId, int $collegeId, array $profile): Student
     {
-        return DB::transaction(function () use ($admissionId, $collegeId, $profile): Student {
-            // Learn the owning application (tenant-scoped, unlocked), then lock the
-            // APPLICATION row first: the same serialization point the application
-            // route uses, so the two conversion paths can never interleave.
-            $linked = Admission::withoutGlobalScopes()
-                ->where('college_id', $collegeId)
-                ->whereKey($admissionId)
-                ->firstOrFail();
+        // This tenant-scoped, unlocked read only discovers which Application to
+        // serialize on. Do it before starting the write transaction so the first
+        // row lock in the conversion path is always the Application.
+        $linked = Admission::withoutGlobalScopes()
+            ->where('college_id', $collegeId)
+            ->whereKey($admissionId)
+            ->firstOrFail();
 
-            if (! $linked->application_id) {
-                throw ValidationException::withMessages([
-                    'admission' => 'This admission is not linked to an application and cannot be converted.',
-                ]);
-            }
+        if (! $linked->application_id) {
+            throw ValidationException::withMessages([
+                'admission' => 'This admission is not linked to an application and cannot be converted.',
+            ]);
+        }
 
-            $this->conversionLock->lockApplication((int) $linked->application_id, $collegeId);
+        $applicationId = (int) $linked->application_id;
 
-            // Re-read the admission under the application lock (status may have
-            // changed while we waited).
+        return DB::transaction(function () use ($admissionId, $applicationId, $collegeId, $profile): Student {
+            $this->conversionLock->lockApplication($applicationId, $collegeId);
+            College::query()->whereKey($collegeId)->lockForUpdate()->firstOrFail();
+
+            // The linked Admission is re-read only after Application → College;
+            // verify the discovery read still identifies this application's row.
             $admission = Admission::withoutGlobalScopes()
                 ->where('college_id', $collegeId)
                 ->whereKey($admissionId)
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            if ((int) ($admission->application_id ?? 0) !== $applicationId) {
+                throw ValidationException::withMessages([
+                    'admission' => 'This admission changed while it was being converted. Please retry.',
+                ]);
+            }
 
             // Idempotency first, exactly as the application route: a student that
             // already exists for this application is returned, nothing is written.

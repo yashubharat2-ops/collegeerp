@@ -141,13 +141,13 @@ class EnrollmentBulkSectionTest extends TestCase
         $year = $this->makeYear($college);
         $program = $this->makeProgram($college);
         $student = $this->makeStudent($college);
-        // The student already has a live active enrollment for this year and program.
-        $this->makeEnrollment($college, $student, $year, $program, ['status' => 'active']);
+        // Keep the tuple valid: the persisted row is the only non-deleted
+        // enrollment for this student/year/program.
         $inactive = $this->makeEnrollment($college, $student, $year, $program, ['status' => 'cancelled']);
 
-        // A stale in-memory copy that still says 'active' (for example, loaded
-        // before another request cancelled and reactivated it). The service must
-        // judge the reactivation on the committed row, not on this copy.
+        // A stale in-memory copy says 'active', but the committed row is still
+        // cancelled. The service must re-read under lock and reject the
+        // terminal-to-active transition rather than trust the passed model.
         $stale = StudentEnrollment::withoutGlobalScopes()->find($inactive->id);
         $stale->status = 'active';
 

@@ -170,6 +170,107 @@ class StudentTransferTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'student.updated']);
     }
 
+    public function test_tc_issuance_fails_safely_when_the_student_has_multiple_active_enrollments(): void
+    {
+        $college = $this->makeCollege('TRMULTI');
+        $admin = $this->makeUserWithPermissions($college, ['student_transfers.view', 'student_transfers.create', 'student_transfers.update', 'student_transfers.approve']);
+        $year = $this->makeYear($college, '2026');
+        $nextYear = $this->makeNextYear($college, '2027');
+        $program = $this->makeProgram($college);
+        $student = $this->makeStudent($college, ['student_number' => 'STU-TR-MULTI']);
+        $linked = $this->makeEnrollment($college, $student, $year, $program, ['enrollment_number' => 'ENR-TR-MULTI-1']);
+        $unrelated = $this->makeEnrollment($college, $student, $nextYear, $program, ['enrollment_number' => 'ENR-TR-MULTI-2']);
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-transfers.store'), $this->payload($student->id, ['enrollment_id' => $linked->id]))
+            ->assertSessionHasNoErrors();
+        $transfer = StudentTransfer::withoutGlobalScopes()->where('student_id', $student->id)->firstOrFail();
+        $this->asCollege($college, $admin)->post(route('student-transfers.approve', $transfer))->assertSessionHas('success');
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-transfers.issue', $transfer), [
+                'tc_file' => UploadedFile::fake()->create('signed-tc.pdf', 20, 'application/pdf'),
+            ])
+            ->assertSessionHasErrors('enrollment_id');
+
+        $this->assertSame([], Storage::disk('private')->allFiles(), 'A rejected issuance must not leave an uploaded TC file.');
+        $this->assertSame('approved', $transfer->fresh()->status);
+        $this->assertSame('pending', $transfer->fresh()->tc_status);
+        $this->assertNull($transfer->fresh()->tc_number);
+        $this->assertSame('active', $student->fresh()->status);
+        $this->assertSame('active', $linked->fresh()->status);
+        $this->assertSame('active', $unrelated->fresh()->status);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_transfer.issued', 'subject_id' => $transfer->id]);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_enrollment.updated', 'subject_id' => $linked->id]);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_enrollment.updated', 'subject_id' => $unrelated->id]);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student.updated', 'subject_id' => $student->id]);
+    }
+
+    public function test_tc_issuance_succeeds_when_there_are_no_active_enrollments(): void
+    {
+        $college = $this->makeCollege('TRNOACTIVE');
+        $admin = $this->makeUserWithPermissions($college, ['student_transfers.view', 'student_transfers.create', 'student_transfers.update', 'student_transfers.approve']);
+        $year = $this->makeYear($college, '2026');
+        $program = $this->makeProgram($college);
+        $student = $this->makeStudent($college, ['student_number' => 'STU-TR-NOACTIVE']);
+        $history = $this->makeEnrollment($college, $student, $year, $program, [
+            'enrollment_number' => 'ENR-TR-NOACTIVE',
+            'status' => 'completed',
+        ]);
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-transfers.store'), $this->payload($student->id))
+            ->assertSessionHasNoErrors();
+        $transfer = StudentTransfer::withoutGlobalScopes()->where('student_id', $student->id)->firstOrFail();
+        $this->asCollege($college, $admin)->post(route('student-transfers.approve', $transfer))->assertSessionHas('success');
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-transfers.issue', $transfer), ['tc_issue_date' => '2026-08-15'])
+            ->assertSessionHasNoErrors();
+
+        $transfer->refresh();
+        $this->assertSame('issued', $transfer->tc_status);
+        $this->assertSame('TC-2026-0001', $transfer->tc_number);
+        $this->assertSame('2026-08-15', $transfer->tc_issue_date->format('Y-m-d'));
+        $this->assertSame('withdrawn', $student->fresh()->status);
+        $this->assertSame('completed', $history->fresh()->status);
+        $this->assertSame(0, StudentEnrollment::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->where('student_id', $student->id)
+            ->where('status', 'active')
+            ->count());
+        $this->assertDatabaseHas('audit_logs', ['action' => 'student_transfer.issued', 'subject_id' => $transfer->id]);
+    }
+
+    public function test_tc_issuance_does_not_withdraw_an_unlinked_sole_active_enrollment(): void
+    {
+        $college = $this->makeCollege('TRUNLINK');
+        $admin = $this->makeUserWithPermissions($college, ['student_transfers.view', 'student_transfers.create', 'student_transfers.update', 'student_transfers.approve']);
+        $year = $this->makeYear($college, '2026');
+        $program = $this->makeProgram($college);
+        $student = $this->makeStudent($college, ['student_number' => 'STU-TR-UNLINK']);
+        $active = $this->makeEnrollment($college, $student, $year, $program, ['enrollment_number' => 'ENR-TR-UNLINK']);
+
+        // This request has no enrollment link, so issuing it must not silently
+        // withdraw the student's only active enrollment.
+        $this->asCollege($college, $admin)
+            ->post(route('student-transfers.store'), $this->payload($student->id))
+            ->assertSessionHasNoErrors();
+        $transfer = StudentTransfer::withoutGlobalScopes()->where('student_id', $student->id)->firstOrFail();
+        $this->asCollege($college, $admin)->post(route('student-transfers.approve', $transfer))->assertSessionHas('success');
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-transfers.issue', $transfer))
+            ->assertSessionHasErrors('enrollment_id');
+
+        $this->assertNull($transfer->fresh()->tc_number);
+        $this->assertSame('approved', $transfer->fresh()->status);
+        $this->assertSame('active', $student->fresh()->status);
+        $this->assertSame('active', $active->fresh()->status);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_transfer.issued', 'subject_id' => $transfer->id]);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_enrollment.updated', 'subject_id' => $active->id]);
+    }
+
     public function test_tc_numbers_are_sequential_per_college(): void
     {
         $college = $this->makeCollege('TRSEQ');

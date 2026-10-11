@@ -2,8 +2,12 @@
 
 namespace Tests\Feature\Students;
 
+use App\Domain\Student\Actions\PromoteStudent;
+use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentPromotion;
+use App\Support\Tenancy\TenantContext;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 /**
@@ -26,6 +30,16 @@ class StudentPromotionTest extends TestCase
             'target_academic_year_id' => $targetYearId,
             'remarks' => 'Annual promotion',
         ], $overrides);
+    }
+
+    private function assertPromotionStatusError(callable $operation): void
+    {
+        try {
+            $operation();
+            $this->fail('Expected the promotion state transition to be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('status', $exception->errors());
+        }
     }
 
     public function test_index_and_create_require_their_own_permissions(): void
@@ -320,6 +334,9 @@ class StudentPromotionTest extends TestCase
         $this->assertNull($promotion->target_enrollment_id);
         $this->assertSame('active', $source->fresh()->status, 'The source enrollment must not be completed by a failed promotion.');
         $this->assertSame(2, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_promotion.approved']);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_enrollment.created']);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_enrollment.updated', 'subject_id' => $source->id]);
     }
 
     public function test_a_pending_promotion_can_be_cancelled(): void
@@ -347,6 +364,178 @@ class StudentPromotionTest extends TestCase
         $this->asCollege($college, $admin)->post(route('student-promotions.cancel', $promotion))->assertSessionHasErrors('status');
 
         $this->assertDatabaseHas('audit_logs', ['action' => 'student_promotion.cancelled']);
+    }
+
+    public function test_approval_reloads_locked_state_after_request_was_cancelled(): void
+    {
+        $college = $this->makeCollege('PRMSTALC');
+        $admin = $this->makeUserWithPermissions($college, ['student_promotions.create', 'student_promotions.approve']);
+        $year = $this->makeYear($college, '2026', '2025-26');
+        $nextYear = $this->makeNextYear($college, '2027');
+        $program = $this->makeProgram($college);
+        $student = $this->makeStudent($college);
+        $source = $this->makeEnrollment($college, $student, $year, $program);
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-promotions.store'), $this->payload($student->id, $source->id, $nextYear->id))
+            ->assertSessionHasNoErrors();
+
+        $promotion = StudentPromotion::withoutGlobalScopes()->where('college_id', $college->id)->firstOrFail();
+        $stalePendingCopy = StudentPromotion::withoutGlobalScopes()->findOrFail($promotion->id);
+        app(TenantContext::class)->set($college);
+        $action = app(PromoteStudent::class);
+
+        // Simulate a request that retained its pre-cancellation model instance.
+        $action->cancel($promotion, (int) $college->id, (int) $admin->id);
+        $this->assertSame('cancelled', StudentPromotion::withoutGlobalScopes()->findOrFail($promotion->id)->status);
+
+        $this->assertPromotionStatusError(fn () => $action->approve($stalePendingCopy, (int) $college->id, (int) $admin->id));
+
+        $fresh = StudentPromotion::withoutGlobalScopes()->findOrFail($promotion->id);
+        $this->assertSame('cancelled', $fresh->status);
+        $this->assertNull($fresh->target_enrollment_id);
+        $this->assertSame('active', $source->fresh()->status);
+        $this->assertSame(1, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertDatabaseHas('audit_logs', ['action' => 'student_promotion.cancelled']);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_promotion.approved']);
+    }
+
+    public function test_cancellation_reloads_locked_state_after_request_was_approved(): void
+    {
+        $college = $this->makeCollege('PRMSTALA');
+        $admin = $this->makeUserWithPermissions($college, ['student_promotions.create', 'student_promotions.approve']);
+        $year = $this->makeYear($college, '2026', '2025-26');
+        $nextYear = $this->makeNextYear($college, '2027');
+        $program = $this->makeProgram($college);
+        $student = $this->makeStudent($college);
+        $source = $this->makeEnrollment($college, $student, $year, $program);
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-promotions.store'), $this->payload($student->id, $source->id, $nextYear->id))
+            ->assertSessionHasNoErrors();
+
+        $promotion = StudentPromotion::withoutGlobalScopes()->where('college_id', $college->id)->firstOrFail();
+        $stalePendingCopy = StudentPromotion::withoutGlobalScopes()->findOrFail($promotion->id);
+        app(TenantContext::class)->set($college);
+        $action = app(PromoteStudent::class);
+
+        $approved = $action->approve($promotion, (int) $college->id, (int) $admin->id);
+        $this->assertSame('approved', $approved->status);
+        $this->assertPromotionStatusError(fn () => $action->cancel($stalePendingCopy, (int) $college->id, (int) $admin->id));
+
+        $fresh = StudentPromotion::withoutGlobalScopes()->findOrFail($promotion->id);
+        $this->assertSame('approved', $fresh->status);
+        $this->assertNotNull($fresh->target_enrollment_id);
+        $this->assertSame('completed', $source->fresh()->status);
+        $this->assertSame(2, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertDatabaseHas('audit_logs', ['action' => 'student_promotion.approved']);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_promotion.cancelled']);
+    }
+
+    public function test_approval_revalidates_source_enrollment_belongs_to_locked_student(): void
+    {
+        $college = $this->makeCollege('PRMSRC');
+        $admin = $this->makeUserWithPermissions($college, ['student_promotions.create', 'student_promotions.approve']);
+        $year = $this->makeYear($college, '2026', '2025-26');
+        $nextYear = $this->makeNextYear($college, '2027');
+        $program = $this->makeProgram($college);
+        $student = $this->makeStudent($college);
+        $source = $this->makeEnrollment($college, $student, $year, $program);
+        $otherStudent = $this->makeStudent($college);
+        $otherSource = $this->makeEnrollment($college, $otherStudent, $year, $program);
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-promotions.store'), $this->payload($student->id, $source->id, $nextYear->id))
+            ->assertSessionHasNoErrors();
+
+        $promotion = StudentPromotion::withoutGlobalScopes()->where('college_id', $college->id)->firstOrFail();
+        $stalePendingCopy = StudentPromotion::withoutGlobalScopes()->findOrFail($promotion->id);
+
+        // Simulate a stale/mismatched relationship in storage after request
+        // creation; approval must re-read the promotion and scope the source to
+        // both this college and the locked promotion student.
+        StudentPromotion::withoutGlobalScopes()
+            ->whereKey($promotion->id)
+            ->update(['source_enrollment_id' => $otherSource->id]);
+        app(TenantContext::class)->set($college);
+        $action = app(PromoteStudent::class);
+
+        try {
+            $action->approve($stalePendingCopy, (int) $college->id, (int) $admin->id);
+            $this->fail('Expected a mismatched source enrollment to be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('source_enrollment_id', $exception->errors());
+        }
+
+        $fresh = StudentPromotion::withoutGlobalScopes()->findOrFail($promotion->id);
+        $this->assertSame('pending', $fresh->status);
+        $this->assertNull($fresh->target_enrollment_id);
+        $this->assertSame('active', $source->fresh()->status);
+        $this->assertSame('active', $otherSource->fresh()->status);
+        $this->assertSame(2, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_promotion.approved']);
+    }
+
+    public function test_approval_rejects_a_student_withdrawn_after_the_request_was_created(): void
+    {
+        $college = $this->makeCollege('PRMWSTD');
+        $admin = $this->makeUserWithPermissions($college, ['student_promotions.create', 'student_promotions.approve']);
+        $year = $this->makeYear($college, '2026', '2025-26');
+        $nextYear = $this->makeNextYear($college, '2027');
+        $program = $this->makeProgram($college);
+        $student = $this->makeStudent($college);
+        $source = $this->makeEnrollment($college, $student, $year, $program);
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-promotions.store'), $this->payload($student->id, $source->id, $nextYear->id, ['target_program_id' => $program->id]))
+            ->assertSessionHasNoErrors();
+
+        $promotion = StudentPromotion::withoutGlobalScopes()->where('college_id', $college->id)->firstOrFail();
+        // Simulate TC withdrawal after the pending request was made.
+        Student::withoutGlobalScopes()->whereKey($student->id)->update(['status' => 'withdrawn']);
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-promotions.approve', $promotion))
+            ->assertSessionHasErrors('student_id');
+
+        $this->assertSame('withdrawn', $student->fresh()->status);
+        $this->assertSame('active', $source->fresh()->status);
+        $this->assertSame('pending', $promotion->fresh()->status);
+        $this->assertNull($promotion->fresh()->target_enrollment_id);
+        $this->assertSame(1, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_promotion.approved']);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_enrollment.created']);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_enrollment.updated']);
+    }
+
+    public function test_approval_rejects_a_withdrawn_source_enrollment_after_the_request_was_created(): void
+    {
+        $college = $this->makeCollege('PRMWSRC');
+        $admin = $this->makeUserWithPermissions($college, ['student_promotions.create', 'student_promotions.approve']);
+        $year = $this->makeYear($college, '2026', '2025-26');
+        $nextYear = $this->makeNextYear($college, '2027');
+        $program = $this->makeProgram($college);
+        $student = $this->makeStudent($college);
+        $source = $this->makeEnrollment($college, $student, $year, $program);
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-promotions.store'), $this->payload($student->id, $source->id, $nextYear->id, ['target_program_id' => $program->id]))
+            ->assertSessionHasNoErrors();
+
+        $promotion = StudentPromotion::withoutGlobalScopes()->where('college_id', $college->id)->firstOrFail();
+        StudentEnrollment::withoutGlobalScopes()->whereKey($source->id)->update(['status' => 'withdrawn']);
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-promotions.approve', $promotion))
+            ->assertSessionHasErrors('source_enrollment_id');
+
+        $this->assertSame('active', $student->fresh()->status);
+        $this->assertSame('withdrawn', $source->fresh()->status);
+        $this->assertSame('pending', $promotion->fresh()->status);
+        $this->assertNull($promotion->fresh()->target_enrollment_id);
+        $this->assertSame(1, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_promotion.approved']);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_enrollment.created']);
     }
 
     public function test_promotion_does_not_encode_any_progression_rule(): void

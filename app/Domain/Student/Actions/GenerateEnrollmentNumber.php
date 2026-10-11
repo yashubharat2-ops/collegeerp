@@ -27,41 +27,51 @@ class GenerateEnrollmentNumber
         return DB::transaction(function () use ($collegeId, $academicYearCode): string {
             College::query()->whereKey($collegeId)->lockForUpdate()->firstOrFail();
 
-            $yearPart = $academicYearCode ?? date('Y');
-
-            $existingNumbers = StudentEnrollment::withoutGlobalScopes()
-                ->where('college_id', $collegeId)
-                ->pluck('enrollment_number');
-
-            $maxSeq = 0;
-            foreach ($existingNumbers as $number) {
-                if (! str_starts_with($number, 'ENR-'.$yearPart.'-')) {
-                    continue;
-                }
-
-                if (preg_match('/(\d{4,})$/', $number, $matches)) {
-                    $maxSeq = max($maxSeq, (int) $matches[1]);
-                }
-            }
-
-            $nextSeq = $maxSeq + 1;
-
-            $attempts = 0;
-            $candidate = '';
-            do {
-                $candidate = sprintf('ENR-%s-%04d', $yearPart, $nextSeq + $attempts);
-                $exists = StudentEnrollment::withoutGlobalScopes()
-                    ->where('college_id', $collegeId)
-                    ->where('enrollment_number', $candidate)
-                    ->exists();
-                $attempts++;
-            } while ($exists && $attempts < 100);
-
-            if ($exists) {
-                $candidate = sprintf('ENR-%s-%04d-%s', $yearPart, $nextSeq, substr(uniqid(), -4));
-            }
-
-            return $candidate;
+            return $this->executeWithCollegeLock($collegeId, $academicYearCode);
         });
+    }
+
+    /**
+     * Generate while the caller already holds this college row's lock in an
+     * active transaction. This avoids re-locking College after Student/Enrollment
+     * locks have been acquired by the central creation service.
+     */
+    public function executeWithCollegeLock(int $collegeId, ?string $academicYearCode = null): string
+    {
+        $yearPart = $academicYearCode ?? date('Y');
+
+        $existingNumbers = StudentEnrollment::withoutGlobalScopes()
+            ->where('college_id', $collegeId)
+            ->pluck('enrollment_number');
+
+        $maxSeq = 0;
+        foreach ($existingNumbers as $number) {
+            if (! str_starts_with($number, 'ENR-'.$yearPart.'-')) {
+                continue;
+            }
+
+            if (preg_match('/(\d{4,})$/', $number, $matches)) {
+                $maxSeq = max($maxSeq, (int) $matches[1]);
+            }
+        }
+
+        $nextSeq = $maxSeq + 1;
+
+        $attempts = 0;
+        $candidate = '';
+        do {
+            $candidate = sprintf('ENR-%s-%04d', $yearPart, $nextSeq + $attempts);
+            $exists = StudentEnrollment::withoutGlobalScopes()
+                ->where('college_id', $collegeId)
+                ->where('enrollment_number', $candidate)
+                ->exists();
+            $attempts++;
+        } while ($exists && $attempts < 100);
+
+        if ($exists) {
+            $candidate = sprintf('ENR-%s-%04d-%s', $yearPart, $nextSeq, substr(uniqid(), -4));
+        }
+
+        return $candidate;
     }
 }

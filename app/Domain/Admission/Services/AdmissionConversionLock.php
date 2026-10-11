@@ -9,18 +9,18 @@ use App\Models\Student;
  * Single serialization point for admission → student conversion.
  *
  * Both conversion entry points (the application route and the admission route)
- * lock the owning AdmissionApplication row first, then re-check for an existing
- * Student under that lock. Because every path takes the SAME row lock before it
- * reads or writes the student link, two concurrent conversions of the same
- * application cannot both observe "no student yet": the second one blocks until
- * the first commits, then sees the committed student.
+ * lock the owning AdmissionApplication row first, then lock College before
+ * checking Admission/Student/Enrollment rows. They re-check for an existing
+ * Student under the shared application lock, so two concurrent conversions of
+ * the same application cannot both observe "no student yet": the second one
+ * blocks until the first commits, then sees the committed student.
  *
- * Why application-level locking is sufficient on MySQL/MariaDB (InnoDB): the
- * lock is a locking read (SELECT … FOR UPDATE) on the application row, which
- * always reads the latest committed state. The student existence check is also
- * a locking read, so it does not depend on a snapshot taken before the lock.
- * No database constraint is required; `students.admission_application_id` stays
- * non-unique (no migration) because this lock is the enforcement point.
+ * The serialization guarantee depends on the production engine honoring
+ * SELECT … FOR UPDATE with row-level locking; under InnoDB, these locking reads
+ * use the latest committed row state. SQLite test defaults do not prove this
+ * behavior, so production engine/isolation concurrency verification remains
+ * required. No database constraint is added; `students.admission_application_id`
+ * stays non-unique (no migration) because this lock is the enforcement point.
  *
  * Tenant scope is explicit: every query filters on the caller's college_id, so
  * a foreign-college id can never be locked, read or linked.
@@ -44,7 +44,8 @@ final class AdmissionConversionLock
      *
      * Deliberately includes soft-deleted rows, preserving the existing rule that
      * a soft-deleted linked student still blocks re-conversion (no silent
-     * re-admission). Call only while holding {@see lockApplication()}.
+     * re-admission). Call only while holding {@see lockApplication()} and, in
+     * conversion workflows, after acquiring the College row lock.
      */
     public function existingStudentFor(int $applicationId, int $collegeId): ?Student
     {

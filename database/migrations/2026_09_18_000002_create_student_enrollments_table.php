@@ -12,16 +12,17 @@ return new class extends Migration {
      * periodic enrollment is a separate, soft-deletable row that composes the
      * student's historical academic record across multiple academic years.
      *
-     * Duplicate-active-enrollment prevention cannot rely on a plain composite
-     * unique here: a hard (student_id, academic_year_id, program_id) unique
-     * would also occupy its key after a soft delete, blocking a legitimate
-     * re-enrollment in the same year/program once the previous one is
-     * cancelled. This mirrors the AcademicYear overlap invariant: the
-     * "no duplicate ACTIVE enrollment" rule is enforced transactionally in
-     * CreateEnrollment (student-row lock) and, once the production database
-     * engine is fixed, should become a partial unique index on
-     * (student_id, academic_year_id, program_id) WHERE deleted_at IS NULL
-     * per docs/architecture.md.
+     * The lifecycle invariant is one non-soft-deleted row per
+     * (college_id, student_id, academic_year_id, program_id) tuple across all
+     * statuses. A NULL program_id is one shared group; section_id is not part
+     * of the tuple. StudentService enforces the rule transactionally on the
+     * central creation path and preserves soft-deleted history.
+     *
+     * No tuple-uniqueness index is declared here. Before any future database
+     * constraint is considered, confirm the production engine/version and run
+     * the read-only duplicate preflight documented in
+     * docs/student_management_foundation_design.md. Do not resolve historical
+     * duplicates by deleting or rewriting enrollment records.
      *
      * enrollment_number is server-generated and unique per college.
      */

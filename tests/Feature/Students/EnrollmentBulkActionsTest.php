@@ -2,10 +2,17 @@
 
 namespace Tests\Feature\Students;
 
+use App\Domain\Student\Actions\GenerateEnrollmentNumber;
+use App\Domain\Student\Actions\GenerateStudentNumber;
+use App\Domain\Student\BulkActions\EnrollmentBulkStatusHandler;
+use App\Domain\Student\Services\StudentPhotoService;
+use App\Domain\Student\Services\StudentService;
 use App\Models\College;
 use App\Models\StudentEnrollment;
 use App\Models\User;
+use App\Services\Audit\AuditLogService;
 use App\Support\BulkAction\BulkActionRegistry;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -148,34 +155,156 @@ class EnrollmentBulkActionsTest extends TestCase
         $this->assertSame('active', $enrollment->fresh()->status);
     }
 
-    public function test_reactivating_a_duplicate_rolls_back_the_batch(): void
+    public function test_bulk_status_action_rejects_completed_cancelled_and_withdrawn_reactivation(): void
     {
         $college = $this->makeCollege('ENDP');
         $admin = $this->makeUserWithPermissions($college, ['student_enrollments.view', 'student_enrollments.update']);
         $year = $this->makeYear($college);
         $program = $this->makeProgram($college);
-        $student = $this->makeStudent($college);
-        $other = $this->makeStudent($college, ['student_number' => 'STU-OTH']);
+        $enrollments = [];
 
-        $keepActive = $this->makeEnrollment($college, $student, $year, $program, [
-            'enrollment_number' => 'ENR-KEEP',
-            'status' => 'active',
-        ]);
-        $duplicate = $this->makeEnrollment($college, $student, $year, $program, [
-            'enrollment_number' => 'ENR-DUP',
-            'status' => 'cancelled',
-        ]);
-        $unrelated = $this->makeEnrollment($college, $other, $year, $program, [
-            'enrollment_number' => 'ENR-OTH',
-            'status' => 'cancelled',
-        ]);
+        foreach (['completed', 'cancelled', 'withdrawn'] as $index => $status) {
+            $student = $this->makeStudent($college, ['student_number' => 'STU-END-'.$index]);
+            $enrollments[] = $this->makeEnrollment($college, $student, $year, $program, [
+                'enrollment_number' => 'ENR-END-'.$index,
+                'status' => $status,
+            ]);
+        }
 
-        $this->execute($college, $admin, 'change_status', [$unrelated->id, $duplicate->id], ['status' => 'active'])
+        $this->execute($college, $admin, 'change_status', array_map(fn ($e) => $e->id, $enrollments), ['status' => 'active'])
             ->assertSessionHasErrors('bulk');
 
-        $this->assertSame('active', $keepActive->fresh()->status);
-        $this->assertSame('cancelled', $duplicate->fresh()->status);
-        $this->assertSame('cancelled', $unrelated->fresh()->status, 'The batch must roll back so the unrelated row is not left active.');
+        foreach ($enrollments as $index => $enrollment) {
+            $this->assertSame(['completed', 'cancelled', 'withdrawn'][$index], $enrollment->fresh()->status);
+            $this->assertDatabaseMissing('audit_logs', [
+                'action' => 'student_enrollment.updated',
+                'subject_id' => $enrollment->id,
+            ]);
+        }
+    }
+
+    public function test_bulk_reactivation_returns_the_central_lifecycle_validation_error(): void
+    {
+        $college = $this->makeCollege('ENBSTA');
+        $admin = $this->makeUserWithPermissions($college, ['student_enrollments.view', 'student_enrollments.update']);
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+        $student = $this->makeStudent($college);
+        $enrollment = $this->makeEnrollment($college, $student, $year, $program, [
+            'enrollment_number' => 'ENR-ENB-TERM',
+            'status' => 'completed',
+        ]);
+
+        $this->execute($college, $admin, 'change_status', [$enrollment->id], ['status' => 'active'])
+            ->assertSessionHasErrors('bulk');
+
+        $this->assertSame('completed', $enrollment->fresh()->status);
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => 'student_enrollment.updated',
+            'subject_id' => $enrollment->id,
+        ]);
+    }
+
+    public function test_bulk_handler_requeries_stale_status_and_processes_locks_in_stable_student_order(): void
+    {
+        $college = $this->makeCollege('ENORDER');
+        $admin = $this->makeUserWithPermissions($college, ['student_enrollments.view', 'student_enrollments.update']);
+        $year = $this->makeYear($college);
+        $firstStudent = $this->makeStudent($college, ['student_number' => 'STU-ORDER-1']);
+        $secondStudent = $this->makeStudent($college, ['student_number' => 'STU-ORDER-2']);
+
+        // Insert the enrollment rows in the opposite order to the student lock
+        // order, and make one caller model stale to exercise the in-transaction
+        // re-read rather than trusting request-time status.
+        $secondEnrollment = $this->makeEnrollment($college, $secondStudent, $year, null, [
+            'enrollment_number' => 'ENR-ORDER-2',
+        ]);
+        $firstEnrollment = $this->makeEnrollment($college, $firstStudent, $year, null, [
+            'enrollment_number' => 'ENR-ORDER-1',
+        ]);
+        $secondEnrollment->status = 'completed';
+
+        $students = new class(
+            app(GenerateStudentNumber::class),
+            app(GenerateEnrollmentNumber::class),
+            app(StudentPhotoService::class),
+            app(AuditLogService::class),
+        ) extends StudentService {
+            /** @var list<int> */
+            public array $updatedStudentIds = [];
+
+            public function updateEnrollment(StudentEnrollment $enrollment, array $data, int $collegeId): StudentEnrollment
+            {
+                $this->updatedStudentIds[] = (int) $enrollment->student_id;
+
+                return parent::updateEnrollment($enrollment, $data, $collegeId);
+            }
+        };
+
+        app(TenantContext::class)->set($college);
+
+        $result = (new EnrollmentBulkStatusHandler($students))->handle(
+            new \Illuminate\Database\Eloquent\Collection([$secondEnrollment, $firstEnrollment]),
+            $admin,
+            $college,
+            ['status' => 'completed'],
+        );
+
+        $this->assertTrue($result->isSuccessful());
+        $this->assertSame([$firstStudent->id, $secondStudent->id], $students->updatedStudentIds);
+        $this->assertSame('completed', $firstEnrollment->fresh()->status);
+        $this->assertSame('completed', $secondEnrollment->fresh()->status);
+    }
+
+    public function test_bulk_handler_rolls_back_prior_updates_when_a_later_update_fails(): void
+    {
+        $college = $this->makeCollege('ENROLLBACK');
+        $admin = $this->makeUserWithPermissions($college, ['student_enrollments.view', 'student_enrollments.update']);
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+        $first = $this->makeEnrollment($college, $this->makeStudent($college), $year, $program, ['status' => 'active']);
+        $second = $this->makeEnrollment($college, $this->makeStudent($college), $year, $program, ['status' => 'active']);
+
+        // Fail after the first real service update/audit has run. The handler's
+        // transaction must roll that work back along with the later failure.
+        $students = new class(
+            app(GenerateStudentNumber::class),
+            app(GenerateEnrollmentNumber::class),
+            app(StudentPhotoService::class),
+            app(AuditLogService::class),
+        ) extends StudentService {
+            private int $updateCalls = 0;
+
+            public function updateEnrollment(StudentEnrollment $enrollment, array $data, int $collegeId): StudentEnrollment
+            {
+                if (++$this->updateCalls === 2) {
+                    throw new \RuntimeException('Simulated second-record failure.');
+                }
+
+                return parent::updateEnrollment($enrollment, $data, $collegeId);
+            }
+        };
+
+        app(TenantContext::class)->set($college);
+
+        $result = (new EnrollmentBulkStatusHandler($students))->handle(
+            new \Illuminate\Database\Eloquent\Collection([$first, $second]),
+            $admin,
+            $college,
+            ['status' => 'completed'],
+        );
+
+        $this->assertFalse($result->isSuccessful());
+        $this->assertSame('active', $first->fresh()->status);
+        $this->assertSame('active', $second->fresh()->status);
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => 'student_enrollment.updated',
+            'subject_id' => $first->id,
+        ]);
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => 'student_enrollment.updated',
+            'subject_id' => $second->id,
+        ]);
     }
 
     public function test_foreign_enrollment_is_not_updated(): void

@@ -27,49 +27,54 @@ class GenerateTcNumber
     public function execute(int $collegeId, ?string $yearPart = null): string
     {
         return DB::transaction(function () use ($collegeId, $yearPart): string {
-            // Lock the college row to serialise number generation per college.
             College::query()->whereKey($collegeId)->lockForUpdate()->firstOrFail();
 
-            $yearPart = $yearPart ?: date('Y');
-
-            // SEQ is computed only from this college's numbers carrying the
-            // current year segment, so numbering restarts per year context.
-            $existingNumbers = StudentTransfer::withoutGlobalScopes()
-                ->where('college_id', $collegeId)
-                ->whereNotNull('tc_number')
-                ->pluck('tc_number');
-
-            $maxSeq = 0;
-            foreach ($existingNumbers as $number) {
-                if (! str_starts_with($number, 'TC-'.$yearPart.'-')) {
-                    continue;
-                }
-
-                if (preg_match('/(\d{4,})$/', $number, $matches)) {
-                    $maxSeq = max($maxSeq, (int) $matches[1]);
-                }
-            }
-
-            $nextSeq = $maxSeq + 1;
-
-            $attempts = 0;
-            $candidate = '';
-            $exists = false;
-            do {
-                $candidate = sprintf('TC-%s-%04d', $yearPart, $nextSeq + $attempts);
-                $exists = StudentTransfer::withoutGlobalScopes()
-                    ->where('college_id', $collegeId)
-                    ->where('tc_number', $candidate)
-                    ->exists();
-                $attempts++;
-            } while ($exists && $attempts < 100);
-
-            // Extremely unlikely fallback under pathological collisions.
-            if ($exists) {
-                $candidate = sprintf('TC-%s-%04d-%s', $yearPart, $nextSeq, substr(uniqid(), -4));
-            }
-
-            return $candidate;
+            return $this->executeWithCollegeLock($collegeId, $yearPart);
         });
+    }
+
+    /**
+     * Generate while the caller already holds this college row's lock in an
+     * active transaction (for example, StudentTransferService::issue()).
+     */
+    public function executeWithCollegeLock(int $collegeId, ?string $yearPart = null): string
+    {
+        $yearPart = $yearPart ?: date('Y');
+
+        $existingNumbers = StudentTransfer::withoutGlobalScopes()
+            ->where('college_id', $collegeId)
+            ->whereNotNull('tc_number')
+            ->pluck('tc_number');
+
+        $maxSeq = 0;
+        foreach ($existingNumbers as $number) {
+            if (! str_starts_with($number, 'TC-'.$yearPart.'-')) {
+                continue;
+            }
+
+            if (preg_match('/(\d{4,})$/', $number, $matches)) {
+                $maxSeq = max($maxSeq, (int) $matches[1]);
+            }
+        }
+
+        $nextSeq = $maxSeq + 1;
+
+        $attempts = 0;
+        $candidate = '';
+        $exists = false;
+        do {
+            $candidate = sprintf('TC-%s-%04d', $yearPart, $nextSeq + $attempts);
+            $exists = StudentTransfer::withoutGlobalScopes()
+                ->where('college_id', $collegeId)
+                ->where('tc_number', $candidate)
+                ->exists();
+            $attempts++;
+        } while ($exists && $attempts < 100);
+
+        if ($exists) {
+            $candidate = sprintf('TC-%s-%04d-%s', $yearPart, $nextSeq, substr(uniqid(), -4));
+        }
+
+        return $candidate;
     }
 }
