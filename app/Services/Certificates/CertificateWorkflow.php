@@ -119,24 +119,73 @@ class CertificateWorkflow
         });
     }
 
+    /**
+     * Whether an already-issued transfer carries a complete, trustworthy TC
+     * issue record, so it can be ADOPTED (metadata only) rather than reissued.
+     *
+     * `tc_issue_date` is a DATE column, but it reaches this check in TWO
+     * legitimate raw shapes and both must be accepted:
+     *
+     * - `Y-m-d` — what a real DATE column returns on MySQL/MariaDB/Postgres/
+     *   SQL Server, and what a legacy import writes directly.
+     * - `Y-m-d 00:00:00` — what Eloquent itself persists. The attribute is cast
+     *   to `date`, and a date cast is written through Model::fromDateTime(),
+     *   which formats with the connection grammar's date format `Y-m-d H:i:s`
+     *   (see Illuminate\Database\Grammar::getDateFormat()). sqlite — the test
+     *   connection — has no real DATE type and returns the stored text
+     *   verbatim, so the midnight time component survives to this point.
+     *
+     * Accepting only the bare shape is what made every ORM-written TC look
+     * like corrupt legacy data, while a raw-written bad date was still
+     * rejected — so the failure presented as a data problem instead of a
+     * format assumption.
+     *
+     * Validation stays strict:
+     * - a non-midnight time is refused, because a DATE column cannot produce
+     *   one, so such a row was written out-of-band and is not trusted legacy
+     *   data;
+     * - the day is parsed with `!` so no component may be omitted;
+     * - zero warnings and zero errors are required;
+     * - the parsed day must round-trip to the input, which is what refuses a
+     *   non-existent date such as 2025-02-30 (it parses to 2025-03-02) rather
+     *   than letting it be normalised.
+     */
     private function hasCompleteLegacyTcIssueMetadata(StudentTransfer $transfer): bool
     {
         $number = $transfer->getRawOriginal('tc_number');
-        $issueDate = $transfer->getRawOriginal('tc_issue_date');
 
-        if (! is_string($number) || trim($number) === '' || ! is_string($issueDate) || trim($issueDate) === '') {
+        if (! is_string($number) || trim($number) === '') {
             return false;
         }
 
-        // Validate the raw DATE value before touching its Eloquent date cast: a
-        // malformed legacy value must fail cleanly instead of being normalized.
-        $dateValue = trim($issueDate);
-        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $dateValue);
+        $issueDate = $transfer->getRawOriginal('tc_issue_date');
+
+        if (! is_string($issueDate)) {
+            return false;
+        }
+
+        $value = trim($issueDate);
+
+        // A bare date, or the midnight timestamp the `date` cast persists.
+        if (preg_match('/^\d{4}-\d{2}-\d{2}(?: 00:00:00)?$/', $value) !== 1) {
+            return false;
+        }
+
+        $day = substr($value, 0, 10);
+
+        $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $day);
+
+        if ($parsed === false) {
+            return false;
+        }
+
         $errors = \DateTimeImmutable::getLastErrors();
 
-        return $date !== false
-            && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))
-            && $date->format('Y-m-d') === $dateValue;
+        if ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0)) {
+            return false;
+        }
+
+        return $parsed->format('Y-m-d') === $day;
     }
 
     private function ensure(bool $condition, string $message): void

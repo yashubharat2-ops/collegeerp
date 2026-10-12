@@ -272,6 +272,67 @@ class CertificateManagementTest extends TestCase
         $this->assertLegacyTcAdoptionRejected([], '2025-02-30');
     }
 
+    public function test_legacy_tc_adoption_rejects_a_malformed_tc_issue_date(): void
+    {
+        $this->assertLegacyTcAdoptionRejected([], '01/07/2025');
+    }
+
+    public function test_legacy_tc_adoption_rejects_a_tc_issue_date_with_trailing_text(): void
+    {
+        // The exact shape that a bare `!Y-m-d` parse used to reject on VALID
+        // rows: trailing data after the day. Only a midnight time component is
+        // legitimate, so anything else must still be refused.
+        $this->assertLegacyTcAdoptionRejected([], '2025-07-01 00:00:00 UTC');
+    }
+
+    public function test_legacy_tc_adoption_rejects_a_non_midnight_tc_issue_date(): void
+    {
+        // A DATE column cannot return a time other than midnight, so such a row
+        // was written out-of-band and its provenance is not trusted.
+        $this->assertLegacyTcAdoptionRejected([], '2025-07-01 13:45:00');
+    }
+
+    /**
+     * The other legitimate on-disk shape of a DATE column.
+     *
+     * The two adoption tests above write through Eloquent, whose `date` cast
+     * persists `Y-m-d 00:00:00`. A real DATE column on MySQL/MariaDB/Postgres/
+     * SQL Server — and any raw legacy import — returns the bare `Y-m-d` form
+     * instead. Without this test the validator could be "fixed" to accept only
+     * the sqlite shape and silently break every production engine.
+     */
+    public function test_legacy_tc_adoption_accepts_a_bare_date_without_a_time_component(): void
+    {
+        $type = CertificateType::where('code', 'TC')->firstOrFail();
+        $transfer = $this->makeTransfer($this->college, $this->enrollment->student, [
+            'enrollment_id' => $this->enrollment->id,
+            'status' => 'approved',
+            'tc_status' => 'issued',
+            'tc_number' => 'TC-2025-0044',
+            'tc_issue_date' => '2025-07-05',
+        ]);
+        // Bypass the cast so the stored value is the bare DATE form.
+        DB::table('student_transfers')->where('id', $transfer->id)->update(['tc_issue_date' => '2025-07-05']);
+        $this->assertSame('2025-07-05', $transfer->fresh()->getRawOriginal('tc_issue_date'));
+
+        $certificate = $this->requestCertificate($type, ['student_transfer_id' => $transfer->id]);
+        $this->post(route('certificates.generate', $certificate), ['certificate_template_id' => $this->template($type)->id])
+            ->assertSessionHasNoErrors();
+        $this->post(route('certificates.issue', $certificate))->assertSessionHasNoErrors();
+
+        $this->assertSame('issued', $certificate->fresh()->status);
+        $this->assertSame('TC-2025-0044', $certificate->fresh()->number);
+        $this->assertSame('2025-07-05', $certificate->fresh()->issued_at->toDateString());
+
+        // Adoption stays metadata-only: the legacy record is never rewritten.
+        $this->assertSame('2025-07-05', $transfer->fresh()->getRawOriginal('tc_issue_date'));
+        $this->assertSame('TC-2025-0044', $transfer->fresh()->getRawOriginal('tc_number'));
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => 'student_transfer.issued',
+            'subject_id' => $transfer->id,
+        ]);
+    }
+
     public function test_permissions_are_enforced_on_every_endpoint(): void
     {
         $certificate = $this->requestCertificate(CertificateType::where('code', 'BON')->firstOrFail());
