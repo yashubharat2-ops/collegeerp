@@ -6,6 +6,7 @@ use App\Domain\Student\Actions\GenerateTcNumber;
 use App\Models\College;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
+use App\Models\StudentPromotion;
 use App\Models\StudentTransfer;
 use App\Services\Audit\AuditLogService;
 use Illuminate\Http\UploadedFile;
@@ -27,6 +28,17 @@ use Illuminate\Validation\ValidationException;
  * The TC number is minted server-side by GenerateTcNumber and the optional TC
  * file is stored on the private disk under a tenant-scoped, server-generated
  * path — never a client-supplied one.
+ *
+ * PROMOTION INTERLOCK: issue() is the single implementation behind BOTH TC
+ * entry points — the standalone route and CertificateWorkflow::issue() — so one
+ * guard covers them both. It refuses to issue while the student has a PENDING
+ * StudentPromotion, because withdrawing the student here would strand that
+ * request (PromoteStudent's shared guard could then never approve it) while it
+ * stayed listed as actionable. The operator resolves it explicitly; this never
+ * cancels a promotion automatically, and only `pending` blocks — an approved
+ * promotion has already executed and a later transfer out is a normal sequence.
+ * The mirror-image rule (an issued TC blocks a new promotion) lives in
+ * PromoteStudent::assertPromotable().
  *
  * Every transition is transactional, tenant-verified and audited.
  */
@@ -221,6 +233,37 @@ class StudentTransferService
 
             if (! $student) {
                 abort(404, 'Student not found in this college context.');
+            }
+
+            // Promotion / TC interlock: a PENDING promotion is an unfinished
+            // decision about this student's next enrollment. Issuing a TC
+            // withdraws the student and the linked enrollment, which would
+            // strand that request — it could never be approved again (the
+            // shared eligibility guard in PromoteStudent refuses a withdrawn
+            // student) yet would stay listed as actionable forever. The
+            // operator must resolve it explicitly; nothing is cancelled here.
+            //
+            // An unlocked read is sufficient and deliberate: this transaction
+            // already holds the Student row lock, and every promotion writer
+            // takes that same lock first — PromoteStudent::request() locks
+            // Student before inserting the pending row, and
+            // PromoteStudent::approve() must first acquire the College lock
+            // this transaction already holds. No promotion row for this
+            // student can therefore appear or change during this check, and no
+            // extra lock (or lock-order inversion) is introduced.
+            $pendingPromotions = StudentPromotion::withoutGlobalScopes()
+                ->where('college_id', $collegeId)
+                ->where('student_id', $student->id)
+                ->where('status', 'pending')
+                ->whereNull('deleted_at')
+                ->count();
+
+            if ($pendingPromotions > 0) {
+                throw ValidationException::withMessages([
+                    'student_id' => $pendingPromotions === 1
+                        ? 'This student has a pending promotion request. Approve or cancel it before issuing a transfer certificate; no records were changed.'
+                        : 'This student has '.$pendingPromotions.' pending promotion requests. Approve or cancel them before issuing a transfer certificate; no records were changed.',
+                ]);
             }
 
             // Lock every live enrollment for this tenant + student in a stable

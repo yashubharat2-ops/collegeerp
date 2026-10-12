@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Students;
 
+use App\Domain\Student\Services\StudentService;
 use App\Models\StudentEnrollment;
 use Tests\TestCase;
 
@@ -196,5 +197,85 @@ class StudentEnrollmentSectionTest extends TestCase
 
         $this->assertSame($collegeA->id, $enrollment->college_id);
         $this->assertSame(0, StudentEnrollment::withoutGlobalScopes()->where('college_id', $collegeB->id)->count());
+    }
+
+    public function test_a_section_is_rejected_when_no_program_is_chosen(): void
+    {
+        $college = $this->makeCollege('SECNPROG');
+        $creator = $this->makeUserWithPermissions($college, ['student_enrollments.create']);
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+        $section = $this->makeSection($college, $year, $program, 'A');
+        $student = $this->makeStudent($college);
+
+        // Every Section belongs to exactly one Program, so it can never be
+        // attached to a program-less enrollment. PromoteStudent enforces the
+        // same rule through StudentService::SECTION_REQUIRES_PROGRAM.
+        $this->asCollege($college, $creator)
+            ->post(route('student-enrollments.store'), $this->payload($student->id, $year->id, null, ['section_id' => $section->id]))
+            ->assertSessionHasErrors([
+                'section_id' => StudentService::SECTION_REQUIRES_PROGRAM,
+            ]);
+
+        $this->assertSame(0, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
+    }
+
+    public function test_the_same_section_is_accepted_when_the_program_is_chosen(): void
+    {
+        $college = $this->makeCollege('SECWPROG');
+        $creator = $this->makeUserWithPermissions($college, ['student_enrollments.create']);
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+        $section = $this->makeSection($college, $year, $program, 'A');
+        $student = $this->makeStudent($college);
+
+        $this->asCollege($college, $creator)
+            ->post(route('student-enrollments.store'), $this->payload($student->id, $year->id, $program->id, ['section_id' => $section->id]))
+            ->assertSessionHasNoErrors();
+
+        $enrollment = StudentEnrollment::withoutGlobalScopes()->where('student_id', $student->id)->first();
+        $this->assertNotNull($enrollment);
+        $this->assertSame($section->id, $enrollment->section_id);
+        $this->assertSame($program->id, $enrollment->program_id);
+    }
+
+    public function test_a_program_section_cannot_be_attached_to_a_program_less_enrollment_on_update(): void
+    {
+        $college = $this->makeCollege('SECNUPD');
+        $editor = $this->makeUserWithPermissions($college, ['student_enrollments.view', 'student_enrollments.update']);
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+        $section = $this->makeSection($college, $year, $program, 'A');
+        $student = $this->makeStudent($college);
+        $enrollment = $this->makeEnrollment($college, $student, $year, null);
+
+        $this->assertNull($enrollment->program_id);
+
+        $this->asCollege($college, $editor)
+            ->put(route('student-enrollments.update', $enrollment), $this->payload($student->id, $year->id, null, ['section_id' => $section->id]))
+            ->assertSessionHasErrors([
+                'section_id' => StudentService::SECTION_REQUIRES_PROGRAM,
+            ]);
+
+        $this->assertNull($enrollment->fresh()->section_id);
+    }
+
+    public function test_a_program_less_enrollment_can_still_be_updated_without_a_section(): void
+    {
+        $college = $this->makeCollege('SECNCLR');
+        $editor = $this->makeUserWithPermissions($college, ['student_enrollments.view', 'student_enrollments.update']);
+        $year = $this->makeYear($college);
+        $student = $this->makeStudent($college);
+        $enrollment = $this->makeEnrollment($college, $student, $year, null);
+
+        $this->asCollege($college, $editor)
+            ->put(route('student-enrollments.update', $enrollment), $this->payload($student->id, $year->id, null, [
+                'section_id' => null,
+                'remarks' => 'Program not yet assigned',
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertNull($enrollment->fresh()->section_id);
+        $this->assertSame('Program not yet assigned', $enrollment->fresh()->remarks);
     }
 }

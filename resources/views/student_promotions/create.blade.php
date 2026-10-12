@@ -62,7 +62,7 @@
             </div>
 
             <div>
-                <label class="label" for="target_academic_term_id">Target academic term</label>
+                <label class="label" for="target_academic_term_id">Target academic term (promotion record only)</label>
                 <select class="input" id="target_academic_term_id" name="target_academic_term_id">
                     <option value="">— No term —</option>
                     @foreach($academicTerms as $term)
@@ -74,6 +74,12 @@
                     @endforeach
                 </select>
                 <p class="mt-1 text-xs text-rose-600">@error('target_academic_term_id'){{ $message }}@enderror</p>
+                <p class="mt-1 text-xs text-slate-500">
+                    Promotion is <strong>year-based</strong>: the enrollment created on approval records only the
+                    academic year. This term is saved on the promotion decision for reference and is
+                    <strong>not</strong> carried onto the new enrollment. Semester-level progression is not
+                    supported — promoting twice into the same academic year and program will be refused.
+                </p>
             </div>
 
             <div>

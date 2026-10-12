@@ -61,6 +61,22 @@ class StudentService
 
     public const AUDITED_ENROLLMENT = ['id', 'enrollment_number', 'student_id', 'academic_year_id', 'program_id', 'section_id', 'enrollment_date', 'status', 'remarks'];
 
+    /**
+     * Shared rejection message for a Section attached to a program-less
+     * enrollment.
+     *
+     * `sections.program_id` is NOT NULL (see
+     * 2026_09_19_000002_create_sections_table), so every Section belongs to
+     * exactly one Program. A program-less enrollment therefore has no section
+     * it could legitimately point at, and attaching one would report a batch
+     * the enrollment does not belong to. Enrollment create, enrollment update
+     * and PromoteStudent all reject this identically — the constant keeps the
+     * three write paths from drifting apart. The bulk section action already
+     * enforced the same rule by comparing program ids
+     * (EnrollmentBulkSectionHandler).
+     */
+    public const SECTION_REQUIRES_PROGRAM = 'The selected section belongs to a program, so a program must be selected.';
+
     public function __construct(
         private readonly GenerateStudentNumber $studentNumbers,
         private readonly GenerateEnrollmentNumber $enrollmentNumbers,
@@ -339,9 +355,17 @@ class StudentService
                     ]);
                 }
 
-                if ($programId && (int) $section->program_id !== (int) $programId) {
+                if ($programId) {
+                    if ((int) $section->program_id !== (int) $programId) {
+                        throw ValidationException::withMessages([
+                            'section_id' => 'The selected section does not belong to the selected program.',
+                        ]);
+                    }
+                } elseif ($section->program_id !== null) {
+                    // No program chosen: a Section always belongs to one, so it
+                    // cannot be attached to a program-less enrollment.
                     throw ValidationException::withMessages([
-                        'section_id' => 'The selected section does not belong to the selected program.',
+                        'section_id' => self::SECTION_REQUIRES_PROGRAM,
                     ]);
                 }
             }
@@ -466,9 +490,17 @@ class StudentService
                         ]);
                     }
 
-                    if ($enrollment->program_id && (int) $section->program_id !== (int) $enrollment->program_id) {
+                    if ($enrollment->program_id) {
+                        if ((int) $section->program_id !== (int) $enrollment->program_id) {
+                            throw ValidationException::withMessages([
+                                'section_id' => 'The selected section does not belong to this enrollment\'s program.',
+                            ]);
+                        }
+                    } elseif ($section->program_id !== null) {
+                        // A program-less enrollment has no Section it could point
+                        // at: sections always belong to exactly one program.
                         throw ValidationException::withMessages([
-                            'section_id' => 'The selected section does not belong to this enrollment\'s program.',
+                            'section_id' => self::SECTION_REQUIRES_PROGRAM,
                         ]);
                     }
                 }

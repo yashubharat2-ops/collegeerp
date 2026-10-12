@@ -4,6 +4,7 @@ namespace Tests\Feature\Students;
 
 use App\Models\Student;
 use App\Models\StudentEnrollment;
+use App\Models\StudentPromotion;
 use App\Models\StudentTransfer;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -416,5 +417,141 @@ class StudentTransferTest extends TestCase
         $history->assertSee('Transfer certificate issued');
         $history->assertSee('Enrollment created');
         $history->assertSee('Academic record');
+    }
+
+    public function test_tc_issuance_is_blocked_while_a_promotion_is_pending(): void
+    {
+        $college = $this->makeCollege('TRPRMPEND');
+        $admin = $this->makeUserWithPermissions($college, [
+            'student_transfers.view', 'student_transfers.create', 'student_transfers.update', 'student_transfers.approve',
+            'student_promotions.create',
+        ]);
+        $year = $this->makeYear($college, '2026');
+        $nextYear = $this->makeNextYear($college, '2027');
+        $program = $this->makeProgram($college);
+        $student = $this->makeStudent($college, ['student_number' => 'STU-TR-PRMPEND']);
+        $enrollment = $this->makeEnrollment($college, $student, $year, $program, ['enrollment_number' => 'ENR-TR-PRMPEND']);
+
+        // A pending promotion is recorded first, through the real action.
+        $this->asCollege($college, $admin)
+            ->post(route('student-promotions.store'), [
+                'student_id' => $student->id,
+                'source_enrollment_id' => $enrollment->id,
+                'target_academic_year_id' => $nextYear->id,
+                'target_program_id' => $program->id,
+                'remarks' => 'Annual promotion',
+            ])
+            ->assertSessionHasNoErrors();
+        $promotion = StudentPromotion::withoutGlobalScopes()->where('college_id', $college->id)->firstOrFail();
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-transfers.store'), $this->payload($student->id, ['enrollment_id' => $enrollment->id]))
+            ->assertSessionHasNoErrors();
+        $transfer = StudentTransfer::withoutGlobalScopes()->where('student_id', $student->id)->firstOrFail();
+        $this->asCollege($college, $admin)->post(route('student-transfers.approve', $transfer))->assertSessionHas('success');
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-transfers.issue', $transfer), [
+                'tc_issue_date' => '2026-08-15',
+                'tc_file' => UploadedFile::fake()->create('signed-tc.pdf', 20, 'application/pdf'),
+            ])
+            ->assertSessionHasErrors('student_id');
+
+        // Nothing was issued, withdrawn or stored.
+        $this->assertSame('approved', $transfer->fresh()->status);
+        $this->assertSame('pending', $transfer->fresh()->tc_status);
+        $this->assertNull($transfer->fresh()->tc_number);
+        $this->assertSame('active', $student->fresh()->status);
+        $this->assertSame('active', $enrollment->fresh()->status);
+        $this->assertSame([], Storage::disk('private')->allFiles(), 'A rejected issuance must not leave an uploaded TC file.');
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_transfer.issued', 'subject_id' => $transfer->id]);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_enrollment.updated', 'subject_id' => $enrollment->id]);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student.updated', 'subject_id' => $student->id]);
+
+        // The interlock must NOT cancel the promotion automatically.
+        $this->assertSame('pending', $promotion->fresh()->status);
+    }
+
+    public function test_tc_issuance_is_allowed_once_the_pending_promotion_is_cancelled(): void
+    {
+        $college = $this->makeCollege('TRPRMCAN');
+        $admin = $this->makeUserWithPermissions($college, [
+            'student_transfers.view', 'student_transfers.create', 'student_transfers.update', 'student_transfers.approve',
+            'student_promotions.create', 'student_promotions.approve',
+        ]);
+        $year = $this->makeYear($college, '2026');
+        $nextYear = $this->makeNextYear($college, '2027');
+        $program = $this->makeProgram($college);
+        $student = $this->makeStudent($college, ['student_number' => 'STU-TR-PRMCAN']);
+        $enrollment = $this->makeEnrollment($college, $student, $year, $program, ['enrollment_number' => 'ENR-TR-PRMCAN']);
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-promotions.store'), [
+                'student_id' => $student->id,
+                'source_enrollment_id' => $enrollment->id,
+                'target_academic_year_id' => $nextYear->id,
+                'target_program_id' => $program->id,
+            ])
+            ->assertSessionHasNoErrors();
+        $promotion = StudentPromotion::withoutGlobalScopes()->where('college_id', $college->id)->firstOrFail();
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-transfers.store'), $this->payload($student->id, ['enrollment_id' => $enrollment->id]))
+            ->assertSessionHasNoErrors();
+        $transfer = StudentTransfer::withoutGlobalScopes()->where('student_id', $student->id)->firstOrFail();
+        $this->asCollege($college, $admin)->post(route('student-transfers.approve', $transfer))->assertSessionHas('success');
+
+        // The operator resolves the conflict explicitly.
+        $this->asCollege($college, $admin)->post(route('student-promotions.cancel', $promotion))->assertSessionHas('success');
+        $this->assertSame('cancelled', $promotion->fresh()->status);
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-transfers.issue', $transfer), ['tc_issue_date' => '2026-08-15'])
+            ->assertSessionHas('success');
+
+        $this->assertSame('issued', $transfer->fresh()->tc_status);
+        $this->assertNotNull($transfer->fresh()->tc_number);
+        $this->assertSame('withdrawn', $student->fresh()->status);
+        $this->assertSame('withdrawn', $enrollment->fresh()->status);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'student_transfer.issued', 'subject_id' => $transfer->id]);
+        // The cancelled promotion is preserved as history, never deleted.
+        $this->assertSame('cancelled', $promotion->fresh()->status);
+        $this->assertNull($promotion->fresh()->deleted_at);
+    }
+
+    public function test_tc_issuance_is_allowed_when_only_an_approved_promotion_exists(): void
+    {
+        $college = $this->makeCollege('TRPRMAPP');
+        $admin = $this->makeUserWithPermissions($college, [
+            'student_transfers.view', 'student_transfers.create', 'student_transfers.update', 'student_transfers.approve',
+        ]);
+        $year = $this->makeYear($college, '2026');
+        $program = $this->makeProgram($college);
+        $student = $this->makeStudent($college, ['student_number' => 'STU-TR-PRMAPP']);
+        $enrollment = $this->makeEnrollment($college, $student, $year, $program, ['enrollment_number' => 'ENR-TR-PRMAPP']);
+
+        // An APPROVED promotion has already executed; transferring out later is
+        // a normal sequence and must not be blocked. Only `pending` blocks.
+        StudentPromotion::withoutGlobalScopes()->create([
+            'college_id' => $college->id,
+            'student_id' => $student->id,
+            'source_enrollment_id' => $enrollment->id,
+            'target_academic_year_id' => $year->id,
+            'status' => 'approved',
+        ]);
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-transfers.store'), $this->payload($student->id, ['enrollment_id' => $enrollment->id]))
+            ->assertSessionHasNoErrors();
+        $transfer = StudentTransfer::withoutGlobalScopes()->where('student_id', $student->id)->firstOrFail();
+        $this->asCollege($college, $admin)->post(route('student-transfers.approve', $transfer))->assertSessionHas('success');
+
+        $this->asCollege($college, $admin)
+            ->post(route('student-transfers.issue', $transfer), ['tc_issue_date' => '2026-08-15'])
+            ->assertSessionHas('success');
+
+        $this->assertSame('issued', $transfer->fresh()->tc_status);
+        $this->assertSame('withdrawn', $student->fresh()->status);
+        $this->assertSame('withdrawn', $enrollment->fresh()->status);
     }
 }

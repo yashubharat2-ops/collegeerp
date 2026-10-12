@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Certificates;
 
-use App\Models\{Certificate, CertificateTemplate, CertificateType, College, StudentEnrollment, User};
+use App\Models\{Certificate, CertificateTemplate, CertificateType, College, StudentEnrollment, StudentPromotion, User};
 use App\Services\Certificates\CertificateCatalog;
 use App\Support\Tenancy\TenantContext;
 use Database\Seeders\CertificateManagementSeeder;
@@ -341,5 +341,35 @@ class CertificateManagementTest extends TestCase
         $this->assertSame('issued', $unchangedTransfer->tc_status);
         $this->assertSame($legacyNumber, $unchangedTransfer->getRawOriginal('tc_number'));
         $this->assertSame($legacyIssueDate, $unchangedTransfer->getRawOriginal('tc_issue_date'));
+    }
+
+    public function test_tc_issuance_through_the_certificate_workflow_is_blocked_while_a_promotion_is_pending(): void
+    {
+        $transfer = $this->makeTransfer($this->college, $this->enrollment->student, [
+            'enrollment_id' => $this->enrollment->id, 'status' => 'approved',
+        ]);
+
+        StudentPromotion::withoutGlobalScopes()->create([
+            'college_id' => $this->college->id,
+            'student_id' => $this->enrollment->student_id,
+            'source_enrollment_id' => $this->enrollment->id,
+            'target_academic_year_id' => $this->enrollment->academic_year_id,
+            'status' => 'pending',
+        ]);
+
+        $type = CertificateType::where('builtin_key', 'transfer')->firstOrFail();
+        $template = $this->template($type);
+        $certificate = $this->requestCertificate($type, ['student_transfer_id' => $transfer->id]);
+        $this->post(route('certificates.generate', $certificate), ['certificate_template_id' => $template->id])->assertSessionHasNoErrors();
+
+        // CertificateWorkflow::issue() delegates to StudentTransferService::issue(),
+        // so the promotion interlock covers this second TC entry point too.
+        $this->post(route('certificates.issue', $certificate))->assertSessionHasErrors('student_id');
+
+        $this->assertSame('generated', $certificate->fresh()->status, 'The certificate must not be issued.');
+        $this->assertSame('pending', $transfer->fresh()->tc_status);
+        $this->assertNull($transfer->fresh()->tc_number);
+        $this->assertSame('active', $this->enrollment->fresh()->status);
+        $this->assertSame('active', $this->enrollment->student->fresh()->status);
     }
 }

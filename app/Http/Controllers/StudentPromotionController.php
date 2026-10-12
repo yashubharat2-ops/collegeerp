@@ -65,8 +65,10 @@ class StudentPromotionController extends Controller
         $this->authorize('create', StudentPromotion::class);
 
         return view('student_promotions.create', [
-            'students' => $this->studentOptions(),
-            'enrollments' => $this->enrollmentOptions(),
+            // Eligibility-filtered: the form must not offer a withdrawn student
+            // or a withdrawn source enrollment that the action would refuse.
+            'students' => $this->promotableStudentOptions(),
+            'enrollments' => $this->promotableEnrollmentOptions(),
             'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(['id', 'name', 'code']),
             'academicTerms' => AcademicTerm::query()->with('academicYear:id,name')->orderBy('sequence')->get(),
             'programs' => Program::query()->orderBy('name')->get(['id', 'name', 'code']),
@@ -115,6 +117,14 @@ class StudentPromotionController extends Controller
         return StudentPromotion::query()->findOrFail($id);
     }
 
+    /**
+     * Every student, for the INDEX filter.
+     *
+     * Deliberately unfiltered: the index searches promotions that already
+     * exist, and a promotion may legitimately belong to a student who has
+     * since withdrawn. Removing withdrawn students here would make their
+     * existing promotions unsearchable.
+     */
     private function studentOptions()
     {
         return Student::query()
@@ -123,9 +133,51 @@ class StudentPromotionController extends Controller
             ->get(['id', 'student_number', 'first_name', 'last_name']);
     }
 
-    private function enrollmentOptions()
+    /**
+     * Only students the promotion action would accept, for the CREATE form.
+     *
+     * This mirrors `PromoteStudent::assertPromotable()` and nothing more: that
+     * guard rejects exactly a `withdrawn` student, a `withdrawn` source
+     * enrollment and a student with an issued transfer certificate. So only
+     * `withdrawn` is excluded here.
+     *
+     * Whether `graduated`, `inactive` or `suspended` students should be
+     * promotable is an open institutional decision and is NOT decided by this
+     * filter — they remain selectable, exactly as the guard allows.
+     *
+     * Filtering the dropdown is a convenience, never the enforcement: the
+     * action re-checks the same rule server-side on both request and approval,
+     * so posting an id that is not listed here is still refused.
+     *
+     * A student with an issued TC cannot be identified from the students table
+     * alone, so it is not filtered here; the action refuses it with a clear
+     * message instead.
+     */
+    private function promotableStudentOptions()
+    {
+        return Student::query()
+            ->where('status', '!=', 'withdrawn')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get(['id', 'student_number', 'first_name', 'last_name']);
+    }
+
+    /**
+     * Only enrollments usable as a promotion source, for the CREATE form.
+     *
+     * `PromoteStudent::assertPromotable()` rejects a `withdrawn` source
+     * enrollment and no other status, so `withdrawn` is the only value
+     * excluded. A `completed` or `cancelled` source stays selectable because
+     * the action accepts it (re-admission); whether it *should* is an open
+     * decision, not something this filter settles.
+     *
+     * Tenant scoping is unchanged: `StudentEnrollment::query()` carries the
+     * CollegeScope, so this still returns only the active college's rows.
+     */
+    private function promotableEnrollmentOptions()
     {
         return StudentEnrollment::query()
+            ->where('status', '!=', 'withdrawn')
             ->with(['student:id,student_number', 'academicYear:id,name', 'program:id,name', 'section:id,name'])
             ->orderByDesc('created_at')
             ->orderByDesc('id')
