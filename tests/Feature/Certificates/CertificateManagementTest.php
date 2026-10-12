@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Certificates;
 
-use App\Models\{Certificate, CertificateTemplate, CertificateType, College, StudentEnrollment, User};
+use App\Models\{Certificate, CertificateTemplate, CertificateType, College, StudentEnrollment, StudentPromotion, User};
 use App\Services\Certificates\CertificateCatalog;
 use App\Support\Tenancy\TenantContext;
 use Database\Seeders\CertificateManagementSeeder;
@@ -272,6 +272,67 @@ class CertificateManagementTest extends TestCase
         $this->assertLegacyTcAdoptionRejected([], '2025-02-30');
     }
 
+    public function test_legacy_tc_adoption_rejects_a_malformed_tc_issue_date(): void
+    {
+        $this->assertLegacyTcAdoptionRejected([], '01/07/2025');
+    }
+
+    public function test_legacy_tc_adoption_rejects_a_tc_issue_date_with_trailing_text(): void
+    {
+        // The exact shape that a bare `!Y-m-d` parse used to reject on VALID
+        // rows: trailing data after the day. Only a midnight time component is
+        // legitimate, so anything else must still be refused.
+        $this->assertLegacyTcAdoptionRejected([], '2025-07-01 00:00:00 UTC');
+    }
+
+    public function test_legacy_tc_adoption_rejects_a_non_midnight_tc_issue_date(): void
+    {
+        // A DATE column cannot return a time other than midnight, so such a row
+        // was written out-of-band and its provenance is not trusted.
+        $this->assertLegacyTcAdoptionRejected([], '2025-07-01 13:45:00');
+    }
+
+    /**
+     * The other legitimate on-disk shape of a DATE column.
+     *
+     * The two adoption tests above write through Eloquent, whose `date` cast
+     * persists `Y-m-d 00:00:00`. A real DATE column on MySQL/MariaDB/Postgres/
+     * SQL Server — and any raw legacy import — returns the bare `Y-m-d` form
+     * instead. Without this test the validator could be "fixed" to accept only
+     * the sqlite shape and silently break every production engine.
+     */
+    public function test_legacy_tc_adoption_accepts_a_bare_date_without_a_time_component(): void
+    {
+        $type = CertificateType::where('code', 'TC')->firstOrFail();
+        $transfer = $this->makeTransfer($this->college, $this->enrollment->student, [
+            'enrollment_id' => $this->enrollment->id,
+            'status' => 'approved',
+            'tc_status' => 'issued',
+            'tc_number' => 'TC-2025-0044',
+            'tc_issue_date' => '2025-07-05',
+        ]);
+        // Bypass the cast so the stored value is the bare DATE form.
+        DB::table('student_transfers')->where('id', $transfer->id)->update(['tc_issue_date' => '2025-07-05']);
+        $this->assertSame('2025-07-05', $transfer->fresh()->getRawOriginal('tc_issue_date'));
+
+        $certificate = $this->requestCertificate($type, ['student_transfer_id' => $transfer->id]);
+        $this->post(route('certificates.generate', $certificate), ['certificate_template_id' => $this->template($type)->id])
+            ->assertSessionHasNoErrors();
+        $this->post(route('certificates.issue', $certificate))->assertSessionHasNoErrors();
+
+        $this->assertSame('issued', $certificate->fresh()->status);
+        $this->assertSame('TC-2025-0044', $certificate->fresh()->number);
+        $this->assertSame('2025-07-05', $certificate->fresh()->issued_at->toDateString());
+
+        // Adoption stays metadata-only: the legacy record is never rewritten.
+        $this->assertSame('2025-07-05', $transfer->fresh()->getRawOriginal('tc_issue_date'));
+        $this->assertSame('TC-2025-0044', $transfer->fresh()->getRawOriginal('tc_number'));
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => 'student_transfer.issued',
+            'subject_id' => $transfer->id,
+        ]);
+    }
+
     public function test_permissions_are_enforced_on_every_endpoint(): void
     {
         $certificate = $this->requestCertificate(CertificateType::where('code', 'BON')->firstOrFail());
@@ -341,5 +402,35 @@ class CertificateManagementTest extends TestCase
         $this->assertSame('issued', $unchangedTransfer->tc_status);
         $this->assertSame($legacyNumber, $unchangedTransfer->getRawOriginal('tc_number'));
         $this->assertSame($legacyIssueDate, $unchangedTransfer->getRawOriginal('tc_issue_date'));
+    }
+
+    public function test_tc_issuance_through_the_certificate_workflow_is_blocked_while_a_promotion_is_pending(): void
+    {
+        $transfer = $this->makeTransfer($this->college, $this->enrollment->student, [
+            'enrollment_id' => $this->enrollment->id, 'status' => 'approved',
+        ]);
+
+        StudentPromotion::withoutGlobalScopes()->create([
+            'college_id' => $this->college->id,
+            'student_id' => $this->enrollment->student_id,
+            'source_enrollment_id' => $this->enrollment->id,
+            'target_academic_year_id' => $this->enrollment->academic_year_id,
+            'status' => 'pending',
+        ]);
+
+        $type = CertificateType::where('builtin_key', 'transfer')->firstOrFail();
+        $template = $this->template($type);
+        $certificate = $this->requestCertificate($type, ['student_transfer_id' => $transfer->id]);
+        $this->post(route('certificates.generate', $certificate), ['certificate_template_id' => $template->id])->assertSessionHasNoErrors();
+
+        // CertificateWorkflow::issue() delegates to StudentTransferService::issue(),
+        // so the promotion interlock covers this second TC entry point too.
+        $this->post(route('certificates.issue', $certificate))->assertSessionHasErrors('student_id');
+
+        $this->assertSame('generated', $certificate->fresh()->status, 'The certificate must not be issued.');
+        $this->assertSame('pending', $transfer->fresh()->tc_status);
+        $this->assertNull($transfer->fresh()->tc_number);
+        $this->assertSame('active', $this->enrollment->fresh()->status);
+        $this->assertSame('active', $this->enrollment->student->fresh()->status);
     }
 }

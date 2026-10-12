@@ -2,6 +2,7 @@
 
 namespace App\Domain\Student\Actions;
 
+use App\Domain\Student\Services\StudentAcademicRecordService;
 use App\Domain\Student\Services\StudentService;
 use App\Models\AcademicTerm;
 use App\Models\AcademicYear;
@@ -9,8 +10,10 @@ use App\Models\College;
 use App\Models\Program;
 use App\Models\Section;
 use App\Models\Student;
+use App\Models\StudentAcademicRecord;
 use App\Models\StudentEnrollment;
 use App\Models\StudentPromotion;
+use App\Models\StudentTransfer;
 use App\Services\Audit\AuditLogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -22,14 +25,48 @@ use Illuminate\Validation\ValidationException;
  *
  * - approving creates a NEW StudentEnrollment for the target academic year
  *   (server-generated enrollment number, via StudentService),
- * - the source enrollment is only flipped to `completed` — its row, enrollment
- *   number and audit trail are preserved,
+ * - the source enrollment is only flipped to `completed` when it was `active` —
+ *   its row, enrollment number and audit trail are preserved, and a `completed`
+ *   or `cancelled` source is never silently rewritten,
  * - nothing is deleted, and the decision itself is stored on StudentPromotion
- *   so it stays auditable after the fact.
+ *   so it stays auditable after the fact,
+ * - approving also records the outcome on the student's progression ledger
+ *   (`student_academic_records.promotion_status` for the SOURCE period) so the
+ *   ledger and the decision cannot drift apart — see
+ *   {@see recordPromotionOutcomeOnSourceLedger()} for exactly how narrow that write is.
  *
- * NO progression rule is encoded here. Which academic year, program, term and
- * section a student moves into is entirely the operator's choice, so the module
- * works for annual, semester, lateral-entry and re-admission cases alike.
+ * NO progression rule is encoded here: which academic year, program, term and
+ * section a student moves into is the operator's choice, so annual promotion,
+ * lateral entry and re-admission all work without special casing.
+ *
+ * SEMESTER PROGRESSION IS NOT SUPPORTED, and this is a schema fact rather than
+ * a policy choice. `student_enrollments` has no `academic_term_id` column, so
+ * the enrollment created on approval records the academic YEAR only — the
+ * `target_academic_term_id` chosen here is stored on the promotion decision and
+ * audited, but is NOT carried onto the enrollment. It is a reference annotation
+ * on the decision, not a term of study, and the create form says so. Two
+ * consequences follow, both intended:
+ *
+ * - the enrollment tuple (student + academic year + program) means promoting a
+ *   student twice into the SAME academic year and program — semester 1 then
+ *   semester 2 — is refused as a duplicate target, not once but twice (see
+ *   {@see assertNoTargetEnrollment()} and StudentService::hasNonDeletedEnrollmentForTuple),
+ * - nothing downstream may read the term off the enrollment to infer which
+ *   semester a student is in; use StudentAcademicRecord, which does carry a
+ *   term.
+ *
+ * ELIGIBILITY is enforced by one shared guard, {@see assertPromotable()}, which
+ * BOTH request() and approve() call: a student with an issued Transfer
+ * Certificate, a withdrawn student, or a withdrawn source enrollment can never
+ * be promoted. Requesting is therefore refused up front for a promotion that
+ * approval would have to reject, and a request that became ineligible after it
+ * was recorded is still refused at approval.
+ *
+ * TC INTERLOCK: the issued-TC check reads `student_transfers.tc_status` (the
+ * authoritative marker) and is mirrored by StudentTransferService::issue(),
+ * which refuses to issue a TC while a promotion is still pending. The two
+ * workflows therefore cannot interleave into an inconsistent state; neither one
+ * silently cancels or alters the other's records.
  *
  * Both phases are transactional and tenant-verified: every reference is
  * re-resolved through its CollegeScope (a foreign college's id 404s) and every
@@ -37,6 +74,10 @@ use Illuminate\Validation\ValidationException;
  * program, enrollment belongs to the student) is re-checked server-side, so a
  * request cannot be approved into an inconsistent state even if the original
  * payload was tampered with between request and approval.
+ *
+ * Duplicate detection mirrors the enrollment tuple policy: one pending request
+ * per student + target academic year + target program (section is not part of
+ * the tuple), so a request that approval could never satisfy is never recorded.
  */
 class PromoteStudent
 {
@@ -62,6 +103,11 @@ class PromoteStudent
 
             $source = $this->resolveEnrollment($collegeId, $student, (int) $data['source_enrollment_id']);
 
+            // Same eligibility rule as approval, applied up front: a withdrawn
+            // student or a withdrawn source enrollment can never be promoted,
+            // so no paperwork is recorded for a decision approval must refuse.
+            $this->assertPromotable($student, $source, $collegeId);
+
             $targetYear = AcademicYear::query()->find((int) $data['target_academic_year_id']);
             if (! $targetYear) {
                 abort(404, 'Target academic year not found in this college context.');
@@ -81,20 +127,25 @@ class PromoteStudent
             $targetTermId = $this->resolveTerm($data['target_academic_term_id'] ?? null, (int) $targetYear->id);
             $targetSectionId = $this->resolveSection($data['target_section_id'] ?? null, (int) $targetYear->id, $targetProgramId);
 
-            // One open request per student/target context.
+            // One open request per student/target context. The key mirrors the
+            // enrollment tuple exactly (student + academic year + program,
+            // see StudentService::hasNonDeletedEnrollmentForTuple): section is
+            // deliberately NOT part of it, so a request that approval could
+            // never satisfy — a second pending request into the same year and
+            // program but a different section — is refused here instead of
+            // being recorded and then failing at approval.
             $pendingDuplicate = StudentPromotion::withoutGlobalScopes()
                 ->where('college_id', $collegeId)
                 ->where('student_id', $student->id)
                 ->where('target_academic_year_id', $targetYear->id)
                 ->where('target_program_id', $targetProgramId)
-                ->where('target_section_id', $targetSectionId)
                 ->where('status', 'pending')
                 ->whereNull('deleted_at')
                 ->exists();
 
             if ($pendingDuplicate) {
                 throw ValidationException::withMessages([
-                    'target_academic_year_id' => 'A pending promotion already exists for this student into the selected academic year, program and section.',
+                    'target_academic_year_id' => 'A pending promotion already exists for this student into the selected academic year and program.',
                 ]);
             }
 
@@ -177,17 +228,10 @@ class PromoteStudent
             // These statuses are re-read only after both rows are locked. TC
             // issuance withdraws both records; a pending promotion must not
             // create a new active enrollment for either withdrawn record.
-            if ($student->status === 'withdrawn') {
-                throw ValidationException::withMessages([
-                    'student_id' => 'A withdrawn student cannot receive a new active enrollment through promotion.',
-                ]);
-            }
-
-            if ($source->status === 'withdrawn') {
-                throw ValidationException::withMessages([
-                    'source_enrollment_id' => 'A withdrawn source enrollment cannot be promoted into a new active enrollment.',
-                ]);
-            }
+            // This is the SAME guard request() applies, so a promotion that
+            // became ineligible after the request was recorded is refused here
+            // with the identical message.
+            $this->assertPromotable($student, $source, $collegeId);
 
             // Re-resolve every target reference: a foreign or archived id 404s.
             $targetYear = AcademicYear::query()->find((int) $promotion->target_academic_year_id);
@@ -221,8 +265,14 @@ class PromoteStudent
                 collegeLockHeld: true,
             );
 
-            // 2. Preserve history: the source enrollment stays, status completed.
-            if ($source->status !== 'completed') {
+            // 2. Preserve history: the source enrollment stays; only an ACTIVE
+            //    source is moved to completed. A `completed` source is already
+            //    in its terminal state, and a `cancelled` source must NOT be
+            //    silently rewritten to `completed` — that would replace the
+            //    recorded reason the enrollment was cancelled with a claim that
+            //    the student finished it. `withdrawn` cannot reach here (the
+            //    eligibility guard above rejects it).
+            if ($source->status === 'active') {
                 $this->students->updateEnrollment($source, ['status' => 'completed'], $collegeId);
             }
 
@@ -240,6 +290,12 @@ class PromoteStudent
             ]);
 
             $this->audit->record('student_promotion.approved', $promotion, $old, $promotion->only(self::AUDITED));
+
+            // 4. Keep the progression ledger consistent with the decision.
+            //    Same transaction, so a promotion and its ledger outcome can
+            //    never be observed apart — and if the ledger write fails the
+            //    whole approval rolls back with it.
+            $this->recordPromotionOutcomeOnSourceLedger($promotion, $collegeId, $userId);
 
             return $promotion->refresh()->load(['sourceEnrollment', 'targetEnrollment', 'targetAcademicYear', 'student']);
         });
@@ -270,6 +326,14 @@ class PromoteStudent
 
             $this->audit->record('student_promotion.cancelled', $promotion, $old, $promotion->only(self::AUDITED));
 
+            // The progression ledger is deliberately NOT touched here.
+            // Cancellation is only reachable from `pending`, and `promoted` is
+            // written only by approve() — which is terminal, so no promotion is
+            // ever both approved and cancelled. A cancelling promotion
+            // therefore never wrote the ledger, and there is nothing of its own
+            // to reverse. Resetting `promoted` here could only destroy a value
+            // an operator typed by hand or another approved promotion set.
+            //
             return $promotion;
         });
     }
@@ -327,6 +391,69 @@ class PromoteStudent
     }
 
     /**
+     * Shared source/student eligibility guard, applied identically by
+     * request() and by approve().
+     *
+     * Three refusals, checked in this order:
+     *
+     * 1. AN ISSUED TRANSFER CERTIFICATE. `student_transfers.tc_status` is the
+     *    authoritative marker (`StudentTransfer::isTcIssued()`), not the
+     *    `certificates` table: Certificate has its own requested/generated/
+     *    issued lifecycle and CertificateType::BUILT_INS covers seven kinds of
+     *    certificate of which only `transfer` is a TC, so a bonafide or
+     *    character certificate must never trigger this guard. An issued TC is
+     *    terminal — StudentTransferService refuses to cancel or delete one —
+     *    so it is checked BEFORE the status guards: the student has formally
+     *    left, and that fact survives even when the withdrawn status does not
+     *    (CertificateWorkflow's legacy-TC "adoption" path records an issued TC
+     *    without replaying the withdrawal, and a student's status can be
+     *    edited back while tc_status stays `issued`).
+     * 2. a withdrawn Student, and 3. a withdrawn source enrollment. TC
+     *    issuance withdraws both, and neither may ever be promoted into a new
+     *    active enrollment.
+     *
+     * Both callers read these only from rows they have already locked (Student,
+     * then the source enrollment), so the decision is made against committed
+     * state. The transfer read needs no lock of its own: issuing a TC takes the
+     * College lock — which approve() already holds — and then the same Student
+     * lock request() holds, so a TC cannot be issued for this student while
+     * this guard runs. Because the guard is a single method, a request recorded
+     * before a TC was issued is refused at approval with the identical message.
+     *
+     * Only `withdrawn` is rejected among enrollment statuses. Whether a
+     * `completed` or `cancelled` source may be promoted from is a separate
+     * business decision and is deliberately not encoded here; what is
+     * guaranteed is that such a source is never silently rewritten (see
+     * approve()).
+     */
+    private function assertPromotable(Student $student, StudentEnrollment $source, int $collegeId): void
+    {
+        $hasIssuedTc = StudentTransfer::query()
+            ->where('college_id', $collegeId)
+            ->where('student_id', $student->id)
+            ->where('tc_status', 'issued')
+            ->exists();
+
+        if ($hasIssuedTc) {
+            throw ValidationException::withMessages([
+                'student_id' => 'A transfer certificate has already been issued for this student, so a promotion cannot be recorded.',
+            ]);
+        }
+
+        if ($student->status === 'withdrawn') {
+            throw ValidationException::withMessages([
+                'student_id' => 'A withdrawn student cannot receive a new active enrollment through promotion.',
+            ]);
+        }
+
+        if ($source->status === 'withdrawn') {
+            throw ValidationException::withMessages([
+                'source_enrollment_id' => 'A withdrawn source enrollment cannot be promoted into a new active enrollment.',
+            ]);
+        }
+    }
+
+    /**
      * A term is only valid when it belongs to the given academic year.
      */
     private function resolveTerm(?int $termId, int $yearId): ?int
@@ -348,7 +475,14 @@ class PromoteStudent
 
     /**
      * A section is only valid when it belongs to the target academic year and
-     * (when a program is chosen) to that program.
+     * to the chosen program.
+     *
+     * `sections.program_id` is NOT NULL (see
+     * 2026_09_19_000002_create_sections_table), so every Section belongs to
+     * exactly one Program. When no target program is chosen there is therefore
+     * no section that could legitimately be attached, and one is refused
+     * instead of being silently recorded against a program-less enrollment —
+     * the same rule StudentService applies on enrollment create/update.
      */
     private function resolveSection(?int $sectionId, int $yearId, ?int $programId): ?int
     {
@@ -369,6 +503,12 @@ class PromoteStudent
             ]);
         }
 
+        if (! $programId && $section->program_id !== null) {
+            throw ValidationException::withMessages([
+                'target_section_id' => StudentService::SECTION_REQUIRES_PROGRAM,
+            ]);
+        }
+
         return (int) $section->id;
     }
 
@@ -383,5 +523,100 @@ class PromoteStudent
                 'target_academic_year_id' => 'The student already has an enrollment for the target academic year and program.',
             ]);
         }
+    }
+
+    /**
+     * Keep the progression ledger (`student_academic_records`) consistent with
+     * an approved promotion, instead of leaving the two to disagree.
+     *
+     * WHICH PERIOD: the migration documents `promotion_status` as the
+     * "Progression outcome for the period", one row per student + academic
+     * year + term, and every screen renders it as a column beside that row's
+     * period label. So the outcome belongs to the SOURCE period — the one the
+     * student is promoted OUT of. The target period is one the student is only
+     * entering; its outcome is not known yet and must not be pre-filled with
+     * `promoted`, which would also collide with the day they are promoted out
+     * of it.
+     *
+     * HOW NARROW: the ledger carries no back-pointer to the promotion that
+     * influenced it, and an operator sets the same column by hand through
+     * StudentAcademicRecordController. So this writes as little as it can
+     * while still being useful:
+     *
+     * - it only UPDATES an existing row. It never creates one: a promotion
+     *   cannot derive `academic_status` or `completion_status`, so a new row
+     *   would have to invent them, and inventing a period record is worse than
+     *   writing none.
+     * - it only overwrites the untouched default `not_applicable`. A value an
+     *   operator chose (`retained`, `transferred`, …) is preserved, because a
+     *   promotion is not evidence against it.
+     * - if the student has more than one row for the source year — one per
+     *   term — the correct row cannot be identified, because the source
+     *   enrollment carries no term (`student_enrollments` has no
+     *   `academic_term_id`). Writing to all of them, or guessing one, would
+     *   corrupt a term-based ledger, so nothing is written and the ledger
+     *   stays exactly as the operator left it.
+     *
+     * There is deliberately no reverse write: cancellation is only reachable
+     * from `pending` and `promoted` is only written here, so a cancelled
+     * promotion never wrote the ledger. See cancel().
+     *
+     * Locking: rows are read under `lockForUpdate()` so the default-value check
+     * cannot be lost to a concurrent operator edit. Promotion is always locked
+     * before these rows (College → Promotion → Student → source enrollment),
+     * and StudentAcademicRecordService likewise locks Student before the
+     * record, so no lock order is inverted and no new lock is introduced ahead
+     * of an existing one.
+     *
+     * Runs inside the caller's transaction: a failure here rolls the whole
+     * decision back, so a promotion and its ledger outcome can never be
+     * observed apart.
+     */
+    private function recordPromotionOutcomeOnSourceLedger(
+        StudentPromotion $promotion,
+        int $collegeId,
+        ?int $userId,
+    ): void {
+        $yearId = $promotion->source_academic_year_id;
+
+        // A legacy promotion without a snapshot of the source year gives no
+        // period to attribute the outcome to.
+        if (! $yearId) {
+            return;
+        }
+
+        $records = StudentAcademicRecord::withoutGlobalScopes()
+            ->where('college_id', $collegeId)
+            ->where('student_id', $promotion->student_id)
+            ->where('academic_year_id', $yearId)
+            ->whereNull('deleted_at')
+            ->lockForUpdate()
+            ->get();
+
+        // Ambiguous term-based ledger (2+) or nothing recorded (0): leave it.
+        if ($records->count() !== 1) {
+            return;
+        }
+
+        $record = $records->first();
+
+        // Never overwrite an outcome an operator chose.
+        if ($record->promotion_status !== 'not_applicable') {
+            return;
+        }
+
+        $old = $record->only(StudentAcademicRecordService::AUDITED);
+
+        $record->update([
+            'promotion_status' => 'promoted',
+            'updated_by' => $userId,
+        ]);
+
+        $this->audit->record(
+            'student_academic_record.updated',
+            $record,
+            $old,
+            $record->only(StudentAcademicRecordService::AUDITED),
+        );
     }
 }
