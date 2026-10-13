@@ -96,22 +96,108 @@ class AcademicYearUpdateTest extends TestCase
     public function test_a_superseded_year_can_be_reactivated(): void
     {
         $college = $this->makeCollege('AYUPD03');
-        $admin = $this->makeUserWithPermissions($college, ['academic-years.view', 'academic-years.update']);
+        $admin = $this->makeUserWithPermissions($college, [
+            'academic-years.view', 'academic-years.create', 'academic-years.update',
+        ]);
 
         $old = $this->makeAcademicYear($college, '2026-27', '2026-06-01', '2027-05-31', 'active');
-        $new = $this->makeAcademicYear($college, '2027-28', '2027-06-01', '2028-05-31', 'active');
 
-        // Creating the newer year active deactivated the older one.
+        // Supersede the older year by creating the newer one active. This has to
+        // go through the POST route: the single-active-year rule runs in
+        // store() and in update(), never on the model, so creating the second
+        // year directly with status 'active' would leave both years active and
+        // the precondition below would be fiction.
+        $this->asCollege($college, $admin)
+            ->post(route('academic-years.store'), [
+                'name' => '2027-28',
+                'code' => '2027-28',
+                'starts_on' => '2027-06-01',
+                'ends_on' => '2028-05-31',
+                'status' => 'active',
+            ])
+            ->assertSessionHas('success');
+
+        $new = AcademicYear::withoutGlobalScopes()
+            ->where('college_id', $college->id)->where('code', '2027-28')->firstOrFail();
+
         $this->assertSame('inactive', $old->fresh()->status);
-        $this->assertSame('active', $new->fresh()->status);
+        $this->assertSame('active', $new->status);
 
-        // Reversing that decision must be possible.
+        // Reversing that decision must be possible, and must hand the active
+        // slot back rather than leaving two years active.
         $this->asCollege($college, $admin)
             ->put(route('academic-years.update', $old), $this->payload($old, ['status' => 'active']))
             ->assertSessionHas('success');
 
         $this->assertSame('active', $old->fresh()->status);
         $this->assertSame('inactive', $new->fresh()->status);
+        $this->assertSame(1, AcademicYear::withoutGlobalScopes()
+            ->where('college_id', $college->id)->where('status', 'active')->count());
+    }
+
+    /**
+     * Regression guard for the precondition the reactivation test above relies
+     * on. The single-active-year rule on insert lives in store(), and nothing
+     * previously asserted that it actually fires when a second active year is
+     * created — AcademicYearConstraintTest only covers store()'s overlap
+     * rejection.
+     */
+    public function test_creating_a_new_active_year_deactivates_the_previous_one(): void
+    {
+        $college = $this->makeCollege('AYUPD24');
+        $admin = $this->makeUserWithPermissions($college, ['academic-years.view', 'academic-years.create']);
+
+        $first = $this->makeAcademicYear($college, '2026-27', '2026-06-01', '2027-05-31', 'active');
+
+        $this->asCollege($college, $admin)
+            ->post(route('academic-years.store'), [
+                'name' => '2027-28',
+                'code' => '2027-28',
+                'starts_on' => '2027-06-01',
+                'ends_on' => '2028-05-31',
+                'status' => 'active',
+            ])
+            ->assertSessionHas('success');
+
+        $this->assertSame('inactive', $first->fresh()->status);
+        $this->assertSame(1, AcademicYear::withoutGlobalScopes()
+            ->where('college_id', $college->id)->where('status', 'active')->count());
+    }
+
+    /**
+     * Documents where the single-active-year rule is and is not enforced, so
+     * the split is a recorded decision rather than an accident.
+     *
+     * It runs on the two HTTP write paths (store() and update()) and nowhere
+     * else: there is no observer, no model hook and no unique index behind it.
+     * That is load-bearing — StudentTestHelpers::makeYear() and makeNextYear()
+     * both create active years straight through the model, and twelve test
+     * files pair them for one college as fixtures. Pushing the rule down into
+     * the model would silently rewrite those fixtures' data and is a new
+     * business rule, not a bug fix.
+     */
+    public function test_the_single_active_year_rule_is_enforced_on_write_paths_not_on_the_model(): void
+    {
+        $college = $this->makeCollege('AYUPD25');
+
+        $first = $this->makeAcademicYear($college, '2026-27', '2026-06-01', '2027-05-31', 'active');
+        $second = $this->makeAcademicYear($college, '2027-28', '2027-06-01', '2028-05-31', 'active');
+
+        // A direct model write does not deactivate the other year...
+        $this->assertSame('active', $first->fresh()->status);
+        $this->assertSame('active', $second->fresh()->status);
+
+        // ...but the next write through the controller brings it back to one.
+        $admin = $this->makeUserWithPermissions($college, ['academic-years.view', 'academic-years.update']);
+
+        $this->asCollege($college, $admin)
+            ->put(route('academic-years.update', $first), $this->payload($first, ['status' => 'active']))
+            ->assertSessionHas('success');
+
+        $this->assertSame('active', $first->fresh()->status);
+        $this->assertSame('inactive', $second->fresh()->status);
+        $this->assertSame(1, AcademicYear::withoutGlobalScopes()
+            ->where('college_id', $college->id)->where('status', 'active')->count());
     }
 
     public function test_the_last_active_year_can_be_deactivated(): void
