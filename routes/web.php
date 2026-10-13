@@ -209,6 +209,8 @@ Route::middleware('auth')->group(function () {
         Route::delete('/departments/{department}', [DepartmentController::class, 'destroy'])->name('departments.destroy');
         Route::get('/academic-years', [AcademicYearController::class, 'index'])->name('academic-years.index');
         Route::post('/academic-years', [AcademicYearController::class, 'store'])->name('academic-years.store');
+        Route::get('/academic-years/{academic_year}/edit', [AcademicYearController::class, 'edit'])->name('academic-years.edit');
+        Route::put('/academic-years/{academic_year}', [AcademicYearController::class, 'update'])->name('academic-years.update');
         Route::resource('academic-terms', AcademicTermController::class)->except('show');
         Route::resource('programs', ProgramController::class)->except('show');
         Route::resource('sections', SectionController::class)->except('show');
