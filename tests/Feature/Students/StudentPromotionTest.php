@@ -1185,6 +1185,75 @@ class StudentPromotionTest extends TestCase
         $this->assertSame('not_applicable', $first->fresh()->promotion_status);
         $this->assertSame('not_applicable', $second->fresh()->promotion_status);
         $this->assertSame('approved', $promotion->fresh()->status, 'The promotion itself still succeeds.');
+        // AUD-005: the skip must not be silent — it is audited so an
+        // operator can see the ledger was deliberately left unreconciled.
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'student_promotion.ledger_write_skipped',
+            'subject_id' => $promotion->id,
+        ]);
+    }
+
+    public function test_approving_promotes_the_source_enrollment_linked_record_among_term_records(): void
+    {
+        $college = $this->makeCollege('PRMLEDGLNK');
+        $admin = $this->makeUserWithPermissions($college, ['student_promotions.create', 'student_promotions.approve']);
+        $year = $this->makeYear($college, '2026', '2025-26');
+        $nextYear = $this->makeNextYear($college, '2027');
+        $program = $this->makeProgram($college);
+        $student = $this->makeStudent($college);
+        $source = $this->makeEnrollment($college, $student, $year, $program);
+
+        // Two term rows for the source year, but exactly one points back at
+        // the source enrollment — that row is deterministically the source
+        // period's record, so it (and only it) is marked promoted.
+        $sem1 = $this->makeAcademicTerm($college, $year, 'SEM1', 'Semester 1', 1);
+        $sem2 = $this->makeAcademicTerm($college, $year, 'SEM2', 'Semester 2', 2);
+        $linked = $this->makeAcademicRecord($college, $student, $year, ['academic_term_id' => $sem1->id, 'enrollment_id' => $source->id]);
+        $unlinked = $this->makeAcademicRecord($college, $student, $year, ['academic_term_id' => $sem2->id]);
+
+        $promotion = $this->makePendingPromotion($college, $admin, $student, $source, $nextYear, $program);
+        $this->asCollege($college, $admin)->post(route('student-promotions.approve', $promotion))->assertSessionHas('success');
+
+        $this->assertSame('promoted', $linked->fresh()->promotion_status);
+        $this->assertSame('not_applicable', $unlinked->fresh()->promotion_status);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'student_academic_record.updated',
+            'subject_id' => $linked->id,
+        ]);
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => 'student_promotion.ledger_write_skipped',
+            'subject_id' => $promotion->id,
+        ]);
+    }
+
+    public function test_approving_leaves_term_records_sharing_the_source_enrollment_untouched_and_audits_the_skip(): void
+    {
+        $college = $this->makeCollege('PRMLEDGSHR');
+        $admin = $this->makeUserWithPermissions($college, ['student_promotions.create', 'student_promotions.approve']);
+        $year = $this->makeYear($college, '2026', '2025-26');
+        $nextYear = $this->makeNextYear($college, '2027');
+        $program = $this->makeProgram($college);
+        $student = $this->makeStudent($college);
+        $source = $this->makeEnrollment($college, $student, $year, $program);
+
+        // Both term rows link to the same source enrollment, so the link
+        // cannot discriminate between terms — writing either (or both)
+        // would be a guess.
+        $sem1 = $this->makeAcademicTerm($college, $year, 'SEM1', 'Semester 1', 1);
+        $sem2 = $this->makeAcademicTerm($college, $year, 'SEM2', 'Semester 2', 2);
+        $first = $this->makeAcademicRecord($college, $student, $year, ['academic_term_id' => $sem1->id, 'enrollment_id' => $source->id]);
+        $second = $this->makeAcademicRecord($college, $student, $year, ['academic_term_id' => $sem2->id, 'enrollment_id' => $source->id]);
+
+        $promotion = $this->makePendingPromotion($college, $admin, $student, $source, $nextYear, $program);
+        $this->asCollege($college, $admin)->post(route('student-promotions.approve', $promotion))->assertSessionHas('success');
+
+        $this->assertSame('not_applicable', $first->fresh()->promotion_status);
+        $this->assertSame('not_applicable', $second->fresh()->promotion_status);
+        $this->assertSame('approved', $promotion->fresh()->status);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'student_promotion.ledger_write_skipped',
+            'subject_id' => $promotion->id,
+        ]);
     }
 
     public function test_approving_never_creates_a_ledger_row_the_operator_did_not_record(): void

@@ -551,11 +551,17 @@ class PromoteStudent
      *   operator chose (`retained`, `transferred`, …) is preserved, because a
      *   promotion is not evidence against it.
      * - if the student has more than one row for the source year — one per
-     *   term — the correct row cannot be identified, because the source
-     *   enrollment carries no term (`student_enrollments` has no
-     *   `academic_term_id`). Writing to all of them, or guessing one, would
-     *   corrupt a term-based ledger, so nothing is written and the ledger
-     *   stays exactly as the operator left it.
+     *   term — the correct row cannot usually be identified, because the
+     *   source enrollment carries no term (`student_enrollments` has no
+     *   `academic_term_id`). The one deterministic exception is a row that
+     *   points back at the SOURCE enrollment itself
+     *   (`student_academic_records.enrollment_id`): when exactly one row
+     *   does so, that row is the source period's record and is written.
+     *   When no row (or more than one row) is so linked, writing to all of
+     *   them, or guessing one, would corrupt a term-based ledger, so
+     *   nothing is written — but the skip is audited
+     *   (`student_promotion.ledger_write_skipped`) so the divergence is
+     *   visible to operators instead of silent (audit finding AUD-005).
      *
      * There is deliberately no reverse write: cancellation is only reachable
      * from `pending` and `promoted` is only written here, so a cancelled
@@ -593,12 +599,41 @@ class PromoteStudent
             ->lockForUpdate()
             ->get();
 
-        // Ambiguous term-based ledger (2+) or nothing recorded (0): leave it.
-        if ($records->count() !== 1) {
+        // Nothing recorded (0): leave it.
+        if ($records->isEmpty()) {
             return;
         }
 
-        $record = $records->first();
+        if ($records->count() === 1) {
+            $record = $records->first();
+        } else {
+            // Term-based ledger (2+ rows for the source year): the only row
+            // that can be identified without guessing a term is the one
+            // linked to the source enrollment being promoted out of.
+            $linked = $records->filter(
+                fn (StudentAcademicRecord $candidate): bool => $candidate->enrollment_id !== null
+                    && (int) $candidate->enrollment_id === (int) $promotion->source_enrollment_id
+            );
+
+            if ($linked->count() !== 1) {
+                // Ambiguous: write nothing, but do not skip silently —
+                // audit the skip so the ledger/promotion divergence is
+                // visible and reconcilable by an operator.
+                if ($records->contains(
+                    fn (StudentAcademicRecord $candidate): bool => $candidate->promotion_status === 'not_applicable'
+                )) {
+                    $this->audit->record('student_promotion.ledger_write_skipped', $promotion, [], [
+                        'reason' => 'multiple_source_year_records_without_unique_source_enrollment_link',
+                        'source_academic_year_id' => $yearId,
+                        'record_count' => $records->count(),
+                    ]);
+                }
+
+                return;
+            }
+
+            $record = $linked->first();
+        }
 
         // Never overwrite an outcome an operator chose.
         if ($record->promotion_status !== 'not_applicable') {
