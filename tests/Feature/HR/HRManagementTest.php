@@ -118,7 +118,7 @@ class HRManagementTest extends TestCase
         $group = substr($html, $start, $end === false ? null : $end - $start);
 
         $this->assertSame(4, substr_count($group, 'class="nav-link"'));
-        foreach (['Staff / Employee', 'Staff Departments', 'Designations', 'Employee Documents'] as $label) {
+        foreach (['Staff &amp; Employees', 'Staff Departments', 'Designations', 'Employee Documents'] as $label) {
             $this->assertStringContainsString($label, $group);
         }
     }
@@ -140,7 +140,7 @@ class HRManagementTest extends TestCase
         // HR Reports lives under REPORTS (after Finance Reports), so the HR
         // group keeps its seven operational entries and never repeats it.
         $this->assertSame(7, substr_count($group, 'class="nav-link"'));
-        foreach (['Staff / Employee', 'Staff Departments', 'Designations', 'Employee Documents', 'Staff Attendance', 'Leave Management', 'Staff Salary / Payroll'] as $label) {
+        foreach (['Staff &amp; Employees', 'Staff Departments', 'Designations', 'Employee Documents', 'Staff Attendance', 'Leave Management', 'Salary &amp; Payroll'] as $label) {
             $this->assertStringContainsString($label, $group);
         }
         $this->assertStringNotContainsString('HR Reports', $group);

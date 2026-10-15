@@ -39,20 +39,20 @@ class InventoryNavigationTest extends TestCase
     private const ALL_ENTRIES = [
         'Inventory Dashboard' => ['inventory_dashboard.view',       'inventory.dashboard'],
         'Item Categories' => ['inventory_categories.view',      'inventory-categories.index'],
-        'Items / Assets' => ['inventory_items.view',           'inventory-items.index'],
+        'Items & Assets' => ['inventory_items.view',           'inventory-items.index'],
         'Vendors' => ['inventory_vendors.view',         'inventory-vendors.index'],
         'Purchase Orders' => ['inventory_purchase_orders.view', 'inventory-purchase-orders.index'],
-        'Goods Receipt / Stock In' => ['inventory_goods_receipts.view',  'inventory-goods-receipts.index'],
+        'Goods Receipt & Stock In' => ['inventory_goods_receipts.view',  'inventory-goods-receipts.index'],
         'Stock Adjustment' => ['inventory_stock_adjustments.view', 'inventory-stock-adjustments.index'],
         'Inventory Transactions' => ['inventory_transactions.view',    'inventory-transactions.index'],
-        'Item Issue / Allocation' => ['inventory_issues.view',          'inventory-issues.index'],
+        'Item Issue & Allocation' => ['inventory_issues.view',          'inventory-issues.index'],
         'Asset Assignment' => ['inventory_assignments.view',     'inventory-assignments.index'],
         'Asset Return' => ['inventory_asset_returns.view',   'inventory-asset-returns.index'],
         'Asset Maintenance' => ['inventory_maintenance.view',     'inventory-maintenances.index'],
         'Current Stock' => ['inventory_current_stock.view',   'inventory-current-stock.index'],
         'Low Stock' => ['inventory_low_stock.view',       'inventory-low-stock.index'],
         'Asset Register' => ['inventory_asset_register.view',  'inventory-asset-register.index'],
-        'Stock / Transaction Reports' => ['inventory_stock_reports.view', 'inventory-stock-reports.index'],
+        'Stock & Transaction Reports' => ['inventory_stock_reports.view', 'inventory-stock-reports.index'],
     ];
 
     /** Permission slugs that gate the outer section (any one of these shows it). */
@@ -144,7 +144,7 @@ class InventoryNavigationTest extends TestCase
         foreach (self::ALL_ENTRIES as $label => [$permission, $route]) {
             $position = strpos($group, $this->href($route));
             $this->assertNotFalse($position, "Missing entry: {$label}");
-            $this->assertStringContainsString($label, $group);
+            $this->assertStringContainsString(e($label), $group);
             $this->assertGreaterThan($cursor, $position, "{$label} out of order.");
             $cursor = $position;
         }
@@ -272,7 +272,7 @@ class InventoryNavigationTest extends TestCase
         $this->assertNotFalse($hr);
         $this->assertGreaterThan($finance, $inventory, 'Inventory / Asset Reports must follow Finance Reports.');
         $this->assertGreaterThan($inventory, $hr, 'Inventory / Asset Reports must precede HR Reports.');
-        $this->assertStringContainsString('Inventory / Asset Reports', $reportsGroup);
+        $this->assertStringContainsString('Inventory &amp; Asset Reports', $reportsGroup);
         $this->assertSame(3, substr_count($reportsGroup, 'class="nav-link"'));
     }
 
@@ -297,7 +297,7 @@ class InventoryNavigationTest extends TestCase
         foreach (self::ALL_ENTRIES as $label => [$permission, $route]) {
             $response->assertSee($this->href($route), false)->assertSee($label);
         }
-        $response->assertSee($this->href('inventory-reports.index'), false)->assertSee('Inventory / Asset Reports');
+        $response->assertSee($this->href('inventory-reports.index'), false)->assertSee('Inventory & Asset Reports');
 
         foreach (self::FORBIDDEN_HEADINGS as $bad) {
             $this->assertStringNotContainsString($bad, $response->getContent());

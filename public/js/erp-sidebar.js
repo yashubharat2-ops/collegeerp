@@ -43,6 +43,7 @@
     var scroll = sidebar.querySelector('.erp-nav__scroll');
     var nav = document.getElementById('erp-nav');
     var search = sidebar.querySelector('[data-nav-search]');
+    var subLabels = Array.prototype.slice.call(sidebar.querySelectorAll('[data-nav-sub-label]'));
     var clear = sidebar.querySelector('[data-nav-search-clear]');
     var empty = sidebar.querySelector('[data-nav-empty]');
     var railButton = sidebar.querySelector('[data-nav-rail-toggle]');
@@ -126,6 +127,9 @@
         rows.forEach(function (row) {
             row.removeAttribute('data-nav-match');
         });
+        subLabels.forEach(function (label) {
+            label.removeAttribute('hidden');
+        });
         if (list) {
             list.removeAttribute('hidden');
         }
@@ -173,6 +177,22 @@
                 matches += 1;
             }
         }
+        /* A sub-group label heads the rows that follow it, so while the list is
+         * filtered it has to leave with them: a heading over nothing is worse than
+         * no heading. Each label is kept only while at least one row between it and
+         * the next label (or the end of its container) is still showing. */
+        subLabels.forEach(function (label) {
+            var keepsAHeading = false;
+            var sibling = label.nextElementSibling;
+            while (sibling && !sibling.hasAttribute('data-nav-sub-label')) {
+                if (sibling.classList.contains('nav-link') && sibling.getAttribute('data-nav-match') !== 'false') {
+                    keepsAHeading = true;
+                    break;
+                }
+                sibling = sibling.nextElementSibling;
+            }
+            label.toggleAttribute('hidden', !keepsAHeading);
+        });
         if (nav) {
             nav.setAttribute('data-nav-filtering', 'true');
             if (matches === 0) {
@@ -422,4 +442,89 @@
     if (scroll) {
         scroll.addEventListener('scroll', hideTip, { passive: true });
     }
+
+    /* 6 · Keyboard traversal ------------------------------------------------- */
+
+    /* The rows are ordinary tab stops, which is correct but slow in a list this
+     * long: reaching "Timetable" from the search field is ~130 Tab presses. Arrow
+     * keys move focus between rows the way a tree widget does, while Tab keeps
+     * working exactly as it did — focus is never trapped and no row is taken out of
+     * the tab order.
+     *
+     *   ArrowDown / ArrowUp   next / previous visible row (group heads included)
+     *   Home / End            first / last visible row
+     *   ArrowRight            open the group the head owns
+     *   ArrowLeft             close it
+     *
+     * "Visible" means what the user can actually see: a row in a closed group, a
+     * row filtered out by the menu search, and a row hidden inside the rail all stay
+     * out of the sequence. */
+    function rowsInOrder() {
+        return heads.concat([sidebar.querySelector('.nav-dashboard')])
+            .filter(Boolean)
+            .sort(function (one, two) {
+                return one.compareDocumentPosition(two) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+            });
+    }
+
+    function isReachable(row) {
+        if (row.hasAttribute('hidden') || row.getAttribute('data-nav-match') === 'false') {
+            return false;
+        }
+        var group = row.closest('.nav-group');
+        if (group && (group.getAttribute('data-nav-open') !== 'true' || group.getAttribute('data-nav-match') === 'false')) {
+            return false;
+        }
+
+        return row.offsetParent !== null;
+    }
+
+    sidebar.addEventListener('keydown', function (event) {
+        if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+            return;
+        }
+        var head = event.target.closest ? event.target.closest('.nav-group__head') : null;
+        var row = event.target.closest ? event.target.closest('.nav-link, .nav-dashboard, .nav-group__head') : null;
+        if (!row) {
+            return;
+        }
+        var group = row.closest('.nav-group');
+        var sequence = rowsInOrder().filter(isReachable);
+        var index = sequence.indexOf(row);
+
+        if (event.key === 'ArrowRight' && head && group) {
+            event.preventDefault();
+            setOpen(group, true);
+
+            return;
+        }
+        if (event.key === 'ArrowLeft' && head && group) {
+            event.preventDefault();
+            setOpen(group, false);
+
+            return;
+        }
+        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') {
+            return;
+        }
+        if (index === -1) {
+            return;
+        }
+
+        event.preventDefault();
+        var target = row;
+        if (event.key === 'ArrowDown') {
+            target = sequence[Math.min(index + 1, sequence.length - 1)];
+        } else if (event.key === 'ArrowUp') {
+            target = sequence[Math.max(index - 1, 0)];
+        } else if (event.key === 'Home') {
+            target = sequence[0];
+        } else {
+            target = sequence[sequence.length - 1];
+        }
+        if (target && target !== row) {
+            hideTip();
+            target.focus();
+        }
+    });
 })();

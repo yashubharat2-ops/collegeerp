@@ -230,15 +230,21 @@ class SidebarRailTooltipTest extends TestCase
 
         // Report names and child rows keep their own wording: the change stopped at the
         // module row. "Inventory / Asset Reports" is a report, not the Inventory module.
-        $this->assertStringContainsString('>Inventory / Asset Reports<', $aside);
+        $this->assertStringContainsString('>Inventory &amp; Asset Reports<', $aside);
         $this->assertStringContainsString('>Certificate Reports<', $aside);
         $this->assertStringContainsString('>Finance Reports<', $aside);
         $this->assertStringContainsString('>Hostel Reports<', $aside);
 
         // The modules that were never in scope render exactly as they did.
-        foreach (['Platform', 'Admissions', 'Students', 'Academics', 'Examinations', 'Reports'] as $label) {
+        // "Platform" left this list when it stopped being a top-level group — its
+        // seven destinations now live inside Academics and are asserted there, by
+        // SidebarStructureTest; what must not come back is a second Platform row.
+        foreach (['Admissions', 'Students', 'Academics', 'Examinations', 'Reports'] as $label) {
             $this->assertSame(1, substr_count($aside, 'nav-group__label">'.$label.'<'), "{$label} is not one of the renamed modules.");
         }
+
+        $this->assertSame(0, substr_count($aside, 'nav-group__label">Platform<'), 'Platform must not be a top-level group any more.');
+        $this->assertStringNotContainsString('data-nav-group="platform"', $aside, 'The old Platform group id must be gone.');
     }
 
     /**

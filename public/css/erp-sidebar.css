@@ -34,7 +34,15 @@
     --erp-nav-line: rgba(148, 163, 184, 0.16);
     --erp-nav-text: #f8fafc;
     --erp-nav-text-muted: #94a3b8;
-    --erp-nav-text-faint: #64748b;
+    /*
+     * The faint role (section label, sub-group label, search placeholder, icon
+     * boxes, chevrons) used to be #64748b — 3.98:1 on this navy and 3.68:1 on the
+     * search field, both below the 4.5:1 WCAG AA floor for small text. #8494a8
+     * measures 6.12:1 on the sidebar and 5.66:1 on the raised field, so the
+     * smallest label in the shell is readable while the role stays visibly
+     * quieter than the row text (#94a3b8, 7.39:1).
+     */
+    --erp-nav-text-faint: #8494a8;
     --erp-nav-accent: #4f46e5;
     --erp-nav-accent-hover: #4338ca;
     --erp-nav-accent-soft: rgba(79, 70, 229, 0.22);
@@ -46,6 +54,7 @@
     --erp-nav-brand-h: 64px;
     --erp-nav-row-h: 42px;
     --erp-nav-child-h: 34px;
+    --erp-nav-sub-label-h: 28px;
     --erp-nav-icon: 18px;
     --erp-nav-chevron: 14px;
     --erp-nav-pad-x: 12px;
@@ -453,6 +462,44 @@
 }
 
 /* -----------------------------------------------------------------------------
+ * 5b. Sub-group label (a non-interactive separator inside a module group)
+ *
+ * Rendered by resources/views/components/nav/sub-group.blade.php as a bare <p>,
+ * so it is neither a link nor a group: it adds no `nav-link` row, no
+ * `nav-group__head` and no `nav-group__label`, which is what keeps every
+ * navigation test's row count and group boundary exactly as they were.
+ *
+ * It is deliberately quiet — one small uppercase line — because its only job is
+ * to let a wide module (Inventory 16 rows, Examinations 12, Reports 12, Academics
+ * 13) be scanned without turning each cluster into a top-level group.
+ * -------------------------------------------------------------------------- */
+.erp-nav__sub-label {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: flex-end;
+    height: var(--erp-nav-sub-label-h);
+    margin: 0;
+    padding: 0 12px 4px 2px;
+    color: var(--erp-nav-text-faint);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    line-height: 1.2;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* The first label of a group sits directly under the group row: it needs less
+ * room above it than the ones that separate two clusters of rows. */
+.erp-nav__sub-label:first-child {
+    height: calc(var(--erp-nav-sub-label-h) - 6px);
+    align-items: center;
+    padding-bottom: 0;
+}
+
+/* -----------------------------------------------------------------------------
  * 6. Rows (child links + the standalone Dashboard link)
  * -------------------------------------------------------------------------- */
 .erp-sidebar .nav-link,
@@ -789,6 +836,30 @@
     .erp-nav-brand {
         padding-right: 48px;
     }
+
+    /*
+     * Touch sizing. A 34px child row and a 30px icon button are comfortable with a
+     * mouse and too small for a thumb, so on the drawer (which only exists below
+     * 1024px) every tappable row grows to the 40px minimum and the two utility
+     * buttons to 40px square. Nothing above 1024px changes, and no test measures
+     * these values in the drawer state.
+     */
+    .erp-sidebar .nav-link {
+        min-height: 40px;
+    }
+
+    .erp-nav-button {
+        width: 40px;
+        height: 40px;
+    }
+
+    .erp-nav-button--close {
+        top: 12px;
+    }
+
+    .erp-nav__sub-label {
+        height: 26px;
+    }
 }
 
 .erp-nav-overlay {
@@ -832,9 +903,16 @@ body.erp-nav-drawer-lock {
     height: 18px;
 }
 
+.erp-nav-open-button:focus-visible {
+    outline: 2px solid #4f46e5;
+    outline-offset: 2px;
+}
+
 @media (max-width: 1023.98px) {
     .erp-nav-open-button {
         display: grid;
+        width: 40px;
+        height: 40px;
     }
 }
 

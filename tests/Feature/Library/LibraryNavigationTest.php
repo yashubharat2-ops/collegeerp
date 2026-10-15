@@ -35,12 +35,12 @@ class LibraryNavigationTest extends TestCase
         'Library Dashboard' => ['library_dashboard.view', 'library.dashboard'],
         'Books' => ['books.view', 'books.index'],
         'Book Categories' => ['book_categories.view', 'book-categories.index'],
-        'Authors / Publishers' => ['authors.view', 'authors.index'],
+        'Authors & Publishers' => ['authors.view', 'authors.index'],
         'Book Copies' => ['book_copies.view', 'book-copies.index'],
         'Library Members' => ['library_members.view', 'library-members.index'],
-        'Issue / Return' => ['library_transactions.view', 'library-transactions.index'],
+        'Issue & Return' => ['library_transactions.view', 'library-transactions.index'],
         'Renewals' => ['library_renewals.view', 'library-renewals.index'],
-        'Fines / Penalties' => ['library_fines.view', 'library-fines.index'],
+        'Fines & Penalties' => ['library_fines.view', 'library-fines.index'],
     ];
 
     /**
@@ -84,7 +84,7 @@ class LibraryNavigationTest extends TestCase
 
         foreach (self::ENTRIES as $label => [$permission, $route]) {
             $this->assertStringContainsString(route($route), $group, "Missing library entry route: {$label}");
-            $this->assertStringContainsString($label, $group, "Missing library entry label: {$label}");
+            $this->assertStringContainsString(e($label), $group, "Missing library entry label: {$label}");
         }
 
     }
@@ -118,7 +118,7 @@ class LibraryNavigationTest extends TestCase
         $group = $this->libraryNavGroup($html);
 
         $this->assertSame(1, substr_count($group, 'class="nav-link"'));
-        $this->assertStringContainsString('Authors / Publishers', $group);
+        $this->assertStringContainsString('Authors &amp; Publishers', $group);
         $this->assertStringContainsString(route('publishers.index'), $group);
         $this->assertStringNotContainsString(route('authors.index'), $group);
     }
@@ -136,7 +136,7 @@ class LibraryNavigationTest extends TestCase
         $this->assertStringContainsString('Book Copies', $group);
         $this->assertStringContainsString(route('book-copies.index'), $group);
         $this->assertStringNotContainsString('Library Members', $group);
-        $this->assertStringNotContainsString('Issue / Return', $group);
+        $this->assertStringNotContainsString('Issue &amp; Return', $group);
         $this->assertStringNotContainsString('Renewals', $group);
         $this->assertStringNotContainsString(route('books.index'), $group);
     }
@@ -149,7 +149,7 @@ class LibraryNavigationTest extends TestCase
         $finesHtml = $this->asCollege($college, $finesOnly)->get(route('dashboard'))->assertOk()->getContent();
         $finesGroup = $this->libraryNavGroup($finesHtml);
         $this->assertSame(1, substr_count($finesGroup, 'class="nav-link"'));
-        $this->assertStringContainsString('Fines / Penalties', $finesGroup);
+        $this->assertStringContainsString('Fines &amp; Penalties', $finesGroup);
         $this->assertStringNotContainsString('Library Reports', $finesGroup);
 
         // library_reports.view alone reveals the REPORTS section — and the

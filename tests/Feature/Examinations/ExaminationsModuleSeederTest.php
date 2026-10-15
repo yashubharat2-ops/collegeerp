@@ -170,7 +170,7 @@ class ExaminationsModuleSeederTest extends TestCase
             ->assertSee(route('result-calculation.index'), false)
             ->assertSee('Result Calculation')
             ->assertSee(route('grade-scales.index'), false)
-            ->assertSee('Grade / Pass-Fail')
+            ->assertSee('Grades & Pass/Fail')
             ->assertSee(route('result-publishing.index'), false)
             ->assertSee('Result Publishing');
     }

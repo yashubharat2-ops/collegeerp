@@ -21,7 +21,7 @@ class HostelPhase3NavigationTest extends TestCase
     private const ENTRIES = [
         'Hostel Dashboard' => ['hostel_dashboard.view', 'hostels.dashboard'],
         'Hostels' => ['hostels.view', 'hostels.index'],
-        'Buildings / Blocks' => ['hostel_buildings.view', 'hostel-buildings.index'],
+        'Buildings & Blocks' => ['hostel_buildings.view', 'hostel-buildings.index'],
         'Rooms' => ['hostel_rooms.view', 'hostel-rooms.index'],
         'Beds' => ['hostel_beds.view', 'hostel-beds.index'],
         'Hostel Allocation' => ['hostel_allocations.view', 'hostel-allocations.index'],
@@ -72,7 +72,7 @@ class HostelPhase3NavigationTest extends TestCase
 
         $cursor = 0;
         foreach (self::ENTRIES as $label => [$permission, $route]) {
-            $position = strpos($group, $label);
+            $position = strpos($group, e($label));
             $this->assertNotFalse($position, "Missing hostel entry label: {$label}");
             $this->assertGreaterThan($cursor, $position, "{$label} is out of order.");
             $cursor = $position;

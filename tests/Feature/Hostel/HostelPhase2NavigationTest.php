@@ -27,7 +27,7 @@ class HostelPhase2NavigationTest extends TestCase
             'hostels.view',
             'hostels.index',
         ],
-        'Buildings / Blocks' => [
+        'Buildings & Blocks' => [
             'hostel_buildings.view',
             'hostel-buildings.index',
         ],
@@ -146,7 +146,7 @@ class HostelPhase2NavigationTest extends TestCase
             );
 
             $this->assertStringContainsString(
-                $label,
+                e($label),
                 $group,
                 "Missing label for {$label}"
             );

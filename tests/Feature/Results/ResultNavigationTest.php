@@ -28,7 +28,7 @@ class ResultNavigationTest extends TestCase
         'exam-marks.index' => 'Marks Entry',
         'results.index' => 'Results',
         'result-calculation.index' => 'Result Calculation',
-        'grade-scales.index' => 'Grade / Pass-Fail',
+        'grade-scales.index' => 'Grades &amp; Pass/Fail',
         'result-publishing.index' => 'Result Publishing',
         'marksheets.index' => 'Marksheets',
         'grade-cards.index' => 'Grade Cards',
@@ -103,7 +103,7 @@ class ResultNavigationTest extends TestCase
         $cases = [
             'results.view' => ['results.index', 'Results'],
             'result_calculation.view' => ['result-calculation.index', 'Result Calculation'],
-            'grade_scales.view' => ['grade-scales.index', 'Grade / Pass-Fail'],
+            'grade_scales.view' => ['grade-scales.index', 'Grades & Pass/Fail'],
             'result_publishing.view' => ['result-publishing.index', 'Result Publishing'],
         ];
 
@@ -128,7 +128,7 @@ class ResultNavigationTest extends TestCase
 
             $this->assertSame(1, substr_count($group, 'class="nav-link"'), "Exactly one entry for {$permission}.");
             $this->assertStringContainsString(route($route), $group);
-            $this->assertStringContainsString($label, $group);
+            $this->assertStringContainsString(e($label), $group);
         }
     }
 
@@ -142,7 +142,7 @@ class ResultNavigationTest extends TestCase
             ->assertOk()
             ->assertDontSee('>Examinations</div>', false)
             ->assertDontSee('Result Publishing')
-            ->assertDontSee('Grade / Pass-Fail');
+            ->assertDontSee('Grades & Pass/Fail');
     }
 
     public function test_super_admin_sees_the_complete_eight_item_group(): void
