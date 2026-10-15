@@ -489,7 +489,11 @@ class SidebarStructureTest extends TestCase
             }
         }
 
-        $this->assertSame(24, $seen, 'Every module sub-group label belongs to a group.');
+        // The same total the per-group count map asserts, arrived at the other way
+        // round: summed per group so a label that landed outside the thirteen modules
+        // (or inside a group twice) cannot pass. 25 module labels + the 3 Settings
+        // labels, which belong to a group that is not in MODULE_GROUPS.
+        $this->assertSame(25, $seen, 'Every module sub-group label belongs to a group.');
     }
 
     /* 4 · Row order is preserved outside the merged group ----------------- */
