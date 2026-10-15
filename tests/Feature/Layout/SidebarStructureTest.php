@@ -40,8 +40,8 @@ class SidebarStructureTest extends TestCase
 
     /** The module groups that must render, in document order. */
     private const MODULE_GROUPS = [
-        'hr', 'admissions', 'students', 'certificates', 'academics', 'examinations',
-        'finance', 'transport', 'library', 'hostel', 'communication', 'inventory', 'reports',
+        'admissions', 'students', 'certificates', 'academics', 'examinations', 'finance',
+        'transport', 'library', 'hostel', 'communication', 'inventory', 'hr', 'reports',
     ];
 
     /**
@@ -441,16 +441,17 @@ class SidebarStructureTest extends TestCase
         $this->assertSame(0, substr_count($aside, '<button class="erp-nav__sub-label'), 'A sub-group label is not interactive.');
 
         // Labels are a presentation detail of the group they sit in, so the count is
-        // asserted per module rather than as one global number: the merged Academics
-        // group is the only group whose label count changed.
+        // asserted per module rather than as one global number. Two groups have one:
+        // the merged Academics group, and Admissions, which gained a single label
+        // when its pre-admission rows were gathered under it.
         $counts = array_intersect_key($this->labelCounts($aside), array_flip(self::MODULE_GROUPS));
         $this->assertSame(
-            ['hr' => 0, 'admissions' => 0, 'students' => 2, 'certificates' => 0, 'academics' => 3, 'examinations' => 4,
-             'finance' => 3, 'transport' => 0, 'library' => 2, 'hostel' => 0, 'communication' => 0, 'inventory' => 5, 'reports' => 5],
+            ['admissions' => 1, 'students' => 2, 'certificates' => 0, 'academics' => 3, 'examinations' => 4,
+             'finance' => 3, 'transport' => 0, 'library' => 2, 'hostel' => 0, 'communication' => 0, 'inventory' => 5, 'hr' => 0, 'reports' => 5],
             $counts,
             'Each module renders only the sub-group labels it needs.'
         );
-        $this->assertSame(24, array_sum($counts), '24 sub-group labels across the module groups.');
+        $this->assertSame(25, array_sum($counts), '25 sub-group labels across the module groups.');
     }
 
     public function test_the_academics_group_is_split_by_three_labels_in_order(): void
@@ -577,6 +578,56 @@ class SidebarStructureTest extends TestCase
             array_slice($this->hrefs($students), 2),
             'The lifecycle rows are unchanged, and still in the order they were in.'
         );
+    }
+
+    public function test_the_admissions_group_keeps_every_destination_it_had(): void
+    {
+        // The Admissions menu was regrouped, not reduced. Every route the module
+        // offered before the rework is still one row away, and the rows that moved
+        // under a label kept the route each of them already linked.
+        $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT10A'));
+        $admissions = $this->group($aside, 'Admissions');
+
+        $this->assertSame(10, substr_count($admissions, 'class="nav-link"'), 'Every Admissions destination must still render.');
+        $this->assertSame(1, substr_count($admissions, 'data-nav-sub-label>'), 'Admissions gathers its pre-admission rows under exactly one label.');
+        $this->assertSame(1, substr_count($admissions, 'data-nav-sub-label>Pre-Admission Records</p>'), 'That label reads Pre-Admission Records.');
+        $this->assertSame(
+            $this->paths([
+                'admission.dashboard',
+                'admission-applications.create',
+                'admission-applications.index',
+                'admissions.index',
+                'admission-documents.index',
+                'admission-document-types.index',
+                'admission-enquiries.index',
+                'admission-applicants.index',
+                'admission-merit-lists.index',
+                'admission-reports.index',
+            ]),
+            $this->hrefs($admissions),
+            'Admissions renders the admission process, then the pre-admission rows, then its report — and nothing else.'
+        );
+    }
+
+    public function test_hr_is_the_last_module_group_before_reports(): void
+    {
+        // The HR group keeps its id, its permission gate and every one of its seven
+        // rows. Only its position in the tree moved: from first to last, immediately
+        // before Reports.
+        $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT10B'));
+
+        $inventory = strpos($aside, 'nav-group__label">Inventory<');
+        $hr = strpos($aside, 'nav-group__label">Human Resource (HR)<');
+        $reports = strpos($aside, 'nav-group__label">Reports<');
+
+        $this->assertNotFalse($inventory);
+        $this->assertNotFalse($hr);
+        $this->assertNotFalse($reports);
+        $this->assertTrue($inventory < $hr, 'HR must no longer sit above Inventory, which now opens the module groups.');
+        $this->assertTrue($hr < $reports, 'HR must sit immediately before Reports.');
+
+        $this->assertStringContainsString('data-nav-group="hr" data-nav-open=', $aside, 'The HR group keeps its id and its open-state attribute.');
+        $this->assertSame(7, substr_count($this->group($aside, 'Human Resource (HR)'), 'class="nav-link"'), 'All seven HR rows moved with the group.');
     }
 
     /* 5 · A label never renders without a row ----------------------------- */

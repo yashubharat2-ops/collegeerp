@@ -87,24 +87,25 @@
         <div class="erp-nav__scroll">
             <p class="erp-nav__empty" data-nav-empty hidden>No menu item matches that search.</p>
             <ul class="erp-nav__list" id="erp-nav-list" aria-labelledby="erp-nav-section-label">
-                    <x-nav.group id="hr" label="Human Resource (HR)" icon="users" perm="faculties.view|departments.view|designations.view|employee_documents.view|staff_attendance.view|leave_types.view|leave_requests.view|salary_structures.view|salary_components.view|payrolls.view">
-                        <x-nav.link label="Staff & Employees" route="employees.index" perm="faculties.view" />
-                        <x-nav.link label="Staff Departments" route="staff-departments.index" perm="departments.view" />
-                        <x-nav.link label="Designations" route="designations.index" perm="designations.view" />
-                        <x-nav.link label="Employee Documents" route="employee-documents.index" perm="employee_documents.view" />
-                        <x-nav.link label="Staff Attendance" route="staff-attendance.index" perm="staff_attendance.view" />
-                        <x-nav.link label="Leave Management" :href="auth()->user()?->hasPermission('leave_requests.view') ? route('leave-requests.index') : route('leave-types.index')" pattern="leave-requests.*|leave-types.*" perm="leave_requests.view|leave_types.view" />
-                        <x-nav.link label="Salary & Payroll" :href="auth()->user()?->hasPermission('payrolls.view') ? route('payrolls.index') : (auth()->user()?->hasPermission('salary_structures.view') ? route('salary-structures.index') : route('salary-components.index'))" pattern="payrolls.*|salary-structures.*|salary-components.*" perm="salary_structures.view|salary_components.view|payrolls.view" />
-                    </x-nav.group>
                     <x-nav.group id="admissions" label="Admissions" icon="user-plus">
+                        {{-- The admission process in the order it runs: register an application,
+                             approve it, then find the confirmed admission in the records register.
+                             Every destination below is one that these rows already pointed at — the
+                             wording and the grouping are what changed, not the routes. --}}
                         <x-nav.link label="Dashboard" route="admission.dashboard" />
-                        <x-nav.link label="Enquiries" route="admission-enquiries.index" />
-                        <x-nav.link label="Applicants" route="admission-applicants.index" />
-                        <x-nav.link label="Applications" route="admission-applications.index" />
+                        <x-nav.link label="Registration" route="admission-applications.create" />
+                        <x-nav.link label="Admission Approval" route="admission-applications.index" pattern="admission-applications.index|admission-applications.edit" />
+                        <x-nav.link label="Admission Records" route="admissions.index" />
                         <x-nav.link label="Documents" route="admission-documents.index" />
                         <x-nav.link label="Document Types" route="admission-document-types.index" />
+                        {{-- Enquiries, Applicants and Merit & Selection keep every route, permission
+                             and feature they had. They sit under a label so the module keeps the
+                             admission process at its top level. The label is ungated like the rows
+                             beneath it, so it can never head an empty section. --}}
+                        <x-nav.sub-group label="Pre-Admission Records" />
+                        <x-nav.link label="Enquiries" route="admission-enquiries.index" />
+                        <x-nav.link label="Applicants" route="admission-applicants.index" />
                         <x-nav.link label="Merit & Selection" route="admission-merit-lists.index" />
-                        <x-nav.link label="Admissions" route="admissions.index" />
                         <x-nav.link label="Reports" route="admission-reports.index" />
                     </x-nav.group>
                     <x-nav.group id="students" label="Students" icon="graduation-cap">
@@ -251,6 +252,15 @@
                         <x-nav.sub-group label="Audit" perm="inventory_asset_register.view|inventory_stock_reports.view" />
                         <x-nav.link label="Asset Register" route="inventory-asset-register.index" perm="inventory_asset_register.view" />
                         <x-nav.link label="Stock & Transaction Reports" route="inventory-stock-reports.index" perm="inventory_stock_reports.view" />
+                    </x-nav.group>
+                    <x-nav.group id="hr" label="Human Resource (HR)" icon="users" perm="faculties.view|departments.view|designations.view|employee_documents.view|staff_attendance.view|leave_types.view|leave_requests.view|salary_structures.view|salary_components.view|payrolls.view">
+                        <x-nav.link label="Staff & Employees" route="employees.index" perm="faculties.view" />
+                        <x-nav.link label="Staff Departments" route="staff-departments.index" perm="departments.view" />
+                        <x-nav.link label="Designations" route="designations.index" perm="designations.view" />
+                        <x-nav.link label="Employee Documents" route="employee-documents.index" perm="employee_documents.view" />
+                        <x-nav.link label="Staff Attendance" route="staff-attendance.index" perm="staff_attendance.view" />
+                        <x-nav.link label="Leave Management" :href="auth()->user()?->hasPermission('leave_requests.view') ? route('leave-requests.index') : route('leave-types.index')" pattern="leave-requests.*|leave-types.*" perm="leave_requests.view|leave_types.view" />
+                        <x-nav.link label="Salary & Payroll" :href="auth()->user()?->hasPermission('payrolls.view') ? route('payrolls.index') : (auth()->user()?->hasPermission('salary_structures.view') ? route('salary-structures.index') : route('salary-components.index'))" pattern="payrolls.*|salary-structures.*|salary-components.*" perm="salary_structures.view|salary_components.view|payrolls.view" />
                     </x-nav.group>
                     <x-nav.group id="reports" label="Reports" icon="chart-bar" perm="student_reports.view|academic_reports.view|examination_reports.view|finance_reports.view|inventory_reports.view|hr_reports.view|library_reports.view|transport_reports.view|hostel_reports.view|communication_reports.view|certificate_reports.view|consolidated_reports.view">
                         <x-nav.sub-group label="Academic" perm="student_reports.view|academic_reports.view|examination_reports.view" />
