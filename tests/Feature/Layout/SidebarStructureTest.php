@@ -244,6 +244,25 @@ class SidebarStructureTest extends TestCase
         return $matches[1];
     }
 
+    /**
+     * The opening `<li …>` tag of one module group.
+     *
+     * Matched with `[^>]*` between the attributes rather than by spelling the tag
+     * out, because the whitespace inside it is NOT a contract: `group.blade.php`
+     * emits `… data-nav-open="{{ … }}" @if ($open) data-nav-active="true" @endif>`,
+     * and Blade preserves the literal text around a conditional, so an open group
+     * renders with the condition's own leading space AND the space that preceded
+     * `@if` — two spaces, where a hand-written expectation would assume one.
+     */
+    private function groupTag(string $markup, string $id): string
+    {
+        preg_match_all('/<li\s[^>]*\bdata-nav-group="'.preg_quote($id, '/').'"[^>]*>/', $markup, $matches);
+
+        $this->assertCount(1, $matches[0], "The sidebar must render exactly one {$id} group element.");
+
+        return $matches[0][0];
+    }
+
     /** The one `<a>` element that is marked as the current page. */
     private function currentRow(string $markup): string
     {
@@ -736,7 +755,38 @@ class SidebarStructureTest extends TestCase
             'The current row must be the Timetable row, marked with aria-current so it works without JavaScript.'
         );
         $this->assertStringContainsString('<span>Timetable</span>', $current, 'And that row is the one labelled Timetable.');
-        $this->assertStringContainsString('data-nav-group="academics" data-nav-open="true" data-nav-active="true"', $aside, 'Its group is open, and flagged active, server-side.');
+        // The group element carries the open/active state. Each attribute is
+        // asserted on its own, and the element is matched with `[^>]*` between
+        // attributes, so the test does not depend on how much whitespace separates
+        // them. `group.blade.php` renders
+        //
+        //   <li class="nav-group" data-nav-group="academics" data-nav-open="true"  data-nav-active="true" >
+        //
+        // with the doubled space, and the trailing one, that Blade leaves around
+        // `@if ($open) … @endif`. That spacing is a rendering detail; the three
+        // attributes are the contract. Spelling them out as one exact string is
+        // what made this assertion fail on correct markup.
+        $group = $this->groupTag($aside, 'academics');
+
+        $this->assertStringContainsString('data-nav-group="academics"', $group, 'The element must be the Academics group.');
+        $this->assertStringContainsString('data-nav-open="true"', $group, 'Its group is open server-side, so the current row is visible with JavaScript disabled.');
+        $this->assertStringContainsString('data-nav-active="true"', $group, 'Its group is flagged active server-side.');
+        $this->assertStringNotContainsString('data-nav-open="false"', $group, 'An open group must not also render as closed.');
+        $this->assertStringNotContainsString('data-nav-active="false"', $group, 'The active flag is boolean-present: it is omitted, never rendered as false.');
+
+        // And the flag stays unique — exactly the group that owns the current page,
+        // which is the property that makes the highlight correct on a fresh load.
+        $this->assertSame(1, substr_count($aside, 'data-nav-active="true"'), 'Exactly one group may be flagged active: the one holding the current page.');
+
+        // Pin the component shape that produces that spacing, so the reason this
+        // assertion is whitespace-tolerant is discoverable by whoever reads it next
+        // — and it does not get "simplified" back into an exact-string match.
+        $groupTemplate = (string) file_get_contents(resource_path('views/components/nav/group.blade.php'));
+        $this->assertStringContainsString('data-nav-open="{{ $open ? \'true\' : \'false\' }}"', $groupTemplate,
+            'The template decides the spacing of these attributes itself.');
+        $this->assertStringContainsString('@if ($open) data-nav-active="true" @endif>', $groupTemplate,
+            'An open group appends the active flag inline, which is why its spacing may not be asserted as one string.');
+
         $this->assertSame(0, substr_count($aside, 'erp-nav__sub-label" data-nav-sub-label aria-current'), 'A sub-group label is not a destination and must never be aria-current.');
     }
 
