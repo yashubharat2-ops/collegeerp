@@ -169,12 +169,89 @@ class SidebarStructureTest extends TestCase
         return $found;
     }
 
-    /** Every `/path` a nav-link in this markup points at. */
+    /** Every `/path` a nav-link in this markup points at, with any host stripped. */
     private function hrefs(string $markup): array
     {
         preg_match_all('/<a class="nav-link" href="([^"]+)"/', $markup, $matches);
 
-        return array_map(fn (string $url): string => (string) parse_url($url, PHP_URL_PATH), $matches[1]);
+        return array_map([$this, 'pathFromHref'], $matches[1]);
+    }
+
+    /**
+     * The `/path` from a rendered href, whatever host it carries.
+     *
+     * `route()` renders an absolute URL — `http://localhost/students` in this suite,
+     * the configured `APP_URL` elsewhere — so an assertion may never compare a
+     * rendered href against the output of `parse_url(route(...), PHP_URL_PATH)` by
+     * string concatenation. Every comparison in this file goes through here, so the
+     * absolute/relative detail cannot decide whether a test passes.
+     */
+    private function pathFromHref(string $href): string
+    {
+        return (string) parse_url($href, PHP_URL_PATH);
+    }
+
+    /**
+     * The one `<a>` ELEMENT that both links to `$href` and contains that label in a
+     * `<span>` — returned as the element, so a caller can inspect attributes and the
+     * label, not just one or the other.
+     *
+     * The element has to be matched whole: `<span>Campuses</span>` sits *between* the
+     * opening tag and `</a>`, so matching the two facts against the opening tag alone
+     * can never succeed. Requiring both in the same element is stricter than either
+     * half — it fails if the row was repointed, if it lost its label, or if it is gone.
+     * Reading the element (rather than the byte stream around it) also means the
+     * result does not depend on the order or spacing of the attributes Blade emits.
+     */
+    private function row(string $label, string $href, string $markup): string
+    {
+        $path = $this->pathFromHref($href);
+        preg_match_all('/<a\s[^>]*>.*?<\/a>/s', $markup, $elements);
+
+        $matches = array_values(array_filter(
+            $elements[0],
+            function (string $element) use ($label, $path): bool {
+                $opening = $this->openingTagOf($element);
+                $linked = preg_match('/href="([^"]+)"/', $opening, $target) === 1
+                    && $this->pathFromHref($target[1]) === $path;
+
+                return $linked && preg_match('/<span>\s*'.preg_quote($label, '/').'\s*<\/span>/', $element) === 1;
+            }
+        ));
+
+        $this->assertCount(
+            1,
+            $matches,
+            "Exactly one navigation row must link to {$path} and carry the label \"{$label}\"."
+        );
+
+        return $matches[0];
+    }
+
+    /** The opening `<a …>` tag of an element returned by row(). */
+    private function openingTagOf(string $element): string
+    {
+        $this->assertSame(1, preg_match('/^<a\s[^>]*>/', $element, $matches), 'An anchor element must open with an `<a …>` tag.');
+
+        return $matches[0];
+    }
+
+    /** The raw `href` of an element returned by row()/currentRow(). */
+    private function hrefOf(string $element): string
+    {
+        $this->assertSame(1, preg_match('/href="([^"]+)"/', $element, $matches), 'A navigation row must carry an href.');
+
+        return $matches[1];
+    }
+
+    /** The one `<a>` element that is marked as the current page. */
+    private function currentRow(string $markup): string
+    {
+        preg_match_all('/<a\s[^>]*aria-current="page"[^>]*>.*?<\/a>/s', $markup, $matches);
+
+        $this->assertCount(1, $matches[0], 'Exactly one row must be marked as the current page.');
+
+        return $matches[0][0];
     }
 
     /**
@@ -266,8 +343,11 @@ class SidebarStructureTest extends TestCase
             'Subjects' => 'subjects.index',
             'Faculty–Subject Assignments' => 'faculty-subject-assignments.index',
         ] as $label => $name) {
-            $this->assertStringContainsString('<span>'.$label.'</span>', $academics, "{$label} must keep its label.");
-            $this->assertStringContainsString('href="'.$this->path($name).'"', $academics, "{$label} must keep its route.");
+            $row = $this->row($label, route($name), $academics);
+
+            $this->assertStringContainsString('<span>'.$label.'</span>', $row, "{$label} must keep its label.");
+            $this->assertSame($this->path($name), $this->pathFromHref($this->hrefOf($row)), "{$label} must keep its route.");
+            $this->assertStringContainsString('class="nav-link"', $row, "{$label} must render as a navigation row.");
         }
     }
 
@@ -286,9 +366,17 @@ class SidebarStructureTest extends TestCase
         // operational screen keeps its single, honest label instead.
         $this->assertFalse(Route::has('classes.index'), 'There is no Classes route to link, and none may be invented.');
         $this->assertStringContainsString('>Classes &amp; Sections</span>', $academics);
-        $this->assertStringContainsString('href="'.$this->path('academic-sections.index').'"', $academics, 'That row still points at the Academic Sections screen.');
+        $this->assertSame(
+            $this->path('academic-sections.index'),
+            $this->pathFromHref($this->hrefOf($this->row('Classes &amp; Sections', route('academic-sections.index'), $academics))),
+            'That row still points at the Academic Sections screen.'
+        );
         $this->assertStringContainsString('>Sections</span>', $academics, 'The setup-level Sections row keeps its own clean label.');
-        $this->assertStringContainsString('href="'.$this->path('sections.index').'"', $academics, 'The setup-level Sections row keeps its own destination.');
+        $this->assertSame(
+            $this->path('sections.index'),
+            $this->pathFromHref($this->hrefOf($this->row('Sections', route('sections.index'), $academics))),
+            'The setup-level Sections row keeps its own destination.'
+        );
         $this->assertNotSame($this->path('sections.index'), $this->path('academic-sections.index'), 'Sections and Classes & Sections stay two distinct destinations.');
     }
 
@@ -303,8 +391,32 @@ class SidebarStructureTest extends TestCase
         // The exact markup of a label: a <p>, never an <a>, never a button, no id.
         // This is what keeps `substr_count($group, 'class="nav-link"')` and the
         // `nav-group__head` group-boundary scans in every other navigation test true.
-        $this->assertSame(0, preg_match('/<a[^>]*erp-nav__sub-label/', $aside), 'A sub-group label must never be a link.');
-        $this->assertSame(0, preg_match('/erp-nav__sub-label[^>]*>.*?<\/a>/s', $aside), 'A sub-group label must never wrap a link.');
+        //
+        // The "must not wrap a link" check reads the label ELEMENT, not a span of the
+        // byte stream. A whole-string regex of the form
+        // /erp-nav__sub-label[^>]*>.*?<\/a>/s is a false positive generator: `.*?`
+        // runs past the label's own `</p>`, through the following labels and rows,
+        // and closes on the first `</a>` it meets — which in this markup is the
+        // very next navigation row. The structural form below can only match if the
+        // label element itself begins with `<a` or contains an `<a`, which is what
+        // the requirement actually forbids.
+        $this->assertSame(
+            substr_count($aside, 'data-nav-sub-label>'),
+            preg_match_all('/<p class="erp-nav__sub-label" data-nav-sub-label>/', $aside),
+            'Every sub-group label must render as a <p> with exactly this markup — not an <a>, not a <button>.'
+        );
+        $this->assertSame(
+            0,
+            preg_match('/<a\s[^>]*erp-nav__sub-label/', $aside),
+            'A sub-group label must never itself be a link.'
+        );
+        // Reads the label ELEMENT and nothing beyond its closing tag: the tempered
+        // dot cannot run past `</p>`, so a later navigation row can never satisfy it.
+        $this->assertSame(
+            0,
+            preg_match('/<p class="erp-nav__sub-label" data-nav-sub-label>(?:(?!<\/p>).)*<a\s/s', $aside),
+            'A sub-group label must never contain a link.'
+        );
         $this->assertSame(0, substr_count($aside, 'nav-group__head erp-nav__sub-label'), 'A sub-group label is not a collapsible group.');
         $this->assertSame(0, substr_count($aside, 'erp-nav__sub-label" data-nav-sub-label id='), 'A sub-group label takes no id.');
         $this->assertSame(0, substr_count($aside, '<button class="erp-nav__sub-label'), 'A sub-group label is not interactive.');
@@ -436,7 +548,11 @@ class SidebarStructureTest extends TestCase
 
         $this->assertSame(9, substr_count($students, 'class="nav-link"'), 'Every Students destination must still render.');
         $this->assertSame(2, substr_count($students, 'data-nav-sub-label>'), 'Students keeps its two sub-group labels.');
-        $this->assertStringContainsString('href="'.$this->path('students.index').'"', $students);
+        $this->assertSame(
+            $this->path('students.index'),
+            $this->pathFromHref($this->hrefOf($this->row('Students', route('students.index'), $students))),
+            'The Students row must keep its destination.'
+        );
         $this->assertSame(
             $this->paths(['student-enrollments.index', 'student-academic-records.index', 'student-documents.index', 'student-id-cards.index', 'student-promotions.index', 'student-transfers.index', 'student-history.index']),
             array_slice($this->hrefs($students), 2),
@@ -607,12 +723,78 @@ class SidebarStructureTest extends TestCase
         $user = $this->makeUserWithPermissions($college, Permission::query()->pluck('slug')->all());
         $aside = $this->aside($this->asCollege($college, $user)->get(route('academic-timetables.index'))->assertOk()->getContent());
 
-        $this->assertStringContainsString('href="'.$this->path('academic-timetables.index').'"aria-current="page"', $aside, 'The current row is marked with aria-current, so it works without JavaScript.');
+        // Read the element, not a concatenation of its attributes: Blade emits
+        // `<a class="nav-link" href="…" aria-current="page">` with the attribute
+        // order and spacing the component decides, and it renders the href as an
+        // absolute URL. Both details are formatting, and neither may decide whether
+        // this test passes.
+        $current = $this->currentRow($aside);
+        $this->assertStringContainsString('class="nav-link"', $this->openingTagOf($current), 'The current row must be a navigation row.');
+        $this->assertSame(
+            $this->path('academic-timetables.index'),
+            $this->pathFromHref($this->hrefOf($current)),
+            'The current row must be the Timetable row, marked with aria-current so it works without JavaScript.'
+        );
+        $this->assertStringContainsString('<span>Timetable</span>', $current, 'And that row is the one labelled Timetable.');
         $this->assertStringContainsString('data-nav-group="academics" data-nav-open="true" data-nav-active="true"', $aside, 'Its group is open, and flagged active, server-side.');
         $this->assertSame(0, substr_count($aside, 'erp-nav__sub-label" data-nav-sub-label aria-current'), 'A sub-group label is not a destination and must never be aria-current.');
     }
 
-    /* 11 · The rails the rest of the suite stands on ---------------------- */
+    /* 11 · The rendered-row anatomy -------------------------------------- */
+
+    /**
+     * The markup shape every other assertion in this file is written against.
+     *
+     * `<x-nav.link>` emits one single-line anchor per row. If that ever changes,
+     * this test says so in one place, in the component's own words, instead of
+     * letting a dozen sibling assertions fail with a diff that does not name the
+     * cause. It also pins the two details that naively written assertions get
+     * wrong: `route()` renders an ABSOLUTE url (so no assertion may compare a
+     * rendered href to a bare path), and `aria-current` is appended after `href`
+     * (so no assertion may assume the attribute order).
+     */
+    public function test_a_navigation_row_renders_as_one_anchor_with_an_absolute_href(): void
+    {
+        $college = $this->makeCollege('STRUCT19');
+        $user = $this->makeUserWithPermissions($college, Permission::query()->pluck('slug')->all());
+        $aside = $this->aside($this->asCollege($college, $user)->get(route('academic-timetables.index'))->assertOk()->getContent());
+
+        $link = (string) file_get_contents(resource_path('views/components/nav/link.blade.php'));
+
+        // The shape of the anchor, spelled out in the component itself.
+        $this->assertStringContainsString(
+            '<a class="nav-link" href="{{ $href ?? route($route, $params) }}"',
+            $link,
+            'A row is a single anchor whose href comes from route(); other assertions in this file are written against that shape.'
+        );
+        $this->assertStringContainsString('@if ($current) aria-current="page"@endif', $link, 'The current-page marker follows the href, so attribute order is not up for assumption.');
+        $this->assertSame(0, substr_count($link, "<a\n"), 'A row must stay on one line: the markup contract is asserted by tag-level patterns.');
+
+        // Every rendered row is an anchor element with an absolute href, the row
+        // class, aria-current only when it is the current page, and one label span.
+        preg_match_all('/<a\s[^>]*class="nav-link"[^>]*>.*?<\/a>/s', $aside, $rows);
+        $this->assertGreaterThan(100, count($rows[0]), 'The full navigation must render.');
+
+        $current = 0;
+        foreach ($rows[0] as $row) {
+            $opening = $this->openingTagOf($row);
+            $href = $this->hrefOf($opening);
+            $this->assertMatchesRegularExpression('#^https?://#', $href, "route() renders an absolute URL, but got \"{$href}\".");
+            $this->assertSame(1, substr_count($row, '<span>'), 'Every row carries exactly one label span.');
+            $this->assertSame(1, substr_count($row, '</a>'), 'A row is one anchor, not a nested one.');
+            if (str_contains($opening, 'aria-current="page"')) {
+                $current++;
+            }
+        }
+        $this->assertSame(1, $current, 'On a page that owns a row, exactly one row is current.');
+
+        // And the one thing a bare-path comparison would silently miss: the path
+        // component still has to be the route's own path.
+        $timetable = $this->row('Timetable', route('academic-timetables.index'), $aside);
+        $this->assertSame($this->path('academic-timetables.index'), $this->pathFromHref($this->hrefOf($timetable)));
+    }
+
+    /* 12 · The rails the rest of the suite stands on ---------------------- */
 
     public function test_the_sidebar_still_renders_exactly_one_landmark_and_its_heading(): void
     {
