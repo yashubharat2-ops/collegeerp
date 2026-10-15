@@ -40,7 +40,7 @@
         </div>
     @endif
     <div>
-        <label class="text-sm font-semibold" for="section_id">Section / Batch</label>
+        <label class="text-sm font-semibold" for="section_id">Section</label>
         <select class="input mt-1" id="section_id" name="section_id">
             <option value="">— No section —</option>
             @foreach($sections ?? [] as $section)

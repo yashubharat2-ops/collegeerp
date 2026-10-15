@@ -103,7 +103,7 @@
                 @endforeach
             </x-list.filter-select>
 
-            <x-list.filter-select name="section_id" label="Section / Batch" placeholder="All sections">
+            <x-list.filter-select name="section_id" label="Section" placeholder="All sections">
                 @foreach($sections as $section)
                     <option value="{{ $section->id }}" @selected($scalar($listContext->filter('section_id')) === (string) $section->id)>
                         {{ $section->name }} ({{ $section->code }}){{ $section->academicYear ? ' · '.$section->academicYear->name : '' }}{{ $section->program ? ' · '.$section->program->name : '' }}
@@ -122,6 +122,42 @@
                     <option value="{{ $category }}" @selected(in_array($category, (array) $listContext->filter('category', []), true))>{{ \App\Models\Student::categoryLabel($category) }}</option>
                 @endforeach
             </x-list.filter-select>
+
+            {{-- Registration number: the college's own unique student number
+                 (STU-YYYY-NNNN). Both "Registration Number" and "Unique Student
+                 ID" name this one field — no second student identifier exists in
+                 the schema, so there is one control, not two.
+
+                 Deliberately NOT offered: Aadhaar, government ID and APAAR ID. Two
+                 of those are encrypted at rest and the third is a government
+                 identity number; a GET filter would write any of them into the
+                 query string, and therefore into server logs and browser history. --}}
+            <x-list.filter-text
+                name="student_number"
+                label="Registration Number"
+                placeholder="e.g. STU-2026-0001"
+                :value="$listContext->filter('student_number')"
+            />
+
+            <x-list.filter-select name="blood_group" label="Blood group" placeholder="All blood groups">
+                @foreach(\App\Models\Student::BLOOD_GROUPS as $bloodGroup)
+                    <option value="{{ $bloodGroup }}" @selected(in_array($bloodGroup, (array) $listContext->filter('blood_group', []), true))>{{ $bloodGroup }}</option>
+                @endforeach
+            </x-list.filter-select>
+
+            <x-list.filter-text
+                name="nationality"
+                label="Nationality"
+                placeholder="Contains…"
+                :value="$listContext->filter('nationality')"
+            />
+
+            <x-list.filter-text
+                name="mother_tongue"
+                label="Mother tongue"
+                placeholder="Contains…"
+                :value="$listContext->filter('mother_tongue')"
+            />
 
             <x-list.filter-select name="status" label="Student status" placeholder="All statuses">
                 @foreach(\App\Models\Student::STATUSES as $status)
@@ -144,6 +180,17 @@
                 label="Admission date"
                 :from-value="$listContext->filter('admission_date_from')"
                 :to-value="$listContext->filter('admission_date_to')"
+            />
+
+            {{-- Date of birth, on its own column and its own parameter pair, so
+                 the two ranges can never be mistaken for one another. --}}
+            <x-list.filter-date-range
+                class="erp-list-filter-span-2"
+                from-name="date_of_birth_from"
+                to-name="date_of_birth_to"
+                label="Date of birth"
+                :from-value="$listContext->filter('date_of_birth_from')"
+                :to-value="$listContext->filter('date_of_birth_to')"
             />
 
             <x-list.filter-actions class="erp-list-filter-span-2-xl justify-end" :clear-url="$clearUrl" :has-filters="$hasFilters" />

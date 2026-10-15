@@ -122,11 +122,38 @@ class StudentListService
         $builder->filterIn('gender', 'students.gender', Student::GENDERS);
         $builder->filterIn('category', 'students.category', Student::CATEGORIES);
         $builder->filterIn('status', 'students.status', Student::STATUSES);
+        $builder->filterIn('blood_group', 'students.blood_group', Student::BLOOD_GROUPS);
+
+        // Registration number: the college's own unique student number
+        // (STU-YYYY-NNNN, unique per college). This is the ONLY student
+        // identifier offered as a filter — see the note on identity documents
+        // below.
+        $builder->filterContains('student_number', 'students.student_number');
+
+        // Profile text filters. nationality and mother_tongue are free text
+        // (max 100) with no reference table, so a contains-match is the only
+        // honest control: a dropdown built from SELECT DISTINCT would offer
+        // whatever users happened to type, casing and typos included.
+        $builder->filterContains('nationality', 'students.nationality');
+        $builder->filterContains('mother_tongue', 'students.mother_tongue');
+
+        // Deliberately absent: aadhaar_number / aadhaar_hash / govt_id_number /
+        // apaar_id. The first two and govt_id_number are encrypted at rest
+        // (govt_id_number has no digest column, so it cannot be matched at all),
+        // and every one of them is a government identity number that a GET
+        // filter would write into the query string — server logs, browser
+        // history and Referer included. Filtering by them needs a POST form or
+        // a dedicated endpoint, which is a separate decision from this list.
 
         // Admission date: one exact day, or a from/to range (both half-open safe
         // through the builder's whereDate handling).
         $builder->filterDate('admission_date', 'students.admission_date');
         $builder->filterDateRange('admission_date_from', 'admission_date_to', 'students.admission_date');
+
+        // Date of birth: the same range treatment as the admission date, on its
+        // own column. Two independent ranges on one screen are safe because each
+        // pair is bound to its own column.
+        $builder->filterDateRange('date_of_birth_from', 'date_of_birth_to', 'students.date_of_birth');
 
         // Academic context: one correlated enrollment subquery for every
         // enrollment dimension, so they can never match different enrollments.
