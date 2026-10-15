@@ -50,6 +50,38 @@ class StudentListFiltersTest extends TestCase
         return $this->asCollege($college, $user)->get(route('students.index', $query));
     }
 
+    /**
+     * One date-range control, sliced out of the rendered page by its own
+     * accessible name.
+     *
+     * The list carries TWO independent ranges now — Admission date and Date of
+     * birth — and each renders a From/To pair, so a page-wide count of the
+     * picker's inner attributes can no longer say which control they belong to.
+     * Slicing keeps every assertion about one range; the companion assertion
+     * that the page carries exactly two `data-list-date-range` controls is what
+     * proves both are still there.
+     *
+     * The slice runs from the control's `aria-label="<label>"` to the next
+     * `data-list-date-range` (or the end of the filter form), so it can only
+     * contain that one control's markup.
+     */
+    private function dateRangeControl(string $html, string $label): string
+    {
+        $marker = 'aria-label="'.$label.'"';
+        $start = strpos($html, $marker);
+        $this->assertNotFalse($start, "The {$label} date range must be rendered.");
+
+        $end = strlen($html);
+        foreach (['data-list-date-range', '</form>'] as $boundary) {
+            $at = strpos($html, $boundary, $start + strlen($marker));
+            if ($at !== false && $at < $end) {
+                $end = $at;
+            }
+        }
+
+        return substr($html, $start, $end - $start);
+    }
+
     public function test_search_covers_name_number_enrollment_number_email_and_mobile(): void
     {
         [$college, $viewer] = $this->collegeWithViewer('SLF1');
@@ -249,9 +281,24 @@ class StudentListFiltersTest extends TestCase
         $this->assertStringContainsString('value="2026-07-31"', $html);
         $this->assertStringContainsString('data-list-date-display', $html);
         $this->assertStringContainsString('data-list-date-value', $html);
-        $this->assertSame(2, substr_count($html, 'data-date-picker-toggle'));
-        $this->assertSame(2, substr_count($html, 'data-date-picker-prev'));
-        $this->assertSame(2, substr_count($html, 'data-date-picker-next'));
+
+        // The picker's internals are asserted PER CONTROL. Counting them across
+        // the whole page would be asserting 4 and calling it "the admission date
+        // range" — which is exactly what broke when the Date of birth range was
+        // added beside it.
+        $admission = $this->dateRangeControl($html, 'Admission date');
+
+        $this->assertSame(2, substr_count($admission, 'data-date-picker-toggle'), 'The Admission date range has a From and a To picker.');
+        $this->assertSame(2, substr_count($admission, 'data-date-picker-prev'));
+        $this->assertSame(2, substr_count($admission, 'data-date-picker-next'));
+        $this->assertSame(2, substr_count($admission, 'class="erp-list-date-prefix"'));
+
+        // …and the page carries exactly two ranges, so a third one appearing by
+        // accident still fails this test.
+        $this->assertSame(2, substr_count($html, 'data-list-date-range'), 'The list carries exactly two date ranges: admission and date of birth.');
+        $this->assertSame(4, substr_count($html, 'data-date-picker-toggle'), 'Two ranges x a From/To pair each.');
+        $this->assertSame(4, substr_count($html, 'data-date-picker-popover'));
+
         $this->assertStringContainsString('data-date-picker-calendar', $html);
         $this->assertStringContainsString('data-date-picker-days', $html);
         $this->assertStringContainsString('data-date-picker-clear', $html);
@@ -260,7 +307,6 @@ class StudentListFiltersTest extends TestCase
         $this->assertStringContainsString('erp-list-date-separator', $html);
         $this->assertStringContainsString('data-list-date-edge="from"', $html);
         $this->assertStringContainsString('data-list-date-edge="to"', $html);
-        $this->assertSame(2, substr_count($html, 'class="erp-list-date-prefix"'));
         $this->assertStringContainsString('data-date-picker-label="From"', $html);
         $this->assertStringContainsString('data-date-picker-label="To"', $html);
         $this->assertStringContainsString('aria-haspopup="dialog"', $html);
@@ -287,9 +333,83 @@ class StudentListFiltersTest extends TestCase
             );
         }
 
-        $this->assertSame(2, substr_count($html, 'data-date-picker-popover'));
-        $this->assertStringContainsString('aria-expanded="false"', $html);
-        $this->assertSame(2, substr_count($html, 'data-list-date-display'));
+        // Per control again: "the admission range's two popovers are both closed"
+        // is a statement about the admission control, not about the page.
+        $admission = $this->dateRangeControl($html, 'Admission date');
+        $this->assertSame(2, substr_count($admission, 'data-date-picker-popover'), 'The Admission date range has a From and a To popover.');
+        $this->assertSame(2, substr_count($admission, 'data-list-date-display'));
+        $this->assertStringContainsString('aria-expanded="false"', $admission);
+        $this->assertSame(0, substr_count($admission, 'aria-expanded="true"'), 'Both Admission date pickers start closed.');
+    }
+
+    public function test_both_date_ranges_own_their_pickers(): void
+    {
+        // Two ranges now share one page. Each must own its whole picker — display
+        // field, query field, calendar, title — because erp-list.js addresses the
+        // parts through `id` and through the ids it derives from the field names.
+        // A shared id would wire one calendar twice and leave the other dead, and
+        // neither range may pick up the other's query parameter.
+        [$college, $viewer] = $this->collegeWithViewer('SLF4F');
+
+        $html = $this->list($college, $viewer, [
+            'admission_date_from' => '2026-07-05',
+            'admission_date_to' => '2026-07-31',
+            'date_of_birth_from' => '2005-06-15',
+            'date_of_birth_to' => '2006-01-20',
+        ])->assertOk()->getContent();
+
+        $this->assertSame(2, substr_count($html, 'data-list-date-range'), 'Exactly two date ranges: admission and date of birth.');
+
+        $admission = $this->dateRangeControl($html, 'Admission date');
+        $birth = $this->dateRangeControl($html, 'Date of birth');
+
+        $ranges = [
+            'Admission date' => [$admission, 'admission_date_from', 'admission_date_to', '05/07/2026', '2026-07-05'],
+            'Date of birth' => [$birth, 'date_of_birth_from', 'date_of_birth_to', '15/06/2005', '2005-06-15'],
+        ];
+
+        foreach ($ranges as $label => [$range, $from, $to, $display, $iso]) {
+            // Each control owns its own From/To pair.
+            $this->assertSame(1, substr_count($range, 'name="'.$from.'"'), "{$label} owns its {$from} field.");
+            $this->assertSame(1, substr_count($range, 'name="'.$to.'"'), "{$label} owns its {$to} field.");
+            $this->assertSame(2, substr_count($range, 'data-date-picker-toggle'), "{$label} renders two picker triggers.");
+            $this->assertSame(2, substr_count($range, 'data-date-picker-popover'), "{$label} renders two popovers.");
+
+            // The visible value is localised, the submitted value stays ISO.
+            $this->assertStringContainsString('value="'.$display.'"', $range, "{$label} shows DD/MM/YYYY.");
+            $this->assertStringContainsString('value="'.$iso.'"', $range, "{$label} keeps an ISO query value.");
+
+            // Every id the picker wires by appears exactly once on the whole page.
+            foreach ([$from, $to] as $name) {
+                foreach (['filter-display-', 'filter-', 'filter-calendar-', 'filter-calendar-title-'] as $prefix) {
+                    $this->assertSame(
+                        1,
+                        substr_count($html, 'id="'.$prefix.$name.'"'),
+                        "The id {$prefix}{$name} must be rendered exactly once."
+                    );
+                }
+            }
+        }
+
+        // Neither range leaks the other's parameter, so one broken control can
+        // never silently filter on the other's column.
+        $this->assertStringNotContainsString('date_of_birth', $admission, 'The Admission date range must not carry the date-of-birth parameters.');
+        $this->assertStringNotContainsString('admission_date', $birth, 'The Date of birth range must not carry the admission-date parameters.');
+
+        // The script that wires them iterates EVERY range and then every picker
+        // inside its own root. A single-element lookup here would make the second
+        // calendar silently stop opening, which no markup assertion would catch.
+        $js = (string) file_get_contents(public_path('js/erp-list.js'));
+        $this->assertStringContainsString(
+            "querySelectorAll('[data-list-date-range]')",
+            $js,
+            'The date-range initializer must handle every range on the page, not the first.'
+        );
+        $this->assertStringContainsString(
+            "range.querySelectorAll('[data-erp-date-picker]')",
+            $js,
+            'Each range must initialise each of its own From/To pickers.'
+        );
     }
 
     public function test_unknown_or_malformed_filter_values_are_ignored(): void
