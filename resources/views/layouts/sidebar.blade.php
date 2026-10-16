@@ -98,21 +98,16 @@
                         <x-nav.link label="Admission Records" route="admissions.index" />
                         <x-nav.link label="Documents" route="admission-documents.index" />
                         <x-nav.link label="Document Types" route="admission-document-types.index" />
-                        {{-- Enquiries, Applicants and Merit & Selection keep every route, permission
-                             and feature they had. They sit under a label so the module keeps the
-                             admission process at its top level. The label is ungated like the rows
-                             beneath it, so it can never head an empty section. --}}
-                        <x-nav.sub-group label="Pre-Admission Records" />
+                        {{-- Enquiries, Applicants and Merit & Selection keep every route,
+                             permission and feature they had, in their original order. --}}
                         <x-nav.link label="Enquiries" route="admission-enquiries.index" />
                         <x-nav.link label="Applicants" route="admission-applicants.index" />
                         <x-nav.link label="Merit & Selection" route="admission-merit-lists.index" />
                         <x-nav.link label="Reports" route="admission-reports.index" />
                     </x-nav.group>
                     <x-nav.group id="students" label="Students" icon="graduation-cap">
-                        <x-nav.sub-group label="Records" />
                         <x-nav.link label="Students" route="students.index" />
                         <x-nav.link label="Bulk Registration & Import" route="students.import.index" perm="students.create" />
-                        <x-nav.sub-group label="Lifecycle" />
                         <x-nav.link label="Enrollments" route="student-enrollments.index" />
                         <x-nav.link label="Academic Records" route="student-academic-records.index" />
                         <x-nav.link label="Documents" route="student-documents.index" />
@@ -133,21 +128,15 @@
                         <x-nav.link label="Certificate Reports" route="certificates.reports.index" perm="certificate_reports.view" />
                     </x-nav.group>
                     <x-nav.group id="academics" label="Academics" icon="book-open">
-                        {{-- The former top-level "Platform" group lives here. The routes,
-                             permissions and destinations are the ones it always had
-                             (campuses.index, programs.index, academic-years.index,
-                             academic-terms.index, sections.index, subjects.index,
-                             faculty-subject-assignments.index); only the menu position
-                             and the three sub-group labels are new. --}}
-                        <x-nav.sub-group label="Institute setup" />
+                        {{-- The former top-level "Platform" group lives here. Its routes,
+                             permissions and destinations are unchanged; only the menu
+                             position differs. --}}
                         <x-nav.link label="Campuses" route="campuses.index" />
                         <x-nav.link label="Programs" route="programs.index" />
-                        <x-nav.sub-group label="Academic structure" />
                         <x-nav.link label="Academic Years" route="academic-years.index" />
                         <x-nav.link label="Academic Terms" route="academic-terms.index" />
                         <x-nav.link label="Sections" route="sections.index" />
                         <x-nav.link label="Subjects" route="subjects.index" />
-                        <x-nav.sub-group label="Academic operations" />
                         <x-nav.link label="Student Subject Enrollment" route="academic-subject-enrollments.index" />
                         <x-nav.link label="Faculty–Subject Assignments" route="faculty-subject-assignments.index" />
                         <x-nav.link label="Classes & Sections" route="academic-sections.index" />
@@ -157,35 +146,28 @@
                         <x-nav.link label="Faculty Workload" route="academic-workload.index" />
                     </x-nav.group>
                     <x-nav.group id="examinations" label="Examinations" icon="clipboard-check" perm="examinations.view|exam_schedules.view|exam_attendance.view|exam_marks.view|results.view|result_calculation.view|grade_scales.view|result_publishing.view|marksheets.view|grade_cards.view|exam_reports.view|student_result_history.view">
-                        <x-nav.sub-group label="Exam setup" perm="examinations.view|exam_schedules.view" />
                         <x-nav.link label="Examinations" route="examinations.index" perm="examinations.view" />
                         <x-nav.link label="Exam Schedule" route="exam-schedules.index" perm="exam_schedules.view" />
-                        <x-nav.sub-group label="Exam conduct" perm="exam_attendance.view|exam_marks.view" />
                         <x-nav.link label="Exam Attendance" route="exam-attendance.index" perm="exam_attendance.view" />
                         <x-nav.link label="Marks Entry" route="exam-marks.index" perm="exam_marks.view" />
-                        <x-nav.sub-group label="Result processing" perm="results.view|result_calculation.view|grade_scales.view|result_publishing.view" />
                         <x-nav.link label="Results" route="results.index" perm="results.view" />
                         <x-nav.link label="Result Calculation" route="result-calculation.index" perm="result_calculation.view" />
                         <x-nav.link label="Grades & Pass/Fail" route="grade-scales.index" perm="grade_scales.view" />
                         <x-nav.link label="Result Publishing" route="result-publishing.index" perm="result_publishing.view" />
-                        <x-nav.sub-group label="Documents & reports" perm="marksheets.view|grade_cards.view|exam_reports.view|student_result_history.view" />
                         <x-nav.link label="Marksheets" route="marksheets.index" perm="marksheets.view" />
                         <x-nav.link label="Grade Cards" route="grade-cards.index" perm="grade_cards.view" />
                         <x-nav.link label="Exam Reports" route="exam-reports.index" perm="exam_reports.view" />
                         <x-nav.link label="Student Result History" route="student-result-history.index" perm="student_result_history.view" />
                     </x-nav.group>
                     <x-nav.group id="finance" label="Fees" icon="wallet" perm="fee_structures.view|fee_categories.view|student_fee_assignments.view|fee_collections.view|receipts.view|fee_dues.view|fee_concessions.view|refunds.view|fee_reports.view">
-                        <x-nav.sub-group label="Fee setup" perm="fee_structures.view|fee_categories.view|student_fee_assignments.view" />
                         <x-nav.link label="Fee Structures" route="fee-structures.index" perm="fee_structures.view" />
                         <x-nav.link label="Fee Categories" route="fee-categories.index" perm="fee_categories.view" />
                         <x-nav.link label="Student Fee Assignment" route="student-fee-assignments.index" perm="student_fee_assignments.view" />
-                        <x-nav.sub-group label="Collections & dues" perm="fee_collections.view|receipts.view|fee_dues.view|fee_concessions.view|refunds.view" />
                         <x-nav.link label="Fee Collection" route="fee-collections.index" perm="fee_collections.view" />
                         <x-nav.link label="Receipts" route="receipts.index" perm="receipts.view" />
                         <x-nav.link label="Outstanding Fees" route="fee-dues.index" perm="fee_dues.view" />
                         <x-nav.link label="Discounts & Concessions" route="fee-concessions.index" perm="fee_concessions.view" />
                         <x-nav.link label="Refunds" route="refunds.index" perm="refunds.view" />
-                        <x-nav.sub-group label="Reports" perm="fee_reports.view" />
                         <x-nav.link label="Fee Reports" route="fee-reports.index" perm="fee_reports.view" />
                     </x-nav.group>
                     <x-nav.group id="transport" label="Transport" icon="bus" perm="transport_dashboard.view|vehicles.view|vehicle_documents.view|transport_drivers.view|transport_routes.view|student_transport_assignments.view|transport_fees.view">
@@ -199,13 +181,11 @@
                         <x-nav.link label="Transport Fees" route="transport-fees.index" perm="transport_fees.view" />
                     </x-nav.group>
                     <x-nav.group id="library" label="Library" icon="books" perm="library_dashboard.view|books.view|book_categories.view|authors.view|publishers.view|book_copies.view|library_members.view|library_transactions.view|library_renewals.view|library_fines.view">
-                        <x-nav.sub-group label="Catalogue" perm="library_dashboard.view|books.view|book_categories.view|authors.view|publishers.view|book_copies.view" />
                         <x-nav.link label="Library Dashboard" route="library.dashboard" perm="library_dashboard.view" />
                         <x-nav.link label="Books" route="books.index" perm="books.view" />
                         <x-nav.link label="Book Categories" route="book-categories.index" perm="book_categories.view" />
                         <x-nav.link label="Authors & Publishers" perm="authors.view|publishers.view" :href="auth()->user()?->hasPermission('authors.view') ? route('authors.index') : route('publishers.index')" pattern="authors.*|publishers.*" />
                         <x-nav.link label="Book Copies" route="book-copies.index" perm="book_copies.view" />
-                        <x-nav.sub-group label="Circulation" perm="library_members.view|library_transactions.view|library_renewals.view|library_fines.view" />
                         <x-nav.link label="Library Members" route="library-members.index" perm="library_members.view" />
                         <x-nav.link label="Issue & Return" route="library-transactions.index" perm="library_transactions.view" />
                         <x-nav.link label="Renewals" route="library-renewals.index" perm="library_renewals.view" />
@@ -231,25 +211,20 @@
                         <x-nav.link label="Delivery & Read Tracking" route="communication-tracking.index" perm="communication_tracking.view" />
                     </x-nav.group>
                     <x-nav.group id="inventory" label="Inventory" icon="box" perm="inventory_dashboard.view|inventory_categories.view|inventory_items.view|inventory_vendors.view|inventory_purchase_orders.view|inventory_goods_receipts.view|inventory_stock_adjustments.view|inventory_transactions.view|inventory_stock.view|inventory_issues.view|inventory_assignments.view|inventory_asset_returns.view|inventory_maintenance.view|inventory_current_stock.view|inventory_low_stock.view|inventory_asset_register.view|inventory_stock_reports.view">
-                        <x-nav.sub-group label="Setup" perm="inventory_dashboard.view|inventory_categories.view|inventory_items.view|inventory_vendors.view" />
                         <x-nav.link label="Inventory Dashboard" route="inventory.dashboard" perm="inventory_dashboard.view" />
                         <x-nav.link label="Item Categories" route="inventory-categories.index" perm="inventory_categories.view" />
                         <x-nav.link label="Items & Assets" route="inventory-items.index" perm="inventory_items.view" />
                         <x-nav.link label="Vendors" route="inventory-vendors.index" perm="inventory_vendors.view" />
-                        <x-nav.sub-group label="Procurement" perm="inventory_purchase_orders.view|inventory_goods_receipts.view|inventory_stock_adjustments.view|inventory_transactions.view" />
                         <x-nav.link label="Purchase Orders" route="inventory-purchase-orders.index" perm="inventory_purchase_orders.view" />
                         <x-nav.link label="Goods Receipt & Stock In" route="inventory-goods-receipts.index" perm="inventory_goods_receipts.view" />
                         <x-nav.link label="Stock Adjustment" route="inventory-stock-adjustments.index" perm="inventory_stock_adjustments.view" />
                         <x-nav.link label="Inventory Transactions" route="inventory-transactions.index" perm="inventory_transactions.view" />
-                        <x-nav.sub-group label="Assets in use" perm="inventory_issues.view|inventory_assignments.view|inventory_asset_returns.view|inventory_maintenance.view" />
                         <x-nav.link label="Item Issue & Allocation" route="inventory-issues.index" perm="inventory_issues.view" />
                         <x-nav.link label="Asset Assignment" route="inventory-assignments.index" perm="inventory_assignments.view" />
                         <x-nav.link label="Asset Return" route="inventory-asset-returns.index" perm="inventory_asset_returns.view" />
                         <x-nav.link label="Asset Maintenance" route="inventory-maintenances.index" perm="inventory_maintenance.view" />
-                        <x-nav.sub-group label="Stock levels" perm="inventory_current_stock.view|inventory_low_stock.view" />
                         <x-nav.link label="Current Stock" route="inventory-current-stock.index" perm="inventory_current_stock.view" />
                         <x-nav.link label="Low Stock" route="inventory-low-stock.index" perm="inventory_low_stock.view" />
-                        <x-nav.sub-group label="Audit" perm="inventory_asset_register.view|inventory_stock_reports.view" />
                         <x-nav.link label="Asset Register" route="inventory-asset-register.index" perm="inventory_asset_register.view" />
                         <x-nav.link label="Stock & Transaction Reports" route="inventory-stock-reports.index" perm="inventory_stock_reports.view" />
                     </x-nav.group>
@@ -263,22 +238,17 @@
                         <x-nav.link label="Salary & Payroll" :href="auth()->user()?->hasPermission('payrolls.view') ? route('payrolls.index') : (auth()->user()?->hasPermission('salary_structures.view') ? route('salary-structures.index') : route('salary-components.index'))" pattern="payrolls.*|salary-structures.*|salary-components.*" perm="salary_structures.view|salary_components.view|payrolls.view" />
                     </x-nav.group>
                     <x-nav.group id="reports" label="Reports" icon="chart-bar" perm="student_reports.view|academic_reports.view|examination_reports.view|finance_reports.view|inventory_reports.view|hr_reports.view|library_reports.view|transport_reports.view|hostel_reports.view|communication_reports.view|certificate_reports.view|consolidated_reports.view">
-                        <x-nav.sub-group label="Academic" perm="student_reports.view|academic_reports.view|examination_reports.view" />
                         <x-nav.link label="Student Reports" route="student-reports.index" perm="student_reports.view" />
                         <x-nav.link label="Academic Reports" route="academic-reports.index" perm="academic_reports.view" />
                         <x-nav.link label="Examination Reports" route="examination-reports.index" perm="examination_reports.view" />
-                        <x-nav.sub-group label="Finance" perm="finance_reports.view" />
                         <x-nav.link label="Finance Reports" route="finance-reports.index" perm="finance_reports.view" />
-                        <x-nav.sub-group label="Operations" perm="inventory_reports.view|hr_reports.view|library_reports.view|transport_reports.view|hostel_reports.view" />
                         <x-nav.link label="Inventory & Asset Reports" route="inventory-reports.index" perm="inventory_reports.view" />
                         <x-nav.link label="HR Reports" route="hr-reports.index" perm="hr_reports.view" />
                         <x-nav.link label="Library Reports" route="library-reports.index" perm="library_reports.view" />
                         <x-nav.link label="Transport Reports" route="transport-reports.index" perm="transport_reports.view" />
                         <x-nav.link label="Hostel Reports" route="hostel-reports.index" perm="hostel_reports.view" />
-                        <x-nav.sub-group label="Outreach & records" perm="communication_reports.view|certificate_reports.view" />
                         <x-nav.link label="Communication Reports" route="communication-reports.index" perm="communication_reports.view" />
                         <x-nav.link label="Certificate Reports" route="certificate-reports.index" perm="certificate_reports.view" />
-                        <x-nav.sub-group label="Executive" perm="consolidated_reports.view" />
                         <x-nav.link label="Consolidated Reports" route="consolidated-reports.index" perm="consolidated_reports.view" />
                     </x-nav.group>
                 @include('administration.partials.navigation')
