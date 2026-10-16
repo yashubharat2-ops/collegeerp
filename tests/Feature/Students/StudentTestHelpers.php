@@ -194,7 +194,7 @@ trait StudentTestHelpers
             'college_id' => $college->id,
             'first_name' => 'Admit',
             'last_name' => 'Candidate',
-            'email' => strtolower($college->code).'-candidate@example.test',
+            'email' => strtolower($college->code).'-candidate-'.Str::random(6).'@example.test',
             'status' => 'active',
         ]);
 
