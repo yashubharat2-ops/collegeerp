@@ -89,7 +89,13 @@ class AdministrationNavigationTest extends TestCase
     {
         $document = new DOMDocument;
         @$document->loadHTML('<?xml encoding="UTF-8">'.$html);
-        $nodes = (new DOMXPath($document))->query('//*[@data-navigation="administration-settings"]/a/span[last()]');
+        $xpath = new DOMXPath($document);
+        $this->assertSame(
+            0,
+            $xpath->query('//*[@data-navigation="administration-settings"]/p')->length,
+            'Settings links render directly under the module without subgroup headings.'
+        );
+        $nodes = $xpath->query('//*[@data-navigation="administration-settings"]/a/span[last()]');
         $labels = [];
         foreach ($nodes as $node) {
             $labels[] = trim($node->textContent);

@@ -10,9 +10,8 @@ use Tests\TestCase;
 /**
  * The shape of the rebuilt navigation tree.
  *
- * Accompanies the Platform → Academics consolidation: `Platform` is no longer a
- * top-level group, its seven destinations live inside `Academics` under three
- * sub-group labels, and the slash-joined labels are gone.
+ * Covers the Platform → Academics consolidation and the flat module-link layout:
+ * every module destination remains in order, without subgroup headings.
  *
  * What this file guards, and why each part exists:
  *
@@ -21,17 +20,13 @@ use Tests\TestCase;
  *     and nothing else was added to that group. The row order of every other group
  *     is pinned too, because a merge is exactly the kind of edit that quietly
  *     shuffles the rest of the tree.
- *  3. A sub-group label is a <p>: not a link, not a group, no id. That is the
- *     property every other navigation test in this repository depends on, since
- *     they count `class="nav-link"` and scan for `nav-group__head` to find group
- *     boundaries.
- *  4. A label never renders without a row under it, for any permission set.
- *  5. No label reads as two destinations joined by a slash.
- *  6. No two rows offer the same destination.
- *  7. Every destination the sidebar names is a route that still exists.
- *  8. The skip link is first, points at a focusable landmark, and is styled by the
+ *  3. No subgroup headings render in the shared sidebar.
+ *  4. No label reads as two destinations joined by a slash.
+ *  5. No two rows offer the same destination.
+ *  6. Every destination the sidebar names is a route that still exists.
+ *  7. The skip link is first, points at a focusable landmark, and is styled by the
  *     static stylesheet.
- *  9. Active state is still server-rendered, so it survives a refresh and works
+ *  8. Active state is still server-rendered, so it survives a refresh and works
  *     with JavaScript disabled.
  */
 class SidebarStructureTest extends TestCase
@@ -59,7 +54,7 @@ class SidebarStructureTest extends TestCase
         'faculty-subject-assignments.index',
     ];
 
-    /** The merged Academics group: two institute rows, four structure rows, seven operation rows. */
+    /** The Academics group: two institute rows, four structure rows, six operation rows. */
     private const ACADEMICS_ROWS = [
         'campuses.index',
         'programs.index',
@@ -69,14 +64,11 @@ class SidebarStructureTest extends TestCase
         'subjects.index',
         'academic-subject-enrollments.index',
         'faculty-subject-assignments.index',
-        'academic-sections.index',
         'academic-timetables.index',
         'academic-attendance.index',
         'academic-calendar.index',
         'academic-workload.index',
     ];
-
-    private const ACADEMICS_LABELS = ['Institute setup', 'Academic structure', 'Academic operations'];
 
     /**
      * Every label that used to join two concepts with " / ", mapped to its new
@@ -94,7 +86,6 @@ class SidebarStructureTest extends TestCase
         'Staff Salary / Payroll' => 'Salary &amp; Payroll',
         'Merit / Selection' => 'Merit &amp; Selection',
         'Bulk Registration / Import' => 'Bulk Registration &amp; Import',
-        'Class / Section Management' => 'Classes &amp; Sections',
         'Grade / Pass-Fail' => 'Grades &amp; Pass/Fail',
         'Due / Outstanding Fees' => 'Outstanding Fees',
         'Fee Discounts / Concessions' => 'Discounts &amp; Concessions',
@@ -148,25 +139,6 @@ class SidebarStructureTest extends TestCase
         $next = strpos($aside, 'nav-group__label">', $start + 1);
 
         return substr($aside, $start, $next === false ? null : $next - $start);
-    }
-
-    /**
-     * One group split by its sub-group labels.
-     *
-     * @return array<string, string> label => the markup of the rows under it
-     */
-    private function sections(string $group): array
-    {
-        $found = [];
-        $parts = explode('<p class="erp-nav__sub-label" data-nav-sub-label>', $group);
-        array_shift($parts);
-
-        foreach ($parts as $part) {
-            $label = strstr($part, '</p>', true);
-            $found[$label] = substr($part, strpos($part, '</p>') + 4);
-        }
-
-        return $found;
     }
 
     /** Every `/path` a nav-link in this markup points at, with any host stripped. */
@@ -273,17 +245,12 @@ class SidebarStructureTest extends TestCase
         return $matches[0][0];
     }
 
-    /**
-     * Every piece of text the sidebar renders as a label — row labels and
-     * sub-group labels both — in document order.
-     *
-     * @return string[]
-     */
+    /** Every navigation-row label in document order. */
     private function labels(string $aside): array
     {
-        preg_match_all('/<span>([^<]+)<\/span>|<p class="erp-nav__sub-label" data-nav-sub-label>([^<]+)<\/p>/', $aside, $matches);
+        preg_match_all('/<span>([^<]+)<\/span>/', $aside, $matches);
 
-        return array_values(array_filter(array_merge($matches[1], $matches[2])));
+        return $matches[1];
     }
 
     /** The `/path` a named route resolves to. */
@@ -336,7 +303,7 @@ class SidebarStructureTest extends TestCase
         $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT3'));
         $academics = $this->group($aside, 'Academics');
 
-        $this->assertSame(13, substr_count($academics, 'class="nav-link"'), 'Academics must hold the six rows it always had plus the seven Platform rows.');
+        $this->assertSame(12, substr_count($academics, 'class="nav-link"'), 'Academics keeps its six existing operation rows plus the six remaining Platform rows.');
         $this->assertSame(
             $this->paths(self::ACADEMICS_ROWS),
             $this->hrefs($academics),
@@ -381,119 +348,44 @@ class SidebarStructureTest extends TestCase
         $this->assertStringNotContainsString($this->path('departments.index'), $academics, 'Departments is already reachable as HR → Staff Departments.');
         $this->assertStringNotContainsString('>Departments</span>', $academics);
 
-        // And no invented "Classes": there is no Classes route to link to, so the
-        // operational screen keeps its single, honest label instead.
-        $this->assertFalse(Route::has('classes.index'), 'There is no Classes route to link, and none may be invented.');
-        $this->assertStringContainsString('>Classes &amp; Sections</span>', $academics);
-        $this->assertSame(
-            $this->path('academic-sections.index'),
-            $this->pathFromHref($this->hrefOf($this->row('Classes &amp; Sections', route('academic-sections.index'), $academics))),
-            'That row still points at the Academic Sections screen.'
-        );
+        // The Academic Sections destination remains functional, but is no longer
+        // duplicated as a separate sidebar option.
+        $this->assertFalse(Route::has('classes.index'), 'There is no Classes route to link to, and none may be invented.');
+        $this->assertTrue(Route::has('academic-sections.index'), 'The Academic Sections route remains available without a sidebar entry.');
+        $this->assertStringNotContainsString('>Classes &amp; Sections</span>', $academics, 'The unneeded menu row is absent.');
+        $this->assertNotContains($this->path('academic-sections.index'), $this->hrefs($academics), 'The Academic Sections route is not a sidebar destination.');
         $this->assertStringContainsString('>Sections</span>', $academics, 'The setup-level Sections row keeps its own clean label.');
         $this->assertSame(
             $this->path('sections.index'),
             $this->pathFromHref($this->hrefOf($this->row('Sections', route('sections.index'), $academics))),
             'The setup-level Sections row keeps its own destination.'
         );
-        $this->assertNotSame($this->path('sections.index'), $this->path('academic-sections.index'), 'Sections and Classes & Sections stay two distinct destinations.');
+        $this->assertNotSame($this->path('sections.index'), $this->path('academic-sections.index'), 'The standalone Sections screen remains distinct from Academic Sections.');
     }
 
-    /* 3 · A sub-group label is not a link and not a group ----------------- */
+    /* 3 · Module links render without subgroup headings ----------------- */
 
-    public function test_a_sub_group_label_adds_no_link_and_no_group(): void
+    public function test_no_subgroup_headings_render_in_the_shared_sidebar(): void
     {
+        $source = (string) file_get_contents(resource_path('views/layouts/sidebar.blade.php'));
         $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT6'));
 
-        $this->assertStringContainsString('<p class="erp-nav__sub-label" data-nav-sub-label>', $aside, 'The sub-group labels must render.');
-
-        // The exact markup of a label: a <p>, never an <a>, never a button, no id.
-        // This is what keeps `substr_count($group, 'class="nav-link"')` and the
-        // `nav-group__head` group-boundary scans in every other navigation test true.
-        //
-        // The "must not wrap a link" check reads the label ELEMENT, not a span of the
-        // byte stream. A whole-string regex of the form
-        // /erp-nav__sub-label[^>]*>.*?<\/a>/s is a false positive generator: `.*?`
-        // runs past the label's own `</p>`, through the following labels and rows,
-        // and closes on the first `</a>` it meets — which in this markup is the
-        // very next navigation row. The structural form below can only match if the
-        // label element itself begins with `<a` or contains an `<a`, which is what
-        // the requirement actually forbids.
-        $this->assertSame(
-            substr_count($aside, 'data-nav-sub-label>'),
-            preg_match_all('/<p class="erp-nav__sub-label" data-nav-sub-label>/', $aside),
-            'Every sub-group label must render as a <p> with exactly this markup — not an <a>, not a <button>.'
-        );
-        $this->assertSame(
-            0,
-            preg_match('/<a\s[^>]*erp-nav__sub-label/', $aside),
-            'A sub-group label must never itself be a link.'
-        );
-        // Reads the label ELEMENT and nothing beyond its closing tag: the tempered
-        // dot cannot run past `</p>`, so a later navigation row can never satisfy it.
-        $this->assertSame(
-            0,
-            preg_match('/<p class="erp-nav__sub-label" data-nav-sub-label>(?:(?!<\/p>).)*<a\s/s', $aside),
-            'A sub-group label must never contain a link.'
-        );
-        $this->assertSame(0, substr_count($aside, 'nav-group__head erp-nav__sub-label'), 'A sub-group label is not a collapsible group.');
-        $this->assertSame(0, substr_count($aside, 'erp-nav__sub-label" data-nav-sub-label id='), 'A sub-group label takes no id.');
-        $this->assertSame(0, substr_count($aside, '<button class="erp-nav__sub-label'), 'A sub-group label is not interactive.');
-
-        // Labels are a presentation detail of the group they sit in, so the count is
-        // asserted per module rather than as one global number. Two groups have one:
-        // the merged Academics group, and Admissions, which gained a single label
-        // when its pre-admission rows were gathered under it.
-        $counts = array_intersect_key($this->labelCounts($aside), array_flip(self::MODULE_GROUPS));
-        $this->assertSame(
-            ['admissions' => 1, 'students' => 2, 'certificates' => 0, 'academics' => 3, 'examinations' => 4,
-             'finance' => 3, 'transport' => 0, 'library' => 2, 'hostel' => 0, 'communication' => 0, 'inventory' => 5, 'hr' => 0, 'reports' => 5],
-            $counts,
-            'Each module renders only the sub-group labels it needs.'
-        );
-        $this->assertSame(25, array_sum($counts), '25 sub-group labels across the module groups.');
+        $this->assertStringNotContainsString('<x-nav.sub-group', $source, 'The main sidebar must not declare subgroup headings.');
+        $this->assertStringNotContainsString('data-nav-sub-label', $aside, 'No subgroup heading is rendered anywhere in the sidebar.');
+        $this->assertStringNotContainsString('erp-nav__sub-label', $aside, 'No subgroup-only markup remains in the rendered sidebar.');
     }
 
-    public function test_the_academics_group_is_split_by_three_labels_in_order(): void
+    public function test_academics_destinations_render_flat_in_their_existing_order(): void
     {
         $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT7'));
-        $sections = $this->sections($this->group($aside, 'Academics'));
+        $academics = $this->group($aside, 'Academics');
 
-        $this->assertSame(self::ACADEMICS_LABELS, array_keys($sections), 'The three sub-group labels must render in this order.');
-
-        $this->assertSame($this->paths(['campuses.index', 'programs.index']), $this->hrefs($sections['Institute setup']));
-        $this->assertSame($this->paths(['academic-years.index', 'academic-terms.index', 'sections.index', 'subjects.index']), $this->hrefs($sections['Academic structure']));
-        $this->assertSame($this->paths([
-            'academic-subject-enrollments.index',
-            'faculty-subject-assignments.index',
-            'academic-sections.index',
-            'academic-timetables.index',
-            'academic-attendance.index',
-            'academic-calendar.index',
-            'academic-workload.index',
-        ]), $this->hrefs($sections['Academic operations']));
-    }
-
-    public function test_no_group_repeats_one_of_its_own_labels(): void
-    {
-        $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT8'));
-
-        preg_match_all('/data-nav-group="([a-z-]+)"(.*?)(?=<li class="nav-group"|$)/s', $aside, $matches, PREG_SET_ORDER);
-
-        $seen = 0;
-        foreach ($matches as [, $id, $body]) {
-            preg_match_all('/data-nav-sub-label>([^<]+)</', $body, $labels);
-            $this->assertSame($labels[1], array_values(array_unique($labels[1])), "The {$id} group must not repeat a sub-group label.");
-            if (in_array($id, self::MODULE_GROUPS, true)) {
-                $seen += count($labels[1]);
-            }
-        }
-
-        // The same total the per-group count map asserts, arrived at the other way
-        // round: summed per group so a label that landed outside the thirteen modules
-        // (or inside a group twice) cannot pass. 25 module labels + the 3 Settings
-        // labels, which belong to a group that is not in MODULE_GROUPS.
-        $this->assertSame(25, $seen, 'Every module sub-group label belongs to a group.');
+        $this->assertSame(
+            $this->paths(self::ACADEMICS_ROWS),
+            $this->hrefs($academics),
+            'All twelve remaining Academics destinations stay directly under the module in the established order.'
+        );
+        $this->assertStringNotContainsString('data-nav-sub-label', $academics);
     }
 
     /* 4 · Row order is preserved outside the merged group ----------------- */
@@ -565,13 +457,12 @@ class SidebarStructureTest extends TestCase
 
     public function test_the_students_group_keeps_every_destination_it_had(): void
     {
-        // Students stays an independent top-level module. Nine rows, two sub-labels,
-        // nothing merged away and nothing added.
+        // Students stays an independent top-level module with all nine rows intact.
         $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT10'));
         $students = $this->group($aside, 'Students');
 
         $this->assertSame(9, substr_count($students, 'class="nav-link"'), 'Every Students destination must still render.');
-        $this->assertSame(2, substr_count($students, 'data-nav-sub-label>'), 'Students keeps its two sub-group labels.');
+        $this->assertStringNotContainsString('data-nav-sub-label', $students, 'Students has no subgroup headings.');
         $this->assertSame(
             $this->path('students.index'),
             $this->pathFromHref($this->hrefOf($this->row('Students', route('students.index'), $students))),
@@ -586,15 +477,12 @@ class SidebarStructureTest extends TestCase
 
     public function test_the_admissions_group_keeps_every_destination_it_had(): void
     {
-        // The Admissions menu was regrouped, not reduced. Every route the module
-        // offered before the rework is still one row away, and the rows that moved
-        // under a label kept the route each of them already linked.
+        // Every Admissions route is still one row away and remains in its original order.
         $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT10A'));
         $admissions = $this->group($aside, 'Admissions');
 
         $this->assertSame(10, substr_count($admissions, 'class="nav-link"'), 'Every Admissions destination must still render.');
-        $this->assertSame(1, substr_count($admissions, 'data-nav-sub-label>'), 'Admissions gathers its pre-admission rows under exactly one label.');
-        $this->assertSame(1, substr_count($admissions, 'data-nav-sub-label>Pre-Admission Records</p>'), 'That label reads Pre-Admission Records.');
+        $this->assertStringNotContainsString('data-nav-sub-label', $admissions, 'Admissions links render directly under the module.');
         $this->assertSame(
             $this->paths([
                 'admission.dashboard',
@@ -634,47 +522,34 @@ class SidebarStructureTest extends TestCase
         $this->assertSame(7, substr_count($this->group($aside, 'Human Resource (HR)'), 'class="nav-link"'), 'All seven HR rows moved with the group.');
     }
 
-    /* 5 · A label never renders without a row ----------------------------- */
+    /* 5 · Permission filtering survives flat module rows ----------------- */
 
-    public function test_a_restricted_viewer_never_sees_a_label_with_nothing_under_it(): void
+    public function test_individual_permissions_still_expose_only_the_matching_flat_link(): void
     {
-        // One permission per group, each of which belongs to a LATER section of its
-        // group: the earlier sections must disappear entirely rather than leaving a
-        // heading above nothing.
         $cases = [
-            'library_fines.view' => ['Library', 'Circulation', ['Catalogue']],
-            'fee_reports.view' => ['Fees', 'Reports', ['Fee setup', 'Collections & dues']],
-            'result_publishing.view' => ['Examinations', 'Result processing', ['Exam setup', 'Exam conduct', 'Documents & reports']],
-            'consolidated_reports.view' => ['Reports', 'Executive', ['Academic', 'Finance', 'Operations', 'Outreach & records']],
-            'inventory_low_stock.view' => ['Inventory', 'Stock levels', ['Setup', 'Procurement', 'Assets in use', 'Audit']],
+            'library_fines.view' => ['Library', 'library-fines.index'],
+            'fee_reports.view' => ['Fees', 'fee-reports.index'],
+            'result_publishing.view' => ['Examinations', 'result-publishing.index'],
+            'consolidated_reports.view' => ['Reports', 'consolidated-reports.index'],
+            'inventory_low_stock.view' => ['Inventory', 'inventory-low-stock.index'],
         ];
 
         $college = $this->makeCollege('STRUCT11');
 
-        foreach ($cases as $permission => [$groupLabel, $kept, $hidden]) {
+        foreach ($cases as $permission => [$groupLabel, $routeName]) {
             $group = $this->group($this->dashboardFor($college, [$permission]), $groupLabel);
 
-            $this->assertSame(1, substr_count($group, 'class="nav-link"'), "{$permission} alone must render exactly one row.");
-            $this->assertSame(1, substr_count($group, 'data-nav-sub-label>'), "{$permission} alone must render exactly one label.");
-            $this->assertStringContainsString('data-nav-sub-label>'.$kept.'</p>', $group, "{$kept} must stay: it still heads a visible row.");
-
-            foreach ($hidden as $gone) {
-                $this->assertStringNotContainsString('data-nav-sub-label>'.$gone.'</p>', $group, "{$gone} must not render for {$permission}: nothing would be under it.");
-            }
+            $this->assertSame(1, substr_count($group, 'class="nav-link"'), "{$permission} alone must render exactly its authorized row.");
+            $this->assertSame($this->paths([$routeName]), $this->hrefs($group), "{$permission} must keep its original destination.");
+            $this->assertStringNotContainsString('data-nav-sub-label', $group, 'Permission filtering must not require subgroup headings.');
         }
     }
 
-    public function test_a_group_with_no_permitted_row_renders_no_labels_at_all(): void
+    public function test_a_group_with_no_permitted_row_stays_hidden(): void
     {
         $aside = $this->dashboardFor($this->makeCollege('STRUCT12'), ['students.view']);
 
-        $this->assertStringNotContainsString('data-nav-group="library"', $aside, 'A viewer without library permissions sees neither the group nor its labels.');
-        $this->assertStringNotContainsString('data-nav-sub-label>Catalogue</p>', $aside);
-        $this->assertStringNotContainsString('data-nav-sub-label>Circulation</p>', $aside);
-        $this->assertStringNotContainsString('data-nav-sub-label>Fee setup</p>', $aside);
-        $this->assertStringNotContainsString('data-nav-sub-label>Exam setup</p>', $aside);
-        $this->assertStringNotContainsString('data-nav-sub-label>Executive</p>', $aside);
-        $this->assertStringNotContainsString('data-nav-sub-label>Stock levels</p>', $aside);
+        $this->assertStringNotContainsString('data-nav-group="library"', $aside, 'A viewer without library permissions sees no Library group.');
     }
 
     public function test_the_merged_group_keeps_the_permission_gate_it_had(): void
@@ -687,8 +562,8 @@ class SidebarStructureTest extends TestCase
         $aside = $this->dashboardFor($this->makeCollege('STRUCT12B'), ['students.view']);
 
         $this->assertStringContainsString('data-nav-group="academics" data-nav-open=', $aside, 'The Academics group renders ungated, exactly as Platform did.');
-        $this->assertStringContainsString('data-nav-sub-label>Institute setup</p>', $aside);
-        $this->assertSame(13, substr_count($this->group($aside, 'Academics'), 'class="nav-link"'), 'Every merged row still renders for a viewer without academic permissions, as all thirteen did before the move.');
+        $this->assertStringNotContainsString('data-nav-sub-label', $this->group($aside, 'Academics'));
+        $this->assertSame(12, substr_count($this->group($aside, 'Academics'), 'class="nav-link"'), 'All twelve remaining rows render for a viewer without academic permissions, as they were ungated before the move.');
     }
 
     /* 6 · No slash-joined label is left ----------------------------------- */
@@ -700,7 +575,7 @@ class SidebarStructureTest extends TestCase
 
         $joined = array_values(array_filter($labels, fn (string $label): bool => str_contains($label, ' / ')));
 
-        $this->assertGreaterThan(150, count($labels), 'Every row and sub-group label must be inspected.');
+        $this->assertGreaterThan(100, count($labels), 'Every navigation-row label must be inspected.');
         $this->assertSame([], $joined, 'No sidebar label may combine two concepts with " / ".');
         $this->assertContains('Grades &amp; Pass/Fail', $labels, 'The one compound slash ("Pass/Fail") is intentional and still present.');
     }
@@ -842,7 +717,7 @@ class SidebarStructureTest extends TestCase
         $this->assertStringContainsString('@if ($open) data-nav-active="true" @endif>', $groupTemplate,
             'An open group appends the active flag inline, which is why its spacing may not be asserted as one string.');
 
-        $this->assertSame(0, substr_count($aside, 'erp-nav__sub-label" data-nav-sub-label aria-current'), 'A sub-group label is not a destination and must never be aria-current.');
+        $this->assertStringNotContainsString('data-nav-sub-label', $aside, 'No subgroup element can ever be marked as a destination.');
     }
 
     /* 11 · The rendered-row anatomy -------------------------------------- */
@@ -912,16 +787,4 @@ class SidebarStructureTest extends TestCase
         $this->assertStringContainsString('class="erp-sidebar no-print"', $html, 'It keeps its no-print hook, so the navigation never lands on paper.');
     }
 
-    /** @return array<string, int> group id => number of sub-group labels inside it */
-    private function labelCounts(string $aside): array
-    {
-        preg_match_all('/data-nav-group="([a-z-]+)"(.*?)(?=<li class="nav-group"|$)/s', $aside, $matches, PREG_SET_ORDER);
-
-        $counts = [];
-        foreach ($matches as [, $id, $body]) {
-            $counts[$id] = substr_count($body, 'data-nav-sub-label>');
-        }
-
-        return $counts;
-    }
 }
