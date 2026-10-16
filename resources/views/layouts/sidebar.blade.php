@@ -139,7 +139,6 @@
                         <x-nav.link label="Subjects" route="subjects.index" />
                         <x-nav.link label="Student Subject Enrollment" route="academic-subject-enrollments.index" />
                         <x-nav.link label="Faculty–Subject Assignments" route="faculty-subject-assignments.index" />
-                        <x-nav.link label="Classes & Sections" route="academic-sections.index" />
                         <x-nav.link label="Timetable" route="academic-timetables.index" />
                         <x-nav.link label="Attendance" route="academic-attendance.index" />
                         <x-nav.link label="Academic Calendar" route="academic-calendar.index" />

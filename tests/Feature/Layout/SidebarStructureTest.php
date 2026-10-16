@@ -54,7 +54,7 @@ class SidebarStructureTest extends TestCase
         'faculty-subject-assignments.index',
     ];
 
-    /** The merged Academics group: two institute rows, four structure rows, seven operation rows. */
+    /** The Academics group: two institute rows, four structure rows, six operation rows. */
     private const ACADEMICS_ROWS = [
         'campuses.index',
         'programs.index',
@@ -64,7 +64,6 @@ class SidebarStructureTest extends TestCase
         'subjects.index',
         'academic-subject-enrollments.index',
         'faculty-subject-assignments.index',
-        'academic-sections.index',
         'academic-timetables.index',
         'academic-attendance.index',
         'academic-calendar.index',
@@ -87,7 +86,6 @@ class SidebarStructureTest extends TestCase
         'Staff Salary / Payroll' => 'Salary &amp; Payroll',
         'Merit / Selection' => 'Merit &amp; Selection',
         'Bulk Registration / Import' => 'Bulk Registration &amp; Import',
-        'Class / Section Management' => 'Classes &amp; Sections',
         'Grade / Pass-Fail' => 'Grades &amp; Pass/Fail',
         'Due / Outstanding Fees' => 'Outstanding Fees',
         'Fee Discounts / Concessions' => 'Discounts &amp; Concessions',
@@ -305,7 +303,7 @@ class SidebarStructureTest extends TestCase
         $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT3'));
         $academics = $this->group($aside, 'Academics');
 
-        $this->assertSame(13, substr_count($academics, 'class="nav-link"'), 'Academics must hold the six rows it always had plus the seven Platform rows.');
+        $this->assertSame(12, substr_count($academics, 'class="nav-link"'), 'Academics keeps its six existing operation rows plus the six remaining Platform rows.');
         $this->assertSame(
             $this->paths(self::ACADEMICS_ROWS),
             $this->hrefs($academics),
@@ -350,22 +348,19 @@ class SidebarStructureTest extends TestCase
         $this->assertStringNotContainsString($this->path('departments.index'), $academics, 'Departments is already reachable as HR → Staff Departments.');
         $this->assertStringNotContainsString('>Departments</span>', $academics);
 
-        // And no invented "Classes": there is no Classes route to link to, so the
-        // operational screen keeps its single, honest label instead.
-        $this->assertFalse(Route::has('classes.index'), 'There is no Classes route to link, and none may be invented.');
-        $this->assertStringContainsString('>Classes &amp; Sections</span>', $academics);
-        $this->assertSame(
-            $this->path('academic-sections.index'),
-            $this->pathFromHref($this->hrefOf($this->row('Classes &amp; Sections', route('academic-sections.index'), $academics))),
-            'That row still points at the Academic Sections screen.'
-        );
+        // The Academic Sections destination remains functional, but is no longer
+        // duplicated as a separate sidebar option.
+        $this->assertFalse(Route::has('classes.index'), 'There is no Classes route to link to, and none may be invented.');
+        $this->assertTrue(Route::has('academic-sections.index'), 'The Academic Sections route remains available without a sidebar entry.');
+        $this->assertStringNotContainsString('>Classes &amp; Sections</span>', $academics, 'The unneeded menu row is absent.');
+        $this->assertNotContains($this->path('academic-sections.index'), $this->hrefs($academics), 'The Academic Sections route is not a sidebar destination.');
         $this->assertStringContainsString('>Sections</span>', $academics, 'The setup-level Sections row keeps its own clean label.');
         $this->assertSame(
             $this->path('sections.index'),
             $this->pathFromHref($this->hrefOf($this->row('Sections', route('sections.index'), $academics))),
             'The setup-level Sections row keeps its own destination.'
         );
-        $this->assertNotSame($this->path('sections.index'), $this->path('academic-sections.index'), 'Sections and Classes & Sections stay two distinct destinations.');
+        $this->assertNotSame($this->path('sections.index'), $this->path('academic-sections.index'), 'The standalone Sections screen remains distinct from Academic Sections.');
     }
 
     /* 3 · Module links render without subgroup headings ----------------- */
@@ -388,7 +383,7 @@ class SidebarStructureTest extends TestCase
         $this->assertSame(
             $this->paths(self::ACADEMICS_ROWS),
             $this->hrefs($academics),
-            'All thirteen Academics destinations remain directly under the module in the established order.'
+            'All twelve remaining Academics destinations stay directly under the module in the established order.'
         );
         $this->assertStringNotContainsString('data-nav-sub-label', $academics);
     }
@@ -568,7 +563,7 @@ class SidebarStructureTest extends TestCase
 
         $this->assertStringContainsString('data-nav-group="academics" data-nav-open=', $aside, 'The Academics group renders ungated, exactly as Platform did.');
         $this->assertStringNotContainsString('data-nav-sub-label', $this->group($aside, 'Academics'));
-        $this->assertSame(13, substr_count($this->group($aside, 'Academics'), 'class="nav-link"'), 'Every merged row still renders for a viewer without academic permissions, as all thirteen did before the move.');
+        $this->assertSame(12, substr_count($this->group($aside, 'Academics'), 'class="nav-link"'), 'All twelve remaining rows render for a viewer without academic permissions, as they were ungated before the move.');
     }
 
     /* 6 · No slash-joined label is left ----------------------------------- */
