@@ -1,3 +1,77 @@
 @extends('layouts.app')
-@section('title','Dashboard')
-@section('content')<div class="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p class="text-slate-500">A secure foundation for your institution.</p><h2 class="mt-1 text-3xl font-bold tracking-tight">Good day, {{ \Illuminate\Support\Str::before(auth()->user()->name, ' ') }}.</h2></div><span class="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-700">System operational</span></div><div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-4"><div class="stat-card"><p class="stat-label">Active college</p><p class="stat-value">{{ app(\App\Support\Tenancy\TenantContext::class)->college()?->name ?? 'Platform' }}</p><p class="stat-hint">Current tenant context</p></div><div class="stat-card"><p class="stat-label">Your access</p><p class="stat-value">{{ auth()->user()->isSuperAdmin() ? 'Super Admin' : 'College user' }}</p><p class="stat-hint">Database-driven RBAC</p></div><div class="stat-card"><p class="stat-label">Security</p><p class="stat-value">Protected</p><p class="stat-hint">Session and policy controls active</p></div><div class="stat-card"><p class="stat-label">API</p><p class="stat-value">v1 ready</p><p class="stat-hint">Versioned foundation endpoint</p></div></div><div class="mt-8 grid gap-6 lg:grid-cols-3"><div class="panel lg:col-span-2"><div class="flex items-center justify-between"><div><h3 class="panel-title">Platform foundation</h3><p class="panel-subtitle">Core capabilities ready for future modules.</p></div><span class="text-2xl text-indigo-600">✦</span></div><div class="mt-6 grid gap-3 sm:grid-cols-2"><div class="feature-item"><b>Tenant isolation</b><span>College context and global scoping</span></div><div class="feature-item"><b>Access control</b><span>Roles, permissions, policies and gates</span></div><div class="feature-item"><b>Audit ready</b><span>Immutable activity records</span></div><div class="feature-item"><b>Secure foundation</b><span>Validation, throttling and safe errors</span></div></div></div><div class="panel"><h3 class="panel-title">Quick actions</h3><p class="panel-subtitle">Platform administration shortcuts.</p><div class="mt-5 space-y-3"><a class="quick-link" href="#">Manage college <span>→</span></a><a class="quick-link" href="#">Manage access <span>→</span></a><a class="quick-link" href="#">Institution settings <span>→</span></a></div></div></div>@endsection
+
+@section('title', 'Dashboard')
+
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('css/erp-dashboard.css') }}@if (is_file(public_path('css/erp-dashboard.css')))?v={{ filemtime(public_path('css/erp-dashboard.css')) ?: null }}@endif">
+@endpush
+
+@section('content')
+    <div class="erp-dashboard" id="college-dashboard">
+        <div class="erp-dashboard__inner">
+            <header class="erp-dashboard__intro">
+                <div>
+                    <p class="erp-dashboard__eyebrow">College overview</p>
+                    <h2 class="erp-dashboard__title">Good day, {{ \Illuminate\Support\Str::before(auth()->user()->name, ' ') }}.</h2>
+                    <p class="erp-dashboard__description">A focused view of the information available in your current college.</p>
+                </div>
+                @if ($college = app(\App\Support\Tenancy\TenantContext::class)->college())
+                    <div class="erp-dashboard__context" aria-label="Current college">
+                        <span class="erp-dashboard__context-dot" aria-hidden="true"></span>
+                        <span><span class="erp-dashboard__context-label">Current college</span>{{ $college->name }}</span>
+                    </div>
+                @else
+                    <div class="erp-dashboard__context erp-dashboard__context--platform">
+                        <span class="erp-dashboard__context-dot" aria-hidden="true"></span>
+                        <span>Platform workspace</span>
+                    </div>
+                @endif
+            </header>
+
+            <section class="erp-dashboard__grid" aria-label="College dashboard">
+                <article class="erp-dashboard__metric-card" aria-labelledby="student-records-title">
+                    @if ($canViewStudentMetric)
+                        <div class="erp-dashboard__metric-topline">
+                            <div class="erp-dashboard__metric-mark" aria-hidden="true">SR</div>
+                            <span class="erp-dashboard__metric-kicker">Current college</span>
+                        </div>
+                        <h3 class="erp-dashboard__metric-label" id="student-records-title">Student records</h3>
+                        <p class="erp-dashboard__metric-value" data-dashboard-student-count>{{ number_format($studentRecordCount) }}</p>
+                        <p class="erp-dashboard__metric-note">Non-archived student profiles, across all statuses.</p>
+                        @if ($studentRecordCount === 0)
+                            <p class="erp-dashboard__empty-note">No student records have been added to this college yet.</p>
+                        @endif
+                        <a class="erp-dashboard__action" href="{{ route('students.index') }}">
+                            Browse student records <span aria-hidden="true">&rarr;</span>
+                        </a>
+                    @else
+                        <div class="erp-dashboard__metric-topline">
+                            <div class="erp-dashboard__metric-mark" aria-hidden="true">OV</div>
+                            <span class="erp-dashboard__metric-kicker">College overview</span>
+                        </div>
+                        <h3 class="erp-dashboard__metric-label" id="student-records-title">Dashboard metrics</h3>
+                        <p class="erp-dashboard__access-message">
+                            Student totals are available to users with student-view access while a college is selected.
+                        </p>
+                    @endif
+                </article>
+
+                <aside class="erp-dashboard__info-card" aria-labelledby="workspace-title">
+                    <div class="erp-dashboard__info-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 10.5 12 4l9 6.5"></path>
+                            <path d="M5.5 9.5v10h13v-10M9 19.5v-6h6v6"></path>
+                        </svg>
+                    </div>
+                    <p class="erp-dashboard__eyebrow">Your workspace</p>
+                    <h3 class="erp-dashboard__info-title" id="workspace-title">Built around your college</h3>
+                    <p class="erp-dashboard__info-copy">
+                        Dashboard information is limited to your selected college and the permissions assigned to your role.
+                    </p>
+                    <div class="erp-dashboard__info-rule"></div>
+                    <p class="erp-dashboard__info-footnote">Only verified, permission-appropriate data appears here. Additional charts are omitted until reliable sources are available.</p>
+                </aside>
+            </section>
+        </div>
+    </div>
+@endsection

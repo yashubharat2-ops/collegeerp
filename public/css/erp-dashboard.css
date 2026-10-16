@@ -1,0 +1,359 @@
+/* College dashboard only. The shared shell, header, and module screens keep their existing surfaces. */
+#college-dashboard {
+    --dashboard-forest: #163d2e;
+    --dashboard-green: #21845a;
+    --dashboard-green-deep: #176342;
+    --dashboard-teal: #147d77;
+    --dashboard-mint: #eaf5ee;
+    --dashboard-line: #d9e8de;
+    --dashboard-muted: #62776b;
+
+    min-height: calc(100vh - 72px);
+    margin: -1.5rem;
+    padding: clamp(1.5rem, 3.4vw, 3rem);
+    background: var(--dashboard-mint);
+    color: #173126;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+
+#college-dashboard,
+#college-dashboard * {
+    box-sizing: border-box;
+}
+
+#college-dashboard .erp-dashboard__inner {
+    width: min(100%, 1280px);
+    margin: 0 auto;
+}
+
+#college-dashboard .erp-dashboard__intro {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin: 0 0 2rem;
+}
+
+#college-dashboard .erp-dashboard__eyebrow {
+    margin: 0 0 0.55rem;
+    color: var(--dashboard-green-deep);
+    font-size: 0.72rem;
+    font-weight: 750;
+    letter-spacing: 0.13em;
+    line-height: 1.3;
+    text-transform: uppercase;
+}
+
+#college-dashboard .erp-dashboard__title {
+    margin: 0;
+    color: var(--dashboard-forest);
+    font-size: clamp(1.75rem, 3.3vw, 2.55rem);
+    font-weight: 720;
+    letter-spacing: -0.045em;
+    line-height: 1.13;
+}
+
+#college-dashboard .erp-dashboard__description {
+    max-width: 42rem;
+    margin: 0.7rem 0 0;
+    color: var(--dashboard-muted);
+    font-size: 0.96rem;
+    line-height: 1.65;
+}
+
+#college-dashboard .erp-dashboard__context {
+    display: flex;
+    flex: 0 1 auto;
+    align-items: center;
+    gap: 0.65rem;
+    max-width: 22rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid #cfe2d5;
+    border-radius: 0.9rem;
+    background: rgba(255, 255, 255, 0.72);
+    color: #244b38;
+    font-size: 0.84rem;
+    font-weight: 650;
+    line-height: 1.4;
+}
+
+#college-dashboard .erp-dashboard__context > span:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+#college-dashboard .erp-dashboard__context-label {
+    display: block;
+    margin-bottom: 0.1rem;
+    color: #71857a;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+#college-dashboard .erp-dashboard__context--platform {
+    color: var(--dashboard-forest);
+}
+
+#college-dashboard .erp-dashboard__context-dot {
+    width: 0.58rem;
+    height: 0.58rem;
+    flex: 0 0 0.58rem;
+    border-radius: 50%;
+    background: #31a36e;
+    box-shadow: 0 0 0 4px #d9f0e1;
+}
+
+#college-dashboard .erp-dashboard__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(17rem, 0.85fr);
+    align-items: stretch;
+    gap: 1.25rem;
+}
+
+#college-dashboard .erp-dashboard__metric-card,
+#college-dashboard .erp-dashboard__info-card {
+    min-width: 0;
+    border: 1px solid var(--dashboard-line);
+    border-radius: 1.2rem;
+    background: #fff;
+    box-shadow: 0 12px 32px rgba(31, 79, 55, 0.055), 0 2px 5px rgba(31, 79, 55, 0.035);
+}
+
+#college-dashboard .erp-dashboard__metric-card {
+    position: relative;
+    display: flex;
+    min-height: 21rem;
+    flex-direction: column;
+    align-items: flex-start;
+    overflow: hidden;
+    padding: clamp(1.4rem, 2.8vw, 2.2rem);
+}
+
+#college-dashboard .erp-dashboard__metric-card::after {
+    position: absolute;
+    top: -5.5rem;
+    right: -4rem;
+    width: 15rem;
+    height: 15rem;
+    border: 1px solid #e5f1e9;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1.5rem #f8fcf9, 0 0 0 3rem #fbfdfb;
+    content: "";
+    pointer-events: none;
+}
+
+#college-dashboard .erp-dashboard__metric-topline {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+#college-dashboard .erp-dashboard__metric-mark {
+    display: grid;
+    width: 2.65rem;
+    height: 2.65rem;
+    place-items: center;
+    border: 1px solid #d1e8da;
+    border-radius: 0.85rem;
+    background: #eef8f1;
+    color: var(--dashboard-green-deep);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
+
+#college-dashboard .erp-dashboard__metric-kicker {
+    color: #788c80;
+    font-size: 0.72rem;
+    font-weight: 650;
+    letter-spacing: 0.025em;
+}
+
+#college-dashboard .erp-dashboard__metric-label {
+    position: relative;
+    z-index: 1;
+    margin: 1.7rem 0 0;
+    color: #40594b;
+    font-size: 0.94rem;
+    font-weight: 650;
+}
+
+#college-dashboard .erp-dashboard__metric-value {
+    position: relative;
+    z-index: 1;
+    margin: 0.18rem 0 0;
+    color: var(--dashboard-forest);
+    font-size: clamp(2.75rem, 6vw, 4.25rem);
+    font-variant-numeric: tabular-nums;
+    font-weight: 740;
+    letter-spacing: -0.06em;
+    line-height: 1.12;
+}
+
+#college-dashboard .erp-dashboard__metric-note {
+    position: relative;
+    z-index: 1;
+    margin: 0.55rem 0 0;
+    color: var(--dashboard-muted);
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+#college-dashboard .erp-dashboard__empty-note {
+    position: relative;
+    z-index: 1;
+    margin: 0.9rem 0 0;
+    padding: 0.62rem 0.78rem;
+    border-left: 3px solid #61b286;
+    border-radius: 0 0.45rem 0.45rem 0;
+    background: #f1f9f4;
+    color: #456b55;
+    font-size: 0.78rem;
+    line-height: 1.5;
+}
+
+#college-dashboard .erp-dashboard__access-message {
+    position: relative;
+    z-index: 1;
+    max-width: 29rem;
+    margin: 0.85rem 0 0;
+    color: var(--dashboard-muted);
+    font-size: 0.9rem;
+    line-height: 1.7;
+}
+
+#college-dashboard .erp-dashboard__action {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    min-height: 2.65rem;
+    align-items: center;
+    gap: 1.2rem;
+    margin-top: auto;
+    padding: 0.2rem 0 0;
+    color: var(--dashboard-green-deep);
+    font-size: 0.84rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+#college-dashboard .erp-dashboard__action span {
+    font-size: 1.1rem;
+    transition: transform 0.16s ease;
+}
+
+#college-dashboard .erp-dashboard__action:hover span {
+    transform: translateX(3px);
+}
+
+#college-dashboard .erp-dashboard__action:focus-visible {
+    border-radius: 0.3rem;
+    outline: 3px solid #73c493;
+    outline-offset: 4px;
+}
+
+#college-dashboard .erp-dashboard__info-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: clamp(1.4rem, 2.6vw, 2rem);
+}
+
+#college-dashboard .erp-dashboard__info-icon {
+    display: grid;
+    width: 2.7rem;
+    height: 2.7rem;
+    place-items: center;
+    margin-bottom: 1.45rem;
+    border-radius: 0.85rem;
+    background: #eaf6ee;
+    color: var(--dashboard-teal);
+}
+
+#college-dashboard .erp-dashboard__info-icon svg {
+    width: 1.4rem;
+    height: 1.4rem;
+}
+
+#college-dashboard .erp-dashboard__info-card .erp-dashboard__eyebrow {
+    margin-bottom: 0.45rem;
+}
+
+#college-dashboard .erp-dashboard__info-title {
+    margin: 0;
+    color: var(--dashboard-forest);
+    font-size: 1.17rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.35;
+}
+
+#college-dashboard .erp-dashboard__info-copy {
+    margin: 0.7rem 0 0;
+    color: var(--dashboard-muted);
+    font-size: 0.85rem;
+    line-height: 1.7;
+}
+
+#college-dashboard .erp-dashboard__info-rule {
+    width: 100%;
+    height: 1px;
+    margin: 1.35rem 0 1rem;
+    background: #e8efe9;
+}
+
+#college-dashboard .erp-dashboard__info-footnote {
+    margin: 0;
+    color: #75877c;
+    font-size: 0.74rem;
+    line-height: 1.65;
+}
+
+@media (max-width: 850px) {
+    #college-dashboard .erp-dashboard__grid {
+        grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.8fr);
+    }
+}
+
+@media (max-width: 680px) {
+    #college-dashboard {
+        min-height: calc(100vh - 64px);
+        padding: 1.4rem 1rem 2rem;
+    }
+
+    #college-dashboard .erp-dashboard__intro {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 1rem;
+        margin-bottom: 1.35rem;
+    }
+
+    #college-dashboard .erp-dashboard__context {
+        max-width: 100%;
+    }
+
+    #college-dashboard .erp-dashboard__grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.9rem;
+    }
+
+    #college-dashboard .erp-dashboard__metric-card {
+        min-height: 19rem;
+    }
+
+    #college-dashboard .erp-dashboard__info-card {
+        padding: 1.4rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #college-dashboard .erp-dashboard__action span {
+        transition: none;
+    }
+}
