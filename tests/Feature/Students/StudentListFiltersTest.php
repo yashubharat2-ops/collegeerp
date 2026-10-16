@@ -50,6 +50,38 @@ class StudentListFiltersTest extends TestCase
         return $this->asCollege($college, $user)->get(route('students.index', $query));
     }
 
+    /**
+     * One date-range control, sliced out of the rendered page by its own
+     * accessible name.
+     *
+     * The list carries TWO independent ranges now — Admission date and Date of
+     * birth — and each renders a From/To pair, so a page-wide count of the
+     * picker's inner attributes can no longer say which control they belong to.
+     * Slicing keeps every assertion about one range; the companion assertion
+     * that the page carries exactly two `data-list-date-range` controls is what
+     * proves both are still there.
+     *
+     * The slice runs from the control's `aria-label="<label>"` to the next
+     * `data-list-date-range` (or the end of the filter form), so it can only
+     * contain that one control's markup.
+     */
+    private function dateRangeControl(string $html, string $label): string
+    {
+        $marker = 'aria-label="'.$label.'"';
+        $start = strpos($html, $marker);
+        $this->assertNotFalse($start, "The {$label} date range must be rendered.");
+
+        $end = strlen($html);
+        foreach (['data-list-date-range', '</form>'] as $boundary) {
+            $at = strpos($html, $boundary, $start + strlen($marker));
+            if ($at !== false && $at < $end) {
+                $end = $at;
+            }
+        }
+
+        return substr($html, $start, $end - $start);
+    }
+
     public function test_search_covers_name_number_enrollment_number_email_and_mobile(): void
     {
         [$college, $viewer] = $this->collegeWithViewer('SLF1');
@@ -249,9 +281,24 @@ class StudentListFiltersTest extends TestCase
         $this->assertStringContainsString('value="2026-07-31"', $html);
         $this->assertStringContainsString('data-list-date-display', $html);
         $this->assertStringContainsString('data-list-date-value', $html);
-        $this->assertSame(2, substr_count($html, 'data-date-picker-toggle'));
-        $this->assertSame(2, substr_count($html, 'data-date-picker-prev'));
-        $this->assertSame(2, substr_count($html, 'data-date-picker-next'));
+
+        // The picker's internals are asserted PER CONTROL. Counting them across
+        // the whole page would be asserting 4 and calling it "the admission date
+        // range" — which is exactly what broke when the Date of birth range was
+        // added beside it.
+        $admission = $this->dateRangeControl($html, 'Admission date');
+
+        $this->assertSame(2, substr_count($admission, 'data-date-picker-toggle'), 'The Admission date range has a From and a To picker.');
+        $this->assertSame(2, substr_count($admission, 'data-date-picker-prev'));
+        $this->assertSame(2, substr_count($admission, 'data-date-picker-next'));
+        $this->assertSame(2, substr_count($admission, 'class="erp-list-date-prefix"'));
+
+        // …and the page carries exactly two ranges, so a third one appearing by
+        // accident still fails this test.
+        $this->assertSame(2, substr_count($html, 'data-list-date-range'), 'The list carries exactly two date ranges: admission and date of birth.');
+        $this->assertSame(4, substr_count($html, 'data-date-picker-toggle'), 'Two ranges x a From/To pair each.');
+        $this->assertSame(4, substr_count($html, 'data-date-picker-popover'));
+
         $this->assertStringContainsString('data-date-picker-calendar', $html);
         $this->assertStringContainsString('data-date-picker-days', $html);
         $this->assertStringContainsString('data-date-picker-clear', $html);
@@ -260,7 +307,6 @@ class StudentListFiltersTest extends TestCase
         $this->assertStringContainsString('erp-list-date-separator', $html);
         $this->assertStringContainsString('data-list-date-edge="from"', $html);
         $this->assertStringContainsString('data-list-date-edge="to"', $html);
-        $this->assertSame(2, substr_count($html, 'class="erp-list-date-prefix"'));
         $this->assertStringContainsString('data-date-picker-label="From"', $html);
         $this->assertStringContainsString('data-date-picker-label="To"', $html);
         $this->assertStringContainsString('aria-haspopup="dialog"', $html);
@@ -287,9 +333,83 @@ class StudentListFiltersTest extends TestCase
             );
         }
 
-        $this->assertSame(2, substr_count($html, 'data-date-picker-popover'));
-        $this->assertStringContainsString('aria-expanded="false"', $html);
-        $this->assertSame(2, substr_count($html, 'data-list-date-display'));
+        // Per control again: "the admission range's two popovers are both closed"
+        // is a statement about the admission control, not about the page.
+        $admission = $this->dateRangeControl($html, 'Admission date');
+        $this->assertSame(2, substr_count($admission, 'data-date-picker-popover'), 'The Admission date range has a From and a To popover.');
+        $this->assertSame(2, substr_count($admission, 'data-list-date-display'));
+        $this->assertStringContainsString('aria-expanded="false"', $admission);
+        $this->assertSame(0, substr_count($admission, 'aria-expanded="true"'), 'Both Admission date pickers start closed.');
+    }
+
+    public function test_both_date_ranges_own_their_pickers(): void
+    {
+        // Two ranges now share one page. Each must own its whole picker — display
+        // field, query field, calendar, title — because erp-list.js addresses the
+        // parts through `id` and through the ids it derives from the field names.
+        // A shared id would wire one calendar twice and leave the other dead, and
+        // neither range may pick up the other's query parameter.
+        [$college, $viewer] = $this->collegeWithViewer('SLF4F');
+
+        $html = $this->list($college, $viewer, [
+            'admission_date_from' => '2026-07-05',
+            'admission_date_to' => '2026-07-31',
+            'date_of_birth_from' => '2005-06-15',
+            'date_of_birth_to' => '2006-01-20',
+        ])->assertOk()->getContent();
+
+        $this->assertSame(2, substr_count($html, 'data-list-date-range'), 'Exactly two date ranges: admission and date of birth.');
+
+        $admission = $this->dateRangeControl($html, 'Admission date');
+        $birth = $this->dateRangeControl($html, 'Date of birth');
+
+        $ranges = [
+            'Admission date' => [$admission, 'admission_date_from', 'admission_date_to', '05/07/2026', '2026-07-05'],
+            'Date of birth' => [$birth, 'date_of_birth_from', 'date_of_birth_to', '15/06/2005', '2005-06-15'],
+        ];
+
+        foreach ($ranges as $label => [$range, $from, $to, $display, $iso]) {
+            // Each control owns its own From/To pair.
+            $this->assertSame(1, substr_count($range, 'name="'.$from.'"'), "{$label} owns its {$from} field.");
+            $this->assertSame(1, substr_count($range, 'name="'.$to.'"'), "{$label} owns its {$to} field.");
+            $this->assertSame(2, substr_count($range, 'data-date-picker-toggle'), "{$label} renders two picker triggers.");
+            $this->assertSame(2, substr_count($range, 'data-date-picker-popover'), "{$label} renders two popovers.");
+
+            // The visible value is localised, the submitted value stays ISO.
+            $this->assertStringContainsString('value="'.$display.'"', $range, "{$label} shows DD/MM/YYYY.");
+            $this->assertStringContainsString('value="'.$iso.'"', $range, "{$label} keeps an ISO query value.");
+
+            // Every id the picker wires by appears exactly once on the whole page.
+            foreach ([$from, $to] as $name) {
+                foreach (['filter-display-', 'filter-', 'filter-calendar-', 'filter-calendar-title-'] as $prefix) {
+                    $this->assertSame(
+                        1,
+                        substr_count($html, 'id="'.$prefix.$name.'"'),
+                        "The id {$prefix}{$name} must be rendered exactly once."
+                    );
+                }
+            }
+        }
+
+        // Neither range leaks the other's parameter, so one broken control can
+        // never silently filter on the other's column.
+        $this->assertStringNotContainsString('date_of_birth', $admission, 'The Admission date range must not carry the date-of-birth parameters.');
+        $this->assertStringNotContainsString('admission_date', $birth, 'The Date of birth range must not carry the admission-date parameters.');
+
+        // The script that wires them iterates EVERY range and then every picker
+        // inside its own root. A single-element lookup here would make the second
+        // calendar silently stop opening, which no markup assertion would catch.
+        $js = (string) file_get_contents(public_path('js/erp-list.js'));
+        $this->assertStringContainsString(
+            "querySelectorAll('[data-list-date-range]')",
+            $js,
+            'The date-range initializer must handle every range on the page, not the first.'
+        );
+        $this->assertStringContainsString(
+            "range.querySelectorAll('[data-erp-date-picker]')",
+            $js,
+            'Each range must initialise each of its own From/To pickers.'
+        );
     }
 
     public function test_unknown_or_malformed_filter_values_are_ignored(): void
@@ -451,16 +571,27 @@ class StudentListFiltersTest extends TestCase
         foreach ([
             'academic_year_id', 'department_id', 'program_id', 'academic_term_id', 'section_id',
             'gender', 'category', 'status', 'enrollment_status', 'admission_date_from', 'admission_date_to',
+            'student_number', 'blood_group', 'nationality', 'mother_tongue',
+            'date_of_birth_from', 'date_of_birth_to',
         ] as $filter) {
             $this->assertStringContainsString('name="'.$filter.'"', $html, "The {$filter} filter must be rendered.");
         }
         foreach ([
             'Academic year', 'Department', 'Program / Course', 'Academic term / semester',
-            'Section / Batch', 'Gender', 'Category', 'Student status', 'Enrollment status',
-            'Admission date', 'From', 'To',
+            'Section', 'Gender', 'Category', 'Student status', 'Enrollment status',
+            'Admission date', 'Registration Number', 'Blood group', 'Nationality',
+            'Mother tongue', 'Date of birth', 'From', 'To',
         ] as $label) {
             $this->assertStringContainsString($label, $html, "The {$label} filter label must be visible.");
         }
+
+        // Section is a Section. The old "Section / Batch" wording represented the
+        // column as something the schema has no concept of — there is no batch.
+        $this->assertStringNotContainsString(
+            'Section / Batch',
+            $html,
+            'The Section filter must not be labelled as a Batch.'
+        );
 
         // Sorting and pagination controls are the shared components' output.
         $this->assertStringContainsString('sort=student_number', $html);
@@ -595,5 +726,270 @@ class StudentListFiltersTest extends TestCase
             'A normal student query must not see the trashed row.');
         $this->assertSame(1, Student::withoutGlobalScopes()->where('student_number', 'STU-GONE')->count(),
             'The row must still exist: soft delete, never a hard delete.');
+    }
+
+    /* ------------------------------------------------------------------ *\
+     * Filters added on top of the original set: Registration Number,
+     * Blood group, Nationality, Mother tongue and Date of birth.
+     * \* ------------------------------------------------------------------ */
+
+    public function test_registration_number_filter_matches_a_partial_number(): void
+    {
+        [$college, $viewer] = $this->collegeWithViewer('SLF13');
+
+        $this->makeStudent($college, ['first_name' => 'Match', 'student_number' => 'STU-2026-0042']);
+        $this->makeStudent($college, ['first_name' => 'Other', 'student_number' => 'STU-2025-0007']);
+
+        // A partial number is enough: this is a contains-match on one column, not
+        // a second full-text search.
+        $this->list($college, $viewer, ['student_number' => '2026-00'])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 1
+                && $students->first()->student_number === 'STU-2026-0042');
+
+        // And the whole number still matches the field it was typed into.
+        $this->list($college, $viewer, ['student_number' => 'STU-2025-0007'])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 1);
+    }
+
+    public function test_the_registration_number_filter_is_not_the_search_box(): void
+    {
+        // The two are separate controls on purpose: typing in one must not run the
+        // multi-column group search, or a name would match "Registration Number".
+        [$college, $viewer] = $this->collegeWithViewer('SLF14');
+
+        $this->makeStudent($college, ['first_name' => 'Riya', 'student_number' => 'STU-3001-0001']);
+
+        $this->list($college, $viewer, ['student_number' => 'Riya'])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 0);
+
+        // The search box still does cross-column matching, unchanged.
+        $this->list($college, $viewer, ['search' => 'Riya'])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 1);
+    }
+
+    public function test_blood_group_filter_uses_the_model_allow_list(): void
+    {
+        [$college, $viewer] = $this->collegeWithViewer('SLF15');
+
+        $this->makeStudent($college, ['first_name' => 'O Positive', 'blood_group' => 'O+']);
+        $this->makeStudent($college, ['first_name' => 'A Positive', 'blood_group' => 'A+']);
+
+        $this->list($college, $viewer, ['blood_group' => 'O+'])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 1
+                && $students->first()->blood_group === 'O+');
+
+        // A value outside Student::BLOOD_GROUPS is ignored, not rejected and not
+        // interpolated — the list simply is not narrowed. Same rule as the other
+        // whitelisted filters.
+        $this->list($college, $viewer, ['blood_group' => 'Z+'])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 2);
+    }
+
+    public function test_date_of_birth_range_filters_between_the_bounds(): void
+    {
+        [$college, $viewer] = $this->collegeWithViewer('SLF16');
+
+        $this->makeStudent($college, ['first_name' => 'Early', 'date_of_birth' => '2004-12-31']);
+        $this->makeStudent($college, ['first_name' => 'Inside', 'date_of_birth' => '2005-06-15']);
+        $this->makeStudent($college, ['first_name' => 'Late', 'date_of_birth' => '2006-01-01']);
+
+        // Both bounds inclusive, one student outside the window.
+        $this->list($college, $viewer, ['date_of_birth_from' => '2005-01-01', 'date_of_birth_to' => '2005-12-31'])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 1
+                && $students->first()->first_name === 'Inside');
+
+        // An open-ended range: "born on or after this date" keeps two.
+        $this->list($college, $viewer, ['date_of_birth_from' => '2005-01-01'])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 2);
+
+        // A range that matches nobody renders the empty state, not an error.
+        $this->list($college, $viewer, ['date_of_birth_from' => '1990-01-01', 'date_of_birth_to' => '1990-12-31'])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 0);
+    }
+
+    public function test_nationality_and_mother_tongue_are_contains_matches(): void
+    {
+        [$college, $viewer] = $this->collegeWithViewer('SLF17');
+
+        $this->makeStudent($college, ['first_name' => 'Delhi', 'nationality' => 'Indian', 'mother_tongue' => 'Hindi']);
+        $this->makeStudent($college, ['first_name' => 'Kathmandu', 'nationality' => 'Nepali', 'mother_tongue' => 'Nepali']);
+        $this->makeStudent($college, ['first_name' => 'Blank', 'nationality' => null, 'mother_tongue' => null]);
+
+        // Part of the value is enough for both fields.
+        $this->list($college, $viewer, ['nationality' => 'Ind'])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 1
+                && $students->first()->first_name === 'Delhi');
+
+        $this->list($college, $viewer, ['mother_tongue' => 'Nep'])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 1
+                && $students->first()->first_name === 'Kathmandu');
+    }
+
+    public function test_a_text_filter_narrows_only_its_own_column(): void
+    {
+        // Mother tongue "Nepali" and nationality "Nepali" share a word. Filtering
+        // by nationality must not return the student who merely speaks it, which
+        // is what would happen if these were aliased onto the group search.
+        [$college, $viewer] = $this->collegeWithViewer('SLF18');
+
+        $this->makeStudent($college, ['first_name' => 'ByNationality', 'nationality' => 'Nepali', 'mother_tongue' => 'Hindi']);
+        $this->makeStudent($college, ['first_name' => 'ByTongue', 'nationality' => 'Indian', 'mother_tongue' => 'Nepali']);
+
+        $this->list($college, $viewer, ['nationality' => 'Nepali'])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 1
+                && $students->first()->first_name === 'ByNationality');
+
+        $this->list($college, $viewer, ['mother_tongue' => 'Nepali'])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 1
+                && $students->first()->first_name === 'ByTongue');
+    }
+
+    public function test_the_new_filters_combine(): void
+    {
+        [$college, $viewer] = $this->collegeWithViewer('SLF19');
+
+        $this->makeStudent($college, ['first_name' => 'Target', 'nationality' => 'Indian', 'blood_group' => 'O+', 'date_of_birth' => '2005-06-15']);
+        $this->makeStudent($college, ['first_name' => 'WrongBlood', 'nationality' => 'Indian', 'blood_group' => 'A+', 'date_of_birth' => '2005-06-15']);
+        $this->makeStudent($college, ['first_name' => 'WrongNationality', 'nationality' => 'Nepali', 'blood_group' => 'O+', 'date_of_birth' => '2005-06-15']);
+        $this->makeStudent($college, ['first_name' => 'WrongDob', 'nationality' => 'Indian', 'blood_group' => 'O+', 'date_of_birth' => '2007-06-15']);
+
+        // All four conditions must hold on the SAME student.
+        $this->list($college, $viewer, [
+            'nationality' => 'Indian',
+            'blood_group' => 'O+',
+            'date_of_birth_from' => '2005-01-01',
+            'date_of_birth_to' => '2005-12-31',
+        ])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 1
+                && $students->first()->first_name === 'Target');
+    }
+
+    public function test_identity_documents_are_not_offered_as_filters(): void
+    {
+        // aadhaar_number, govt_id_number and apaar_id are deliberately not
+        // filterable: the first two are encrypted at rest, govt_id_number has no
+        // digest column to match on, and all three are government identity
+        // numbers that a GET filter would write into the query string — and so
+        // into server logs, browser history and the Referer header. This test
+        // exists so that adding such a control has to be a deliberate act.
+        [$college, $viewer] = $this->collegeWithViewer('SLF20');
+
+        $html = $this->list($college, $viewer)->assertOk()->getContent();
+
+        foreach ([
+            'aadhaar_number', 'aadhaar_hash', 'aadhaar_last4',
+            'govt_id_number', 'govt_id_type', 'apaar_id',
+        ] as $field) {
+            $this->assertStringNotContainsString(
+                'name="'.$field.'"',
+                $html,
+                "The {$field} column must not be exposed as a filter control."
+            );
+        }
+
+        // The one identifier that IS offered is the college's own student number.
+        $this->assertStringContainsString('name="student_number"', $html);
+    }
+
+    public function test_malformed_values_for_the_new_filters_are_ignored(): void
+    {
+        // An array where a text input expects one value is a fatal "Array to
+        // string conversion" if it is ever interpolated into a LIKE pattern. The
+        // filter must read it as "no filter" and render the page.
+        [$college, $viewer] = $this->collegeWithViewer('SLF21');
+
+        $this->makeStudent($college, ['first_name' => 'Safe']);
+
+        $queries = [
+            ['nationality' => ['nested']],
+            ['mother_tongue' => ['nested']],
+            ['student_number' => ['nested']],
+            ['blood_group' => ['nested']],
+            ['date_of_birth_from' => ['nested']],
+            ['date_of_birth_to' => ['nested']],
+        ];
+
+        foreach ($queries as $query) {
+            $this->list($college, $viewer, $query)
+                ->assertOk()
+                ->assertViewHas('students', fn ($students) => $students->total() === 1);
+        }
+
+        // A date-of-birth value that is not a plain Y-m-d date is ignored too:
+        // the range filter is regex-checked and never casts junk into a date.
+        foreach (['not-a-date', '15/06/2005', '2005-6-1'] as $bad) {
+            $this->list($college, $viewer, ['date_of_birth_from' => $bad, 'date_of_birth_to' => $bad])
+                ->assertOk()
+                ->assertViewHas('students', fn ($students) => $students->total() === 1);
+        }
+    }
+
+    public function test_the_new_filters_are_kept_in_the_pagination_links(): void
+    {
+        [$college, $viewer] = $this->collegeWithViewer('SLF22');
+
+        // Enough rows to paginate (the module pages at 15). No enrollment is
+        // needed: both filters live on the students table itself.
+        foreach (range(1, 18) as $i) {
+            $this->makeStudent($college, [
+                'first_name' => 'Paged'.sprintf('%02d', $i),
+                'nationality' => 'Indian',
+                'blood_group' => 'O+',
+            ]);
+        }
+
+        $response = $this->list($college, $viewer, ['blood_group' => 'O+', 'nationality' => 'Indian'])->assertOk();
+
+        $response->assertViewHas('students', fn ($students) => $students->total() === 18);
+
+        // Every page link keeps the new filters (asserted on the decoded href, the
+        // same way the original pagination test does).
+        $html = $response->getContent();
+        $this->assertGreaterThan(0, preg_match('/href="([^"]*page=2[^"]*)"/', $html, $matches), 'Expected a page 2 link.');
+        $pageLink = html_entity_decode($matches[1]);
+        $this->assertStringContainsString('blood_group=O%2B', $pageLink, 'The blood group filter must survive paging.');
+        $this->assertStringContainsString('nationality=Indian', $pageLink, 'The nationality filter must survive paging.');
+
+        // Following the pager keeps the new filters: 18 rows at 15 per page means
+        // page 2 holds the remaining 3, and nothing else filters them away.
+        $this->list($college, $viewer, ['blood_group' => 'O+', 'nationality' => 'Indian', 'page' => 2])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 18 && $students->count() === 3);
+    }
+
+    public function test_the_export_shares_the_new_filters(): void
+    {
+        // The export is the SAME StudentListService pipeline as the list, so a
+        // filter cannot apply on screen and disappear from the download.
+        [$college, $viewer] = $this->collegeWithViewer('SLF23', ['students.view', 'students.export']);
+
+        $this->makeStudent($college, ['first_name' => 'Exported', 'nationality' => 'Indian']);
+        $this->makeStudent($college, ['first_name' => 'Excluded', 'nationality' => 'Nepali']);
+
+        $this->list($college, $viewer, ['nationality' => 'Indian'])
+            ->assertOk()
+            ->assertViewHas('students', fn ($students) => $students->total() === 1);
+
+        $csv = $this->asCollege($college, $viewer)
+            ->get(route('students.export', ['nationality' => 'Indian']))
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertStringContainsString('Exported', $csv, 'The filtered row must be exported.');
+        $this->assertStringNotContainsString('Excluded', $csv, 'A row the filter excludes must not appear in the export.');
     }
 }

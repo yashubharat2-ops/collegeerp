@@ -36,6 +36,28 @@
         $erpStudentFormCssVersion = is_file(public_path('css/erp-student-form.css'))
             ? (filemtime(public_path('css/erp-student-form.css')) ?: null)
             : null;
+        /*
+         * Shell chrome (skip link, top bar, auth shell), static for the same reason
+         * as the five files above. Guarded with is_file() because the tag is emitted
+         * unconditionally: the file ships in this repository, but a deployment that
+         * has not yet copied a new public/ asset must still render a working page.
+         */
+        $erpUiCssVersion = is_file(public_path('css/erp-ui.css'))
+            ? (filemtime(public_path('css/erp-ui.css')) ?: null)
+            : null;
+
+        /*
+         * The top bar's notification affordance. It is the SAME gate <x-user.menu>
+         * applies to its own Notifications row — `notifications.view` plus a
+         * Route::has probe — so the chrome can never offer a link that answers 403,
+         * and both entry points agree. There is no unread count anywhere in the
+         * application, so there is no badge: the old decorative dot was removed with
+         * it rather than left claiming data the ERP does not have.
+         */
+        $erpMaySeeNotifications = ($erpNotifyUser = auth()->user()) !== null
+            && $erpNotifyUser->hasPermission('notifications.view')
+            && \Illuminate\Support\Facades\Route::has('notifications.index');
+        unset($erpNotifyUser);
     @endphp
     <link rel="stylesheet" href="{{ asset('css/erp-sidebar.css') }}@if ($erpSidebarCssVersion)?v={{ $erpSidebarCssVersion }}@endif">
     {{-- The signed-in user panel in the header is its own component with its own
@@ -49,6 +71,12 @@
          rules that keep a list inside the content column instead of overflowing it.
          Static for the same reason — a layout guarantee must not depend on a build. --}}
     <link rel="stylesheet" href="{{ asset('css/erp-list.css') }}@if ($erpListCssVersion)?v={{ $erpListCssVersion }}@endif">
+    {{-- Shell chrome: the skip link, the top bar's fallback surface and the auth
+         shell. Static like the five above — and linked BEFORE the bundle, so every
+         rule in it is a fallback that a Tailwind utility on the same element still
+         overrides. A shell guarantee (a reachable skip target, a bar that keeps its
+         border) must not depend on a build existing. --}}
+    <link rel="stylesheet" href="{{ asset('css/erp-ui.css') }}@if ($erpUiCssVersion)?v={{ $erpUiCssVersion }}@endif">
 
     {{-- Application-wide styling is still built by Vite; link it only when a build (public/build/manifest.json) or a running dev server (public/hot) exists, so a page render never depends on running npm. --}}
     @if (is_file(public_path('build/manifest.json')) || is_file(public_path('hot')))
@@ -62,18 +90,24 @@
     <link rel="stylesheet" href="{{ asset('css/erp-student-form.css') }}@if ($erpStudentFormCssVersion)?v={{ $erpStudentFormCssVersion }}@endif">
 </head>
 <body class="bg-slate-100 text-slate-900">
+    {{-- Skip link: the shell renders ~130 navigation rows before the page content, so
+         without this a keyboard user tabs through the whole sidebar to reach the first
+         field of a form. It is the first focusable element in the document, off-screen
+         until it takes focus, and it targets the <main> landmark below (tabindex="-1"
+         is what lets focus actually move there). Styled by public/css/erp-ui.css. --}}
+    <a class="erp-skip-link" href="#erp-main">Skip to main content</a>
     <div class="min-h-screen lg:flex">
         @include('layouts.sidebar')
 
         <section class="min-w-0 flex-1">
-            <header class="no-print flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-                <div>
+            <header class="erp-topbar no-print flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+                <div class="erp-topbar__lead">
                     <div class="flex items-center gap-3">
                         {{-- Drawer trigger: the sidebar is off-canvas below 1024px. --}}
                         <button type="button" class="erp-nav-open-button" data-nav-drawer-open aria-controls="erp-sidebar" aria-label="Open menu">
                             <x-nav.icon name="menu" :size="18" />
                         </button>
-                        <p class="text-sm text-slate-500">{{ app(\App\Support\Tenancy\TenantContext::class)->college()?->name ?? 'Platform' }}</p>
+                        <p class="erp-topbar__tenant text-sm text-slate-500">{{ app(\App\Support\Tenancy\TenantContext::class)->college()?->name ?? 'Platform' }}</p>
                         @isset($colleges)
                             @if ($colleges->count() > 1)
                                 <form method="POST" action="{{ route('college-context.switch') }}">
@@ -87,12 +121,22 @@
                             @endif
                         @endisset
                     </div>
-                    <h1 class="text-xl font-semibold">@yield('title', 'Dashboard')</h1>
+                    <h1 class="erp-topbar__title text-xl font-semibold">@yield('title', 'Dashboard')</h1>
                 </div>
-                <div class="flex items-center gap-4">
-                    <button class="relative text-slate-500" aria-label="Notifications">
-                        ♢<span class="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-indigo-500"></span>
-                    </button>
+                <div class="erp-topbar__actions flex items-center gap-4">
+                    {{-- Notifications: a real link when the viewer may open the screen, and
+                         the same "visible but disabled, with the reason in the tooltip"
+                         affordance <x-user.menu> uses when they may not. The previous
+                         markup was an inert button with a decorative dot. --}}
+                    @if ($erpMaySeeNotifications)
+                        <a class="erp-notify" href="{{ route('notifications.index') }}" aria-label="Notifications">
+                            <x-nav.icon name="bell" :size="18" />
+                        </a>
+                    @else
+                        <button type="button" class="erp-notify erp-notify--disabled" aria-label="Notifications" aria-disabled="true" title="Notifications are not available to your role.">
+                            <x-nav.icon name="bell" :size="18" />
+                        </button>
+                    @endif
                     {{-- The account area lives here only: the sidebar no longer
                          duplicates it. Avatar, name, e-mail and every entry of the
                          panel are defined once, in <x-user.menu>. --}}
@@ -100,7 +144,7 @@
                 </div>
             </header>
 
-            <main class="p-6">
+            <main class="erp-content p-6" id="erp-main" tabindex="-1">
                 @if (session('success'))
                     <div class="alert-success">{{ session('success') }}</div>
                 @endif

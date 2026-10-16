@@ -30,12 +30,12 @@ class CommunicationNavigationTest extends TestCase
      */
     private const ENTRIES = [
         'Communication Dashboard' => ['communication_dashboard.view', 'communication.dashboard'],
-        'Notices / Announcements' => ['notices.view', 'notices.index'],
+        'Notices & Announcements' => ['notices.view', 'notices.index'],
         'Circulars' => ['circulars.view', 'circulars.index'],
         'Notifications' => ['notifications.view', 'notifications.index'],
-        'SMS / Email Templates' => ['communication_templates.view', 'communication-templates.index'],
-        'SMS / Email Logs' => ['communication_logs.view', 'communication-logs.index'],
-        'Delivery / Read Tracking' => ['communication_tracking.view', 'communication-tracking.index'],
+        'SMS & Email Templates' => ['communication_templates.view', 'communication-templates.index'],
+        'SMS & Email Logs' => ['communication_logs.view', 'communication-logs.index'],
+        'Delivery & Read Tracking' => ['communication_tracking.view', 'communication-tracking.index'],
     ];
 
     private const FUTURE = ['WhatsApp', 'Email Gateway', 'SMS Gateway', 'Push Notifications'];
@@ -91,7 +91,7 @@ class CommunicationNavigationTest extends TestCase
         foreach (self::ENTRIES as $label => [$permission, $route]) {
             $position = strpos($group, $this->href($route));
             $this->assertNotFalse($position, "Missing entry route: {$label}");
-            $this->assertStringContainsString($label, $group);
+            $this->assertStringContainsString(e($label), $group);
             $this->assertGreaterThan($cursor, $position, "{$label} is out of order.");
             $cursor = $position;
         }

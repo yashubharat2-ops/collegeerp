@@ -200,7 +200,7 @@ class HrReportsTest extends TestCase
         $group = substr($html, $hrStart, $hrEnd === false ? null : $hrEnd - $hrStart);
         $this->assertSame(7, substr_count($group, 'class="nav-link"'));
         $this->assertStringNotContainsString('HR Reports', $group);
-        foreach (['Staff / Employee', 'Staff Departments', 'Designations', 'Employee Documents', 'Staff Attendance', 'Leave Management', 'Staff Salary / Payroll'] as $label) {
+        foreach (['Staff &amp; Employees', 'Staff Departments', 'Designations', 'Employee Documents', 'Staff Attendance', 'Leave Management', 'Salary &amp; Payroll'] as $label) {
             $this->assertStringContainsString($label, $group);
         }
 

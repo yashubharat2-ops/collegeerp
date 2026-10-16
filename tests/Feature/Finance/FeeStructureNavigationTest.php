@@ -33,8 +33,8 @@ class FeeStructureNavigationTest extends TestCase
         'Student Fee Assignment' => ['student_fee_assignments.view', 'student-fee-assignments.index'],
         'Fee Collection' => ['fee_collections.view', 'fee-collections.index'],
         'Receipts' => ['receipts.view', 'receipts.index'],
-        'Due / Outstanding Fees' => ['fee_dues.view', 'fee-dues.index'],
-        'Fee Discounts / Concessions' => ['fee_concessions.view', 'fee-concessions.index'],
+        'Outstanding Fees' => ['fee_dues.view', 'fee-dues.index'],
+        'Discounts & Concessions' => ['fee_concessions.view', 'fee-concessions.index'],
         'Refunds' => ['refunds.view', 'refunds.index'],
         'Fee Reports' => ['fee_reports.view', 'fee-reports.index'],
     ];
@@ -78,7 +78,7 @@ class FeeStructureNavigationTest extends TestCase
 
         foreach (self::ENTRIES as $label => [$permission, $route]) {
             $this->assertStringContainsString(route($route), $group, "Missing finance entry route: {$label}");
-            $this->assertStringContainsString($label, $group, "Missing finance entry label: {$label}");
+            $this->assertStringContainsString(e($label), $group, "Missing finance entry label: {$label}");
         }
     }
 

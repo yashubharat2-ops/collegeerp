@@ -35,7 +35,7 @@ class HostelNavigationTest extends TestCase
             'hostels.view',
             'hostels.index',
         ],
-        'Buildings / Blocks' => [
+        'Buildings & Blocks' => [
             'hostel_buildings.view',
             'hostel-buildings.index',
         ],
@@ -148,7 +148,7 @@ class HostelNavigationTest extends TestCase
             );
 
             $this->assertStringContainsString(
-                $label,
+                e($label),
                 $group,
                 "Missing hostel entry label: {$label}"
             );
@@ -251,7 +251,7 @@ class HostelNavigationTest extends TestCase
             ->assertDontSee(route('hostels.dashboard'), false)
             ->assertDontSee(route('hostels.index'), false)
             ->assertDontSee('Hostel Dashboard')
-            ->assertDontSee('Buildings / Blocks')
+            ->assertDontSee('Buildings & Blocks')
             ->assertDontSee('Hostel Attendance')
             ->assertDontSee('Hostel Reports');
     }

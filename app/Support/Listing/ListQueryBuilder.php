@@ -173,6 +173,46 @@ class ListQueryBuilder
     }
 
     /**
+     * Contains-match filter for a single text column (bound LIKE).
+     *
+     * `search()` already does this across several columns at once; this is the
+     * single-column form, so one text field can be narrowed on its own instead
+     * of widening the whole search group.
+     *
+     * The value is guarded with `is_string()` before it reaches the query. A
+     * malformed query string (`?nationality[]=x`) delivers an array where a
+     * text input expects one value, and interpolating that into a LIKE pattern
+     * is a fatal "Array to string conversion"; a non-string value reads as "no
+     * filter", exactly as `search()` and `filterDateRange()` treat theirs.
+     *
+     * The term is bound as a parameter and never concatenated into SQL, so no
+     * value can change the shape of the statement. As in `search()`, `%` and
+     * `_` are not escaped, so a typed wildcard widens the match within the
+     * caller's own query — it can never reach another college, because every
+     * caller's root query carries CollegeScope.
+     */
+    public function filterContains(string $param, ?string $column = null): static
+    {
+        $column = $column ?? $param;
+        $val = $this->request->input($param);
+
+        if (! is_string($val)) {
+            return $this;
+        }
+
+        $term = trim($val);
+
+        if ($term === '') {
+            return $this;
+        }
+
+        $this->appliedFilters[$param] = $term;
+        $this->query->where($column, 'like', "%{$term}%");
+
+        return $this;
+    }
+
+    /**
      * Date filter (Y-m-d).
      */
     public function filterDate(string $param, ?string $column = null, string $operator = '='): static

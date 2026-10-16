@@ -43,7 +43,7 @@ class ExaminationsNavigationTest extends TestCase
         'exam-marks.index' => 'Marks Entry',
         'results.index' => 'Results',
         'result-calculation.index' => 'Result Calculation',
-        'grade-scales.index' => 'Grade / Pass-Fail',
+        'grade-scales.index' => 'Grades &amp; Pass/Fail',
         'result-publishing.index' => 'Result Publishing',
         'marksheets.index' => 'Marksheets',
         'grade-cards.index' => 'Grade Cards',

@@ -150,7 +150,7 @@
                     <p class="erp-error">@error('program_id'){{ $message }}@enderror</p>
                 </div>
                 <div class="erp-field erp-col-3">
-                    <label class="erp-label" for="section_id">Section / Batch</label>
+                    <label class="erp-label" for="section_id">Section</label>
                     <select class="erp-input" id="section_id" name="section_id">
                         <option value="">— No section —</option>
                         @foreach($sections as $section)

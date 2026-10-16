@@ -1,0 +1,306 @@
+/* =============================================================================
+ * College ERP — shell chrome (skip link, top bar, auth shell fallback)
+ * =============================================================================
+ *
+ * A STATIC stylesheet, served straight from `public/` and linked by
+ * resources/views/layouts/app.blade.php and layouts/guest.blade.php BEFORE the
+ * @vite() block. Same reason as erp-sidebar.css, erp-user-menu.css,
+ * erp-dropdown.css and erp-list.css: these are shell guarantees, and a shell
+ * guarantee must not depend on a Vite build or a running dev server existing.
+ *
+ * Load order contract (see the layout comments):
+ *   1. erp-sidebar.css  erp-user-menu.css  erp-dropdown.css  erp-list.css
+ *   2. erp-ui.css       ← this file: shell chrome + fallbacks
+ *   3. @vite bundle     when public/build/manifest.json or public/hot exists
+ *   4. erp-student-form.css (last, so the data-entry grid always wins)
+ *
+ * Because this file loads BEFORE the bundle, Tailwind utilities win wherever
+ * both apply — which is what makes every rule below a *fallback* rather than a
+ * competing style system. Nothing here sets a property that a Tailwind utility
+ * in the same markup is expected to own, with two deliberate exceptions: the
+ * skip link (a pure shell affordance, no utility in any view) and the print
+ * rules.
+ *
+ * Rules of the house, identical to the sidebar's:
+ *   - every selector is scoped to a `erp-`-prefixed class or to an id this
+ *     layout owns, so nothing can leak into a module page;
+ *   - no global element selectors and no `!important` outside the print block.
+ *
+ * Stacking contract — the shell's layers, lowest to highest:
+ *   drawer scrim 55 (erp-sidebar.css) · sidebar/drawer 60 (erp-sidebar.css) ·
+ *   account panel 80 (erp-user-menu.css) · rail tooltip 90 (erp-sidebar.css) ·
+ *   focused skip link 95 (this file)
+ * The skip link is only ever visible while it holds focus, and focusing it means
+ * no rail row is being hovered, so it cannot cover a label anyone is reading.
+ */
+
+/* -----------------------------------------------------------------------------
+ * 1. Skip link — first focusable element on every authenticated page
+ *
+ * Off-screen until it takes focus, then a real button-shaped target in the
+ * top-left. It exists because the shell renders ~130 navigation rows before the
+ * page content: without it, a keyboard user tabs through the whole sidebar to
+ * reach the first field of a form.
+ * -------------------------------------------------------------------------- */
+.erp-skip-link {
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    z-index: 95;
+    padding: 10px 16px;
+    border: 2px solid #4f46e5;
+    border-radius: 10px;
+    background-color: #ffffff;
+    color: #312e81;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.3;
+    text-decoration: none;
+    box-shadow: 0 8px 20px rgba(2, 6, 23, 0.25);
+    /* Out of the visual flow until focused, and out of the layout at all times
+     * because the element is `position: fixed`. Translated rather than hidden with
+     * `display: none` / `visibility: hidden`, both of which would take the link out
+     * of the tab order and defeat the whole point of it. */
+    transform: translateY(-200%);
+    transition: transform 0.12s ease-out;
+}
+
+.erp-skip-link:focus,
+.erp-skip-link:focus-visible {
+    outline: 2px solid #312e81;
+    outline-offset: 2px;
+    transform: translateY(0);
+}
+
+/* Preferred spellings when :focus-visible is supported: the link appears only
+ * for keyboard focus, never on a mouse click that happens to hit it. */
+.erp-skip-link:not(:focus-visible) {
+    transform: translateY(-200%);
+}
+
+/* The skip target itself must not paint a focus ring when it receives focus
+ * programmatically — the ring belongs on the control the user is about to use. */
+main.erp-main:focus,
+main.erp-main:focus-visible {
+    outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .erp-skip-link {
+        transition-duration: 0.01ms;
+    }
+}
+
+@media print {
+    .erp-skip-link {
+        display: none !important;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+ * 2. Top bar
+ *
+ * Fallbacks for the header row of layouts/app.blade.php. The Tailwind utilities
+ * on those elements still win when the bundle is present; what this section
+ * guarantees is that the bar keeps its shape — a border, a white surface, the
+ * title separated from the controls, and a row that does not wrap into two
+ * broken lines — when it is not.
+ * -------------------------------------------------------------------------- */
+.erp-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    /* Identical to the layout's `px-6 py-4` utilities so this file cannot shift the
+     * bar when the bundle is present, and a deliberately gap-less flex row because
+     * those utilities carry no gap either. */
+    padding: 16px 24px;
+    border-bottom: 1px solid #e2e8f0;
+    background-color: #ffffff;
+}
+
+/* A shrink guard only — no display change, so the title stays stacked under the
+ * trigger/tenant row exactly as it is today. */
+.erp-topbar__lead {
+    min-width: 0;
+}
+
+.erp-topbar__tenant {
+    margin: 0;
+    max-width: 40vw;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.erp-topbar__title {
+    margin: 2px 0 0;
+    color: #0f172a;
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.006em;
+}
+
+.erp-topbar__actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* The bar keeps its single row of controls on a phone; only the type steps down,
+ * so the title and the tenant name never wrap into single-word columns. */
+@media (max-width: 639.98px) {
+    .erp-topbar {
+        padding: 12px 16px;
+        row-gap: 4px;
+    }
+
+    .erp-topbar__title {
+        font-size: 18px;
+    }
+
+    .erp-topbar__tenant {
+        max-width: 55vw;
+    }
+}
+
+@media print {
+    .erp-topbar {
+        display: none !important;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+ * 3. Notification affordance in the top bar
+ *
+ * Two states, one element shape: a real link when the viewer holds
+ * `notifications.view` (the same gate the account panel uses), otherwise a
+ * disabled button that explains itself. There is no unread count anywhere in the
+ * application, so there is no badge here either — a decorative dot would claim
+ * data the ERP does not have.
+ * -------------------------------------------------------------------------- */
+.erp-notify {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: none;
+    color: #64748b;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.erp-notify:hover {
+    border-color: #e2e8f0;
+    background-color: #f8fafc;
+    color: #0f172a;
+}
+
+.erp-notify:focus-visible {
+    outline: 2px solid #4f46e5;
+    outline-offset: 2px;
+}
+
+.erp-notify svg {
+    width: 18px;
+    height: 18px;
+}
+
+.erp-notify--disabled,
+.erp-notify[aria-disabled="true"] {
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+.erp-notify--disabled:hover {
+    border-color: transparent;
+    background: none;
+    color: #94a3b8;
+}
+
+@media (max-width: 1023.98px) {
+    .erp-notify {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+@media print {
+    .erp-notify {
+        display: none !important;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+ * 4. Auth shell (layouts/guest.blade.php) — the login / reset screens
+ *
+ * The guest layout is the one page a signed-out visitor ever sees, and until now
+ * every one of its rules came from the Tailwind bundle: with no build present the
+ * login screen was an unstyled document. These are fallbacks for the *document*
+ * (dark page, centred column, card surface) that deliberately leave the card's
+ * own utilities alone — `.erp-auth__card` sets no colour or padding, so a themed
+ * card keeps whatever the bundle gives it.
+ * -------------------------------------------------------------------------- */
+.erp-auth {
+    margin: 0;
+    min-height: 100vh;
+    background-color: #020617;
+    color: #f1f5f9;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+.erp-auth__main {
+    display: flex;
+    min-height: 100vh;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.erp-auth__column {
+    width: 100%;
+    max-width: 28rem;
+}
+
+.erp-auth__card {
+    border-radius: 16px;
+}
+
+.erp-auth :focus-visible {
+    outline: 2px solid #a5b4fc;
+    outline-offset: 2px;
+}
+
+/* -----------------------------------------------------------------------------
+ * 5. Content column
+ *
+ * `main`'s padding is a Tailwind utility in the layout; this only ensures the
+ * content column can shrink (a wide table inside a flex parent otherwise pushes
+ * the whole page sideways) and that the gutter is thumb-sized on small screens.
+ * -------------------------------------------------------------------------- */
+.erp-content {
+    /* The content column must be allowed to shrink: without this, one wide table in
+     * the flex row pushes the whole page sideways at narrow widths. A shrink guard
+     * only — the padding stays the layout's own `p-6` utility. */
+    min-width: 0;
+}
+
+@media print {
+    .erp-content {
+        padding: 0 !important;
+    }
+}
