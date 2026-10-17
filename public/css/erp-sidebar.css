@@ -28,25 +28,23 @@
 
 .erp-sidebar {
     /* Palette */
-    --erp-nav-bg: #07111f;
-    --erp-nav-bg-raise: #0b1a2c;
-    --erp-nav-bg-hover: #102338;
-    --erp-nav-line: rgba(148, 163, 184, 0.16);
+    --erp-nav-bg: #0d2118;
+    --erp-nav-bg-raise: #173529;
+    --erp-nav-bg-hover: #204532;
+    --erp-nav-line: rgba(188, 216, 198, 0.16);
     --erp-nav-text: #f8fafc;
-    --erp-nav-text-muted: #94a3b8;
+    --erp-nav-text-muted: #bfd0c5;
     /*
      * The faint role (section label, sub-group label, search placeholder, icon
-     * boxes, chevrons) used to be #64748b — 3.98:1 on this navy and 3.68:1 on the
-     * search field, both below the 4.5:1 WCAG AA floor for small text. #8494a8
-     * measures 6.12:1 on the sidebar and 5.66:1 on the raised field, so the
-     * smallest label in the shell is readable while the role stays visibly
-     * quieter than the row text (#94a3b8, 7.39:1).
+     * boxes, chevrons) is a muted mint tone chosen to stay legible on both the
+     * forest-green sidebar and its raised search field, while remaining quieter
+     * than the primary navigation text.
      */
-    --erp-nav-text-faint: #8494a8;
-    --erp-nav-accent: #4f46e5;
-    --erp-nav-accent-hover: #4338ca;
-    --erp-nav-accent-soft: rgba(79, 70, 229, 0.22);
-    --erp-nav-accent-ring: #a5b4fc;
+    --erp-nav-text-faint: #a7beaf;
+    --erp-nav-accent: #21845a;
+    --erp-nav-accent-hover: #176342;
+    --erp-nav-accent-soft: rgba(33, 132, 90, 0.24);
+    --erp-nav-accent-ring: #91dfb0;
 
     /* Geometry */
     --erp-nav-width: 280px;
@@ -180,8 +178,8 @@
 }
 
 .erp-nav-search__field:focus-within {
-    border-color: rgba(165, 180, 252, 0.6);
-    background-color: #0d1e33;
+    border-color: rgba(145, 223, 176, 0.62);
+    background-color: #1a3b2d;
 }
 
 /* The magnifier is deliberately pinned in its own 16px box: an explicit
@@ -287,7 +285,7 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
-    scrollbar-color: #1e293b transparent;
+    scrollbar-color: #315b44 transparent;
 }
 
 .erp-nav__scroll::-webkit-scrollbar {
@@ -301,11 +299,11 @@
 .erp-nav__scroll::-webkit-scrollbar-thumb {
     border: 2px solid var(--erp-nav-bg);
     border-radius: 999px;
-    background-color: #1e293b;
+    background-color: #315b44;
 }
 
 .erp-nav__scroll::-webkit-scrollbar-thumb:hover {
-    background-color: #334155;
+    background-color: #467257;
 }
 
 .erp-nav__section-label {
@@ -441,7 +439,7 @@
 }
 
 .nav-group[data-nav-active="true"] > .nav-group__head {
-    background-color: rgba(148, 163, 184, 0.08);
+    background-color: rgba(188, 216, 198, 0.1);
     color: var(--erp-nav-text);
 }
 
@@ -770,8 +768,8 @@
  * it. Being outside `.erp-sidebar` also means the tokens declared there are out of
  * scope, so every value below is a literal — a `var(--erp-nav-*)` reference here
  * resolves to nothing and the text silently inherits the page's dark body colour,
- * which is how the pill ended up unreadable. Colours are the sidebar's own navy and
- * near-white (#f8fafc on #0b1a2c, contrast 16.7:1) and the typeface is the same stack,
+ * which is how the pill ended up unreadable. Colours are the sidebar's own forest
+ * green and near-white on a raised forest-green surface and the typeface is the same stack,
  * written out.
  *
  * Stacking, lowest to highest: drawer scrim (55) → sidebar / drawer (60) → header
@@ -786,11 +784,11 @@
     width: max-content;
     max-width: min(240px, calc(100vw - 96px));
     padding: 6px 9px;
-    border: 1px solid rgba(148, 163, 184, 0.28);
+    border: 1px solid rgba(188, 216, 198, 0.25);
     border-radius: 8px;
-    background-color: #0b1a2c;
+    background-color: #173529;
     box-shadow: 0 10px 24px rgba(2, 6, 23, 0.45);
-    color: #f8fafc;
+    color: #f2faf4;
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
         "Helvetica Neue", Arial, sans-serif;
     font-size: 12px;
@@ -904,7 +902,7 @@ body.erp-nav-drawer-lock {
 }
 
 .erp-nav-open-button:focus-visible {
-    outline: 2px solid #4f46e5;
+    outline: 2px solid #21845a;
     outline-offset: 2px;
 }
 

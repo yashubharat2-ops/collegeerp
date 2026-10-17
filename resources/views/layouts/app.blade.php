@@ -10,7 +10,7 @@
         /*
          * The sidebar owns two static assets of its own, linked straight from
          * `public/` (never through the Vite tags below): the navigation must keep
-         * its dark navy chrome, its sizing and its interactions when no build and
+         * its forest-green chrome, its sizing and its interactions when no build and
          * no dev server exist — `public/` is served by the web server alone.
          *
          * The stylesheet gets the file mtime as a cache buster, so a stale copy can
@@ -88,6 +88,7 @@
          ERP screen even when no bundle exists, and linking it after the Vite block
          means the form's own rules always win over a stale one. --}}
     <link rel="stylesheet" href="{{ asset('css/erp-student-form.css') }}@if ($erpStudentFormCssVersion)?v={{ $erpStudentFormCssVersion }}@endif">
+    @stack('styles')
 </head>
 <body class="bg-slate-100 text-slate-900">
     {{-- Skip link: the shell renders ~130 navigation rows before the page content, so
