@@ -45,7 +45,7 @@ trait StudentTestHelpers
             'is_active' => true,
         ]);
         if ($slugs) {
-            $role->permissions()->sync(Permission::whereIn('slug', $slugs)->pluck('id')->all());
+            $role->permissions()->sync(Permission::whereIn('slug', collect($slugs)->flatten()->filter(fn($v) => is_string($v))->values()->all())->pluck('id')->all());
         }
         $user->roles()->attach($role->id, ['college_id' => $college->id]);
 

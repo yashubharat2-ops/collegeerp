@@ -34,7 +34,7 @@ trait HRTestHelpers
             'is_system' => false,
             'is_active' => true,
         ]);
-        $role->permissions()->sync(Permission::whereIn('slug', $permissions)->pluck('id')->all());
+        $role->permissions()->sync(Permission::whereIn('slug', collect($permissions)->flatten()->filter(fn($v) => is_string($v))->values()->all())->pluck('id')->all());
         $user->roles()->attach($role->id, ['college_id' => $college->id]);
 
         return $user;

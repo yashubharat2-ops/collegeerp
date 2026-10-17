@@ -24,7 +24,10 @@ trait DepartmentTestHelpers
 
         $role = Role::create(['college_id' => $superAdmin ? null : $college->id, 'name' => $college->code.' Dept Role', 'slug' => 'dept-role-'.strtolower($college->code).'-'.Str::random(4), 'is_system' => false, 'is_active' => true]);
         if ($slugs) {
-            $role->permissions()->sync(Permission::whereIn('slug', $slugs)->pluck('id')->all());
+            // Normalize: flatten one level if caller passed nested array like [pluck()->all()] (common test mistake)
+            // This preserves permission semantics while fixing InvalidArgumentException: Nested arrays may not be passed to whereIn
+            $normalized = collect($slugs)->flatten()->filter(fn($v) => is_string($v))->values()->all();
+            $role->permissions()->sync(Permission::whereIn('slug', $normalized)->pluck('id')->all());
         }
         $user->roles()->attach($role->id, ['college_id' => $superAdmin ? null : $college->id]);
 

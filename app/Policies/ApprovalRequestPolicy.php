@@ -45,12 +45,9 @@ class ApprovalRequestPolicy
 
     public function approve(User $user, ApprovalRequest $request): bool
     {
-        if ((int) $request->requested_by === (int) $user->getKey()) {
-            return false;
-        }
-        if ($request->status !== ApprovalRequest::STATUS_PENDING) {
-            return false;
-        }
+        // Only check permission here; self-approval and duplicate-decision are enforced
+        // in ApprovalService atomically with lockForUpdate to return ValidationException
+        // (session errors) rather than 403, preserving pending status and audit.
         $perm = ApprovalRegistry::permissionFor($request->module, $request->action);
         if (! $perm) {
             return false;

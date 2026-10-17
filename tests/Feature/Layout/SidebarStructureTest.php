@@ -84,7 +84,7 @@ class SidebarStructureTest extends TestCase
         'Sections / Batches' => 'Sections',
         'Staff / Employee' => 'Staff &amp; Employees',
         'Staff Salary / Payroll' => 'Salary &amp; Payroll',
-        'Merit / Selection' => 'Merit &amp; Selection',
+        // Merit / Selection was removed from sidebar per approved Admission redesign (9 approved items, no merit list in nav)
         'Bulk Registration / Import' => 'Bulk Registration &amp; Import',
         'Grade / Pass-Fail' => 'Grades &amp; Pass/Fail',
         'Due / Outstanding Fees' => 'Outstanding Fees',

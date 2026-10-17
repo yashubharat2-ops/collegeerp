@@ -39,12 +39,18 @@ class ApprovalController extends Controller
 
         // Paginate manually for filtered collection? Use query pagination but still enforce filter in view
         // For simplicity, re-query with whereIn for visible ids paginated
-        $visibleIds = $visible->pluck('id');
-        $paginated = ApprovalRequest::query()
-            ->with(['requester', 'decider'])
-            ->whereIn('id', $visibleIds)
-            ->orderByDesc('created_at')
-            ->paginate(20)->withQueryString();
+        // Fix: pluck returns Collection; whereIn expects flat array – use ->all() to avoid nested array error
+        $visibleIds = $visible->pluck('id')->all();
+        // Guard empty case to avoid whereIn with empty list generating incorrect SQL; return empty paginator
+        if (empty($visibleIds)) {
+            $paginated = ApprovalRequest::query()->whereRaw('1=0')->paginate(20)->withQueryString();
+        } else {
+            $paginated = ApprovalRequest::query()
+                ->with(['requester', 'decider'])
+                ->whereIn('id', $visibleIds)
+                ->orderByDesc('created_at')
+                ->paginate(20)->withQueryString();
+        }
 
         return view('approvals.pending', [
             'requests' => $paginated,

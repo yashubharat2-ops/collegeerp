@@ -52,7 +52,7 @@ class ApprovalManagementTest extends TestCase
     public function test_admission_sidebar_follows_approved_hierarchy(): void
     {
         $college = $this->makeCollege('ADSBH');
-        $user = $this->makeUserWithPermissions($college, [\App\Models\Permission::query()->pluck('slug')->all()]);
+        $user = $this->makeUserWithPermissions($college, \App\Models\Permission::query()->pluck('slug')->all());
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
         $aside = $this->aside($html);
 
@@ -69,10 +69,9 @@ class ApprovalManagementTest extends TestCase
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
         $aside = $this->aside($html);
 
-        // Reports exactly once in sidebar (admission reports)
-        $this->assertSame(1, substr_count($aside, '>Reports<'), 'Reports should appear as last direct item in Admission');
-        // Find admission group and ensure Reports is last link
+        // Reports exactly once in Admission group (avoid counting global Reports module label)
         $admissionBlock = $this->group($aside, 'Admission');
+        $this->assertSame(1, substr_count($admissionBlock, '>Reports<'), 'Reports should appear as last direct item in Admission');
         $hrefs = $this->hrefs($admissionBlock);
         $last = end($hrefs);
         $this->assertStringContainsString(parse_url(route('admission-reports.index'), PHP_URL_PATH), $last, 'Reports must be last in Admission');

@@ -22,7 +22,7 @@ trait AdministrationTestHelpers
             'college_id' => $college->id, 'name' => 'College '.Str::random(8), 'slug' => 'custom-'.Str::lower(Str::random(10)),
             'is_active' => true, 'is_system' => false, ...$attributes,
         ]);
-        $role->permissions()->sync(Permission::query()->whereIn('slug', $permissions)->pluck('id')->all());
+        $role->permissions()->sync(Permission::query()->whereIn('slug', collect($permissions)->flatten()->filter(fn($v) => is_string($v))->values()->all())->pluck('id')->all());
 
         return $role;
     }
