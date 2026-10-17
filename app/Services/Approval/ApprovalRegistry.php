@@ -18,13 +18,13 @@ final class ApprovalRegistry
         'admission' => [
             'application_submit' => [
                 'label' => 'New Admission Application',
-                'permission_approve' => 'admission_applications.update',
+                'permission_approve' => 'approvals.approve',
                 'model' => \App\Models\AdmissionApplication::class,
                 'description' => 'A new admission application requires approval before proceeding.',
             ],
             'application_status_change' => [
                 'label' => 'Application Status Change',
-                'permission_approve' => 'admission_applications.update',
+                'permission_approve' => 'approvals.approve',
                 'model' => \App\Models\AdmissionApplication::class,
                 'description' => 'Changing application status requires approval.',
             ],

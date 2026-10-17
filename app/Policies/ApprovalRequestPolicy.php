@@ -10,7 +10,21 @@ class ApprovalRequestPolicy
 {
     public function viewAny(User $user): bool
     {
-        // Any user with any approvals permission can view lists (filtered by scope)
+        // All active users can access approval lists; controller filters by permission for sensitive views
+        // This ensures My Requests (personal) is reachable for staff who can submit, while
+        // Pending/History content is still filtered server-side and via explicit checks
+        return $user->is_active;
+    }
+
+    public function viewPending(User $user): bool
+    {
+        return $user->hasPermission('approvals.view')
+            || $user->hasPermission('approvals.approve')
+            || $user->hasPermission('approvals.settings.manage');
+    }
+
+    public function viewHistory(User $user): bool
+    {
         return $user->hasPermission('approvals.view')
             || $user->hasPermission('approvals.approve')
             || $user->hasPermission('approvals.settings.manage');

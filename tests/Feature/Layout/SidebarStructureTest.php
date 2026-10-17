@@ -363,15 +363,31 @@ class SidebarStructureTest extends TestCase
         $this->assertNotSame($this->path('sections.index'), $this->path('academic-sections.index'), 'The standalone Sections screen remains distinct from Academic Sections.');
     }
 
-    /* 3 · Module links may have subgroup headings for structured modules -- */
+    /* 3 · Module structure – Admission uses nested collapsible parents for Transfers/Settings */
 
-    public function test_subgroup_headings_only_where_structured(): void
+    public function test_admission_uses_nested_collapsible_parents(): void
     {
         $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT6'));
-        // Admission now uses sub-groups for Transfers and Settings per approved design
-        $this->assertStringContainsString('data-nav-sub-label', $aside, 'Structured modules like Admission may use sub-group headings.');
         $admission = $this->group($aside, 'Admission');
-        $this->assertStringContainsString('data-nav-sub-label', $admission, 'Admission must render its Transfers and Settings sub-groups.');
+
+        // Transfers and Settings must be collapsible parents (nested nav-groups), not static headings
+        $this->assertStringContainsString('data-nested-group="admission-transfers"', $admission, 'Transfers must be a collapsible nested group with its children inside.');
+        $this->assertStringContainsString('data-nested-group="admission-settings"', $admission, 'Settings must be a collapsible nested group with ID Card Setting inside.');
+
+        // Those nested groups must NOT be rendered as flat sub-label headings
+        $this->assertStringNotContainsString('erp-nav__sub-label', $admission, 'Admission must not use static sub-label headings for Transfers/Settings; they must be collapsible parents.');
+
+        // Verify nested groups contain their expected children
+        $this->assertStringContainsString('Transfer In', $admission, 'Transfer In must be inside Transfers parent');
+        $this->assertStringContainsString('Transfer Out', $admission, 'Transfer Out must be inside Transfers parent');
+        $this->assertStringContainsString('ID Card Setting', $admission, 'ID Card Setting must be inside Settings parent');
+
+        // ID Cards must be independent, not inside Settings
+        $settingsPos = strpos($admission, 'data-nested-group="admission-settings"');
+        $idCardsPos = strpos($admission, '>ID Cards<');
+        $this->assertNotFalse($settingsPos);
+        $this->assertNotFalse($idCardsPos);
+        $this->assertTrue($idCardsPos < $settingsPos, 'ID Cards must be independent and appear before Settings, not inside it.');
     }
 
     public function test_academics_destinations_render_flat_in_their_existing_order(): void
@@ -476,19 +492,31 @@ class SidebarStructureTest extends TestCase
 
     public function test_the_admission_group_follows_approved_structure(): void
     {
-        // Admission follows the approved menu hierarchy: Applications, New Registration, Student List, Transfers (In/Out), Status Types, ID Cards, Settings (ID Card Setting), Reports last
+        // Admission follows the approved menu hierarchy: Applications, New Registration, Student List, Transfers (In/Out collapsible), Status Types, ID Cards (independent), Settings (ID Card Setting collapsible), Reports last
         $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT10A'));
         $admission = $this->group($aside, 'Admission');
 
         $this->assertSame(9, substr_count($admission, 'class="nav-link"'), 'Admission must render its 9 approved destinations.');
-        $this->assertStringContainsString('data-nav-sub-label', $admission, 'Admission uses sub-groups for Transfers and Settings.');
-        // Reports must be the last direct item
+        // Transfers and Settings must be nested collapsible parents
+        $this->assertStringContainsString('data-nested-group="admission-transfers"', $admission, 'Transfers must be collapsible parent containing Transfer In/Out');
+        $this->assertStringContainsString('data-nested-group="admission-settings"', $admission, 'Settings must be collapsible parent containing ID Card Setting');
+        $this->assertStringNotContainsString('data-nav-sub-label', $admission, 'ID Cards must not be inside Settings, and Transfers must not be static heading');
+        // ID Cards independent verification (not inside Settings)
+        $this->assertStringContainsString('>ID Cards<', $admission, 'ID Cards must be independent menu item');
+        $this->assertTrue(strpos($admission, '>ID Cards<') < strpos($admission, 'data-nested-group="admission-settings"'), 'ID Cards must appear before Settings parent');
+        // Verify ID Card Setting is inside Settings nested group (not standalone)
+        $settingsBlock = substr($admission, strpos($admission, 'data-nested-group="admission-settings"'));
+        $this->assertStringContainsString('ID Card Setting', $settingsBlock, 'ID Card Setting must be child of Settings collapsible parent');
+
+        // Reports must be the last direct item (outside nested groups)
         $hrefs = $this->hrefs($admission);
         $this->assertSame($this->path('admission-reports.index'), end($hrefs), 'Reports must be the last direct item in Admission.');
-        // Check key destinations exist (using loose path matching due to query params)
+        // Check key destinations exist
         $this->assertStringContainsString($this->path('admission-applications.index'), $admission, 'Applications must be present.');
         $this->assertStringContainsString($this->path('admission.status-types.index'), $admission, 'Status Types must be present.');
         $this->assertStringContainsString($this->path('admission-reports.index'), $admission, 'Reports must be present.');
+        $this->assertStringContainsString($this->path('student-id-cards.index'), $admission, 'ID Cards must use existing student-id-cards route');
+        $this->assertStringContainsString($this->path('settings.index'), $admission, 'ID Card Setting must use settings route');
     }
 
     public function test_approval_management_group_exists(): void

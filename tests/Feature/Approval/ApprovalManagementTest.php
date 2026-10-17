@@ -164,9 +164,12 @@ class ApprovalManagementTest extends TestCase
     {
         $college = $this->makeCollege('APPR3');
         $user = $this->makeUserWithPermissions($college, []); // no approvals permission
-        $this->asCollege($college, $user)->get(route('approvals.pending'))->assertForbidden();
+        // Pending is filter-empty for non-approvers, not forbidden (they simply see no approvals)
+        $this->asCollege($college, $user)->get(route('approvals.pending'))->assertOk();
+        // History is restricted to approvers/managers
         $this->asCollege($college, $user)->get(route('approvals.history'))->assertForbidden();
-        $this->asCollege($college, $user)->get(route('approvals.my-requests'))->assertForbidden();
+        // My Requests is personal and accessible to any active user (even without approvals.view)
+        $this->asCollege($college, $user)->get(route('approvals.my-requests'))->assertOk();
     }
 
     public function test_users_cannot_approve_own_requests(): void
@@ -271,8 +274,8 @@ class ApprovalManagementTest extends TestCase
     {
         $college = $this->makeCollege('APPR10');
         $staff = $this->makeUserWithPermissions($college, ['admission_applications.view','admission_applications.update']);
-        // staff has update permission but we test bypass via direct status change when approval required should still be blocked if they lack approve? Actually staff has update which is approve perm, so they can bypass - need staff without approve perm
-        $staffNoApprove = $this->makeUserWithPermissions($college, ['admission_applications.view']);
+        // staff has update permission but lacks approvals.approve, so cannot bypass approval
+        $staffNoApprove = $this->makeUserWithPermissions($college, ['admission_applications.view','admission_applications.update']);
         $year = $this->makeYear($college);
         $prog = $this->makeProgram($college);
         $applicant = $this->makeApplicant($college);

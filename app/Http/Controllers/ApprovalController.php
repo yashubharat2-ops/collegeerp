@@ -53,7 +53,9 @@ class ApprovalController extends Controller
 
     public function history(Request $request): View
     {
-        $this->authorize('viewAny', ApprovalRequest::class);
+        if (! $request->user()->can('viewHistory', ApprovalRequest::class)) {
+            abort(403);
+        }
 
         $query = ApprovalRequest::query()
             ->with(['requester', 'decider'])

@@ -91,16 +91,18 @@
                         <x-nav.link label="Applications" route="admission-applications.index" />
                         <x-nav.link label="New Registration" route="admission-applications.create" perm="admission_applications.create" />
                         <x-nav.link label="Student List" :href="route('students.index', ['admission_filter' => 1])" pattern="students.index" />
-                        <x-nav.sub-group label="Transfers" perm="student_transfers.view" />
-                        <x-nav.link label="Transfer In" :href="route('student-transfers.index', ['direction' => 'in'])" pattern="student-transfers.index" perm="student_transfers.view" />
-                        <x-nav.link label="Transfer Out" :href="route('student-transfers.index', ['direction' => 'out'])" pattern="student-transfers.index" perm="student_transfers.view" />
+                        <x-nav.nested-group id="admission-transfers" label="Transfers" perm="student_transfers.view">
+                            <x-nav.link label="Transfer In" :href="route('student-transfers.index', ['direction' => 'in'])" pattern="student-transfers.index" :query="['direction' => 'in']" perm="student_transfers.view" />
+                            <x-nav.link label="Transfer Out" :href="route('student-transfers.index', ['direction' => 'out'])" pattern="student-transfers.index" :query="['direction' => 'out']" perm="student_transfers.view" />
+                        </x-nav.nested-group>
                         <x-nav.link label="Status Types" route="admission.status-types.index" />
                         <x-nav.link label="ID Cards" :href="route('student-id-cards.index', ['context' => 'admission'])" pattern="student-id-cards.index" perm="student_id_cards.view" />
-                        <x-nav.sub-group label="Settings" perm="settings.view|student_id_cards.view" />
-                        <x-nav.link label="ID Card Setting" route="settings.index" perm="settings.view" />
+                        <x-nav.nested-group id="admission-settings" label="Settings" perm="settings.view|student_id_cards.view">
+                            <x-nav.link label="ID Card Setting" route="settings.index" perm="settings.view" />
+                        </x-nav.nested-group>
                         <x-nav.link label="Reports" route="admission-reports.index" perm="admission_reports.view" />
                     </x-nav.group>
-                    <x-nav.group id="approval-management" label="Approval Management" icon="clipboard-check" perm="approvals.view|approvals.approve|approvals.settings.manage">
+                    <x-nav.group id="approval-management" label="Approval Management" icon="clipboard-check">
                         <x-nav.link label="Pending Approvals" route="approvals.pending" />
                         <x-nav.link label="Approval History" route="approvals.history" />
                         <x-nav.link label="My Requests" route="approvals.my-requests" />

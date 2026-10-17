@@ -49,6 +49,37 @@ return new class extends Migration {
             $table->unique(['college_id', 'module', 'action']);
             $table->index(['college_id', 'is_required']);
         });
+
+        // Seed central approval permissions (idempotent) and grant to existing college-admin roles
+        $permissions = [
+            'approvals.view',
+            'approvals.approve',
+            'approvals.settings.manage',
+            'admission.status_types.view',
+            'settings.view',
+            'settings.update',
+        ];
+        foreach ($permissions as $slug) {
+            $perm = \App\Models\Permission::firstOrCreate(['slug' => $slug], [
+                'name' => \Illuminate\Support\Str::headline($slug),
+                'module' => \Illuminate\Support\Str::before($slug, '.'),
+                'action' => \Illuminate\Support\Str::after($slug, '.'),
+                'is_active' => true,
+            ]);
+            // Grant to all active college-admin roles so existing installs immediately see the menu
+            \App\Models\Role::where('is_active', true)->where('slug', 'college-admin')->each(function ($role) use ($perm) {
+                if (! $role->permissions()->where('permissions.id', $perm->id)->exists()) {
+                    $role->permissions()->attach($perm->id);
+                }
+            });
+            // Also grant to super-admin
+            \App\Models\Role::where('is_active', true)->where('slug', 'super-admin')->whereNull('college_id')->each(function ($role) use ($perm) {
+                if (! $role->permissions()->where('permissions.id', $perm->id)->exists()) {
+                    $role->permissions()->attach($perm->id);
+                }
+            });
+        }
+    }
     }
 
     public function down(): void
