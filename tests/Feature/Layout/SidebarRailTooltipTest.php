@@ -239,7 +239,7 @@ class SidebarRailTooltipTest extends TestCase
         // "Platform" left this list when it stopped being a top-level group — its
         // seven destinations now live inside Academics and are asserted there, by
         // SidebarStructureTest; what must not come back is a second Platform row.
-        foreach (['Admissions', 'Students', 'Academics', 'Examinations', 'Reports'] as $label) {
+        foreach (['Admission', 'Students', 'Academics', 'Examinations', 'Reports'] as $label) {
             $this->assertSame(1, substr_count($aside, 'nav-group__label">'.$label.'<'), "{$label} is not one of the renamed modules.");
         }
 

@@ -18,6 +18,8 @@ use App\Http\Controllers\AdmissionEnquiryController;
 use App\Http\Controllers\AdmissionMeritEntryController;
 use App\Http\Controllers\AdmissionMeritListController;
 use App\Http\Controllers\AdmissionReportController;
+use App\Http\Controllers\AdmissionStatusTypeController;
+use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
@@ -357,6 +359,23 @@ Route::middleware('auth')->group(function () {
         Route::get('library-reports', [LibraryReportController::class, 'index'])->name('library-reports.index');
 
         Route::get('admission-reports', [AdmissionReportController::class, 'index'])->name('admission-reports.index');
+
+        // Admission — Status Types (read-only workflow reference)
+        Route::get('admission/status-types', [AdmissionStatusTypeController::class, 'index'])->name('admission.status-types.index');
+
+        // Central Approval Management — reusable engine for entire ERP
+        Route::prefix('approvals')->name('approvals.')->controller(ApprovalController::class)->group(function () {
+            Route::get('/pending', 'pending')->name('pending');
+            Route::get('/history', 'history')->name('history');
+            Route::get('/my-requests', 'myRequests')->name('my-requests');
+            Route::get('/settings', 'settings')->name('settings.index');
+            Route::put('/settings', 'updateSettings')->name('settings.update');
+            Route::get('/{approval}', 'show')->name('show');
+            Route::post('/{approval}/approve', 'approve')->name('approve');
+            Route::post('/{approval}/reject', 'reject')->name('reject');
+            Route::post('/{approval}/cancel', 'cancel')->name('cancel');
+        });
+
         // ACADEMIC BULK ACTIONS — the CSV destination of the six Academic listings'
         // bulk "Export selected" actions. Each one re-resolves the authorized ids
         // inside the active college (never trusting the client list), re-checks the
