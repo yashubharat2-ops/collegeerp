@@ -696,7 +696,7 @@ class SidebarStructureTest extends TestCase
     public function test_the_inline_shell_fallback_is_valid_and_top_aligned(): void
     {
         $layout = (string) file_get_contents(resource_path('views/layouts/app.blade.php'));
-        $start = strpos($layout, '    {{-- Shell geometry fallback:');
+        $start = strpos($layout, '    {{-- Shell geometry fallback (run last):');
 
         $this->assertNotFalse($start, 'The shell fallback must remain in the application layout.');
         if ($start === false) {
