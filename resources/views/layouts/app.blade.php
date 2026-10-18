@@ -97,10 +97,10 @@
          until it takes focus, and it targets the <main> landmark below (tabindex="-1"
          is what lets focus actually move there). Styled by public/css/erp-ui.css. --}}
     <a class="erp-skip-link" href="#erp-main">Skip to main content</a>
-    <div class="min-h-screen lg:flex">
+    <div class="erp-app-shell min-h-screen lg:flex">
         @include('layouts.sidebar')
 
-        <section class="min-w-0 flex-1">
+        <section class="erp-app-main min-w-0 flex-1">
             <header class="erp-topbar no-print flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
                 <div class="erp-topbar__lead">
                     <div class="flex items-center gap-3">
