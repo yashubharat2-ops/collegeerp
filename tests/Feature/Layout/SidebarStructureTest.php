@@ -26,7 +26,9 @@ use Tests\TestCase;
  *  6. Every destination the sidebar names is a route that still exists.
  *  7. The skip link is first, points at a focusable landmark, and is styled by the
  *     static stylesheet.
- *  8. Active state is still server-rendered, so it survives a refresh and works
+ *  8. The shell stays a row at every viewport width while the sidebar retains its
+ *     fixed, off-canvas mobile drawer.
+ *  9. Active state is still server-rendered, so it survives a refresh and works
  *     with JavaScript disabled.
  */
 class SidebarStructureTest extends TestCase
@@ -684,50 +686,61 @@ class SidebarStructureTest extends TestCase
         $this->assertStringContainsString('.erp-skip-link', $css, 'The skip link must be styled by the static layer, not by a build output.');
         $this->assertStringContainsString('erp-ui.css', $layout, 'The layout must link that stylesheet.');
 
-        // Static chrome must load before the bundle so the utilities still win.
+        // The shared shell stylesheet is loaded directly, before the optional bundle.
         $this->assertStringContainsString("asset('css/erp-ui.css')", $layout, 'The layout links the static sheet by path, not through Vite.');
         $static = strpos($layout, "<link rel=\"stylesheet\" href=\"{{ asset('css/erp-ui.css') }}");
         $vite = strpos($layout, "@vite(['resources/css/app.css'");
         $this->assertNotFalse($static);
         $this->assertNotFalse($vite);
-        $this->assertLessThan($vite, $static, 'The static stylesheet must be linked before @vite, so a missing build cannot hide the shell.');
+        $this->assertLessThan($vite, $static, 'The static shell stylesheet must remain independent of the optional Vite bundle.');
     }
 
-    public function test_the_inline_shell_fallback_is_valid_and_top_aligned(): void
+    public function test_shell_stays_a_row_at_all_widths_while_sidebar_keeps_its_mobile_drawer(): void
     {
         $layout = (string) file_get_contents(resource_path('views/layouts/app.blade.php'));
-        $start = strpos($layout, '    {{-- Shell geometry fallback:');
+        $shellCss = (string) file_get_contents(public_path('css/erp-ui.css'));
+        $sidebarCss = (string) file_get_contents(public_path('css/erp-sidebar.css'));
 
-        $this->assertNotFalse($start, 'The shell fallback must remain in the application layout.');
-        if ($start === false) {
+        // Keep one source of truth for shell geometry rather than a duplicate inline override.
+        $this->assertStringContainsString('<div class="erp-app-shell">', $layout);
+        $this->assertStringContainsString('<section class="erp-app-main">', $layout);
+        $this->assertStringContainsString('<main class="erp-content"', $layout);
+        $this->assertStringNotContainsString('Shell geometry fallback', $layout);
+        $this->assertStringNotContainsString('lg:flex', $layout, 'The shell row must not depend on a desktop-only utility.');
+
+        $this->assertSame(1, preg_match_all('/^\.erp-app-shell\s*\{/m', $shellCss), 'The shell must not be overridden at a breakpoint.');
+        $shellMatched = preg_match('/^\.erp-app-shell\s*\{([^}]*)\}/m', $shellCss, $shellRule);
+        $this->assertSame(1, $shellMatched, 'The shell must have one base rule outside a media query.');
+        if ($shellMatched !== 1) {
             return;
         }
+        $this->assertMatchesRegularExpression('/\bdisplay:\s*flex\s*;/', $shellRule[1]);
+        $this->assertMatchesRegularExpression('/\bmin-height:\s*100vh\s*;/', $shellRule[1]);
 
-        $end = strpos($layout, '</style>', $start);
-        $this->assertNotFalse($end, 'The shell fallback must be a complete style block.');
-        if ($end === false) {
+        $this->assertSame(1, preg_match_all('/^\.erp-app-main\s*\{/m', $shellCss), 'The main column must not be overridden at a breakpoint.');
+        $mainMatched = preg_match('/^\.erp-app-main\s*\{([^}]*)\}/m', $shellCss, $mainRule);
+        $this->assertSame(1, $mainMatched, 'The main column must have one base rule outside a media query.');
+        if ($mainMatched !== 1) {
             return;
         }
+        $this->assertMatchesRegularExpression('/\bdisplay:\s*flex\s*;/', $mainRule[1]);
+        $this->assertMatchesRegularExpression('/\bflex:\s*1 1 0%\s*;/', $mainRule[1]);
+        $this->assertMatchesRegularExpression('/\bflex-direction:\s*column\s*;/', $mainRule[1]);
+        $this->assertMatchesRegularExpression('/\bjustify-content:\s*flex-start\s*;/', $mainRule[1]);
 
-        $fallback = substr($layout, $start, $end + strlen('</style>') - $start);
-        $vite = strpos($layout, "@vite(['resources/css/app.css'");
-        $pageStyles = strpos($layout, "@stack('styles')");
+        $this->assertMatchesRegularExpression(
+            '/@media\s*\(min-width:\s*1024px\)\s*\{\s*\.erp-sidebar\s*\{[^}]*position:\s*sticky;[^}]*flex:\s*0 0 var\(--erp-nav-width\);/s',
+            $sidebarCss,
+            'The desktop sidebar must stay in the row with its configured width.'
+        );
 
-        $this->assertNotFalse($vite, 'The optional Vite bundle must remain part of the layout.');
-        $this->assertNotFalse($pageStyles, 'Page-specific styles must remain part of the layout.');
-        if ($vite === false || $pageStyles === false) {
-            return;
-        }
-
-        $this->assertGreaterThan($vite, $start, 'The shell guard must follow the optional Vite bundle.');
-        $this->assertGreaterThan($pageStyles, $start, 'The shell guard must follow page-specific styles.');
-        $this->assertStringNotContainsString('\\n', $fallback, 'Literal escaped newlines break the head markup and CSS selectors.');
+        // On small screens the sidebar leaves document flow and opens only as a drawer.
         $this->assertSame(
             1,
-            preg_match('/@media\\s*\\(min-width:\\s*1024px\\)\\s*\\{\\s*\\.erp-app-shell\\s*\\{\\s*display:\\s*flex;\\s*align-items:\\s*stretch;\\s*\\}\\s*\\.erp-app-main\\s*\\{\\s*display:\\s*flex;\\s*flex-direction:\\s*column;\\s*justify-content:\\s*flex-start;/s', $fallback),
-            'At desktop widths the shell must stretch vertically and the header column must start at the top.'
+            preg_match('/@media\s*\(max-width:\s*1023\.98px\)\s*\{\s*\.erp-sidebar\s*\{[^}]*position:\s*fixed;[^}]*transform:\s*translateX\(-102%\);[^}]*\}/s', $sidebarCss),
+            'The mobile sidebar must remain fixed and off-canvas by default.'
         );
-        $this->assertStringNotContainsString('align-items: flex-end;', $fallback, 'The shell must never bottom-align the main column.');
+        $this->assertMatchesRegularExpression('/html\[data-nav-drawer="open"\]\s+\.erp-sidebar\s*\{\s*transform:\s*none;/s', $sidebarCss);
     }
 
     /* 10 · Active state is still server-rendered -------------------------- */

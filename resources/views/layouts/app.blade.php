@@ -6,23 +6,11 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Dashboard') · {{ config('app.name', 'College ERP') }}</title>
 
-    {{-- ERP shell v=c015631+c3 — content-hash versioned to force Blade recompile after asset fix. Bump on shell changes. --}}
+    {{-- Shared shell styles are public assets; each URL is versioned from its file contents below. --}}
     @php
         /*
-         * Static shell assets under `public/` (never through @vite). They must
-         * keep their look with no build / no dev server. Previously versioned
-         * with `filemtime()` which on Windows + git can preserve the old mtime
-         * (git checkout / restore may not bump mtime, antivirus / EnableMMAP
-         * can lock the file), so Chrome kept the old URL (`?v=old`) and the
-         * new `.erp-app-shell` rules never reached the browser despite HTTP
-         * 200 (disk cache / 304 with old ETag). The fix in c015631 added the
-         * correct rules but `?v=filemtime` did not change reliably, so the
-         * Students page stayed broken.
-         *
-         * Now versioned by content hash (`hash_file('crc32b')`) with `filemtime`
-         * fallback: the URL changes exactly when the bytes change, regardless
-         * of mtime preservation. `is_file` guards keep the tag usable when a
-         * deploy has not yet copied `public/`.
+         * Version public stylesheets from their contents so a changed asset gets
+         * a changed URL. Missing files remain linkable without a version query.
          */
         $erpCssVer = static function (string $rel): ?string {
             $p = public_path($rel);
@@ -66,14 +54,10 @@
          rules that keep a list inside the content column instead of overflowing it.
          Static for the same reason — a layout guarantee must not depend on a build. --}}
     <link rel="stylesheet" href="{{ asset('css/erp-list.css') }}@if ($erpListCssVersion)?v={{ $erpListCssVersion }}@endif">
-    {{-- Shell chrome: the skip link, the top bar's fallback surface and the auth
-         shell. Static like the five above — and linked BEFORE the bundle, so every
-         rule in it is a fallback that a Tailwind utility on the same element still
-         overrides. A shell guarantee (a reachable skip target, a bar that keeps its
-         border) must not depend on a build existing. --}}
+    {{-- Shared shell geometry and chrome, including the viewport-independent app row. --}}
     <link rel="stylesheet" href="{{ asset('css/erp-ui.css') }}@if ($erpUiCssVersion)?v={{ $erpUiCssVersion }}@endif">
     @if (config('app.debug'))
-        <!-- ERP shell asset debug: erp-ui={{ asset('css/erp-ui.css') }}?v={{ $erpUiCssVersion }} public_path={{ public_path('css/erp-ui.css') }} exists={{ is_file(public_path('css/erp-ui.css')) ? 'yes' : 'no' }} build={{ is_file(public_path('build/manifest.json')) ? 'yes' : 'no' }} shell={{ 'c015631+c3' }} -->
+        <!-- ERP shell asset debug: erp-ui={{ asset('css/erp-ui.css') }}?v={{ $erpUiCssVersion }} public_path={{ public_path('css/erp-ui.css') }} exists={{ is_file(public_path('css/erp-ui.css')) ? 'yes' : 'no' }} build={{ is_file(public_path('build/manifest.json')) ? 'yes' : 'no' }} -->
     @endif
 
     {{-- Application-wide styling is still built by Vite; link it only when a build (public/build/manifest.json) or a running dev server (public/hot) exists, so a page render never depends on running npm. --}}
@@ -88,53 +72,6 @@
     <link rel="stylesheet" href="{{ asset('css/erp-student-form.css') }}@if ($erpStudentFormCssVersion)?v={{ $erpStudentFormCssVersion }}@endif">
     @stack('styles')
 
-    {{-- Shell geometry fallback (run last): the shell also has a baseline in
-         erp-ui.css; this final rule protects it from competing page/build styles. --}}
-    <style>
-        .erp-app-shell {
-            display: block;
-            min-height: 100vh;
-            margin: 0;
-            padding: 0;
-        }
-
-        .erp-app-main {
-            display: block;
-            min-width: 0;
-            flex: 1 1 0%;
-            min-height: 0;
-            margin: 0;
-            padding: 0;
-        }
-
-        @media (min-width: 1024px) {
-            .erp-app-shell {
-                display: flex;
-                align-items: stretch;
-            }
-
-            .erp-app-main {
-                display: flex;
-                flex-direction: column;
-                justify-content: flex-start;
-                align-items: stretch;
-                align-self: stretch;
-            }
-        }
-
-        .erp-content {
-            min-width: 0;
-            margin: 0;
-            padding: 1.5rem;
-            flex: 1 1 auto;
-        }
-
-        @media (max-width: 639.98px) {
-            .erp-content {
-                padding: 1rem;
-            }
-        }
-    </style>
 </head>
 <body class="bg-slate-100 text-slate-900">
     {{-- Skip link: the shell renders ~130 navigation rows before the page content, so
@@ -143,10 +80,10 @@
          until it takes focus, and it targets the <main> landmark below (tabindex="-1"
          is what lets focus actually move there). Styled by public/css/erp-ui.css. --}}
     <a class="erp-skip-link" href="#erp-main">Skip to main content</a>
-    <div class="erp-app-shell min-h-screen lg:flex">
+    <div class="erp-app-shell">
         @include('layouts.sidebar')
 
-        <section class="erp-app-main min-w-0 flex-1">
+        <section class="erp-app-main">
             <header class="erp-topbar no-print flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
                 <div class="erp-topbar__lead">
                     <div class="flex items-center gap-3">
@@ -191,7 +128,7 @@
                 </div>
             </header>
 
-            <main class="erp-content p-6" id="erp-main" tabindex="-1">
+            <main class="erp-content" id="erp-main" tabindex="-1">
                 @if (session('success'))
                     <div class="alert-success">{{ session('success') }}</div>
                 @endif
