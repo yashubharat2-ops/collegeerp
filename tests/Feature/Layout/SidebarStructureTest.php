@@ -693,6 +693,43 @@ class SidebarStructureTest extends TestCase
         $this->assertLessThan($vite, $static, 'The static stylesheet must be linked before @vite, so a missing build cannot hide the shell.');
     }
 
+    public function test_the_inline_shell_fallback_is_valid_and_top_aligned(): void
+    {
+        $layout = (string) file_get_contents(resource_path('views/layouts/app.blade.php'));
+        $start = strpos($layout, '    {{-- Shell geometry fallback:');
+
+        $this->assertNotFalse($start, 'The shell fallback must remain in the application layout.');
+        if ($start === false) {
+            return;
+        }
+
+        $end = strpos($layout, '</style>', $start);
+        $this->assertNotFalse($end, 'The shell fallback must be a complete style block.');
+        if ($end === false) {
+            return;
+        }
+
+        $fallback = substr($layout, $start, $end + strlen('</style>') - $start);
+        $vite = strpos($layout, "@vite(['resources/css/app.css'");
+        $pageStyles = strpos($layout, "@stack('styles')");
+
+        $this->assertNotFalse($vite, 'The optional Vite bundle must remain part of the layout.');
+        $this->assertNotFalse($pageStyles, 'Page-specific styles must remain part of the layout.');
+        if ($vite === false || $pageStyles === false) {
+            return;
+        }
+
+        $this->assertGreaterThan($vite, $start, 'The shell guard must follow the optional Vite bundle.');
+        $this->assertGreaterThan($pageStyles, $start, 'The shell guard must follow page-specific styles.');
+        $this->assertStringNotContainsString('\\n', $fallback, 'Literal escaped newlines break the head markup and CSS selectors.');
+        $this->assertSame(
+            1,
+            preg_match('/@media\\s*\\(min-width:\\s*1024px\\)\\s*\\{\\s*\\.erp-app-shell\\s*\\{\\s*display:\\s*flex;\\s*align-items:\\s*stretch;\\s*\\}\\s*\\.erp-app-main\\s*\\{\\s*display:\\s*flex;\\s*flex-direction:\\s*column;\\s*justify-content:\\s*flex-start;/s', $fallback),
+            'At desktop widths the shell must stretch vertically and the header column must start at the top.'
+        );
+        $this->assertStringNotContainsString('align-items: flex-end;', $fallback, 'The shell must never bottom-align the main column.');
+    }
+
     /* 10 · Active state is still server-rendered -------------------------- */
 
     public function test_the_active_row_and_its_open_group_are_still_rendered_by_the_server(): void

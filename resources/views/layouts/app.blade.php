@@ -72,7 +72,7 @@
          overrides. A shell guarantee (a reachable skip target, a bar that keeps its
          border) must not depend on a build existing. --}}
     <link rel="stylesheet" href="{{ asset('css/erp-ui.css') }}@if ($erpUiCssVersion)?v={{ $erpUiCssVersion }}@endif">
-    {{-- Critical shell fallback inline — guarantees the desktop row / mobile drawer\n         layout even if the external erp-ui.css is 404 or stale-cached (Windows\n         XAMPP subfolder APP_URL mismatch, EnableMMAP/Sendfile stale handle, or\n         browser disk cache with old ?v=). Duplicates the external file's §5/§6\n         so the guarantee does not depend on a second request. Loaded before the\n         Vite bundle so Tailwind utilities (lg:flex, min-h-screen, flex-1, p-6)\n         still win where they apply. --}}\n    <style>\n        .erp-app-shell{display:block;min-height:100vh;margin:0;padding:0}\n        .erp-app-main{display:block;min-width:0;flex:1 1 0%;min-height:0;margin:0;padding:0}\n        @media(min-width:1024px){.erp-app-shell{display:flex;align-items:stretch}.erp-app-main{display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;align-self:stretch}}\n        .erp-content{min-width:0;margin:0;padding:1.5rem;flex:1 1 auto}\n        @media(max-width:639.98px){.erp-content{padding:1rem}}\n    </style>\n    @if (config('app.debug'))
+    @if (config('app.debug'))
         <!-- ERP shell asset debug: erp-ui={{ asset('css/erp-ui.css') }}?v={{ $erpUiCssVersion }} public_path={{ public_path('css/erp-ui.css') }} exists={{ is_file(public_path('css/erp-ui.css')) ? 'yes' : 'no' }} build={{ is_file(public_path('build/manifest.json')) ? 'yes' : 'no' }} shell={{ 'c015631+c3' }} -->
     @endif
 
@@ -87,6 +87,54 @@
          means the form's own rules always win over a stale one. --}}
     <link rel="stylesheet" href="{{ asset('css/erp-student-form.css') }}@if ($erpStudentFormCssVersion)?v={{ $erpStudentFormCssVersion }}@endif">
     @stack('styles')
+
+    {{-- Shell geometry fallback (run last): the shell also has a baseline in
+         erp-ui.css; this final rule protects it from competing page/build styles. --}}
+    <style>
+        .erp-app-shell {
+            display: block;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+
+        .erp-app-main {
+            display: block;
+            min-width: 0;
+            flex: 1 1 0%;
+            min-height: 0;
+            margin: 0;
+            padding: 0;
+        }
+
+        @media (min-width: 1024px) {
+            .erp-app-shell {
+                display: flex;
+                align-items: stretch;
+            }
+
+            .erp-app-main {
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-start;
+                align-items: stretch;
+                align-self: stretch;
+            }
+        }
+
+        .erp-content {
+            min-width: 0;
+            margin: 0;
+            padding: 1.5rem;
+            flex: 1 1 auto;
+        }
+
+        @media (max-width: 639.98px) {
+            .erp-content {
+                padding: 1rem;
+            }
+        }
+    </style>
 </head>
 <body class="bg-slate-100 text-slate-900">
     {{-- Skip link: the shell renders ~130 navigation rows before the page content, so
