@@ -56,6 +56,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Public Asset URL
+    |--------------------------------------------------------------------------
+    |
+    | Set this when assets are served from a public URL prefix that differs
+    | from the current request origin, such as an XAMPP subfolder. When unset,
+    | Laravel derives asset URLs from the current request.
+    |
+    */
+
+    'asset_url' => env('ASSET_URL'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

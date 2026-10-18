@@ -3,6 +3,7 @@
 namespace Tests\Feature\Layout;
 
 use App\Models\{College, Permission};
+use Illuminate\Support\Facades\Facade;
 use Illuminate\Support\Facades\Route;
 use Tests\Feature\Departments\DepartmentTestHelpers;
 use Tests\TestCase;
@@ -676,6 +677,26 @@ class SidebarStructureTest extends TestCase
         // Its target is a real landmark that can hold focus.
         $this->assertMatchesRegularExpression('/<main[^>]*\bid="erp-main"[^>]*>/', $html, 'The target must exist.');
         $this->assertMatchesRegularExpression('/<main[^>]*\btabindex="-1"[^>]*>/', $html, 'A tabindex of -1 is what lets focus move there.');
+    }
+
+    public function test_configured_asset_url_keeps_static_assets_under_a_xampp_subdirectory(): void
+    {
+        $assetBase = 'http://localhost/collegeerp/public';
+        config(['app.asset_url' => $assetBase]);
+
+        // The URL generator captures app.asset_url when the singleton is created.
+        $this->app->forgetInstance('url');
+        Facade::clearResolvedInstance('url');
+        $url = $this->app->make('url');
+
+        foreach ([
+            'css/erp-ui.css' => $assetBase.'/css/erp-ui.css',
+            'css/erp-sidebar.css' => $assetBase.'/css/erp-sidebar.css',
+            'js/erp-sidebar.js' => $assetBase.'/js/erp-sidebar.js',
+            'build/assets/app.css' => $assetBase.'/build/assets/app.css',
+        ] as $path => $expected) {
+            $this->assertSame($expected, $url->asset($path), "The {$path} asset must retain the configured public URL prefix.");
+        }
     }
 
     public function test_the_shell_chrome_is_styled_by_a_static_stylesheet(): void
