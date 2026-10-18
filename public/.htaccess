@@ -1,3 +1,14 @@
+# ERP shell assets must never be served stale on Windows XAMPP: git checkout
+# can leave the old MMap/Sendfile handle open and Apache returns the old
+# bytes with HTTP 200. Disable both for this directory so the bytes on disk
+# are always the bytes on the wire (c015631+c1).
+<IfModule mod_mmap.c>
+    EnableMMAP Off
+</IfModule>
+<IfModule mod_sendfile.c>
+    EnableSendfile Off
+</IfModule>
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes

@@ -6,45 +6,40 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Dashboard') · {{ config('app.name', 'College ERP') }}</title>
 
+    {{-- ERP shell v=c015631+c1 — content-hash versioned to force Blade recompile after asset fix. Bump on shell changes. --}}
     @php
         /*
-         * The sidebar owns two static assets of its own, linked straight from
-         * `public/` (never through the Vite tags below): the navigation must keep
-         * its forest-green chrome, its sizing and its interactions when no build and
-         * no dev server exist — `public/` is served by the web server alone.
+         * Static shell assets under `public/` (never through @vite). They must
+         * keep their look with no build / no dev server. Previously versioned
+         * with `filemtime()` which on Windows + git can preserve the old mtime
+         * (git checkout / restore may not bump mtime, antivirus / EnableMMAP
+         * can lock the file), so Chrome kept the old URL (`?v=old`) and the
+         * new `.erp-app-shell` rules never reached the browser despite HTTP
+         * 200 (disk cache / 304 with old ETag). The fix in c015631 added the
+         * correct rules but `?v=filemtime` did not change reliably, so the
+         * Students page stayed broken.
          *
-         * The stylesheet gets the file mtime as a cache buster, so a stale copy can
-         * never be served after a deploy; the `?: null` guard keeps the tag usable
-         * when the build directory is not readable from disk. The script deliberately
-         * carries no query string: every external script rendered by this layout must
-         * stay `<script type="module" src="….js">` (asserted by
-         * tests/Feature/Programs/ProgramNameEscapeTest.php, which requires the src to
-         * end in `.js`), and static assets under `public/` keep their Last-Modified /
-         * ETag headers, so the browser revalidates the file on its own.
+         * Now versioned by content hash (`hash_file('crc32b')`) with `filemtime`
+         * fallback: the URL changes exactly when the bytes change, regardless
+         * of mtime preservation. `is_file` guards keep the tag usable when a
+         * deploy has not yet copied `public/`.
          */
-        $erpSidebarCssVersion = filemtime(public_path('css/erp-sidebar.css')) ?: null;
-        $erpUserMenuCssVersion = filemtime(public_path('css/erp-user-menu.css')) ?: null;
-        $erpDropdownCssVersion = filemtime(public_path('css/erp-dropdown.css')) ?: null;
-        $erpListCssVersion = filemtime(public_path('css/erp-list.css')) ?: null;
-        /*
-         * Student Create/Edit form. Static for the same reason as the four above,
-         * and for one more: the form's compact grid must not depend on the
-         * Tailwind bundle, which the guard below only links when a build (or a dev
-         * server) exists — without it the form would fall back to a plain
-         * one-column document with unstyled inputs.
-         */
-        $erpStudentFormCssVersion = is_file(public_path('css/erp-student-form.css'))
-            ? (filemtime(public_path('css/erp-student-form.css')) ?: null)
-            : null;
-        /*
-         * Shell chrome (skip link, top bar, auth shell), static for the same reason
-         * as the five files above. Guarded with is_file() because the tag is emitted
-         * unconditionally: the file ships in this repository, but a deployment that
-         * has not yet copied a new public/ asset must still render a working page.
-         */
-        $erpUiCssVersion = is_file(public_path('css/erp-ui.css'))
-            ? (filemtime(public_path('css/erp-ui.css')) ?: null)
-            : null;
+        $erpCssVer = static function (string $rel): ?string {
+            $p = public_path($rel);
+            if (! is_file($p)) return null;
+            // Content hash is authoritative; mtime is fallback if hash is disabled.
+            $h = @hash_file('crc32b', $p);
+            if (is_string($h) && $h !== '') return $h;
+            $m = @filemtime($p);
+            return $m ? (string) $m : null;
+        };
+        $erpSidebarCssVersion = $erpCssVer('css/erp-sidebar.css');
+        $erpUserMenuCssVersion = $erpCssVer('css/erp-user-menu.css');
+        $erpDropdownCssVersion = $erpCssVer('css/erp-dropdown.css');
+        $erpListCssVersion = $erpCssVer('css/erp-list.css');
+        $erpStudentFormCssVersion = $erpCssVer('css/erp-student-form.css');
+        $erpUiCssVersion = $erpCssVer('css/erp-ui.css');
+        unset($erpCssVer);
 
         /*
          * The top bar's notification affordance. It is the SAME gate <x-user.menu>
@@ -77,6 +72,9 @@
          overrides. A shell guarantee (a reachable skip target, a bar that keeps its
          border) must not depend on a build existing. --}}
     <link rel="stylesheet" href="{{ asset('css/erp-ui.css') }}@if ($erpUiCssVersion)?v={{ $erpUiCssVersion }}@endif">
+    @if (config('app.debug'))
+        <!-- ERP shell asset debug: erp-ui={{ asset('css/erp-ui.css') }}?v={{ $erpUiCssVersion }} public_path={{ public_path('css/erp-ui.css') }} exists={{ is_file(public_path('css/erp-ui.css')) ? 'yes' : 'no' }} build={{ is_file(public_path('build/manifest.json')) ? 'yes' : 'no' }} shell={{ 'c015631+c1' }} -->
+    @endif
 
     {{-- Application-wide styling is still built by Vite; link it only when a build (public/build/manifest.json) or a running dev server (public/hot) exists, so a page render never depends on running npm. --}}
     @if (is_file(public_path('build/manifest.json')) || is_file(public_path('hot')))

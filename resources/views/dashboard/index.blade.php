@@ -3,7 +3,8 @@
 @section('title', 'Dashboard')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ asset('css/erp-dashboard.css') }}@if (is_file(public_path('css/erp-dashboard.css')))?v={{ filemtime(public_path('css/erp-dashboard.css')) ?: null }}@endif">
+    @php($erpDashboardCssVersion = is_file($p = public_path('css/erp-dashboard.css')) ? (@hash_file('crc32b', $p) ?: @filemtime($p) ?: null) : null)
+    <link rel="stylesheet" href="{{ asset('css/erp-dashboard.css') }}@if ($erpDashboardCssVersion)?v={{ $erpDashboardCssVersion }}@endif">
 @endpush
 
 @section('content')
