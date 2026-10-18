@@ -131,12 +131,37 @@ class AdmissionApplicationController extends Controller
         ]);
     }
 
-    public function store(StoreAdmissionApplicationRequest $request, CreateApplication $action): RedirectResponse
+    public function store(StoreAdmissionApplicationRequest $request, CreateApplication $action, \App\Services\Approval\ApprovalService $approvalService): RedirectResponse
     {
         $collegeId = app(TenantContext::class)->id();
-        $application = $action->execute($request->validated(), $collegeId);
+        $user = $request->user();
+        $data = $request->validated();
 
-        return redirect()->route('admission-applications.index')->with('success', 'Application '.$application->application_number.' created.');
+        // Check if approval is required for this submission
+        $needsApproval = $approvalService->isApprovalRequired($collegeId, 'admission', 'application_submit');
+        $canApprove = $approvalService->canApprove($user, 'admission', 'application_submit', $collegeId);
+
+        // Draft never requires approval - it's a private working copy
+        if (($data['status'] ?? 'draft') === 'draft' || ! $needsApproval || $canApprove) {
+            $application = $action->execute($data, $collegeId);
+            return redirect()->route('admission-applications.index')->with('success', 'Application '.$application->application_number.' created.');
+        }
+
+        // Non-approver creating a non-draft application: create pending and request approval
+        $application = $action->execute($data, $collegeId);
+
+        $approvalService->submitRequest([
+            'module' => 'admission',
+            'action' => 'application_submit',
+            'target_type' => 'admission.application_submit',
+            'target_id' => $application->id,
+            'title' => 'Approval for application '.$application->application_number,
+            'description' => 'New admission application submitted by '.$user->name,
+            'payload' => ['status' => $data['status']],
+            'request_reason' => $data['remarks'] ?? null,
+        ], $collegeId, $user->getKey());
+
+        return redirect()->route('admission-applications.index')->with('success', 'Application '.$application->application_number.' created and pending approval.');
     }
 
     public function edit(string $admission_application): View
@@ -164,7 +189,7 @@ class AdmissionApplicationController extends Controller
         ]);
     }
 
-    public function update(UpdateAdmissionApplicationRequest $request, string $admission_application, AuditLogService $audit, AdmissionApplicationStatusService $statuses): RedirectResponse
+    public function update(UpdateAdmissionApplicationRequest $request, string $admission_application, AuditLogService $audit, AdmissionApplicationStatusService $statuses, \App\Services\Approval\ApprovalService $approvalService): RedirectResponse
     {
         $model = $this->findScoped($admission_application);
         $old = $model->only(self::AUDITED);
@@ -180,6 +205,45 @@ class AdmissionApplicationController extends Controller
 
         $data = $statuses->attributesForStatus($model, $newStatus, $data);
 
+        $collegeId = app(TenantContext::class)->id();
+        $user = $request->user();
+
+        // If approval is required and user cannot approve, route through central approval instead of direct status change
+        $isStatusChange = $newStatus !== $model->status;
+        $needsApproval = $isStatusChange && $approvalService->isApprovalRequired($collegeId, 'admission', 'application_status_change');
+        $canApprove = $approvalService->canApprove($user, 'admission', 'application_status_change', $collegeId);
+
+        if ($needsApproval && ! $canApprove) {
+            // Prevent duplicate pending approval for same target
+            $existing = \App\Models\ApprovalRequest::withoutGlobalScopes()
+                ->where('college_id', $collegeId)
+                ->where('module', 'admission')
+                ->where('action', 'application_status_change')
+                ->where('target_type', 'admission.application_status_change')
+                ->where('target_id', $model->id)
+                ->where('status', \App\Models\ApprovalRequest::STATUS_PENDING)
+                ->exists();
+            if ($existing) {
+                return back()->withErrors(['status' => 'A pending approval request already exists for this application.'])->withInput();
+            }
+
+            $approvalService->submitRequest([
+                'module' => 'admission',
+                'action' => 'application_status_change',
+                'target_type' => 'admission.application_status_change',
+                'target_id' => $model->id,
+                'title' => 'Approval for status change: '.$model->application_number,
+                'description' => 'Requested status change from '.$model->status.' to '.$newStatus,
+                'payload' => $data,
+                'previous_data' => $old,
+                'request_reason' => $data['remarks'] ?? null,
+            ], $collegeId, $user->getKey());
+
+            return back()->with('success', 'Your status change request is pending approval.');
+        }
+
+        // Direct update for approvers or when approval not required
+        // Also protect against self-approval via direct request: if needsApproval and canApprove but requester is same as previous? For update, the user is approver updating directly - allowed if they have permission
         $model->update($data);
         $audit->record('admission_application.updated', $model, $old, $model->only(self::AUDITED));
 

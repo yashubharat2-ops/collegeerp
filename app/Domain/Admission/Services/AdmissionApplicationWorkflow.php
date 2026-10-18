@@ -29,7 +29,8 @@ final class AdmissionApplicationWorkflow
      */
     private const TRANSITIONS = [
         'draft' => ['draft', 'submitted', 'under_review'],
-        'submitted' => ['submitted', 'under_review', 'draft'],
+        // Submitted can be approved/rejected via central approval (non-approver flow); direct bypass still blocked by permission check
+        'submitted' => ['submitted', 'under_review', 'draft', 'approved', 'rejected'],
         'under_review' => ['under_review', 'approved', 'rejected'],
         'approved' => ['approved', 'admitted'],
         'admitted' => ['admitted', 'cancelled'],

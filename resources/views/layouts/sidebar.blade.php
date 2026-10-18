@@ -87,23 +87,26 @@
         <div class="erp-nav__scroll">
             <p class="erp-nav__empty" data-nav-empty hidden>No menu item matches that search.</p>
             <ul class="erp-nav__list" id="erp-nav-list" aria-labelledby="erp-nav-section-label">
-                    <x-nav.group id="admissions" label="Admissions" icon="user-plus">
-                        {{-- The admission process in the order it runs: register an application,
-                             approve it, then find the confirmed admission in the records register.
-                             Every destination below is one that these rows already pointed at — the
-                             wording and the grouping are what changed, not the routes. --}}
-                        <x-nav.link label="Dashboard" route="admission.dashboard" />
-                        <x-nav.link label="Registration" route="admission-applications.create" />
-                        <x-nav.link label="Admission Approval" route="admission-applications.index" pattern="admission-applications.index|admission-applications.edit" />
-                        <x-nav.link label="Admission Records" route="admissions.index" />
-                        <x-nav.link label="Documents" route="admission-documents.index" />
-                        <x-nav.link label="Document Types" route="admission-document-types.index" />
-                        {{-- Enquiries, Applicants and Merit & Selection keep every route,
-                             permission and feature they had, in their original order. --}}
-                        <x-nav.link label="Enquiries" route="admission-enquiries.index" />
-                        <x-nav.link label="Applicants" route="admission-applicants.index" />
-                        <x-nav.link label="Merit & Selection" route="admission-merit-lists.index" />
-                        <x-nav.link label="Reports" route="admission-reports.index" />
+                    <x-nav.group id="admission" label="Admission" icon="user-plus">
+                        <x-nav.link label="Applications" route="admission-applications.index" />
+                        <x-nav.link label="New Registration" route="admission-applications.create" perm="admission_applications.create" />
+                        <x-nav.link label="Student List" :href="route('students.index', ['admission_filter' => 1])" pattern="students.index" />
+                        <x-nav.nested-group id="admission-transfers" label="Transfers" perm="student_transfers.view">
+                            <x-nav.link label="Transfer In" :href="route('student-transfers.index', ['direction' => 'in'])" pattern="student-transfers.index" :query="['direction' => 'in']" perm="student_transfers.view" />
+                            <x-nav.link label="Transfer Out" :href="route('student-transfers.index', ['direction' => 'out'])" pattern="student-transfers.index" :query="['direction' => 'out']" perm="student_transfers.view" />
+                        </x-nav.nested-group>
+                        <x-nav.link label="Status Types" route="admission.status-types.index" />
+                        <x-nav.link label="ID Cards" :href="route('student-id-cards.index', ['context' => 'admission'])" pattern="student-id-cards.index" perm="student_id_cards.view" />
+                        <x-nav.nested-group id="admission-settings" label="Settings" perm="settings.view|student_id_cards.view">
+                            <x-nav.link label="ID Card Setting" route="settings.index" perm="settings.view" />
+                        </x-nav.nested-group>
+                        <x-nav.link label="Reports" route="admission-reports.index" perm="admission_reports.view" />
+                    </x-nav.group>
+                    <x-nav.group id="approval-management" label="Approval Management" icon="clipboard-check">
+                        <x-nav.link label="Pending Approvals" route="approvals.pending" />
+                        <x-nav.link label="Approval History" route="approvals.history" />
+                        <x-nav.link label="My Requests" route="approvals.my-requests" />
+                        <x-nav.link label="Approval Settings" route="approvals.settings.index" perm="approvals.settings.manage" />
                     </x-nav.group>
                     <x-nav.group id="students" label="Students" icon="graduation-cap">
                         <x-nav.link label="Students" route="students.index" />

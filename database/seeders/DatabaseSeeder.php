@@ -83,6 +83,9 @@ class DatabaseSeeder extends Seeder
             // operational permission and from the individual report modules it consolidates).
             'consolidated_reports.view',
             'admission_reports.view',
+            'admission.status_types.view',
+            'approvals.view', 'approvals.approve', 'approvals.settings.manage',
+            'settings.view', 'settings.update',
             'academic_subject_enrollments.view', 'academic_subject_enrollments.create', 'academic_subject_enrollments.update', 'academic_subject_enrollments.delete',
             'academic_sections.view', 'academic_sections.manage',
             'academic_timetables.view', 'academic_timetables.create', 'academic_timetables.update', 'academic_timetables.delete',

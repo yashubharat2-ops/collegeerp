@@ -286,17 +286,85 @@ main.erp-main:focus-visible {
 }
 
 /* -----------------------------------------------------------------------------
- * 5. Content column
+ * 5. App shell — full-height sidebar + main column, no Vite dependency
  *
- * `main`'s padding is a Tailwind utility in the layout; this only ensures the
+ * layouts/app.blade.php renders `<div class="min-h-screen lg:flex">` +
+ * `<section class="min-w-0 flex-1">`. Those are Tailwind utilities: with no
+ * public/build/manifest.json present the guards in that layout never emit the
+ * @vite block and the shell stops being a flex row — the sidebar sits on top
+ * as a full-width block (100vh tall on desktop) and pushes the <section> and
+ * its header/main below the fold, which is the exact "truncated sidebar +
+ * huge empty band above the header" failure seen on the Students screens in
+ * XAMPP without an npm build.
+ *
+ * This is the static fallback so the shell is correct even then. The Tailwind
+ * utilities still win when the bundle exists (they load after this file), so
+ * nothing here can win by load order — it is strictly a when-there-is-no-
+ * bundle guarantee, the same contract erp-sidebar.css already carries for the
+ * chrome inside the shell.
+ * -------------------------------------------------------------------------- */
+.erp-app-shell {
+    display: block;
+    min-height: 100vh;
+    /* Neutralise any UA or leaked margin that would push the first paint below the
+     * viewport — the shell itself is the viewport-height container, not a spacer. */
+    margin: 0;
+    padding: 0;
+}
+
+.erp-app-main {
+    display: block;
+    min-width: 0;
+    flex: 1 1 0%;
+    min-height: 0;
+    /* Guard against a stale dashboard `margin:-1.5rem` or a stray `margin-top`
+     * inherited from a previous wrapper that would create the ~560px (35rem at
+     * 16px) empty band above the header seen on Approval Settings. */
+    margin: 0;
+    padding: 0;
+}
+
+@media (min-width: 1024px) {
+    .erp-app-shell {
+        display: flex;
+        align-items: stretch;
+    }
+
+    .erp-app-main {
+        /* Column layout so header + content stack from the top without the
+         * 100vh flex stretch creating a centred empty band (~560px on a
+         * 632px viewport when dashboard calc leaked). */
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: stretch;
+        align-self: stretch;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+ * 6. Content column
+ *
+ * `main`'s padding is a Tailwind utility (`p-6`) in the layout; this ensures the
  * content column can shrink (a wide table inside a flex parent otherwise pushes
- * the whole page sideways) and that the gutter is thumb-sized on small screens.
+ * the whole page sideways), supplies the SAME 1.5rem gutter as a fallback when
+ * no Tailwind bundle is present so a module screen never renders edge-to-edge,
+ * and keeps the gutter thumb-sized on small screens.
  * -------------------------------------------------------------------------- */
 .erp-content {
-    /* The content column must be allowed to shrink: without this, one wide table in
-     * the flex row pushes the whole page sideways at narrow widths. A shrink guard
-     * only — the padding stays the layout's own `p-6` utility. */
     min-width: 0;
+    margin: 0;
+    /* Fallback for the layout's `p-6` — overridden by Tailwind when present. */
+    padding: 1.5rem;
+    /* Flex child of the column main — fills remaining height without adding
+     * its own top offset that would look like a 560px empty band. */
+    flex: 1 1 auto;
+}
+
+@media (max-width: 639.98px) {
+    .erp-content {
+        padding: 1rem;
+    }
 }
 
 @media print {

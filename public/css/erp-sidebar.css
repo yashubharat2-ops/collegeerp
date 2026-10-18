@@ -459,6 +459,36 @@
     display: none;
 }
 
+/* Nested collapsible parents inside Admission (Transfers, Settings) */
+.nav-group--nested {
+    margin: 2px 0;
+}
+
+.nav-group--nested .nav-group__head--nested {
+    height: 32px;
+    padding-left: 8px;
+    font-size: 13px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+}
+
+.nav-group--nested .nav-group__label--nested {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--erp-nav-text-muted);
+}
+
+.nav-group--nested .nav-items--nested {
+    margin: 2px 0 4px;
+    padding-left: 16px;
+    gap: 1px;
+}
+
+.nav-group--nested .nav-items--nested .nav-link {
+    min-height: 30px;
+    font-size: 12.5px;
+}
+
 /* -----------------------------------------------------------------------------
  * 5b. Sub-group label (a non-interactive separator inside a module group)
  *
