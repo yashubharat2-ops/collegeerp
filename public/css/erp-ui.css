@@ -306,6 +306,10 @@ main.erp-main:focus-visible {
 .erp-app-shell {
     display: block;
     min-height: 100vh;
+    /* Neutralise any UA or leaked margin that would push the first paint below the
+     * viewport — the shell itself is the viewport-height container, not a spacer. */
+    margin: 0;
+    padding: 0;
 }
 
 .erp-app-main {
@@ -313,12 +317,28 @@ main.erp-main:focus-visible {
     min-width: 0;
     flex: 1 1 0%;
     min-height: 0;
+    /* Guard against a stale dashboard `margin:-1.5rem` or a stray `margin-top`
+     * inherited from a previous wrapper that would create the ~560px (35rem at
+     * 16px) empty band above the header seen on Approval Settings. */
+    margin: 0;
+    padding: 0;
 }
 
 @media (min-width: 1024px) {
     .erp-app-shell {
         display: flex;
         align-items: stretch;
+    }
+
+    .erp-app-main {
+        /* Column layout so header + content stack from the top without the
+         * 100vh flex stretch creating a centred empty band (~560px on a
+         * 632px viewport when dashboard calc leaked). */
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: stretch;
+        align-self: stretch;
     }
 }
 
@@ -333,8 +353,12 @@ main.erp-main:focus-visible {
  * -------------------------------------------------------------------------- */
 .erp-content {
     min-width: 0;
+    margin: 0;
     /* Fallback for the layout's `p-6` — overridden by Tailwind when present. */
     padding: 1.5rem;
+    /* Flex child of the column main — fills remaining height without adding
+     * its own top offset that would look like a 560px empty band. */
+    flex: 1 1 auto;
 }
 
 @media (max-width: 639.98px) {
