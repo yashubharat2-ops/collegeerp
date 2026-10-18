@@ -1,12 +1,23 @@
 # ERP shell assets must never be served stale on Windows XAMPP: git checkout
 # can leave the old MMap/Sendfile handle open and Apache returns the old
 # bytes with HTTP 200. Disable both for this directory so the bytes on disk
-# are always the bytes on the wire (c015631+c1).
+# are always the bytes on the wire (c015631+c3).
 <IfModule mod_mmap.c>
     EnableMMAP Off
 </IfModule>
 <IfModule mod_sendfile.c>
     EnableSendfile Off
+</IfModule>
+
+# Shell CSS must revalidate on every navigation during development: without
+# this, Firefox keeps the old disk-cache bytes even when ?v= changes via a
+# cached HTML view (view:clear not re-baking the hash), which is why the
+# Inspector showed align-items:flex-end long after the file contained
+# align-items:stretch. Must-revalidate forces a conditional GET.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js)$">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </FilesMatch>
 </IfModule>
 
 <IfModule mod_rewrite.c>

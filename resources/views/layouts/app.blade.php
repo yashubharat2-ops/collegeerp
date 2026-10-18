@@ -6,7 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Dashboard') · {{ config('app.name', 'College ERP') }}</title>
 
-    {{-- ERP shell v=c015631+c2 — content-hash versioned to force Blade recompile after asset fix. Bump on shell changes. --}}
+    {{-- ERP shell v=c015631+c3 — content-hash versioned to force Blade recompile after asset fix. Bump on shell changes. --}}
     @php
         /*
          * Static shell assets under `public/` (never through @vite). They must
@@ -72,8 +72,8 @@
          overrides. A shell guarantee (a reachable skip target, a bar that keeps its
          border) must not depend on a build existing. --}}
     <link rel="stylesheet" href="{{ asset('css/erp-ui.css') }}@if ($erpUiCssVersion)?v={{ $erpUiCssVersion }}@endif">
-    @if (config('app.debug'))
-        <!-- ERP shell asset debug: erp-ui={{ asset('css/erp-ui.css') }}?v={{ $erpUiCssVersion }} public_path={{ public_path('css/erp-ui.css') }} exists={{ is_file(public_path('css/erp-ui.css')) ? 'yes' : 'no' }} build={{ is_file(public_path('build/manifest.json')) ? 'yes' : 'no' }} shell={{ 'c015631+c2' }} -->
+    {{-- Critical shell fallback inline — guarantees the desktop row / mobile drawer\n         layout even if the external erp-ui.css is 404 or stale-cached (Windows\n         XAMPP subfolder APP_URL mismatch, EnableMMAP/Sendfile stale handle, or\n         browser disk cache with old ?v=). Duplicates the external file's §5/§6\n         so the guarantee does not depend on a second request. Loaded before the\n         Vite bundle so Tailwind utilities (lg:flex, min-h-screen, flex-1, p-6)\n         still win where they apply. --}}\n    <style>\n        .erp-app-shell{display:block;min-height:100vh;margin:0;padding:0}\n        .erp-app-main{display:block;min-width:0;flex:1 1 0%;min-height:0;margin:0;padding:0}\n        @media(min-width:1024px){.erp-app-shell{display:flex;align-items:stretch}.erp-app-main{display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;align-self:stretch}}\n        .erp-content{min-width:0;margin:0;padding:1.5rem;flex:1 1 auto}\n        @media(max-width:639.98px){.erp-content{padding:1rem}}\n    </style>\n    @if (config('app.debug'))
+        <!-- ERP shell asset debug: erp-ui={{ asset('css/erp-ui.css') }}?v={{ $erpUiCssVersion }} public_path={{ public_path('css/erp-ui.css') }} exists={{ is_file(public_path('css/erp-ui.css')) ? 'yes' : 'no' }} build={{ is_file(public_path('build/manifest.json')) ? 'yes' : 'no' }} shell={{ 'c015631+c3' }} -->
     @endif
 
     {{-- Application-wide styling is still built by Vite; link it only when a build (public/build/manifest.json) or a running dev server (public/hot) exists, so a page render never depends on running npm. --}}
