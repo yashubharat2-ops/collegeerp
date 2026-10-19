@@ -703,10 +703,11 @@ class SidebarStructureTest extends TestCase
     {
         $college = $this->makeCollege('SHELL18');
         $user = $this->makeUserWithPermissions($college, Permission::query()->pluck('slug')->all());
-        $html = $this->asCollege($college, $user)
+        $response = $this->asCollege($college, $user)
             ->get(route('dashboard'))
             ->assertOk()
-            ->getContent();
+            ->assertViewIs('dashboard.index');
+        $html = $response->getContent();
 
         // Parse the rendered response, not just Blade source strings: an unmatched
         // tag in a partial can make the browser close .erp-app-shell early and turn
