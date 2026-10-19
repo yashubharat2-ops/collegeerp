@@ -699,6 +699,40 @@ class SidebarStructureTest extends TestCase
         }
     }
 
+    public function test_rendered_dashboard_places_sidebar_and_main_as_siblings_in_the_shell(): void
+    {
+        $college = $this->makeCollege('SHELL18');
+        $user = $this->makeUserWithPermissions($college, Permission::query()->pluck('slug')->all());
+        $html = $this->asCollege($college, $user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->getContent();
+
+        // Parse the rendered response, not just Blade source strings: an unmatched
+        // tag in a partial can make the browser close .erp-app-shell early and turn
+        // .erp-app-main into a body child. CSS cannot repair that DOM relationship.
+        $document = new \DOMDocument();
+        $previousLibxmlSetting = libxml_use_internal_errors(true);
+        try {
+            $parsed = $document->loadHTML($html);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousLibxmlSetting);
+        }
+        $this->assertTrue($parsed, 'The dashboard response must parse as an HTML document.');
+
+        $xpath = new \DOMXPath($document);
+        $shell = '//*[contains(concat(" ", normalize-space(@class), " "), " erp-app-shell ")]';
+        $main = '//*[contains(concat(" ", normalize-space(@class), " "), " erp-app-main ")]';
+        $mainChild = $shell.'/*[contains(concat(" ", normalize-space(@class), " "), " erp-app-main ")]';
+
+        $this->assertSame(1, $xpath->query($shell)->length, 'The rendered layout must contain one app shell.');
+        $this->assertSame(1, $xpath->query('//*[@id="erp-sidebar"]')->length, 'The rendered layout must contain one sidebar.');
+        $this->assertSame(1, $xpath->query($main)->length, 'The rendered layout must contain one main column.');
+        $this->assertSame(1, $xpath->query($shell.'/aside[@id="erp-sidebar"]')->length, 'The sidebar must be a direct child of the shell.');
+        $this->assertSame(1, $xpath->query($mainChild)->length, 'The main column must be a direct sibling flex item in that same shell.');
+    }
+
     public function test_the_shell_chrome_is_styled_by_a_static_stylesheet(): void
     {
         $css = (string) file_get_contents(public_path('css/erp-ui.css'));
@@ -736,6 +770,8 @@ class SidebarStructureTest extends TestCase
             return;
         }
         $this->assertMatchesRegularExpression('/\bdisplay:\s*flex\s*;/', $shellRule[1]);
+        $this->assertDoesNotMatchRegularExpression('/\bflex-direction:\s*column\s*;/', $shellRule[1], 'The shell must remain a row flex container.');
+        $this->assertDoesNotMatchRegularExpression('/\bflex-wrap:\s*wrap\s*;/', $shellRule[1], 'The sidebar and main column must remain on one row.');
         $this->assertMatchesRegularExpression('/\bmin-height:\s*100vh\s*;/', $shellRule[1]);
 
         $this->assertSame(1, preg_match_all('/^\.erp-app-main\s*\{/m', $shellCss), 'The main column must not be overridden at a breakpoint.');
@@ -746,13 +782,20 @@ class SidebarStructureTest extends TestCase
         }
         $this->assertMatchesRegularExpression('/\bdisplay:\s*flex\s*;/', $mainRule[1]);
         $this->assertMatchesRegularExpression('/\bflex:\s*1 1 0%\s*;/', $mainRule[1]);
+        $this->assertMatchesRegularExpression('/\bmin-width:\s*0\s*;/', $mainRule[1]);
+        $this->assertDoesNotMatchRegularExpression(
+            '/\b(?:position|width|transform|grid-template-columns|grid-column|left|margin-left)\s*:/',
+            $mainRule[1],
+            'The main column must fill the remaining flex space without positioning or width overrides.'
+        );
         $this->assertMatchesRegularExpression('/\bflex-direction:\s*column\s*;/', $mainRule[1]);
         $this->assertMatchesRegularExpression('/\bjustify-content:\s*flex-start\s*;/', $mainRule[1]);
 
+        $this->assertMatchesRegularExpression('/--erp-nav-width:\s*280px\s*;/', $sidebarCss);
         $this->assertMatchesRegularExpression(
-            '/@media\s*\(min-width:\s*1024px\)\s*\{\s*\.erp-sidebar\s*\{[^}]*position:\s*sticky;[^}]*flex:\s*0 0 var\(--erp-nav-width\);/s',
+            '/@media\s*\(min-width:\s*1024px\)\s*\{\s*\.erp-sidebar\s*\{[^}]*position:\s*sticky;[^}]*flex:\s*0 0 var\(--erp-nav-width\);[^}]*width:\s*var\(--erp-nav-width\);/s',
             $sidebarCss,
-            'The desktop sidebar must stay in the row with its configured width.'
+            'The desktop sidebar must stay in the row and occupy its configured 280px width.'
         );
 
         // On small screens the sidebar leaves document flow and opens only as a drawer.
