@@ -785,7 +785,7 @@ class SidebarStructureTest extends TestCase
         $this->assertMatchesRegularExpression('/\bflex:\s*1 1 0%\s*;/', $mainRule[1]);
         $this->assertMatchesRegularExpression('/\bmin-width:\s*0\s*;/', $mainRule[1]);
         $this->assertDoesNotMatchRegularExpression(
-            '/\b(?:position|width|transform|grid-template-columns|grid-column|left|margin-left)\s*:/',
+            '/(?:^|;)[[:space:]]*(?:position|width|transform|grid-template-columns|grid-column|left|margin-left)[[:space:]]*:/',
             $mainRule[1],
             'The main column must fill the remaining flex space without positioning or width overrides.'
         );
