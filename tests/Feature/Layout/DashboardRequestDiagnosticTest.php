@@ -151,9 +151,40 @@ class DashboardRequestDiagnosticTest extends TestCase
         );
 
         $response = $this->asCollege($college, $user)->get($generatedUrl);
-        $traceText = implode(' | ', $trace->getArrayCopy());
+        $responseStatus = $response->getStatusCode();
+        $contentType = $response->headers->get('Content-Type') ?? '(not set)';
+        $trace->append('response status='.$responseStatus.' content_type='.$contentType);
 
-        $this->assertSame(200, $response->getStatusCode(), "Dashboard request diagnostic: {$traceText}");
+        $hasTraceEntry = static function (string $prefix) use ($trace): bool {
+            foreach ($trace as $entry) {
+                if (str_starts_with($entry, $prefix)) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+        $trace->append(
+            'stage_summary route_matched='.($hasTraceEntry('route.matched name=dashboard') ? 'observed' : 'not-observed')
+            .' auth_enter='.($hasTraceEntry('auth.enter') ? 'observed' : 'not-observed')
+            .' auth_pass='.($hasTraceEntry('auth.pass') ? 'observed' : 'not-observed')
+            .' tenant_enter='.($hasTraceEntry('tenant.enter') ? 'observed' : 'not-observed')
+            .' tenant_pass='.($hasTraceEntry('tenant.pass') ? 'observed' : 'not-observed')
+            .' controller_enter='.($hasTraceEntry('controller.enter') ? 'observed' : 'not-observed')
+            .' controller_return='.($hasTraceEntry('controller.return view') ? 'observed' : 'not-observed')
+            .' dashboard_view_rendered='.($hasTraceEntry('view.rendered=dashboard.index') ? 'observed' : 'not-observed')
+        );
+
+        $traceText = implode(PHP_EOL.'  ', $trace->getArrayCopy());
+        $diagnostic = "Dashboard request returned HTTP {$responseStatus} (Content-Type: {$contentType})."
+            .PHP_EOL.'Complete collected trace:'
+            .PHP_EOL.'  '.$traceText;
+
+        if ($responseStatus !== 200) {
+            fwrite(STDERR, $diagnostic.PHP_EOL);
+            $this->fail($diagnostic);
+        }
+
         $this->assertStringContainsString('route.matched name=dashboard', $traceText, $traceText);
         $this->assertStringContainsString('auth.pass', $traceText, $traceText);
         $this->assertStringContainsString('tenant.pass', $traceText, $traceText);
