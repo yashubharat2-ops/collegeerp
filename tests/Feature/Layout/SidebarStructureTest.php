@@ -10,16 +10,17 @@ use Tests\TestCase;
 /**
  * The shape of the rebuilt navigation tree.
  *
- * Covers the Platform → Academics consolidation and the flat module-link layout:
- * every module destination remains in order, without subgroup headings.
+ * Covers the single-college Platform → Academics consolidation and the flat
+ * module-link layout: every retained module destination remains in order,
+ * without subgroup headings, and Campuses is not a sidebar destination.
  *
  * What this file guards, and why each part exists:
  *
  *  1. Platform is not a group any more — in the source and in the rendered sidebar.
- *  2. Every destination it used to own is still there, unchanged, under Academics,
- *     and nothing else was added to that group. The row order of every other group
- *     is pinned too, because a merge is exactly the kind of edit that quietly
- *     shuffles the rest of the tree.
+ *  2. The six academic destinations retained from it are unchanged under
+ *     Academics, and nothing else was added to that group. The row order of every
+ *     other group is pinned too, because a merge is exactly the kind of edit that
+ *     quietly shuffles the rest of the tree.
  *  3. No subgroup headings render in the shared sidebar.
  *  4. No label reads as two destinations joined by a slash.
  *  5. No two rows offer the same destination.
@@ -40,12 +41,11 @@ class SidebarStructureTest extends TestCase
     ];
 
     /**
-     * The seven rows the old top-level `Platform` group carried. These are the exact
-     * route names it declared before the move — no route was renamed, added or
-     * dropped by it.
+     * The six academic rows retained from the old top-level `Platform` group.
+     * Their route names and destinations are unchanged. Campuses is deliberately
+     * absent from the single-college sidebar, but its route and data model remain.
      */
     private const MOVED_FROM_PLATFORM = [
-        'campuses.index',
         'programs.index',
         'academic-years.index',
         'academic-terms.index',
@@ -54,9 +54,8 @@ class SidebarStructureTest extends TestCase
         'faculty-subject-assignments.index',
     ];
 
-    /** The Academics group: two institute rows, four structure rows, six operation rows. */
+    /** The Academics group: five structure rows and six operation rows. */
     private const ACADEMICS_ROWS = [
-        'campuses.index',
         'programs.index',
         'academic-years.index',
         'academic-terms.index',
@@ -168,7 +167,7 @@ class SidebarStructureTest extends TestCase
      * `<span>` — returned as the element, so a caller can inspect attributes and the
      * label, not just one or the other.
      *
-     * The element has to be matched whole: `<span>Campuses</span>` sits *between* the
+     * The element has to be matched whole: `<span>Programs</span>` sits *between* the
      * opening tag and `</a>`, so matching the two facts against the opening tag alone
      * can never succeed. Requiring both in the same element is stricter than either
      * half — it fails if the row was repointed, if it lost its label, or if it is gone.
@@ -296,14 +295,14 @@ class SidebarStructureTest extends TestCase
         $this->assertSame(count($ids), substr_count($aside, '<button type="button" class="nav-group__head"'), 'Every group renders exactly one head button.');
     }
 
-    /* 2 · Its destinations all live under Academics ----------------------- */
+    /* 2 · Its retained destinations live under Academics ----------------- */
 
-    public function test_every_platform_destination_is_rendered_inside_academics(): void
+    public function test_every_retained_platform_destination_is_rendered_inside_academics(): void
     {
         $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT3'));
         $academics = $this->group($aside, 'Academics');
 
-        $this->assertSame(12, substr_count($academics, 'class="nav-link"'), 'Academics keeps its six existing operation rows plus the six remaining Platform rows.');
+        $this->assertSame(11, substr_count($academics, 'class="nav-link"'), 'Academics keeps its six existing operation rows plus the five retained academic structure rows.');
         $this->assertSame(
             $this->paths(self::ACADEMICS_ROWS),
             $this->hrefs($academics),
@@ -315,13 +314,24 @@ class SidebarStructureTest extends TestCase
         }
     }
 
+    public function test_campuses_is_not_a_sidebar_destination(): void
+    {
+        $source = (string) file_get_contents(resource_path('views/layouts/sidebar.blade.php'));
+        $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT3A'));
+        $campusPath = $this->path('campuses.index');
+
+        $this->assertStringNotContainsString('label="Campuses"', $source, 'The Campus row must not remain anywhere in the sidebar source.');
+        $this->assertStringNotContainsString('<span>Campuses</span>', $aside, 'Campuses must not be rendered in any sidebar group.');
+        $this->assertNotContains($campusPath, $this->hrefs($aside), 'The Campus URL must not be offered by another sidebar row.');
+        $this->assertTrue(Route::has('campuses.index'), 'Hiding the sidebar row must not delete the existing Campus route or its authorization boundary.');
+    }
+
     public function test_the_moved_rows_keep_their_own_labels_and_routes(): void
     {
         $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT4'));
         $academics = $this->group($aside, 'Academics');
 
         foreach ([
-            'Campuses' => 'campuses.index',
             'Programs' => 'programs.index',
             'Academic Years' => 'academic-years.index',
             'Academic Terms' => 'academic-terms.index',
@@ -398,7 +408,7 @@ class SidebarStructureTest extends TestCase
         $this->assertSame(
             $this->paths(self::ACADEMICS_ROWS),
             $this->hrefs($academics),
-            'All twelve remaining Academics destinations stay directly under the module in the established order.'
+            'All eleven remaining Academics destinations stay directly under the module in the established order.'
         );
         $this->assertStringNotContainsString('data-nav-sub-label', $academics);
     }
@@ -408,8 +418,8 @@ class SidebarStructureTest extends TestCase
     public function test_rows_keep_their_original_relative_order(): void
     {
         // The merge is the only edit that moved rows, and it moved exactly one row
-        // set: the seven Platform destinations, of which Faculty–Subject Assignments
-        // now sits beside Student Subject Enrollment. Every other group keeps the
+        // set: the six retained Platform destinations, of which Faculty–Subject
+        // Assignments now sits beside Student Subject Enrollment. Every other group keeps the
         // order its rows were in before — a consolidation that quietly reshuffles
         // the rest of the tree is a regression nobody would notice by hand.
         $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT9'));
@@ -592,7 +602,32 @@ class SidebarStructureTest extends TestCase
 
         $this->assertStringContainsString('data-nav-group="academics" data-nav-open=', $aside, 'The Academics group renders ungated, exactly as Platform did.');
         $this->assertStringNotContainsString('data-nav-sub-label', $this->group($aside, 'Academics'));
-        $this->assertSame(12, substr_count($this->group($aside, 'Academics'), 'class="nav-link"'), 'All twelve remaining rows render for a viewer without academic permissions, as they were ungated before the move.');
+        $this->assertSame(11, substr_count($this->group($aside, 'Academics'), 'class="nav-link"'), 'All eleven remaining rows render for a viewer without academic permissions, as they were ungated before the move.');
+    }
+
+    public function test_moved_academic_destinations_keep_their_page_level_authorization(): void
+    {
+        $college = $this->makeCollege('STRUCT12C');
+        $routes = [
+            'programs.index' => 'programs.view',
+            'academic-years.index' => 'academic-years.view',
+            'academic-terms.index' => 'academic_terms.view',
+            'sections.index' => 'sections.view',
+            'subjects.index' => 'subjects.view',
+            'faculty-subject-assignments.index' => 'faculty_subject_assignments.view',
+        ];
+
+        foreach ($routes as $routeName => $permission) {
+            $outsider = $this->makeUserWithPermissions($college, ['students.view']);
+            $viewer = $this->makeUserWithPermissions($college, [$permission]);
+
+            $this->asCollege($college, $outsider)
+                ->get(route($routeName))
+                ->assertForbidden();
+            $this->asCollege($college, $viewer)
+                ->get(route($routeName))
+                ->assertOk();
+        }
     }
 
     /* 6 · No slash-joined label is left ----------------------------------- */
@@ -804,6 +839,34 @@ class SidebarStructureTest extends TestCase
     }
 
     /* 12 · The rails the rest of the suite stands on ---------------------- */
+
+    public function test_one_server_rendered_sidebar_supports_desktop_and_mobile(): void
+    {
+        $college = $this->makeCollege('STRUCT18A');
+        $user = $this->makeUserWithPermissions($college, ['students.view']);
+        $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
+        $aside = $this->aside($html);
+
+        // There is one server-rendered navigation tree, not separate desktop and
+        // mobile copies that could drift or duplicate destinations.
+        $this->assertSame(1, substr_count($html, 'id="erp-sidebar"'));
+        $this->assertSame(1, substr_count($html, 'id="erp-nav-list"'));
+        $this->assertStringContainsString('data-nav-rail-toggle', $aside, 'Desktop keeps its collapsible icon-rail control.');
+        $this->assertStringContainsString('data-nav-drawer-close', $aside, 'Mobile keeps its drawer close control.');
+        $this->assertStringContainsString('data-nav-drawer-open', $html, 'The top bar keeps its mobile drawer trigger.');
+        $this->assertStringContainsString('data-nav-overlay', $html, 'The mobile drawer keeps its scrim.');
+
+        $css = (string) file_get_contents(public_path('css/erp-sidebar.css'));
+        $this->assertMatchesRegularExpression('/@media \(min-width: 1024px\)\s*\{\s*\.erp-sidebar\s*\{[^}]*position: sticky;/s', $css, 'Desktop uses the in-layout sticky sidebar.');
+        $this->assertMatchesRegularExpression('/@media \(max-width: 1023\.98px\)\s*\{\s*\.erp-sidebar\s*\{[^}]*position: fixed;/s', $css, 'Mobile uses the off-canvas sidebar.');
+        $this->assertMatchesRegularExpression('/html\[data-nav-drawer="open"\] \.erp-sidebar\s*\{\s*transform: none;/s', $css, 'The open mobile drawer is visible.');
+
+        $js = (string) file_get_contents(public_path('js/erp-sidebar.js'));
+        $this->assertStringContainsString("var DESKTOP = '(min-width: 1024px)';", $js);
+        $this->assertStringContainsString('function setRail(', $js, 'Desktop rail behaviour remains connected.');
+        $this->assertStringContainsString('function drawerOpenState(', $js, 'Mobile drawer behaviour remains connected.');
+        $this->assertStringContainsString('function syncViewport(', $js, 'Breakpoint crossings clean up drawer and rail state.');
+    }
 
     public function test_the_sidebar_still_renders_exactly_one_landmark_and_its_heading(): void
     {

@@ -131,10 +131,10 @@
                         <x-nav.link label="Certificate Reports" route="certificates.reports.index" perm="certificate_reports.view" />
                     </x-nav.group>
                     <x-nav.group id="academics" label="Academics" icon="book-open">
-                        {{-- The former top-level "Platform" group lives here. Its routes,
-                             permissions and destinations are unchanged; only the menu
-                             position differs. --}}
-                        <x-nav.link label="Campuses" route="campuses.index" />
+                        {{-- The retained academic destinations from the former top-level
+                             "Platform" group live here. Their routes, permissions and
+                             URLs are unchanged; Campus management is not a sidebar
+                             destination in the single-college navigation. --}}
                         <x-nav.link label="Programs" route="programs.index" />
                         <x-nav.link label="Academic Years" route="academic-years.index" />
                         <x-nav.link label="Academic Terms" route="academic-terms.index" />
