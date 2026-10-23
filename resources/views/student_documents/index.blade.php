@@ -12,33 +12,33 @@
         @endcan
     </div>
 
-    <form method="GET" action="{{ route('student-documents.index') }}" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <input class="input" type="search" name="search" value="{{ $search }}" placeholder="Search title, file or student">
-        <select class="input" name="student_id">
-            <option value="">All students</option>
-            @foreach($students as $s)
-                <option value="{{ $s->id }}" @selected((string) $student_id === (string) $s->id)>{{ $s->student_number }} — {{ $s->first_name }} {{ $s->last_name }}</option>
-            @endforeach
-        </select>
-        <select class="input" name="document_type_id">
-            <option value="">All types</option>
-            @foreach($documentTypes as $type)
-                <option value="{{ $type->id }}" @selected((string) $document_type_id === (string) $type->id)>{{ $type->name }}</option>
-            @endforeach
-        </select>
-        <select class="input" name="verification_status">
-            <option value="">All verification</option>
-            @foreach(App\Models\StudentDocument::VERIFICATION_STATUSES as $status)
-                <option value="{{ $status }}" @selected($verification_status === $status)>{{ ucfirst($status) }}</option>
-            @endforeach
-        </select>
-        <div class="flex gap-2">
-            <button class="button" type="submit">Filter</button>
-            @if($search !== '' || $student_id || $document_type_id || $verification_status)
-                <a class="button !bg-slate-200 !text-slate-700" href="{{ route('student-documents.index') }}">Clear</a>
-            @endif
+    <x-student-filter
+        :fields="$studentFilterFields"
+        :options="$studentFilterOptions"
+        :values="$studentFilterValues"
+        :applied="$studentFilterApplied"
+        :action="route('student-documents.index')"
+        title="Filter Students for Documents"
+    >
+        <div class="erp-list-filter-span-2">
+            <x-list.search-input name="search" label="Search documents" placeholder="Search title, file or student" :value="$search" />
         </div>
-    </form>
+        <div class="erp-list-field">
+            <label class="label" for="document_student_id">Student (direct selection)</label>
+            <select class="input" id="document_student_id" name="student_id">
+                <option value="">All students</option>
+                @foreach($students as $s)
+                    <option value="{{ $s->id }}" @selected((string) $student_id === (string) $s->id)>{{ $s->student_number }} — {{ $s->first_name }} {{ $s->last_name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <x-list.filter-select name="document_type_id" label="Document type" :value="$document_type_id" placeholder="All types">
+            @foreach($documentTypes as $type)<option value="{{ $type->id }}">{{ $type->name }}</option>@endforeach
+        </x-list.filter-select>
+        <x-list.filter-select name="verification_status" label="Verification" :value="$verification_status" placeholder="All verification">
+            @foreach(App\Models\StudentDocument::VERIFICATION_STATUSES as $status)<option value="{{ $status }}">{{ ucfirst($status) }}</option>@endforeach
+        </x-list.filter-select>
+    </x-student-filter>
 
     <div class="mt-8 overflow-x-auto">
         <table class="w-full text-left text-sm">

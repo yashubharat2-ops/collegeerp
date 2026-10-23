@@ -2,10 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Domain\Student\Services\StudentIdCardService;
-use App\Models\AcademicYear;
-use App\Models\Program;
-use App\Models\Section;
 use App\Models\Student;
 use App\Services\Audit\AuditLogService;
 use App\Support\Listing\ListSelection;
@@ -45,15 +43,13 @@ class StudentIdCardController extends Controller
 
     public function __construct(private readonly StudentIdCardService $cards) {}
 
-    public function index(Request $request): View
+    public function index(Request $request, StudentFilter $studentFilter): View
     {
         $this->requirePermission('student_id_cards.view');
+        $filters = $studentFilter->fromRequest($request, studentListAliases: true, user: $request->user());
 
-        $query = Student::query()
-            ->with(['enrollments.academicYear', 'enrollments.program', 'enrollments.section.campus'])
-            ->orderBy('first_name')
-            ->orderBy('last_name')
-            ->orderBy('id');
+        $query = Student::query()->with(['enrollments.academicYear', 'enrollments.program', 'enrollments.section.campus']);
+        $studentFilter->applyToStudents($query, $filters);
 
         if ($search = trim((string) $request->input('search'))) {
             $query->where(function ($q) use ($search): void {
@@ -64,28 +60,13 @@ class StudentIdCardController extends Controller
             });
         }
 
-        if ($academicYearId = $request->input('academic_year_id')) {
-            $query->whereHas('enrollments', fn ($e) => $e->where('academic_year_id', $academicYearId));
-        }
-
-        if ($programId = $request->input('program_id')) {
-            $query->whereHas('enrollments', fn ($e) => $e->where('program_id', $programId));
-        }
-
-        if ($sectionId = $request->input('section_id')) {
-            $query->whereHas('enrollments', fn ($e) => $e->where('section_id', $sectionId));
-        }
-
-        return view('student_id_cards.index', [
-            'students' => $query->paginate(15)->withQueryString(),
-            'search' => trim((string) $request->input('search')),
-            'academic_year_id' => $request->input('academic_year_id'),
-            'program_id' => $request->input('program_id'),
-            'section_id' => $request->input('section_id'),
-            'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(['id', 'name', 'code']),
-            'programs' => Program::query()->orderBy('name')->get(['id', 'name', 'code']),
-            'sections' => Section::query()->with(['academicYear:id,name', 'program:id,name'])->orderBy('name')->get(['id', 'name', 'code', 'academic_year_id', 'program_id']),
-        ]);
+        return view('student_id_cards.index', array_merge(
+            $studentFilter->viewData($filters, StudentFilter::STUDENT_LIST_FIELDS, $request->user()),
+            [
+                'students' => $query->orderBy('first_name')->orderBy('last_name')->orderBy('id')->paginate(15)->withQueryString(),
+                'search' => trim((string) $request->input('search')),
+            ],
+        ));
     }
 
     /**
@@ -132,17 +113,19 @@ class StudentIdCardController extends Controller
      * Nothing is stored: one audit entry per generated card is the only write,
      * exactly as on the single-card screen.
      */
-    public function batch(Request $request, AuditLogService $audit): View
+    public function batch(Request $request, AuditLogService $audit, StudentFilter $studentFilter): View
     {
         $this->requirePermission('student_id_cards.generate');
+        $filters = $studentFilter->fromRequest($request, studentListAliases: true, user: $request->user());
 
         $ids = ListSelection::ids($request->input('ids', []), self::BATCH_LIMIT);
 
         abort_if($ids === [], 404, 'Select at least one student to generate ID cards for.');
 
-        $students = Student::query()
-            ->with(['enrollments.academicYear', 'enrollments.program', 'enrollments.section.campus'])
-            ->whereIn('id', $ids)
+        $studentQuery = Student::query()->with(['enrollments.academicYear', 'enrollments.program', 'enrollments.section.campus']);
+        $studentFilter->applyToStudents($studentQuery, $filters);
+        $students = $studentQuery
+            ->whereIn('students.id', $ids)
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->orderBy('id')

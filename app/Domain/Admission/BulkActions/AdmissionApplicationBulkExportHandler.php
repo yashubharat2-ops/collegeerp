@@ -2,8 +2,12 @@
 
 namespace App\Domain\Admission\BulkActions;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\AdmissionApplication;
+use App\Models\College;
+use App\Models\User;
 use App\Support\BulkAction\BulkExportHandler;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Bulk CSV export of selected admission application records.
@@ -14,6 +18,8 @@ use App\Support\BulkAction\BulkExportHandler;
  */
 class AdmissionApplicationBulkExportHandler extends BulkExportHandler
 {
+    public function __construct(private readonly StudentFilter $studentFilter) {}
+
     public function modelClass(): string
     {
         return AdmissionApplication::class;
@@ -32,6 +38,17 @@ class AdmissionApplicationBulkExportHandler extends BulkExportHandler
     protected function exportRouteName(): string
     {
         return 'admission-applications.export';
+    }
+
+    protected function exportParameters(Collection $records, User $user, College $college, array $parameters): array
+    {
+        $studentFilters = $this->studentFilter->fromArray($parameters, user: $user);
+
+        return [
+            'search' => is_scalar($parameters['search'] ?? null) ? (string) $parameters['search'] : '',
+            'status' => is_scalar($parameters['status'] ?? null) ? (string) $parameters['status'] : '',
+            ...$this->studentFilter->requestParameters($studentFilters),
+        ];
     }
 
     protected function recordNoun(int $count): string

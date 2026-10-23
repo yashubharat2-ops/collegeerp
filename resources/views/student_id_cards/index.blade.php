@@ -12,35 +12,18 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ route('student-id-cards.index') }}" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <input class="input" type="search" name="search" value="{{ $search }}" placeholder="Search number, name or email">
-        <select class="input" name="academic_year_id">
-            <option value="">All academic years</option>
-            @foreach($academicYears as $ay)
-                <option value="{{ $ay->id }}" @selected((string) $academic_year_id === (string) $ay->id)>{{ $ay->name }} ({{ $ay->code }})</option>
-            @endforeach
-        </select>
-        <select class="input" name="program_id">
-            <option value="">All programs</option>
-            @foreach($programs as $p)
-                <option value="{{ $p->id }}" @selected((string) $program_id === (string) $p->id)>{{ $p->name }}</option>
-            @endforeach
-        </select>
-        <select class="input" name="section_id">
-            <option value="">All sections</option>
-            @foreach($sections as $section)
-                <option value="{{ $section->id }}" @selected((string) $section_id === (string) $section->id)>
-                    {{ $section->name }} — {{ $section->academicYear?->name }} · {{ $section->program?->name }}
-                </option>
-            @endforeach
-        </select>
-        <div class="flex gap-2">
-            <button class="button" type="submit">Filter</button>
-            @if($search !== '' || $academic_year_id || $program_id || $section_id)
-                <a class="button !bg-slate-200 !text-slate-700" href="{{ route('student-id-cards.index') }}">Clear</a>
-            @endif
+    <x-student-filter
+        :fields="$studentFilterFields"
+        :options="$studentFilterOptions"
+        :values="$studentFilterValues"
+        :applied="$studentFilterApplied"
+        :action="route('student-id-cards.index')"
+        title="Filter Students for ID Cards"
+    >
+        <div class="erp-list-filter-span-2">
+            <x-list.search-input name="search" label="Search" placeholder="Search number, name or email" :value="$search" />
         </div>
-    </form>
+    </x-student-filter>
 
     <div class="mt-8 overflow-x-auto">
         <table class="w-full text-left text-sm">

@@ -2,6 +2,7 @@
 
 namespace App\Domain\Student\Services;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\Admission;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
@@ -23,6 +24,8 @@ class StudentReportService
 {
     private const PER_PAGE = 20;
 
+    public function __construct(private readonly StudentFilter $studentFilter) {}
+
     /** Student list, profile picker and history picker (one row per student). */
     public function roster(array $filters, bool $withEnrollment = false): LengthAwarePaginator
     {
@@ -36,6 +39,7 @@ class StudentReportService
             $query->with([
                 'enrollments' => function (HasMany $enrollments) use ($filters): void {
                     $query = $enrollments->getQuery();
+                    $this->studentFilter->applyToEnrollments($query, $this->canonicalFilters($filters));
                     if ($this->hasEnrollmentFilters($filters)) {
                         $this->enrollmentContext($query, $filters);
                     }
@@ -57,6 +61,7 @@ class StudentReportService
         $query = Admission::query()->with([
             'applicant', 'application.student', 'academicYear', 'program.department',
         ]);
+        $this->applyCanonicalToAdmissions($query, $filters);
 
         if ($filters['academic_year_id']) {
             $query->whereHas('academicYear', fn (Builder $year) => $year->whereKey($filters['academic_year_id']));
@@ -189,6 +194,7 @@ class StudentReportService
                 'student', 'sourceAcademicYear', 'sourceProgram.department', 'sourceSection',
                 'targetAcademicYear', 'targetProgram.department', 'targetSection', 'targetEnrollment',
             ]);
+        $this->applyCanonicalToPromotions($query, $filters);
 
         if ($filters['academic_year_id']) {
             $query->whereHas('targetAcademicYear', fn (Builder $year) => $year->whereKey($filters['academic_year_id']));
@@ -213,6 +219,7 @@ class StudentReportService
         $query = StudentTransfer::query()
             ->whereHas('student', fn (Builder $student) => $this->studentIdentity($student, $filters))
             ->with(['student', 'enrollment.academicYear', 'enrollment.program.department', 'enrollment.section']);
+        $this->applyCanonicalToLifecycle($query, $filters, 'enrollment');
 
         if ($this->hasEnrollmentFilters($filters)) {
             $query->whereHas('enrollment', fn (Builder $enrollment) => $this->enrollmentContext($enrollment, $filters));
@@ -231,7 +238,9 @@ class StudentReportService
 
     private function studentQuery(array $filters): Builder
     {
-        $query = $this->studentIdentity(Student::query(), $filters);
+        $query = Student::query();
+        $this->studentFilter->applyToStudents($query, $this->canonicalFilters($filters));
+        $this->studentIdentity($query, $filters);
 
         // All enrollment dimensions must belong to the SAME enrollment. A
         // student's year A and program B must not accidentally match together.
@@ -240,6 +249,53 @@ class StudentReportService
         }
 
         return $query;
+    }
+
+    /** @return array<string, mixed> */
+    private function canonicalFilters(array $filters): array
+    {
+        return is_array($filters['student_filters'] ?? null) ? $filters['student_filters'] : [];
+    }
+
+    private function applyCanonicalToAdmissions(Builder $query, array $filters): void
+    {
+        $canonical = $this->canonicalFilters($filters);
+        $studentFilters = array_replace(
+            $this->studentFilter->identityOnly($canonical),
+            $this->studentFilter->enrollmentOnly($canonical),
+        );
+
+        // Admission year/program/department are facts on Admission itself.
+        // Only genuinely student-specific filters require a converted student.
+        unset($studentFilters['academic_year_id'], $studentFilters['program_id'], $studentFilters['department_id']);
+        $this->studentFilter->applyThroughStudent($query, $studentFilters, 'application.student');
+    }
+
+    private function applyCanonicalToPromotions(Builder $query, array $filters): void
+    {
+        $canonical = $this->canonicalFilters($filters);
+        $this->studentFilter->applyThroughStudent($query, $this->studentFilter->identityOnly($canonical));
+        $enrollmentFilters = $this->studentFilter->enrollmentOnly($canonical);
+        unset($enrollmentFilters['academic_year_id'], $enrollmentFilters['program_id'], $enrollmentFilters['department_id']);
+
+        // A pending promotion may have a target section but no target enrollment
+        // yet. Preserve that existing report meaning for the section choice.
+        [$contextType, $contextId] = $this->studentFilter->academicContext($enrollmentFilters);
+        if ($contextType === 'section') {
+            $query->whereHas('targetSection', fn (Builder $section) => $section->whereKey($contextId));
+            unset($enrollmentFilters['academic_context']);
+        }
+
+        $this->studentFilter->applyThroughEnrollment($query, $enrollmentFilters, 'targetEnrollment');
+    }
+
+    private function applyCanonicalToLifecycle(Builder $query, array $filters, string $enrollmentRelation): void
+    {
+        $canonical = $this->canonicalFilters($filters);
+        $this->studentFilter->applyThroughStudent($query, $this->studentFilter->identityOnly($canonical));
+        $enrollmentFilters = $this->studentFilter->enrollmentOnly($canonical);
+        unset($enrollmentFilters['academic_year_id'], $enrollmentFilters['program_id'], $enrollmentFilters['department_id']);
+        $this->studentFilter->applyThroughEnrollment($query, $enrollmentFilters, $enrollmentRelation);
     }
 
     private function studentIdentity(Builder $query, array $filters): Builder
@@ -274,6 +330,7 @@ class StudentReportService
     {
         $query = StudentEnrollment::query()
             ->whereHas('student', fn (Builder $student) => $this->studentIdentity($student, $filters));
+        $this->studentFilter->applyToEnrollments($query, $this->canonicalFilters($filters));
 
         $this->enrollmentContext($query, $filters);
         $this->dateRange($query, $filters, 'student_enrollments.enrollment_date');

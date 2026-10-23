@@ -12,41 +12,34 @@
         @endcan
     </div>
 
-    <form method="GET" action="{{ route('admission-applications.index') }}" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-        <input class="input" type="search" name="search" value="{{ $search }}" placeholder="Search number, applicant">
-        <select class="input" name="status">
-            <option value="">All statuses</option>
-            <option value="draft" @selected($status === 'draft')>Draft</option>
-            <option value="submitted" @selected($status === 'submitted')>Submitted</option>
-            <option value="under_review" @selected($status === 'under_review')>Under Review</option>
-            <option value="approved" @selected($status === 'approved')>Approved</option>
-            <option value="rejected" @selected($status === 'rejected')>Rejected</option>
-            <option value="cancelled" @selected($status === 'cancelled')>Cancelled</option>
-            <option value="admitted" @selected($status === 'admitted')>Admitted</option>
-        </select>
-        <select class="input" name="academic_year_id">
-            <option value="">All years</option>
-            @foreach($academicYears as $ay)
-                <option value="{{ $ay->id }}" @selected((string)$academic_year_id === (string)$ay->id)>{{ $ay->name }}</option>
-            @endforeach
-        </select>
-        <select class="input" name="program_id">
-            <option value="">All programs</option>
-            @foreach($programs as $prog)
-                <option value="{{ $prog->id }}" @selected((string)$program_id === (string)$prog->id)>{{ $prog->name }}</option>
-            @endforeach
-        </select>
-        <div class="flex gap-2 col-span-2">
-            <button class="button" type="submit">Filter</button>
-            @if($search !== '' || $status || $academic_year_id || $program_id)
-                <a class="button !bg-slate-200 !text-slate-700" href="{{ route('admission-applications.index') }}">Clear</a>
-            @endif
+    <x-student-filter
+        :fields="$studentFilterFields"
+        :options="$studentFilterOptions"
+        :values="$studentFilterValues"
+        :applied="$studentFilterApplied"
+        :action="route('admission-applications.index')"
+        :reset-url="route('admission-applications.index')"
+        title="Filter Admission Applications"
+    >
+        <div class="erp-list-field erp-list-filter-span-2">
+            <label for="admission-application-search" class="mb-1 block text-xs font-semibold text-slate-700">Search applications</label>
+            <input id="admission-application-search" class="input !py-2 !text-xs" type="search" name="search" value="{{ $search }}" placeholder="Application number or applicant">
         </div>
-    </form>
+        <x-list.filter-select name="status" label="Admission application status" :value="$status" placeholder="All application statuses">
+            @foreach(['draft', 'submitted', 'under_review', 'approved', 'rejected', 'cancelled', 'admitted'] as $applicationStatus)
+                <option value="{{ $applicationStatus }}" @selected($status === $applicationStatus)>{{ ucfirst(str_replace('_', ' ', $applicationStatus)) }}</option>
+            @endforeach
+        </x-list.filter-select>
+    </x-student-filter>
 
     <x-list.bulk-selection-bar module="admission_applications">
         @can('viewAny', App\Models\AdmissionApplication::class)
             <button type="button" data-bulk-action="export"
+                    data-bulk-param-search="{{ $search }}"
+                    data-bulk-param-status="{{ is_scalar($status) ? $status : '' }}"
+                    @foreach($studentFilterParameters as $filterName => $filterValue)
+                        data-bulk-param-{{ str_replace('_', '-', $filterName) }}="{{ $filterValue }}"
+                    @endforeach
                     class="button !py-2 !text-xs font-semibold">
                 Export
             </button>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Student\Services\StudentHistoryService;
+use App\Domain\Student\Filters\StudentFilter;
 use App\Domain\Student\Services\StudentReportService;
 use App\Models\AcademicYear;
 use App\Models\Admission;
@@ -37,13 +38,13 @@ class StudentReportController extends Controller
         'history' => 'Student History Report',
     ];
 
-    public function index(Request $request, StudentReportService $reports): View
+    public function index(Request $request, StudentReportService $reports, StudentFilter $studentFilter): View
     {
         $this->authorize('viewAny', StudentReport::class);
 
         $requested = $request->query('report');
         $report = is_string($requested) && isset(self::REPORTS[$requested]) ? $requested : 'students';
-        $filters = $this->filters($request);
+        $filters = $this->filters($request, $studentFilter);
 
         // Strength answers "how many active students are enrolled now?" by
         // default. Both statuses may be changed explicitly (including "all").
@@ -74,7 +75,7 @@ class StudentReportController extends Controller
             'departments' => Department::query()->orderBy('name')->orderBy('id')->get(['id', 'name']),
             'sections' => Section::query()->with(['academicYear:id,name', 'program:id,name'])
                 ->orderBy('name')->orderBy('id')->get(['id', 'name', 'code', 'academic_year_id', 'program_id']),
-        ]));
+        ], $studentFilter->viewData($filters['student_filters'], StudentFilter::STUDENT_LIST_FIELDS, $request->user())));
     }
 
     public function profile(string $student): View
@@ -130,7 +131,7 @@ class StudentReportController extends Controller
         ]);
     }
 
-    private function filters(Request $request): array
+    private function filters(Request $request, StudentFilter $studentFilter): array
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
@@ -159,6 +160,9 @@ class StudentReportController extends Controller
             'tc_status', 'document_status', 'entry_type', 'gender', 'from', 'to',
         ], null);
 
-        return array_replace($filters, $validated, ['search' => trim((string) ($validated['search'] ?? ''))]);
+        $filters = array_replace($filters, $validated, ['search' => trim((string) ($validated['search'] ?? ''))]);
+        $filters['student_filters'] = $studentFilter->fromRequest($request, user: $request->user());
+
+        return $filters;
     }
 }

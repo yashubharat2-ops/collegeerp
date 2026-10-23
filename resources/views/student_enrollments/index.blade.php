@@ -12,32 +12,15 @@
         @endcan
     </div>
 
-    <form method="GET" action="{{ route('student-enrollments.index') }}" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <select class="input" name="student_id">
-            <option value="">All students</option>
-            @foreach($students as $s)
-                <option value="{{ $s->id }}" @selected((int) $student_id === $s->id)>{{ $s->student_number }} — {{ $s->first_name }} {{ $s->last_name }}</option>
-            @endforeach
-        </select>
-        <select class="input" name="academic_year_id">
-            <option value="">All academic years</option>
-            @foreach($academicYears as $ay)
-                <option value="{{ $ay->id }}" @selected((int) $academic_year_id === $ay->id)>{{ $ay->name }} ({{ $ay->code }})</option>
-            @endforeach
-        </select>
-        <select class="input" name="status">
-            <option value="">All statuses</option>
-            @foreach(\App\Models\StudentEnrollment::STATUSES as $s)
-                <option value="{{ $s }}" @selected($status === $s)>{{ ucfirst($s) }}</option>
-            @endforeach
-        </select>
-        <div class="flex gap-2">
-            <button class="button" type="submit">Filter</button>
-            @if($student_id || $academic_year_id || $status)
-                <a class="button !bg-slate-200 !text-slate-700" href="{{ route('student-enrollments.index') }}">Clear</a>
-            @endif
-        </div>
-    </form>
+    <x-student-filter
+        :fields="$studentFilterFields"
+        :options="$studentFilterOptions"
+        :values="$studentFilterValues"
+        :applied="$studentFilterApplied"
+        :action="route('student-enrollments.index')"
+        :preserve="['student_id' => request('student_id')]"
+        title="Filter Students for Enrollments"
+    />
 
     <x-list.bulk-selection-bar module="enrollments">
         @can('viewAny', App\Models\StudentEnrollment::class)
