@@ -384,6 +384,12 @@ class SidebarStructureTest extends TestCase
         $this->assertStringContainsString('data-nested-group="admission-transfers"', $admission, 'Transfers must be a collapsible nested group with its children inside.');
         $this->assertStringContainsString('data-nested-group="admission-settings"', $admission, 'Settings must be a collapsible nested group with ID Card Setting inside.');
 
+        // .nav-items is a div, not a list. A nested <li> closes the outer Admission
+        // <li> while the browser parses it; the recovered closing tags then move
+        // later modules and .erp-app-main outside their intended parents.
+        $this->assertSame(2, substr_count($admission, '<div class="nav-group nav-group--nested"'), 'Nested collapsible parents must be divs inside .nav-items.');
+        $this->assertStringNotContainsString('<li class="nav-group nav-group--nested"', $admission, 'A list item is invalid here and breaks the browser DOM.');
+
         // Those nested groups must NOT be rendered as flat sub-label headings
         $this->assertStringNotContainsString('erp-nav__sub-label', $admission, 'Admission must not use static sub-label headings for Transfers/Settings; they must be collapsible parents.');
 
@@ -726,6 +732,14 @@ class SidebarStructureTest extends TestCase
         $this->assertNotFalse($static);
         $this->assertNotFalse($vite);
         $this->assertLessThan($vite, $static, 'The static stylesheet must be linked before @vite, so a missing build cannot hide the shell.');
+
+        $criticalStart = strpos($layout, '{{-- Critical shell fallback inline');
+        $criticalEnd = strpos($layout, "@if (config('app.debug'))", $criticalStart);
+        $this->assertNotFalse($criticalStart);
+        $this->assertNotFalse($criticalEnd);
+        $critical = substr($layout, $criticalStart, $criticalEnd - $criticalStart);
+        $this->assertStringNotContainsString('\\n', $critical, 'Literal backslash-n bytes close <head> early and turn the critical selectors into `n .erp-app-*` selectors.');
+        $this->assertStringContainsString("<style>\n", $critical, 'The critical stylesheet starts on a real new line and stays inside <head>.');
     }
 
     /* 10 · Active state is still server-rendered -------------------------- */

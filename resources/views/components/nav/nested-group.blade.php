@@ -38,7 +38,9 @@
 @endphp
 
 @if ($allowed && $items !== '')
-<li class="nav-group nav-group--nested" data-nested-group="{{ $id }}" data-nav-open="{{ $open ? 'true' : 'false' }}" @if ($open) data-nav-active="true" @endif>
+{{-- This is a div because .nav-items is a div, not a list. An <li> here makes
+     the browser close the outer Admission <li> and then the application shell. --}}
+<div class="nav-group nav-group--nested" data-nested-group="{{ $id }}" data-nav-open="{{ $open ? 'true' : 'false' }}" @if ($open) data-nav-active="true" @endif>
 <button type="button" class="nav-group__head nav-group__head--nested" id="nav-head-{{ $id }}" aria-expanded="{{ $open ? 'true' : 'false' }}" aria-controls="nav-items-{{ $id }}">
 @if($icon)
 <span class="nav-group__icon nav-group__icon--nested"><x-nav.icon :name="$icon" :size="16" /></span>
@@ -47,5 +49,5 @@
 <span class="nav-group__chevron"><x-nav.icon name="chevron-right" :size="12" /></span>
 </button>
 <div class="nav-items nav-items--nested" id="nav-items-{{ $id }}" @if (! $open) hidden @endif>{!! $items !!}</div>
-</li>
+</div>
 @endif
