@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ExamAttendance\BulkExamAttendanceRequest;
 use App\Http\Requests\ExamAttendance\StoreExamAttendanceRequest;
 use App\Http\Requests\ExamAttendance\UpdateExamAttendanceRequest;
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\AcademicTerm;
 use App\Models\AcademicYear;
 use App\Models\ExamAttendance;
@@ -43,30 +44,33 @@ class ExamAttendanceController extends Controller
         'marked_by',
     ];
 
-    public function __construct(private readonly ExamEligibilityService $eligibility)
-    {
+    public function __construct(
+        private readonly ExamEligibilityService $eligibility,
+        private readonly StudentFilter $studentFilter,
+    ) {
     }
 
     public function index(Request $request): View
     {
         $this->authorize('viewAny', ExamAttendance::class);
+        $studentFilters = $this->studentFilter->fromRequest($request, user: $request->user());
 
         $schedule = $request->filled('exam_schedule_id')
             ? ExamSchedule::query()->with(['examination', 'academicYear', 'academicTerm', 'program', 'section', 'subject', 'campus'])->find((int) $request->input('exam_schedule_id'))
             : null;
 
         if ($schedule) {
-            return $this->scheduleBoard($request, $schedule);
+            return $this->scheduleBoard($request, $schedule, $studentFilters);
         }
 
         return view('exam_attendance.index', array_merge($this->filterOptions(), [
-            'attendances' => $this->listQuery($request)->paginate(15)->withQueryString(),
+            'attendances' => $this->listQuery($request, $studentFilters)->paginate(15)->withQueryString(),
             'schedule' => null,
             'enrollments' => null,
             'existingByEnrollment' => collect(),
             'locked' => false,
             'filters' => $this->currentFilters($request),
-        ]));
+        ], $this->studentFilter->viewData($studentFilters, StudentFilter::STUDENT_LIST_FIELDS, $request->user())));
     }
 
     /**
@@ -75,8 +79,9 @@ class ExamAttendanceController extends Controller
      * Shared by `index()` and `export()`. The marking board is deliberately not
      * part of it: that mode lists eligible enrollments, not attendance rows.
      */
-    private function listQuery(Request $request): Builder
+    private function listQuery(Request $request, ?array $studentFilters = null): Builder
     {
+        $studentFilters ??= $this->studentFilter->fromRequest($request, user: $request->user());
         $query = ExamAttendance::query()
             ->with([
                 'examSchedule.examination',
@@ -90,6 +95,16 @@ class ExamAttendanceController extends Controller
             // Deterministic pagination order.
             ->orderByDesc('created_at')
             ->orderByDesc('id');
+        $this->studentFilter->applyThroughEnrollment($query, $this->studentFilter->exceptAcademicContext($studentFilters, 'term'));
+
+        // The canonical Semester/Section choice applies to both sides of this
+        // record: the exam schedule and the student's own enrollment context.
+        [$contextType, $contextId] = $this->studentFilter->academicContext($studentFilters);
+        if ($contextType === 'section') {
+            $query->whereHas('examSchedule', fn ($q) => $q->where('section_id', $contextId));
+        } elseif ($contextType === 'term') {
+            $query->whereHas('examSchedule', fn ($q) => $q->where('academic_term_id', $contextId));
+        }
 
         if ($request->filled('examination_id')) {
             $query->whereHas('examSchedule', fn ($q) => $q->where('examination_id', (int) $request->input('examination_id')));
@@ -134,8 +149,9 @@ class ExamAttendanceController extends Controller
     public function export(Request $request, AuditLogService $audit): StreamedResponse
     {
         $this->authorize('viewAny', ExamAttendance::class);
+        $studentFilters = $this->studentFilter->fromRequest($request, user: $request->user());
 
-        $query = $this->listQuery($request)->reorder('exam_attendances.id');
+        $query = $this->listQuery($request, $studentFilters)->reorder('exam_attendances.id');
 
         $ids = ListSelection::ids($request->input('ids', []));
         if ($ids !== []) {
@@ -145,6 +161,7 @@ class ExamAttendanceController extends Controller
         $audit->record('exam_attendance.exported', null, [], [
             'selected_ids' => count($ids),
             'rows' => (clone $query)->count(),
+            'student_filters' => $this->studentFilter->auditSafe($studentFilters),
         ]);
 
         return CsvStreamExport::make('exam-attendance-export-'.now()->format('Y-m-d').'.csv')
@@ -178,10 +195,12 @@ class ExamAttendanceController extends Controller
      * Marking board for one selected exam schedule: the academically eligible
      * enrollments plus any attendance already recorded for them.
      */
-    private function scheduleBoard(Request $request, ExamSchedule $schedule): View
+    private function scheduleBoard(Request $request, ExamSchedule $schedule, array $studentFilters): View
     {
-        $enrollments = $this->eligibility->eligibleEnrollments($schedule)
-            ->with(['student', 'program', 'section'])
+        $enrollmentQuery = $this->eligibility->eligibleEnrollments($schedule)
+            ->with(['student', 'program', 'section']);
+        $this->studentFilter->applyToEnrollments($enrollmentQuery, $this->studentFilter->exceptAcademicContext($studentFilters, 'term'));
+        $enrollments = $enrollmentQuery
             // Deterministic pagination order.
             ->orderBy('enrollment_number')
             ->orderBy('id')
@@ -204,7 +223,7 @@ class ExamAttendanceController extends Controller
             'existingByEnrollment' => $existingByEnrollment,
             'locked' => $locked,
             'filters' => $this->currentFilters($request),
-        ]));
+        ], $this->studentFilter->viewData($studentFilters, StudentFilter::STUDENT_LIST_FIELDS, $request->user())));
     }
 
     public function create(Request $request): View
@@ -311,6 +330,12 @@ class ExamAttendanceController extends Controller
             abort(403, 'This exam schedule is completed; attendance is read-only.');
         }
 
+        $studentFilters = $this->studentFilter->fromArray($request->request->all(), user: $request->user());
+        $submittedIds = collect($request->input('records', []))
+            ->filter(fn (array $row): bool => filled($row['attendance_status'] ?? null))
+            ->pluck('student_enrollment_id')->filter()->map(fn ($id): int => (int) $id)->unique()->values()->all();
+        $this->ensureBulkRowsMatchFilter($schedule, $submittedIds, $studentFilters);
+
         $userId = auth()->id();
         $counts = ['created' => 0, 'updated' => 0];
 
@@ -359,8 +384,24 @@ class ExamAttendanceController extends Controller
         ]);
 
         return redirect()
-            ->route('exam-attendance.index', ['exam_schedule_id' => $schedule->id])
+            ->route('exam-attendance.index', array_merge(
+                ['exam_schedule_id' => $schedule->id],
+                $this->studentFilter->requestParameters($studentFilters),
+            ))
             ->with('success', "Exam attendance saved ({$counts['created']} marked, {$counts['updated']} updated).");
+    }
+
+    /** @param array<int, int> $submittedIds */
+    private function ensureBulkRowsMatchFilter(ExamSchedule $schedule, array $submittedIds, array $studentFilters): void
+    {
+        if ($submittedIds === [] || ! $this->studentFilter->hasAny($studentFilters)) {
+            return;
+        }
+
+        $eligible = $this->eligibility->eligibleEnrollments($schedule);
+        $this->studentFilter->applyToEnrollments($eligible, $this->studentFilter->exceptAcademicContext($studentFilters, 'term'));
+        $matched = $eligible->whereIn('student_enrollments.id', $submittedIds)->count();
+        abort_unless($matched === count($submittedIds), 422, 'One or more students no longer match the filtered marking board.');
     }
 
     private function findScoped(string $id): ExamAttendance

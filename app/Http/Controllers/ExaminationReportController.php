@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\AcademicTerm;
 use App\Models\AcademicYear;
 use App\Models\Department;
@@ -65,6 +66,11 @@ class ExaminationReportController extends Controller
         'result_history' => ['search', 'academic_year_id', 'department_id', 'program_id', 'section_id', 'result_status'],
     ];
 
+    private const STUDENT_FILTER_REPORTS = [
+        'attendance', 'marks', 'subject_results', 'student_results', 'pass_fail',
+        'grades', 'merit', 'marksheet', 'grade_card', 'result_history',
+    ];
+
     /** Date-range meaning per report (for labels in the filter form). */
     public const DATE_LABELS = [
         'summary' => 'Examination date',
@@ -82,13 +88,17 @@ class ExaminationReportController extends Controller
         'mark_status', 'result_status', 'grade', 'from', 'to',
     ];
 
-    public function index(Request $request, ExaminationReportService $reports): View
+    public function index(Request $request, ExaminationReportService $reports, StudentFilter $studentFilter): View
     {
         $this->authorize('viewAny', ExaminationReport::class);
 
         $requested = $request->query('report');
         $report = is_string($requested) && isset(self::REPORTS[$requested]) ? $requested : 'summary';
         $filters = $this->filters($request, $report);
+        $studentFilterEnabled = in_array($report, self::STUDENT_FILTER_REPORTS, true);
+        $filters['student_filters'] = $studentFilterEnabled
+            ? $studentFilter->fromRequest($request, user: $request->user())
+            : [];
 
         $data = match ($report) {
             'schedule' => $reports->schedule($filters),
@@ -114,7 +124,10 @@ class ExaminationReportController extends Controller
             'statuses' => self::statuses($report),
             'statusKey' => self::statusKey($report),
             'dateLabel' => self::DATE_LABELS[$report] ?? 'Date',
-        ]));
+            'studentFilterEnabled' => $studentFilterEnabled,
+        ], $studentFilterEnabled
+            ? $studentFilter->viewData($filters['student_filters'], StudentFilter::STUDENT_LIST_FIELDS, $request->user())
+            : []));
     }
 
     /** Record statuses selectable per report (empty = no status filter). */

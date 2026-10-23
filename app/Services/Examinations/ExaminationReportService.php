@@ -2,6 +2,7 @@
 
 namespace App\Services\Examinations;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\Examination;
 use App\Models\ExamAttendance;
 use App\Models\ExamMark;
@@ -47,6 +48,8 @@ use Illuminate\Support\Collection;
 class ExaminationReportService
 {
     public const PER_PAGE = 20;
+
+    public function __construct(private readonly StudentFilter $studentFilter) {}
 
     /* ------------------------------------------------------------------ *
      * 1. Examination Summary
@@ -588,6 +591,13 @@ class ExaminationReportService
     /** ExamSchedule-level filters (schedule report + schedule-scoped lists). */
     private function scheduleFilters(Builder $query, array $filters): Builder
     {
+        [$contextType, $contextId] = $this->studentFilter->academicContext($this->canonicalFilters($filters));
+        if ($contextType === 'section') {
+            $query->where('exam_schedules.section_id', $contextId);
+        } elseif ($contextType === 'term') {
+            $query->where('exam_schedules.academic_term_id', $contextId);
+        }
+
         if ($filters['academic_year_id']) {
             $query->where('exam_schedules.academic_year_id', $filters['academic_year_id']);
         }
@@ -612,20 +622,26 @@ class ExaminationReportService
 
     private function attendanceQuery(array $filters): Builder
     {
-        return ExamAttendance::query()->whereHas('examSchedule', function (Builder $schedule) use ($filters): void {
+        $query = ExamAttendance::query()->whereHas('examSchedule', function (Builder $schedule) use ($filters): void {
             $this->scheduleFilters($schedule, $filters);
         })->when($filters['search'] !== '', function (Builder $query) use ($filters): void {
             $this->studentSearch($query, $filters['search'], 'studentEnrollment.student');
         });
+        $this->studentFilter->applyThroughEnrollment($query, $this->studentFilter->exceptAcademicContext($this->canonicalFilters($filters), 'term'));
+
+        return $query;
     }
 
     private function markQuery(array $filters): Builder
     {
-        return ExamMark::query()->whereHas('examSchedule', function (Builder $schedule) use ($filters): void {
+        $query = ExamMark::query()->whereHas('examSchedule', function (Builder $schedule) use ($filters): void {
             $this->scheduleFilters($schedule, $filters);
         })->when($filters['search'] !== '', function (Builder $query) use ($filters): void {
             $this->studentSearch($query, $filters['search'], 'studentEnrollment.student');
         });
+        $this->studentFilter->applyThroughEnrollment($query, $this->studentFilter->exceptAcademicContext($this->canonicalFilters($filters), 'term'));
+
+        return $query;
     }
 
     /**
@@ -635,6 +651,11 @@ class ExaminationReportService
     private function resultQuery(array $filters): Builder
     {
         $query = ExamResult::query()->whereNotNull('exam_results.published_at');
+        $canonical = $this->canonicalFilters($filters);
+        [$contextType, $contextId] = $this->studentFilter->academicContext($canonical);
+        if ($contextType === 'term') {
+            $query->where('exam_results.academic_term_id', $contextId);
+        }
 
         if ($filters['academic_year_id']) {
             $query->where('exam_results.academic_year_id', $filters['academic_year_id']);
@@ -667,6 +688,8 @@ class ExaminationReportService
                 }
             });
         }
+
+        $this->studentFilter->applyThroughEnrollment($query, $this->studentFilter->exceptAcademicContext($canonical, 'term'));
 
         return $query;
     }
@@ -709,6 +732,12 @@ class ExaminationReportService
                     ->whereColumn('subjects.college_id', 'exam_result_items.college_id')
                     ->whereNull('subjects.deleted_at');
             });
+
+        $canonical = $this->canonicalFilters($filters);
+        [$contextType, $contextId] = $this->studentFilter->academicContext($canonical);
+        if ($contextType === 'term') {
+            $query->where('exam_results.academic_term_id', $contextId);
+        }
 
         if ($filters['academic_year_id']) {
             $query->where('exam_results.academic_year_id', $filters['academic_year_id']);
@@ -755,6 +784,8 @@ class ExaminationReportService
             })->where('exam_schedules.faculty_id', $filters['faculty_id']);
         }
 
+        $this->studentFilter->applyThroughEnrollment($query, $this->studentFilter->exceptAcademicContext($canonical, 'term'), 'examResult.studentEnrollment');
+
         return $query;
     }
 
@@ -781,6 +812,12 @@ class ExaminationReportService
         return ExamSchedule::query()
             ->select('exam_schedules.exam_date')
             ->whereColumn('exam_schedules.id', $scheduleIdColumn);
+    }
+
+    /** @return array<string, mixed> */
+    private function canonicalFilters(array $filters): array
+    {
+        return is_array($filters['student_filters'] ?? null) ? $filters['student_filters'] : [];
     }
 
     private function studentSearch(Builder $query, string $search, string $relation = 'student'): Builder

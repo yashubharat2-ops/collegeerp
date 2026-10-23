@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Domain\Finance\Services\FeeCollectionService;
 use App\Domain\Finance\Support\FeeFormOptions;
 use App\Domain\Finance\Support\FeeLedger;
+use App\Domain\Student\Filters\StudentFilter;
 use App\Http\Requests\FeePayment\CancelFeePaymentRequest;
 use App\Http\Requests\FeePayment\StoreFeePaymentRequest;
 use App\Http\Requests\FeePayment\UpdateFeePaymentRequest;
@@ -31,15 +32,18 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class FeePaymentController extends Controller
 {
-    public function __construct(private readonly FeeCollectionService $collections)
-    {
+    public function __construct(
+        private readonly FeeCollectionService $collections,
+        private readonly StudentFilter $studentFilter,
+    ) {
     }
 
     public function index(Request $request): View
     {
         $this->authorize('viewAny', FeePayment::class);
 
-        $query = $this->filteredQuery($request)
+        $studentFilters = $this->studentFilter->fromRequest($request, user: $request->user());
+        $query = $this->filteredQuery($request, $studentFilters)
             ->with(['studentFeeAssignment', 'studentEnrollment.student', 'studentEnrollment.academicYear', 'studentEnrollment.program', 'feeStructure', 'collector'])
             // Deterministic pagination order.
             ->orderByDesc('payment_date')
@@ -47,10 +51,11 @@ class FeePaymentController extends Controller
 
         $payments = $query->paginate(15)->withQueryString();
 
-        return view('fee_collections.index', array_merge(FeeFormOptions::all(), [
+        return view('fee_collections.index', array_merge(FeeFormOptions::all(), $this->studentFilter->viewData($studentFilters, StudentFilter::STUDENT_LIST_FIELDS, $request->user()), [
             'payments' => $payments,
-            'total' => FeeLedger::money($this->filteredQuery($request)->sum('amount')),
+            'total' => FeeLedger::money($this->filteredQuery($request, $studentFilters)->sum('amount')),
             'selected' => $this->selectedFilters($request),
+            'studentFilterInput' => $this->studentFilterInput($request),
         ]));
     }
 
@@ -67,30 +72,17 @@ class FeePaymentController extends Controller
     public function export(Request $request, AuditLogService $audit): StreamedResponse
     {
         $this->authorize('viewAny', FeePayment::class);
-
+        $studentFilters = $this->studentFilter->fromRequest($request, user: $request->user());
         $ids = ListSelection::ids($request->input('ids', []));
-
-        $payments = FeePayment::query()
+        $query = $this->filteredQuery($request, $studentFilters)
             ->with(['studentEnrollment.student', 'studentEnrollment.program', 'feeStructure', 'collector'])
-            ->whereIn('fee_payments.id', $ids)
-            ->orderBy('fee_payments.id')
-            ->get();
-
-        $rows = $payments->map(fn (FeePayment $payment): array => [
-            $payment->payment_number,
-            $payment->payment_date?->format('Y-m-d'),
-            $payment->studentEnrollment?->student?->fullName(),
-            $payment->studentEnrollment?->enrollment_number,
-            $payment->studentEnrollment?->program?->code,
-            ucfirst(str_replace('_', ' ', (string) $payment->payment_mode)),
-            $payment->reference_number,
-            $payment->amount,
-            $payment->status,
-        ]);
+            ->when($ids !== [], fn (Builder $builder) => $builder->whereIn('fee_payments.id', $ids))
+            ->reorder('fee_payments.id', 'asc');
 
         $audit->record('fee_collections.exported', null, [], [
             'selected_ids' => count($ids),
-            'rows' => $payments->count(),
+            'filters' => $this->studentFilter->auditSafe($studentFilters),
+            'rows' => (clone $query)->count(),
         ]);
 
         return CsvStreamExport::make('fee-collections-export-'.now()->format('Y-m-d').'.csv')
@@ -98,7 +90,18 @@ class FeePaymentController extends Controller
                 'Payment no', 'Date', 'Student', 'Enrollment', 'Program', 'Mode',
                 'Reference', 'Amount', 'Status',
             ])
-            ->streamFromCollection($rows);
+            ->map(fn (FeePayment $payment): array => [
+                $payment->payment_number,
+                $payment->payment_date?->format('Y-m-d'),
+                $payment->studentEnrollment?->student?->fullName(),
+                $payment->studentEnrollment?->enrollment_number,
+                $payment->studentEnrollment?->program?->code,
+                ucfirst(str_replace('_', ' ', (string) $payment->payment_mode)),
+                $payment->reference_number,
+                $payment->amount,
+                $payment->status,
+            ])
+            ->streamFromQuery($query);
     }
 
     public function create(Request $request): View
@@ -182,28 +185,20 @@ class FeePaymentController extends Controller
             ->with('success', "Payment {$number} deleted.");
     }
 
-    private function filteredQuery(Request $request): Builder
+    private function filteredQuery(Request $request, array $studentFilters = []): Builder
     {
         $collegeId = app(TenantContext::class)->id();
-
-        return FeePayment::query()
+        $query = FeePayment::query()
             // Tenant isolation is belt-and-braces: the model already carries
             // CollegeScope; this pins the join-safe column explicitly.
-            ->where('fee_payments.college_id', $collegeId)
-            // Filters run through the payment's OWN enrollment stamp so tuition
-            // AND transport collections (whose student_fee_assignment_id is
-            // null) filter identically.
+            ->where('fee_payments.college_id', $collegeId);
+        // Use the payment's OWN enrollment stamp so tuition AND transport
+        // collections (whose student_fee_assignment_id is null) filter alike.
+        $this->studentFilter->applyThroughEnrollment($query, $studentFilters);
+
+        return $query
             ->when($request->input('student_id'), fn (Builder $q, $value) => $q->whereHas(
-                'studentEnrollment',
-                fn (Builder $sub) => $sub->where('student_id', $value)
-            ))
-            ->when($request->input('academic_year_id'), fn (Builder $q, $value) => $q->whereHas(
-                'studentEnrollment',
-                fn (Builder $sub) => $sub->where('academic_year_id', $value)
-            ))
-            ->when($request->input('program_id'), fn (Builder $q, $value) => $q->whereHas(
-                'studentEnrollment',
-                fn (Builder $sub) => $sub->where('program_id', $value)
+                'studentEnrollment', fn (Builder $sub) => $sub->where('student_id', $value)
             ))
             ->when($request->input('student_enrollment_id'), fn (Builder $q, $value) => $q->where('student_enrollment_id', $value))
             ->when($request->input('fee_structure_id'), fn (Builder $q, $value) => $q->where('fee_structure_id', $value))
@@ -211,6 +206,21 @@ class FeePaymentController extends Controller
             ->when(in_array($request->input('status'), FeePayment::STATUSES, true), fn (Builder $q) => $q->where('status', $request->input('status')))
             ->when($request->input('from'), fn (Builder $q, $value) => $q->whereDate('payment_date', '>=', $value))
             ->when($request->input('to'), fn (Builder $q, $value) => $q->whereDate('payment_date', '<=', $value));
+    }
+
+    /** @return array<string, scalar|null> */
+    private function studentFilterInput(Request $request): array
+    {
+        $keys = ['student_number', 'admission_date_from', 'admission_date_to', 'academic_year_id', 'department_id', 'program_id', 'academic_context', 'enrollment_status', 'student_status', 'student_name', 'unique_student_id', 'email', 'apaar_id', 'enrollment_number', 'mobile_number', 'aadhaar_last4', 'father_name', 'mother_name'];
+        $input = [];
+        foreach ($keys as $key) {
+            $value = $request->query($key);
+            if (is_scalar($value) && (string) $value !== '') {
+                $input[$key] = $value;
+            }
+        }
+
+        return $input;
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\AcademicTerm;
 use App\Models\AcademicYear;
 use App\Models\ExamResult;
@@ -33,8 +34,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class ResultController extends Controller
 {
-    public function __construct(private readonly ResultQueryService $query)
-    {
+    public function __construct(
+        private readonly ResultQueryService $query,
+        private readonly StudentFilter $studentFilter,
+    ) {
     }
 
     public function index(Request $request): View
@@ -42,15 +45,16 @@ class ResultController extends Controller
         $this->authorize('viewAny', ExamResult::class);
 
         $canViewUnpublished = $request->user()?->can('viewUnpublished', ExamResult::class) ?? false;
+        $studentFilters = $this->studentFilter->fromRequest($request, user: $request->user());
 
         return view('results.index', array_merge($this->filterOptions(), [
-            'results' => $this->query->paginate($request, $canViewUnpublished),
+            'results' => $this->query->paginate($request, $canViewUnpublished, $this->studentFilter, $studentFilters),
             'filters' => $this->query->currentFilters($request),
             'canViewUnpublished' => $canViewUnpublished,
             'resultStatuses' => ExamResult::RESULT_STATUSES,
             'calculationStatuses' => ExamResult::CALCULATION_STATUSES,
             'publicationStatuses' => ExamResult::PUBLICATION_STATUSES,
-        ]));
+        ], $this->studentFilter->viewData($studentFilters, StudentFilter::STUDENT_LIST_FIELDS, $request->user())));
     }
 
     /**
@@ -77,11 +81,13 @@ class ResultController extends Controller
         $this->authorize('viewAny', ExamResult::class);
 
         $canViewUnpublished = $request->user()?->can('viewUnpublished', ExamResult::class) ?? false;
+        $studentFilters = $this->studentFilter->fromRequest($request, user: $request->user());
 
         $query = $this->query
             ->applyFilters($this->query->baseQuery($canViewUnpublished), $request, $canViewUnpublished)
             ->with(['examination', 'academicYear', 'academicTerm', 'studentEnrollment.student', 'studentEnrollment.program', 'studentEnrollment.section', 'gradeScale'])
             ->reorder('exam_results.id');
+        $this->query->applyStudentFilters($query, $this->studentFilter, $studentFilters);
 
         $ids = ListSelection::ids($request->input('ids', []));
         if ($ids !== []) {
@@ -92,6 +98,7 @@ class ResultController extends Controller
             'selected_ids' => count($ids),
             'include_unpublished' => $canViewUnpublished,
             'rows' => (clone $query)->count(),
+            'student_filters' => $this->studentFilter->auditSafe($studentFilters),
         ]);
 
         return CsvStreamExport::make('results-export-'.now()->format('Y-m-d').'.csv')

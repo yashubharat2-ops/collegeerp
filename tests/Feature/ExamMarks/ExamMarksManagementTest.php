@@ -5,6 +5,7 @@ namespace Tests\Feature\ExamMarks;
 use App\Models\AuditLog;
 use App\Models\ExamMark;
 use App\Models\ExamSchedule;
+use App\Models\StudentEnrollment;
 use Tests\Feature\ExamAttendance\ExamAttendanceTestHelpers;
 use Tests\TestCase;
 
@@ -532,6 +533,58 @@ class ExamMarksManagementTest extends TestCase
                 'subject_id' => $mark->id,
             ]);
         }
+    }
+
+    public function test_canonical_student_filter_applies_to_marks_export_board_and_bulk_revalidation(): void
+    {
+        $college = $this->makeCollege('EMFILTER');
+        $admin = $this->makeUserWithPermissions($college, self::PERMS);
+        $ctx = $this->makeExamContext($college, 'EMFILTER');
+        [$firstStudent, $first] = $this->makeEnrolledStudent($college, $ctx, 'EMFILTERA');
+        [, $second] = $this->makeEnrolledStudent($college, $ctx, 'EMFILTERB');
+        $firstMark = ExamMark::create([
+            'college_id' => $college->id, 'exam_schedule_id' => $ctx['schedule']->id,
+            'student_enrollment_id' => $first->id, 'max_marks' => 100, 'passing_marks' => 40,
+            'obtained_marks' => 40, 'status' => 'entered', 'entered_at' => now(),
+        ]);
+        $secondMark = ExamMark::create([
+            'college_id' => $college->id, 'exam_schedule_id' => $ctx['schedule']->id,
+            'student_enrollment_id' => $second->id, 'max_marks' => 100, 'passing_marks' => 40,
+            'obtained_marks' => 50, 'status' => 'entered', 'entered_at' => now(),
+        ]);
+        $query = ['student_number' => $firstStudent->student_number];
+
+        $this->asCollege($college, $admin)->get(route('exam-marks.index', $query))
+            ->assertOk()->assertSee($first->enrollment_number)->assertDontSee($second->enrollment_number)
+            ->assertSee('STATUS')->assertSee('Marks entry status');
+        $csv = $this->asCollege($college, $admin)->get(route('exam-marks.export', $query + [
+            'ids' => [$firstMark->id, $secondMark->id],
+        ]))->assertOk()->streamedContent();
+        $this->assertStringContainsString($first->enrollment_number, $csv);
+        $this->assertStringNotContainsString($second->enrollment_number, $csv);
+
+        $this->asCollege($college, $admin)->get(route('exam-marks.index', $query + [
+            'exam_schedule_id' => $ctx['schedule']->id,
+        ]))->assertOk()->assertSee($first->enrollment_number)->assertDontSee($second->enrollment_number);
+
+        $row = fn (StudentEnrollment $enrollment, int $marks): array => [
+            'student_enrollment_id' => $enrollment->id, 'max_marks' => 100,
+            'passing_marks' => 40, 'obtained_marks' => $marks, 'status' => 'entered',
+        ];
+        $payload = [
+            'exam_schedule_id' => $ctx['schedule']->id,
+            'student_number' => $firstStudent->student_number,
+            'records' => [$row($first, 65), $row($second, 75)],
+        ];
+        $this->asCollege($college, $admin)->post(route('exam-marks.bulk'), $payload)->assertStatus(422);
+        $this->assertSame('40.00', (string) $firstMark->fresh()->obtained_marks);
+        $this->assertSame('50.00', (string) $secondMark->fresh()->obtained_marks);
+
+        $payload['records'] = [$row($first, 65)];
+        $this->asCollege($college, $admin)->post(route('exam-marks.bulk'), $payload)
+            ->assertRedirect(route('exam-marks.index', array_merge(['exam_schedule_id' => $ctx['schedule']->id], $query)));
+        $this->assertSame('65.00', (string) $firstMark->fresh()->obtained_marks);
+        $this->assertSame('50.00', (string) $secondMark->fresh()->obtained_marks);
     }
 
     public function test_bulk_marks_save_is_audited_as_one_traceable_entry(): void

@@ -2,9 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AcademicYear;
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\ExamResult;
-use App\Models\Program;
 use App\Models\Student;
 use App\Models\StudentResultHistory;
 use Illuminate\Http\Request;
@@ -25,15 +24,17 @@ use Illuminate\View\View;
  */
 class StudentResultHistoryController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, StudentFilter $studentFilter): View
     {
         $this->authorize('viewAny', StudentResultHistory::class);
+        $filters = $studentFilter->fromRequest($request, user: $request->user());
 
         $query = Student::query()
             ->with(['enrollments.academicYear', 'enrollments.program'])
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->orderBy('id');
+        $studentFilter->applyToStudents($query, $filters);
 
         if ($search = trim((string) $request->input('search'))) {
             $query->where(function ($q) use ($search): void {
@@ -43,22 +44,10 @@ class StudentResultHistoryController extends Controller
             });
         }
 
-        if ($academicYearId = $request->input('academic_year_id')) {
-            $query->whereHas('enrollments', fn ($e) => $e->where('academic_year_id', $academicYearId));
-        }
-
-        if ($programId = $request->input('program_id')) {
-            $query->whereHas('enrollments', fn ($e) => $e->where('program_id', $programId));
-        }
-
-        return view('student_result_history.index', [
+        return view('student_result_history.index', array_merge([
             'students' => $query->paginate(15)->withQueryString(),
             'search' => trim((string) $request->input('search')),
-            'academic_year_id' => $request->input('academic_year_id'),
-            'program_id' => $request->input('program_id'),
-            'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(['id', 'name', 'code']),
-            'programs' => Program::query()->orderBy('name')->get(['id', 'name', 'code']),
-        ]);
+        ], $studentFilter->viewData($filters, StudentFilter::STUDENT_LIST_FIELDS, $request->user())));
     }
 
     public function show(string $student): View

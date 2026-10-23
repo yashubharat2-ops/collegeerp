@@ -49,10 +49,15 @@ class StudentFeeAssignment extends Model
         'college_id',
         'student_enrollment_id',
         'fee_structure_id',
+        // NULL = the original whole-structure assignment. Non-NULL = one Fee
+        // Head allocated through the preview/confirm batch workflow.
+        'fee_structure_item_id',
         'assigned_amount',
+        'fee_head_name',
         'assigned_at',
         'status',
         'remarks',
+        'allocation_batch_id',
         'created_by',
         'updated_by',
     ];
@@ -84,6 +89,26 @@ class StudentFeeAssignment extends Model
     public function feeStructure(): BelongsTo
     {
         return $this->belongsTo(FeeStructure::class);
+    }
+
+    /**
+     * The current Fee Head row, if it still exists. fee_head_name and
+     * assigned_amount remain authoritative snapshots when a structure edit
+     * removes this row; no foreign key rewrites or blocks that history.
+     */
+    public function feeStructureItem(): BelongsTo
+    {
+        return $this->belongsTo(FeeStructureItem::class);
+    }
+
+    public function isPerFeeHead(): bool
+    {
+        return $this->fee_structure_item_id !== null;
+    }
+
+    public function feeHeadLabel(): string
+    {
+        return $this->fee_head_name ?: ($this->feeStructure?->name ?? 'Fee assignment');
     }
 
     /** All collections recorded against this assignment. */

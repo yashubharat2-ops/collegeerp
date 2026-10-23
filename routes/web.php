@@ -490,7 +490,11 @@ Route::middleware('auth')->group(function () {
         Route::resource('fee-categories', FeeCategoryController::class)->except('show');
 
         // Finance / Fees — Student Fee Assignment: an existing fee structure
-        // assigned to an existing student enrollment.
+        // assigned to an existing student enrollment. Per-head allocation is a
+        // non-writing preview followed by an idempotent, transactional confirm.
+        Route::get('student-fee-assignments/allocation', [StudentFeeAssignmentController::class, 'allocate'])->name('student-fee-assignments.allocate');
+        Route::post('student-fee-assignments/allocation/preview', [StudentFeeAssignmentController::class, 'previewAllocation'])->name('student-fee-assignments.allocation.preview');
+        Route::post('student-fee-assignments/allocation/confirm', [StudentFeeAssignmentController::class, 'confirmAllocation'])->name('student-fee-assignments.allocation.confirm');
         Route::get('student-fee-assignments/export', [StudentFeeAssignmentController::class, 'export'])->name('student-fee-assignments.export');
         Route::resource('student-fee-assignments', StudentFeeAssignmentController::class)->except('show');
 

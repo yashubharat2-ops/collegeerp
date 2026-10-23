@@ -14,63 +14,41 @@
         @endcan
     </div>
 
-    <form method="GET" action="{{ route('exam-attendance.index') }}" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <select class="input" name="examination_id">
-            <option value="">All examinations</option>
+    <x-student-filter
+        :fields="$studentFilterFields"
+        :options="$studentFilterOptions"
+        :values="$studentFilterValues"
+        :applied="$studentFilterApplied"
+        :action="route('exam-attendance.index')"
+        title="Filter Exam Attendance Students"
+    >
+        <x-list.filter-select name="examination_id" label="Examination" :value="$filters['examination_id']" placeholder="All examinations">
             @foreach($examinations as $exam)
                 <option value="{{ $exam->id }}" @selected((int) $filters['examination_id'] === $exam->id)>{{ $exam->name }} ({{ $exam->code }})</option>
             @endforeach
-        </select>
-        <select class="input" name="academic_year_id">
-            <option value="">All academic years</option>
-            @foreach($academicYears as $year)
-                <option value="{{ $year->id }}" @selected((int) $filters['academic_year_id'] === $year->id)>{{ $year->name }}</option>
-            @endforeach
-        </select>
-        <select class="input" name="academic_term_id">
-            <option value="">All academic terms</option>
-            @foreach($academicTerms as $term)
-                <option value="{{ $term->id }}" @selected((int) $filters['academic_term_id'] === $term->id)>{{ $term->name }} ({{ $term->code }})</option>
-            @endforeach
-        </select>
-        <select class="input" name="exam_schedule_id">
-            <option value="">Select exam schedule…</option>
+        </x-list.filter-select>
+        <x-list.filter-select name="exam_schedule_id" label="Exam schedule" :value="$filters['exam_schedule_id']" placeholder="Attendance record list">
             @foreach($schedules as $sched)
                 <option value="{{ $sched->id }}" @selected((int) $filters['exam_schedule_id'] === $sched->id)>
                     {{ $sched->exam_date?->format('d M Y') }} · {{ $sched->examination?->name }} · {{ $sched->subject?->name }} ({{ $sched->section?->name }})
                 </option>
             @endforeach
-        </select>
-        <select class="input" name="program_id">
-            <option value="">All programs</option>
-            @foreach($programs as $prog)
-                <option value="{{ $prog->id }}" @selected((int) $filters['program_id'] === $prog->id)>{{ $prog->name }} ({{ $prog->code }})</option>
-            @endforeach
-        </select>
-        <select class="input" name="section_id">
-            <option value="">All sections</option>
-            @foreach($sections as $sec)
-                <option value="{{ $sec->id }}" @selected((int) $filters['section_id'] === $sec->id)>{{ $sec->name }} ({{ $sec->code }})</option>
-            @endforeach
-        </select>
-        <select class="input" name="subject_id">
-            <option value="">All subjects</option>
+        </x-list.filter-select>
+        <x-list.filter-select name="subject_id" label="Subject" :value="$filters['subject_id']" placeholder="All subjects">
             @foreach($subjects as $sub)
                 <option value="{{ $sub->id }}" @selected((int) $filters['subject_id'] === $sub->id)>{{ $sub->name }} ({{ $sub->code }})</option>
             @endforeach
-        </select>
-        <input class="input" type="date" name="exam_date" value="{{ $filters['exam_date'] }}" placeholder="Exam date">
-        <select class="input" name="attendance_status">
-            <option value="">All statuses</option>
+        </x-list.filter-select>
+        <div class="erp-list-field">
+            <label for="filter-exam-date" class="mb-1 block text-xs font-semibold text-slate-700">Exam date</label>
+            <input id="filter-exam-date" class="input !py-2 !text-xs" type="date" name="exam_date" value="{{ $filters['exam_date'] }}">
+        </div>
+        <x-list.filter-select name="attendance_status" label="Exam attendance status" :value="$filters['attendance_status']" placeholder="All exam attendance statuses">
             @foreach($statuses as $st)
                 <option value="{{ $st }}" @selected($filters['attendance_status'] === $st)>{{ ucfirst($st) }}</option>
             @endforeach
-        </select>
-        <div class="flex gap-2">
-            <button class="button" type="submit">Filter</button>
-            <a class="button !bg-slate-200 !text-slate-700" href="{{ route('exam-attendance.index') }}">Clear</a>
-        </div>
-    </form>
+        </x-list.filter-select>
+    </x-student-filter>
 
     @if($schedule)
         {{-- Marking board for the selected exam schedule. --}}
@@ -113,6 +91,7 @@
         @if($canMark)
             <form method="POST" action="{{ route('exam-attendance.bulk') }}">
                 @csrf
+                <x-student-filter-hidden :parameters="$studentFilterParameters" />
                 <input type="hidden" name="exam_schedule_id" value="{{ $schedule->id }}">
                 <div class="mt-4 flex flex-wrap items-center gap-2">
                     <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Bulk mark:</span>

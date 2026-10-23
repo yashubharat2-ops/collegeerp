@@ -2,6 +2,7 @@
 
 namespace App\Domain\Admission\BulkActions;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\Admission;
 use App\Models\College;
 use App\Models\User;
@@ -16,6 +17,8 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class AdmissionBulkExportHandler extends BulkActionHandler
 {
+    public function __construct(private readonly StudentFilter $studentFilter) {}
+
     public function modelClass(): string
     {
         return Admission::class;
@@ -35,12 +38,18 @@ class AdmissionBulkExportHandler extends BulkActionHandler
     {
         $ids = $records->map(fn (Admission $admission) => (int) $admission->getKey())->values()->all();
         $count = count($ids);
+        $studentFilters = $this->studentFilter->fromArray($parameters, user: $user);
 
         return BulkActionResult::success(
             'Export prepared for '.$count.' '.(($count === 1) ? 'admission' : 'admissions').'.',
             $count,
             [
-                'redirect' => route('admissions.export', ['ids' => $ids]),
+                'redirect' => route('admissions.export', [
+                    'ids' => $ids,
+                    'search' => is_scalar($parameters['search'] ?? null) ? (string) $parameters['search'] : '',
+                    'status' => is_scalar($parameters['status'] ?? null) ? (string) $parameters['status'] : '',
+                    ...$this->studentFilter->requestParameters($studentFilters),
+                ]),
                 'ids' => $ids,
             ]
         );

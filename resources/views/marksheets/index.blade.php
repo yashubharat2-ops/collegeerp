@@ -13,49 +13,29 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ route('marksheets.index') }}" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <select class="input" name="examination_id">
-            <option value="">All examinations</option>
+    <x-student-filter
+        :fields="$studentFilterFields"
+        :options="$studentFilterOptions"
+        :values="$studentFilterValues"
+        :applied="$studentFilterApplied"
+        :action="route('marksheets.index')"
+        title="Filter Students for Marksheets"
+    >
+        <x-list.filter-select name="examination_id" label="Examination" :value="$filters['examination_id']" placeholder="All examinations">
             @foreach($examinations as $exam)
                 <option value="{{ $exam->id }}" @selected((int) $filters['examination_id'] === $exam->id)>{{ $exam->name }} ({{ $exam->code }})</option>
             @endforeach
-        </select>
-        <select class="input" name="academic_year_id">
-            <option value="">All academic years</option>
-            @foreach($academicYears as $year)
-                <option value="{{ $year->id }}" @selected((int) $filters['academic_year_id'] === $year->id)>{{ $year->name }}</option>
-            @endforeach
-        </select>
-        <select class="input" name="academic_term_id">
-            <option value="">All academic terms</option>
-            @foreach($academicTerms as $term)
-                <option value="{{ $term->id }}" @selected((int) $filters['academic_term_id'] === $term->id)>{{ $term->name }} ({{ $term->code }})</option>
-            @endforeach
-        </select>
-        <select class="input" name="program_id">
-            <option value="">All programs</option>
-            @foreach($programs as $prog)
-                <option value="{{ $prog->id }}" @selected((int) $filters['program_id'] === $prog->id)>{{ $prog->name }} ({{ $prog->code }})</option>
-            @endforeach
-        </select>
-        <select class="input" name="section_id">
-            <option value="">All sections</option>
-            @foreach($sections as $sec)
-                <option value="{{ $sec->id }}" @selected((int) $filters['section_id'] === $sec->id)>{{ $sec->name }} ({{ $sec->code }})</option>
-            @endforeach
-        </select>
-        <select class="input" name="result_status">
-            <option value="">All result statuses</option>
+        </x-list.filter-select>
+        <x-list.filter-select name="result_status" label="Result status" :value="$filters['result_status']" placeholder="All result statuses">
             @foreach($resultStatuses as $status)
                 <option value="{{ $status }}" @selected($filters['result_status'] === $status)>{{ ucfirst($status) }}</option>
             @endforeach
-        </select>
-        <input class="input" type="search" name="search" value="{{ $filters['search'] }}" placeholder="Search name, student no. or enrollment no.">
-        <div class="flex gap-2">
-            <button class="button" type="submit">Filter</button>
-            <a class="button !bg-slate-200 !text-slate-700" href="{{ route('marksheets.index') }}">Clear</a>
+        </x-list.filter-select>
+        <div class="erp-list-field erp-list-filter-span-2">
+            <label for="filter-result-search" class="mb-1 block text-xs font-semibold text-slate-700">Search results</label>
+            <input id="filter-result-search" class="input !py-2 !text-xs" type="search" name="search" value="{{ $filters['search'] }}" placeholder="Name, student no. or enrollment no.">
         </div>
-    </form>
+    </x-student-filter>
 
     {{-- Bulk selection: export only. A marksheet is a derived document, so the
          values below are the PUBLISHED result ids they are rendered from; the

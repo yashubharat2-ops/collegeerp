@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Domain\Admission\Actions\CreateApplication;
 use App\Domain\Admission\Services\AdmissionApplicationStatusService;
+use App\Domain\Student\Filters\StudentFilter;
 use App\Http\Requests\AdmissionApplication\StoreAdmissionApplicationRequest;
 use App\Http\Requests\AdmissionApplication\UpdateAdmissionApplicationRequest;
 use App\Models\AcademicYear;
@@ -13,6 +14,7 @@ use App\Models\AdmissionEnquiry;
 use App\Models\Program;
 use App\Services\Audit\AuditLogService;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -26,67 +28,35 @@ class AdmissionApplicationController extends Controller
 
     private const STATUSES = ['draft', 'submitted', 'under_review', 'approved', 'rejected', 'cancelled', 'admitted'];
 
-    public function index(Request $request): View
+    public function index(Request $request, StudentFilter $studentFilter): View
     {
         $this->authorize('viewAny', AdmissionApplication::class);
+        $studentFilters = $studentFilter->fromRequest($request, user: $request->user());
 
-        // Creation-order pagination (oldest first): created_at has only second
-        // precision, and creation routinely spans several seconds, so a
-        // newest-first primary inverts page membership whenever rows fall in
-        // different seconds (an id tiebreak only stabilises rows within one
-        // second). Oldest-first with the unique id tiebreak reproduces the
-        // exact creation sequence under all timing conditions, so rows can
-        // never shuffle between pages. This matches the ascending-listing
-        // convention used by Departments, Programs and Applicants.
-        $query = AdmissionApplication::query()
+        // Creation-order pagination with an id tiebreak keeps rows stable.
+        $query = $this->filteredQuery($request, $studentFilter, $studentFilters)
             ->with(['applicant', 'academicYear', 'program', 'enquiry'])
             ->orderBy('created_at')
             ->orderBy('id');
 
-        if ($search = trim((string) $request->input('search'))) {
-            $query->where(function ($q) use ($search): void {
-                $q->where('application_number', 'like', "%{$search}%")
-                  ->orWhereHas('applicant', function ($aq) use ($search): void {
-                      $aq->where('first_name', 'like', "%{$search}%")
-                         ->orWhere('last_name', 'like', "%{$search}%")
-                         ->orWhere('email', 'like', "%{$search}%")
-                         ->orWhere('phone', 'like', "%{$search}%");
-                  });
-            });
-        }
-
-        if (in_array($request->input('status'), self::STATUSES, true)) {
-            $query->where('status', $request->input('status'));
-        }
-
-        if ($academicYearId = $request->input('academic_year_id')) {
-            $query->where('academic_year_id', $academicYearId);
-        }
-
-        if ($programId = $request->input('program_id')) {
-            $query->where('program_id', $programId);
-        }
-
-        return view('admission_applications.index', [
+        return view('admission_applications.index', array_merge([
             'applications' => $query->paginate(15)->withQueryString(),
             'search' => trim((string) $request->input('search')),
             'status' => $request->input('status'),
-            'academic_year_id' => $request->input('academic_year_id'),
-            'program_id' => $request->input('program_id'),
-            'academicYears' => $this->academicYearOptions(),
-            'programs' => $this->programOptions(),
-        ]);
+        ], $studentFilter->viewData($studentFilters, StudentFilter::ADMISSION_APPLICATION_FIELDS, $request->user())));
     }
 
     /**
      * CSV export of the selected applications (or all visible ones when no selection).
      * Tenant-scoped; read-only; counts-only audit entry.
      */
-    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    public function export(Request $request, AuditLogService $audit, StudentFilter $studentFilter): StreamedResponse
     {
         $this->authorize('viewAny', AdmissionApplication::class);
+        $studentFilters = $studentFilter->fromRequest($request, user: $request->user());
 
-        $query = AdmissionApplication::query()->with(['applicant', 'academicYear', 'program'])->orderBy('id');
+        $query = $this->filteredQuery($request, $studentFilter, $studentFilters)
+            ->with(['applicant', 'academicYear', 'program'])->orderBy('id');
 
         $ids = ListSelection::ids($request->input('ids', []));
         if ($ids !== []) {
@@ -95,6 +65,7 @@ class AdmissionApplicationController extends Controller
 
         $audit->record('admission_applications.exported', null, [], [
             'selected_ids' => count($ids),
+            'student_filters' => $studentFilter->auditSafe($studentFilters),
             'rows' => (clone $query)->count(),
         ]);
 
@@ -265,6 +236,29 @@ class AdmissionApplicationController extends Controller
     /**
      * Tenant-safe lookup: scoped query ensures cross-college 404, not 403 leak.
      */
+    private function filteredQuery(Request $request, StudentFilter $studentFilter, array $studentFilters): Builder
+    {
+        $query = AdmissionApplication::query();
+
+        if ($search = trim((string) $request->input('search'))) {
+            $query->where(function ($q) use ($search): void {
+                $q->where('application_number', 'like', "%{$search}%")
+                    ->orWhereHas('applicant', function ($aq) use ($search): void {
+                        $aq->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%")
+                            ->orWhere('phone', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        if (in_array($request->input('status'), self::STATUSES, true)) {
+            $query->where('admission_applications.status', $request->input('status'));
+        }
+
+        return $studentFilter->applyToAdmissionRecord($query, $studentFilters, 'admission_applications');
+    }
+
     private function findScoped(string $id): AdmissionApplication
     {
         return AdmissionApplication::query()->findOrFail($id);

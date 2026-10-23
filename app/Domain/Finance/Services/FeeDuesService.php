@@ -3,6 +3,7 @@
 namespace App\Domain\Finance\Services;
 
 use App\Domain\Finance\Support\FeeLedger;
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\FeeConcession;
 use App\Models\FeePayment;
 use App\Models\FeeRefund;
@@ -40,6 +41,10 @@ use Illuminate\Support\Facades\DB;
  */
 class FeeDuesService
 {
+    public function __construct(private readonly StudentFilter $studentFilter)
+    {
+    }
+
     /**
      * The tenant-scoped ledger query for a filter set.
      *
@@ -83,6 +88,10 @@ class FeeDuesService
             )
             // Deterministic pagination order.
             ->orderByDesc('student_fee_assignments.id');
+
+        if (is_array($filters['student_filters'] ?? null)) {
+            $this->studentFilter->applyThroughEnrollment($query, $filters['student_filters']);
+        }
 
         return $this->applyLedgerStatus($query, $filters['status'] ?? null);
     }

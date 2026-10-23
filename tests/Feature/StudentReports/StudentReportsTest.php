@@ -205,6 +205,59 @@ class StudentReportsTest extends TestCase
             ->assertViewHas('rows', fn ($rows) => $rows->total() === 2);
     }
 
+    public function test_canonical_student_filters_drive_report_rows_displayed_enrollments_and_totals(): void
+    {
+        $college = $this->makeCollege('SRCANON');
+        $year1 = $this->makeYear($college);
+        $year2 = $this->makeNextYear($college);
+        $program1 = $this->makeProgram($college);
+        $program2 = $this->program($college, null, 'History', 'HIS');
+        $section1 = $this->makeSection($college, $year1, $program1, 'A');
+        $section2 = $this->makeSection($college, $year2, $program2, 'B');
+        $moved = $this->makeStudent($college, ['student_number' => 'SR-CANON-MOVED']);
+        $other = $this->makeStudent($college, ['student_number' => 'SR-CANON-OTHER']);
+        $old = $this->makeEnrollment($college, $moved, $year1, $program1, [
+            'section_id' => $section1->id, 'status' => 'completed', 'enrollment_number' => 'SR-CANON-OLD',
+        ]);
+        $this->makeEnrollment($college, $moved, $year2, $program2, [
+            'section_id' => $section2->id, 'enrollment_number' => 'SR-CANON-NEW',
+        ]);
+        $this->makeEnrollment($college, $other, $year1, $program1, ['section_id' => $section1->id]);
+        $this->reporter($college);
+
+        $query = [
+            'student_number' => 'SR-CANON-MOVED',
+            'academic_year_id' => $year1->id,
+            'program_id' => $program1->id,
+            'academic_context' => 'section:'.$section1->id,
+            'enrollment_status' => 'completed',
+        ];
+        $response = $this->get(route('student-reports.index', ['report' => 'students', ...$query]))
+            ->assertOk()
+            ->assertViewHas('rows', fn ($rows) => $rows->total() === 1
+                && $rows->first()->id === $moved->id
+                && $rows->first()->enrollments->pluck('id')->all() === [$old->id])
+            ->assertSee('SR-CANON-OLD')->assertDontSee('SR-CANON-NEW')
+            ->assertSee('PROGRAM/CLASS')->assertSee('SEMESTER/SECTION')->assertSee('Applied filters:');
+        $html = $response->getContent();
+        $this->assertSame(1, substr_count($html, 'name="program_id"'));
+        $this->assertSame(1, substr_count($html, 'name="academic_context"'));
+        $this->assertStringNotContainsString('name="section_id"', $html);
+
+        $this->get(route('student-reports.index', ['report' => 'enrollments', ...$query]))
+            ->assertViewHas('rows', fn ($rows) => $rows->total() === 1 && $rows->first()->id === $old->id);
+        $this->get(route('student-reports.index', ['report' => 'strength', ...$query]))
+            ->assertViewHas('studentsCount', 1)->assertViewHas('enrollmentsCount', 1)
+            ->assertViewHas('rows', fn ($rows) => $rows->total() === 1 && (int) $rows->first()->students_count === 1);
+        $this->get(route('student-reports.index', ['report' => 'new_old', ...$query]))
+            ->assertViewHas('counts', ['new' => 1, 'old' => 0])
+            ->assertViewHas('rows', fn ($rows) => $rows->total() === 1 && $rows->first()->id === $old->id);
+        $this->get(route('student-reports.index', ['report' => 'demographics', ...$query]))
+            ->assertViewHas('studentsCount', 1);
+        $this->get(route('student-reports.index', ['report' => 'documents', ...$query]))
+            ->assertViewHas('rows', fn ($rows) => $rows->total() === 1 && $rows->first()->id === $moved->id);
+    }
+
     public function test_student_and_enrollment_status_filters_are_independent(): void
     {
         $college = $this->makeCollege('SRSTATUS');
@@ -270,6 +323,10 @@ class StudentReportsTest extends TestCase
             ->assertViewHas('rows', fn ($rows) => $rows->total() === 1)->assertSee('SR-ADM-TWO')->assertSee('Not converted');
         $this->get(route('student-reports.index', ['report' => 'admissions', 'student_status' => 'active']))
             ->assertViewHas('rows', fn ($rows) => $rows->total() === 1)->assertDontSee('SR-ADM-TWO');
+        $this->get(route('student-reports.index', ['report' => 'admissions', 'student_number' => 'SR-CONVERTED']))
+            ->assertViewHas('rows', fn ($rows) => $rows->total() === 1)->assertSee('SR-ADM-ONE')->assertDontSee('SR-ADM-TWO');
+        $this->get(route('student-reports.index', ['report' => 'admissions', 'program_id' => $program2->id]))
+            ->assertViewHas('rows', fn ($rows) => $rows->total() === 1)->assertSee('Not converted');
         $this->get(route('student-reports.profile', $student))->assertSee('SR-ADM-ONE')->assertSee($app1->application_number);
     }
 
@@ -287,10 +344,12 @@ class StudentReportsTest extends TestCase
         $verified = $this->document($college, $a, 'Transcript', 'verified');
         $this->document($college, $a, 'Identification', 'pending');
         DB::table('student_documents')->where('id', $verified->id)->update(['created_at' => '2026-08-01 10:00:00']);
+        $targetSection = $this->makeSection($college, $next, $program, 'Next');
         $promotion = StudentPromotion::withoutGlobalScopes()->create([
             'college_id' => $college->id, 'student_id' => $a->id,
             'source_enrollment_id' => $enrollment->id, 'source_academic_year_id' => $year->id,
             'target_academic_year_id' => $next->id, 'target_program_id' => $program->id,
+            'target_section_id' => $targetSection->id,
             'status' => 'approved', 'effective_date' => '2027-06-01',
         ]);
         DB::table('student_promotions')->where('id', $promotion->id)->update(['created_at' => '2026-08-20 10:00:00']);
@@ -320,6 +379,8 @@ class StudentReportsTest extends TestCase
             ->assertViewHas('rows', fn ($rows) => $rows->total() === 2 && $rows->getCollection()->pluck('id')->contains($b->id) && $rows->getCollection()->pluck('id')->contains($c->id));
         $this->get(route('student-reports.index', ['report' => 'promotions', 'academic_year_id' => $next->id, 'promotion_status' => 'approved', 'from' => '2026-08-20', 'to' => '2026-08-20']))
             ->assertViewHas('rows', fn ($rows) => $rows->total() === 1)->assertSee($next->name);
+        $this->get(route('student-reports.index', ['report' => 'promotions', 'academic_context' => 'section:'.$targetSection->id]))
+            ->assertViewHas('rows', fn ($rows) => $rows->total() === 1 && $rows->first()->target_enrollment_id === null);
         $this->get(route('student-reports.index', ['report' => 'transfers', 'academic_year_id' => $year->id, 'tc_status' => 'issued', 'transfer_status' => 'approved', 'from' => '2026-09-12', 'to' => '2026-09-12']))
             ->assertViewHas('rows', fn ($rows) => $rows->total() === 1)->assertSee('SR-TC-ISSUED');
         $this->get(route('student-reports.profile', $a))
@@ -346,6 +407,9 @@ class StudentReportsTest extends TestCase
             ->assertViewHas('rows', fn ($rows) => $rows->total() === 25 && $rows->getCollection()->pluck('id')->all() === array_slice($ids, 0, 20) && str_contains($rows->nextPageUrl(), 'search=SR-PAGE'));
         $this->get(route('student-reports.index', [...$url, 'page' => 2]))
             ->assertViewHas('rows', fn ($rows) => $rows->getCollection()->pluck('id')->all() === array_slice($ids, 20));
+        $this->get(route('student-reports.index', ['report' => 'students', 'student_number' => 'SR-PAGE']))
+            ->assertViewHas('rows', fn ($rows) => $rows->total() === 25
+                && str_contains($rows->nextPageUrl(), 'student_number=SR-PAGE'));
 
         $before = [DB::table('students')->count(), DB::table('student_enrollments')->count(), AuditLog::count()];
         foreach (array_keys(StudentReportController::REPORTS) as $report) {

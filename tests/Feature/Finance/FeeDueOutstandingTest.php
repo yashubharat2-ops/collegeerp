@@ -43,7 +43,9 @@ class FeeDueOutstandingTest extends TestCase
         $response->assertOk();
 
         $html = (string) $response->getContent();
-        $start = strpos($html, '<table');
+        // Skip the shared filter's calendar table and select the ledger table.
+        $container = strpos($html, '<div class="mt-6 overflow-x-auto">');
+        $start = $container === false ? false : strpos($html, '<table', $container);
 
         $this->assertNotFalse($start, 'The dues screen must render a results table.');
 

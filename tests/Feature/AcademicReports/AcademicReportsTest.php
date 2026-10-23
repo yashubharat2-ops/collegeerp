@@ -219,6 +219,14 @@ class AcademicReportsTest extends TestCase
             ->assertViewHas('rows', fn ($rows) => $rows->total() === 1 && $rows->first()->section_id === $sectionB->id);
         $this->get($url(['program_id' => $w['program']->id, 'section_id' => $w['section']->id]))->assertViewHas('rows', fn ($rows) => $rows->total() === 3);
         $this->get($url(['search' => 'Kabir']))->assertViewHas('rows', fn ($rows) => $rows->total() === 2);
+        $canonical = ['student_number' => 'ONE-STU-2', 'academic_context' => 'term:'.$term2->id];
+        $this->get($url($canonical))->assertOk()
+            ->assertViewHas('rows', fn ($rows) => $rows->total() === 2 && $rows->getCollection()->pluck('student_id')->unique()->all() === [$second->id])
+            ->assertViewHas('studentsCount', 1)->assertViewHas('subjectsCount', 2)
+            ->assertSee('ONE-STU-2')->assertDontSee('ONE-STU-3');
+        $this->get(route('academic-reports.index', ['report' => 'subject_students', ...$canonical]))->assertOk()
+            ->assertViewHas('rows', fn ($rows) => $rows->total() === 2)
+            ->assertViewHas('studentsCount', 1)->assertViewHas('enrollmentsCount', 2);
         $this->get($url(['from' => '2026-12-01', 'to' => '2026-12-01']))->assertViewHas('rows', fn ($rows) => $rows->total() === 1);
 
         // Section strength: active student enrollments only, distinct counts.
@@ -342,6 +350,13 @@ class AcademicReportsTest extends TestCase
             ->assertViewHas('rows', fn ($rows) => $rows->total() === 1);
         $this->get(route('academic-reports.index', ['report' => 'attendance', 'department_id' => $arts->id]))
             ->assertViewHas('rows', fn ($rows) => $rows->total() === 1 && $rows->first()->student_id === $peer->id);
+        $canonical = ['student_number' => 'ATT-PEER', 'academic_context' => 'term:'.$w['term']->id];
+        $this->get(route('academic-reports.index', ['report' => 'attendance', ...$canonical]))->assertOk()
+            ->assertViewHas('rows', fn ($rows) => $rows->total() === 1 && $rows->first()->student_id === $peer->id)
+            ->assertViewHas('counts', ['present' => 1, 'absent' => 0, 'late' => 0, 'leave' => 0]);
+        $this->get(route('academic-reports.index', ['report' => 'student_attendance', 'group' => 'student', ...$canonical]))->assertOk()
+            ->assertViewHas('rows', fn ($rows) => $rows->total() === 1 && $rows->first()->student_id === $peer->id && (int) $rows->first()->sessions === 1)
+            ->assertViewHas('studentsCount', 1)->assertViewHas('sessionsCount', 1)->assertViewHas('overallPercentage', 100.0);
         $this->get(route('academic-reports.index', ['report' => 'attendance', 'program_id' => $w['program']->id, 'from' => '2026-09-10', 'to' => '2026-09-11']))
             ->assertViewHas('rows', fn ($rows) => $rows->total() === 3);
 
@@ -395,9 +410,14 @@ class AcademicReportsTest extends TestCase
 
         // Calendar has no faculty/subject dimension; a stray parameter must
         // not hide its events. Section strength has no subject dimension.
-        $this->get(route('academic-reports.index', ['report' => 'calendar', 'faculty_id' => 999999, 'subject_id' => 999999]))
+        $this->get(route('academic-reports.index', ['report' => 'calendar', 'faculty_id' => 999999, 'subject_id' => 999999, 'student_number' => 'IGNORED']))
             ->assertViewHas('rows', fn ($rows) => $rows->total() === 1)
-            ->assertViewHas('filters', fn ($filters) => $filters['faculty_id'] === null);
+            ->assertViewHas('filters', fn ($filters) => $filters['faculty_id'] === null && $filters['student_filters'] === [])
+            ->assertDontSee('id="filter-student_number"', false);
+        $this->get(route('academic-reports.index', ['report' => 'subject_enrollments']))->assertOk()
+            ->assertSee('id="filter-student_number"', false)
+            ->assertSee('Subject enrollment status')
+            ->assertSee('name="academic_context"', false);
         $this->get(route('academic-reports.index', ['report' => 'section_strength', 'subject_id' => 999999]))
             ->assertViewHas('rows', fn ($rows) => $rows->total() === 1);
         $this->get(route('academic-reports.index', ['report' => 'timetable', 'faculty_id' => $w['faculty']->id]))

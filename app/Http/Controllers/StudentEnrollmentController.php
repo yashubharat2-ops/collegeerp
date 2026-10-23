@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Domain\Student\Services\StudentService;
 use App\Http\Requests\StudentEnrollment\StoreStudentEnrollmentRequest;
 use App\Http\Requests\StudentEnrollment\UpdateStudentEnrollmentRequest;
@@ -21,48 +22,42 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StudentEnrollmentController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, StudentFilter $studentFilter): View
     {
         $this->authorize('viewAny', StudentEnrollment::class);
+        $filters = $this->filters($request, $studentFilter);
 
         // Deterministic creation-order pagination (oldest first) with id tiebreak.
-        $query = StudentEnrollment::query()
-            ->with(['student', 'academicYear', 'program', 'section'])
-            ->orderBy('created_at')
-            ->orderBy('id');
+        $query = StudentEnrollment::query()->with(['student', 'academicYear', 'program', 'section']);
+        $studentFilter->applyToEnrollments($query, $filters);
+        $query->when($request->input('student_id'), fn ($q, $value) => $q->where('student_id', $value))
+            ->orderBy('created_at')->orderBy('id');
 
-        if ($request->input('student_id')) {
-            $query->where('student_id', $request->input('student_id'));
-        }
-
-        if ($request->input('academic_year_id')) {
-            $query->where('academic_year_id', $request->input('academic_year_id'));
-        }
-
-        if (in_array($request->input('status'), StudentEnrollment::STATUSES, true)) {
-            $query->where('status', $request->input('status'));
-        }
-
-        return view('student_enrollments.index', [
-            'enrollments' => $query->paginate(15)->withQueryString(),
-            'student_id' => $request->input('student_id'),
-            'academic_year_id' => $request->input('academic_year_id'),
-            'status' => $request->input('status'),
-            'students' => Student::query()->orderBy('first_name')->orderBy('last_name')->get(['id', 'student_number', 'first_name', 'last_name']),
-            'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(['id', 'name', 'code']),
-            'sections' => $this->sectionOptions(),
-        ]);
+        return view('student_enrollments.index', array_merge(
+            $studentFilter->viewData($filters, StudentFilter::STUDENT_LIST_FIELDS, $request->user()),
+            [
+                'enrollments' => $query->paginate(15)->withQueryString(),
+                'student_id' => $request->input('student_id'),
+                'academic_year_id' => $request->input('academic_year_id'),
+                'status' => $request->input('status'),
+                'students' => Student::query()->orderBy('first_name')->orderBy('last_name')->get(['id', 'student_number', 'first_name', 'last_name']),
+                'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(['id', 'name', 'code']),
+                'sections' => $this->sectionOptions(),
+            ],
+        ));
     }
 
     /**
      * CSV of enrollments, optionally narrowed to an authorized id selection.
      * Identity numbers (Aadhaar, government ID) are never exported.
      */
-    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    public function export(Request $request, AuditLogService $audit, StudentFilter $studentFilter): StreamedResponse
     {
         $this->authorize('viewAny', StudentEnrollment::class);
-
+        $filters = $this->filters($request, $studentFilter);
         $query = StudentEnrollment::query()->with(['student', 'academicYear', 'program', 'section']);
+        $studentFilter->applyToEnrollments($query, $filters);
+        $query->when($request->input('student_id'), fn ($q, $value) => $q->where('student_id', $value));
 
         $ids = ListSelection::ids($request->input('ids', []));
         if ($ids !== []) {
@@ -71,6 +66,7 @@ class StudentEnrollmentController extends Controller
 
         $audit->record('student_enrollments.exported', null, [], [
             'selected_ids' => count($ids),
+            'filters' => $studentFilter->auditSafe($filters),
             'rows' => (clone $query)->count(),
         ]);
 
@@ -93,6 +89,17 @@ class StudentEnrollmentController extends Controller
                 ];
             })
             ->streamFromQuery($query);
+    }
+
+    /** Preserve the legacy enrollment `status` alias without confusing it with Student.status. */
+    private function filters(Request $request, StudentFilter $studentFilter): array
+    {
+        $filters = $studentFilter->fromRequest($request, user: $request->user());
+        if (! isset($filters['enrollment_status']) && in_array($request->input('status'), StudentEnrollment::STATUSES, true)) {
+            $filters['enrollment_status'] = $request->input('status');
+        }
+
+        return $filters;
     }
 
     /**

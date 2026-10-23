@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Domain\Student\Services\StudentDocumentPackService;
 use App\Domain\Student\Services\StudentDocumentService;
 use App\Http\Requests\StudentDocument\StoreStudentDocumentRequest;
@@ -36,14 +37,14 @@ class StudentDocumentController extends Controller
      */
     public const BATCH_LIMIT = ListSelection::DEFAULT_LIMIT;
 
-    public function index(Request $request): View
+    public function index(Request $request, StudentFilter $studentFilter): View
     {
         $this->authorize('viewAny', StudentDocument::class);
+        $studentFilters = $studentFilter->fromRequest($request, user: $request->user());
 
-        $query = StudentDocument::query()
-            ->with(['student', 'documentType', 'verifiedBy'])
-            ->orderByDesc('created_at')
-            ->orderByDesc('id');
+        $query = StudentDocument::query()->with(['student', 'documentType', 'verifiedBy']);
+        $studentFilter->applyThroughStudent($query, $studentFilters);
+        $query->orderByDesc('created_at')->orderByDesc('id');
 
         if ($search = trim((string) $request->input('search'))) {
             $query->where(function ($q) use ($search): void {
@@ -69,7 +70,7 @@ class StudentDocumentController extends Controller
             $query->where('document_type_id', $documentTypeId);
         }
 
-        return view('student_documents.index', [
+        return view('student_documents.index', array_merge($studentFilter->viewData($studentFilters, StudentFilter::STUDENT_LIST_FIELDS, $request->user()), [
             'documents' => $query->paginate(15)->withQueryString(),
             'search' => trim((string) $request->input('search')),
             'student_id' => $request->input('student_id'),
@@ -77,7 +78,7 @@ class StudentDocumentController extends Controller
             'document_type_id' => $request->input('document_type_id'),
             'students' => $this->studentOptions(),
             'documentTypes' => $this->documentTypeOptions(),
-        ]);
+        ]));
     }
 
     /**
@@ -92,17 +93,19 @@ class StudentDocumentController extends Controller
      * StudentDocumentPackService, and only metadata is rendered — file bytes are
      * never embedded in the pack.
      */
-    public function batch(Request $request, StudentDocumentPackService $pack): View
+    public function batch(Request $request, StudentDocumentPackService $pack, StudentFilter $studentFilter): View
     {
         $this->authorize('viewAny', StudentDocument::class);
+        $studentFilters = $studentFilter->fromRequest($request, user: $request->user());
 
         $ids = ListSelection::ids($request->input('ids', []), self::BATCH_LIMIT);
 
         abort_if($ids === [], 404, 'Select at least one student to build a document pack for.');
 
-        $students = Student::query()
-            ->with(['enrollments.academicYear', 'enrollments.program', 'enrollments.section'])
-            ->whereIn('id', $ids)
+        $studentQuery = Student::query()->with(['enrollments.academicYear', 'enrollments.program', 'enrollments.section']);
+        $studentFilter->applyToStudents($studentQuery, $studentFilters);
+        $students = $studentQuery
+            ->whereIn('students.id', $ids)
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->orderBy('id')

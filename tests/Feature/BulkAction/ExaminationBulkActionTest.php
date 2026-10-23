@@ -574,6 +574,23 @@ class ExaminationBulkActionTest extends TestCase
 
         $subjectBody = $this->asCollege($college, $user)->get($subjectExport)->streamedContent();
         $this->assertStringContainsString($fixture['ctx']['sub']->name, $subjectBody);
+
+        // Canonical criteria survive the bulk redirect and are re-applied by
+        // the export endpoint instead of exporting the unfiltered aggregate.
+        $filteredExport = $this->asCollege($college, $user)->postJson(route('bulk-actions.execute'), [
+            'module' => 'exam_reports',
+            'action' => 'export',
+            'ids' => [$fixture['ctx']['prog']->id],
+            'parameters' => [
+                'examination_id' => $fixture['ctx']['exam']->id,
+                'student_number' => 'XREP-NO-MATCH',
+            ],
+        ])->assertOk()->json('data.redirect');
+
+        $this->assertStringContainsString('student_number=XREP-NO-MATCH', $filteredExport);
+        $filteredBody = $this->asCollege($college, $user)->get($filteredExport)->streamedContent();
+        $this->assertStringContainsString('Program', $filteredBody);
+        $this->assertStringNotContainsString($fixture['ctx']['prog']->name, $filteredBody);
     }
 
     public function test_exam_report_export_is_not_reachable_from_another_college(): void

@@ -2,8 +2,12 @@
 
 namespace App\Domain\Academic\BulkActions;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\AcademicSubjectEnrollment;
+use App\Models\College;
+use App\Models\User;
 use App\Support\BulkAction\BulkExportHandler;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Bulk export of selected student subject enrollments.
@@ -21,6 +25,8 @@ use App\Support\BulkAction\BulkExportHandler;
  */
 class AcademicSubjectEnrollmentBulkExportHandler extends BulkExportHandler
 {
+    public function __construct(private readonly StudentFilter $studentFilter) {}
+
     public function modelClass(): string
     {
         return AcademicSubjectEnrollment::class;
@@ -39,6 +45,16 @@ class AcademicSubjectEnrollmentBulkExportHandler extends BulkExportHandler
     protected function exportRouteName(): string
     {
         return 'academic-subject-enrollments.export';
+    }
+
+    protected function exportParameters(Collection $records, User $user, College $college, array $parameters): array
+    {
+        $filters = $this->studentFilter->fromArray($parameters, user: $user);
+
+        return [
+            'search' => is_scalar($parameters['search'] ?? null) ? (string) $parameters['search'] : '',
+            ...$this->studentFilter->requestParameters($filters),
+        ];
     }
 
     protected function recordNoun(int $count): string

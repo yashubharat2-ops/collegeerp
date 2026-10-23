@@ -13,25 +13,19 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ route('student-result-history.index') }}" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <input class="input" type="search" name="search" value="{{ $search }}" placeholder="Search number or name">
-        <select class="input" name="academic_year_id">
-            <option value="">All academic years</option>
-            @foreach($academicYears as $ay)
-                <option value="{{ $ay->id }}" @selected((string) $academic_year_id === (string) $ay->id)>{{ $ay->name }} ({{ $ay->code }})</option>
-            @endforeach
-        </select>
-        <select class="input" name="program_id">
-            <option value="">All programs</option>
-            @foreach($programs as $p)
-                <option value="{{ $p->id }}" @selected((string) $program_id === (string) $p->id)>{{ $p->name }}</option>
-            @endforeach
-        </select>
-        <div class="flex gap-2">
-            <button class="button" type="submit">Filter</button>
-            <a class="button !bg-slate-200 !text-slate-700" href="{{ route('student-result-history.index') }}">Clear</a>
+    <x-student-filter
+        :fields="$studentFilterFields"
+        :options="$studentFilterOptions"
+        :values="$studentFilterValues"
+        :applied="$studentFilterApplied"
+        :action="route('student-result-history.index')"
+        title="Filter Students for Result History"
+    >
+        <div class="erp-list-field erp-list-filter-span-2">
+            <label for="filter-history-search" class="mb-1 block text-xs font-semibold text-slate-700">Search students</label>
+            <input id="filter-history-search" class="input !py-2 !text-xs" type="search" name="search" value="{{ $search }}" placeholder="Number or name">
         </div>
-    </form>
+    </x-student-filter>
 
     <div class="mt-6 overflow-x-auto">
         <table class="w-full text-left text-sm">

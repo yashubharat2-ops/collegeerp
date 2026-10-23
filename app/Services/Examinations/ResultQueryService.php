@@ -2,6 +2,7 @@
 
 namespace App\Services\Examinations;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\ExamResult;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -28,9 +29,18 @@ class ResultQueryService
      *
      * @param  bool  $canViewUnpublished  From the policy, never from the request.
      */
-    public function paginate(Request $request, bool $canViewUnpublished): LengthAwarePaginator
-    {
-        return $this->applyFilters($this->baseQuery($canViewUnpublished), $request, $canViewUnpublished)
+    public function paginate(
+        Request $request,
+        bool $canViewUnpublished,
+        ?StudentFilter $studentFilter = null,
+        array $studentFilters = [],
+    ): LengthAwarePaginator {
+        $query = $this->applyFilters($this->baseQuery($canViewUnpublished), $request, $canViewUnpublished);
+        if ($studentFilter !== null) {
+            $this->applyStudentFilters($query, $studentFilter, $studentFilters);
+        }
+
+        return $query
             // Deterministic pagination order.
             ->orderByDesc('id')
             ->with([
@@ -45,6 +55,18 @@ class ResultQueryService
             ])
             ->paginate(15)
             ->withQueryString();
+    }
+
+    /** Apply canonical student filters without changing publication rules. */
+    public function applyStudentFilters(Builder $query, StudentFilter $studentFilter, array $studentFilters): Builder
+    {
+        $studentFilter->applyThroughEnrollment($query, $studentFilter->exceptAcademicContext($studentFilters, 'term'));
+        [$contextType, $contextId] = $studentFilter->academicContext($studentFilters);
+        if ($contextType === 'term') {
+            $query->where('exam_results.academic_term_id', $contextId);
+        }
+
+        return $query;
     }
 
     /**

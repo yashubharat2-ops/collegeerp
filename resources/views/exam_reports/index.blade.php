@@ -13,35 +13,32 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ route('exam-reports.index') }}" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {{-- The examination control always explains itself: a college with no
-             examinations yet gets a disabled placeholder instead of an empty
-             select, and the meaningless submit is disabled with it (the same
-             @disabled($collection->isEmpty()) convention the library and
-             certificate forms use). Otherwise the list starts with an explicit
-             "Select examination" option; leaving it empty submits no filter and
-             the controller falls back to its usual default examination. --}}
-        <select class="input" name="examination_id" @disabled($examinations->isEmpty())>
-            @if($examinations->isEmpty())
-                <option value="">No examinations available</option>
-            @else
-                <option value="">Select examination</option>
-                @foreach($examinations as $exam)
-                    <option value="{{ $exam->id }}" @selected($examinationId === $exam->id)>{{ $exam->name }} ({{ $exam->code }})</option>
-                @endforeach
-            @endif
-        </select>
-        <select class="input" name="program_id">
-            <option value="">All programs</option>
-            @foreach($programs as $prog)
-                <option value="{{ $prog->id }}" @selected($programId === $prog->id)>{{ $prog->name }} ({{ $prog->code }})</option>
-            @endforeach
-        </select>
-        <div class="flex gap-2">
-            <button class="button" type="submit" @disabled($examinations->isEmpty())>Show report</button>
-            <a class="button !bg-slate-200 !text-slate-700" href="{{ route('exam-reports.index') }}">Reset</a>
+    <x-student-filter
+        :fields="$studentFilterFields"
+        :options="$studentFilterOptions"
+        :values="$studentFilterValues"
+        :applied="$studentFilterApplied"
+        :action="route('exam-reports.index')"
+        :reset-url="route('exam-reports.index')"
+        :submit-disabled="$examinations->isEmpty()"
+        title="Filter Students in Exam Report"
+    >
+        {{-- Examination is report-specific; PROGRAM/CLASS and all student
+             dimensions come only from the canonical shared component. --}}
+        <div class="erp-list-field erp-list-filter-span-2">
+            <label for="exam-report-examination" class="mb-1 block text-xs font-semibold text-slate-700">Examination</label>
+            <select id="exam-report-examination" class="input !py-2 !text-xs" name="examination_id" @disabled($examinations->isEmpty())>
+                @if($examinations->isEmpty())
+                    <option value="">No examinations available</option>
+                @else
+                    <option value="">Select examination</option>
+                    @foreach($examinations as $exam)
+                        <option value="{{ $exam->id }}" @selected($examinationId === $exam->id)>{{ $exam->name }} ({{ $exam->code }})</option>
+                    @endforeach
+                @endif
+            </select>
         </div>
-    </form>
+    </x-student-filter>
 
     @if($examinations->isEmpty())
         <p class="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No examinations exist yet, so there is nothing to report on.</p>
@@ -94,6 +91,9 @@
                 <button type="button" data-bulk-action="export"
                         data-bulk-param-examination-id="{{ $examinationId }}"
                         data-bulk-param-program-id="{{ $programId }}"
+                        @foreach($studentFilterParameters as $filterName => $filterValue)
+                            data-bulk-param-{{ str_replace('_', '-', $filterName) }}="{{ $filterValue }}"
+                        @endforeach
                         class="button !py-2 !text-xs font-semibold">
                     Export selected
                 </button>
@@ -149,6 +149,9 @@
                 <button type="button" data-bulk-action="export"
                         data-bulk-param-examination-id="{{ $examinationId }}"
                         data-bulk-param-program-id="{{ $programId }}"
+                        @foreach($studentFilterParameters as $filterName => $filterValue)
+                            data-bulk-param-{{ str_replace('_', '-', $filterName) }}="{{ $filterValue }}"
+                        @endforeach
                         class="button !py-2 !text-xs font-semibold">
                     Export selected
                 </button>

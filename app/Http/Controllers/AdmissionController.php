@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Admission\Services\AdmissionService;
+use App\Domain\Student\Filters\StudentFilter;
 use App\Http\Requests\Admission\StoreAdmissionRequest;
 use App\Http\Requests\Admission\UpdateAdmissionRequest;
 use App\Models\AcademicYear;
@@ -12,6 +13,7 @@ use App\Models\Program;
 use App\Services\Audit\AuditLogService;
 use App\Support\Export\CsvStreamExport;
 use App\Support\Listing\ListSelection;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -21,65 +23,36 @@ class AdmissionController extends Controller
 {
     private const AUDITED = ['id','admission_number','application_id','applicant_id','academic_year_id','program_id','admission_date','status','remarks'];
 
-    public function index(Request $request): View
+    public function index(Request $request, StudentFilter $studentFilter): View
     {
         $this->authorize('viewAny', Admission::class);
+        $studentFilters = $studentFilter->fromRequest($request, user: $request->user());
 
         // Deterministic creation-order pagination (oldest first) with id tiebreak,
         // so rows never shuffle between pages under equal-second timestamps.
-        // (admission_date is not a stable global sort: many records share a date,
-        // which caused page-membership to flip under newest-first ordering.)
-        $query = Admission::query()
+        $query = $this->filteredQuery($request, $studentFilter, $studentFilters)
             ->with(['applicant', 'application', 'academicYear', 'program', 'student.enrollments'])
             ->orderBy('created_at')
             ->orderBy('id');
 
-        if ($search = trim((string) $request->input('search'))) {
-            $query->where(function ($q) use ($search): void {
-                $q->where('admission_number', 'like', "%{$search}%")
-                  ->orWhereHas('applicant', function ($aq) use ($search): void {
-                      $aq->where('first_name', 'like', "%{$search}%")
-                         ->orWhere('last_name', 'like', "%{$search}%")
-                         ->orWhere('email', 'like', "%{$search}%");
-                  })
-                  ->orWhereHas('application', function ($appQ) use ($search): void {
-                      $appQ->where('application_number', 'like', "%{$search}%");
-                  });
-            });
-        }
-
-        if (in_array($request->input('status'), Admission::STATUSES, true)) {
-            $query->where('status', $request->input('status'));
-        }
-
-        if ($request->input('academic_year_id')) {
-            $query->where('academic_year_id', $request->input('academic_year_id'));
-        }
-
-        if ($request->input('program_id')) {
-            $query->where('program_id', $request->input('program_id'));
-        }
-
-        return view('admissions.index', [
+        return view('admissions.index', array_merge([
             'admissions' => $query->paginate(15)->withQueryString(),
             'search' => trim((string) $request->input('search')),
             'status' => $request->input('status'),
-            'academic_year_id' => $request->input('academic_year_id'),
-            'program_id' => $request->input('program_id'),
-            'academicYears' => $this->academicYearOptions(),
-            'programs' => $this->programOptions(),
-        ]);
+        ], $studentFilter->viewData($studentFilters, StudentFilter::ADMISSION_FIELDS, $request->user())));
     }
 
     /**
      * CSV of the filtered admission list, optionally narrowed to an authorized
      * selection. Ids are shape-checked and re-queried inside CollegeScope.
      */
-    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    public function export(Request $request, AuditLogService $audit, StudentFilter $studentFilter): StreamedResponse
     {
         $this->authorize('viewAny', Admission::class);
+        $studentFilters = $studentFilter->fromRequest($request, user: $request->user());
 
-        $query = Admission::query()->with(['applicant', 'application', 'academicYear', 'program']);
+        $query = $this->filteredQuery($request, $studentFilter, $studentFilters)
+            ->with(['applicant', 'application', 'academicYear', 'program']);
 
         $ids = ListSelection::ids($request->input('ids', []));
         if ($ids !== []) {
@@ -88,6 +61,7 @@ class AdmissionController extends Controller
 
         $audit->record('admissions.exported', null, [], [
             'selected_ids' => count($ids),
+            'student_filters' => $studentFilter->auditSafe($studentFilters),
             'rows' => (clone $query)->count(),
         ]);
 
@@ -180,6 +154,31 @@ class AdmissionController extends Controller
         $service->cancelAdmission($model, $request->input('remarks'));
 
         return back()->with('success', 'Admission cancelled.');
+    }
+
+    private function filteredQuery(Request $request, StudentFilter $studentFilter, array $studentFilters): Builder
+    {
+        $query = Admission::query();
+
+        if ($search = trim((string) $request->input('search'))) {
+            $query->where(function ($q) use ($search): void {
+                $q->where('admission_number', 'like', "%{$search}%")
+                    ->orWhereHas('applicant', function ($aq) use ($search): void {
+                        $aq->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('application', function ($appQ) use ($search): void {
+                        $appQ->where('application_number', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        if (in_array($request->input('status'), Admission::STATUSES, true)) {
+            $query->where('admissions.status', $request->input('status'));
+        }
+
+        return $studentFilter->applyToAdmissionRecord($query, $studentFilters, 'admissions', true);
     }
 
     private function findScoped(string $id): Admission

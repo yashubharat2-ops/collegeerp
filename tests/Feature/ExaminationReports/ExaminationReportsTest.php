@@ -402,6 +402,35 @@ class ExaminationReportsTest extends TestCase
             ->assertViewHas('rows', fn ($r) => $r->total() === 0);
         $this->get(route('examination-reports.index', ['report' => 'result_history', 'result_status' => 'pass']))
             ->assertViewHas('rows', fn ($r) => $r->total() === 1);
+
+        $canonical = [
+            'student_number' => $studentNumber,
+            'academic_context' => 'section:'.$w['ctx']['sec']->id,
+        ];
+        foreach ([
+            'attendance' => 1, 'marks' => 2, 'subject_results' => 2,
+            'student_results' => 1, 'pass_fail' => 1, 'grades' => 1,
+            'merit' => 1, 'marksheet' => 1, 'grade_card' => 1, 'result_history' => 1,
+        ] as $report => $total) {
+            $this->get(route('examination-reports.index', ['report' => $report, ...$canonical]))
+                ->assertOk()->assertViewHas('rows', fn ($rows) => $rows->total() === $total);
+        }
+        $this->get(route('examination-reports.index', ['report' => 'attendance', ...$canonical]))
+            ->assertViewHas('counts', fn ($counts) => $counts['present'] === 1);
+        $this->get(route('examination-reports.index', ['report' => 'subject_results', ...$canonical]))
+            ->assertViewHas('itemsCount', 2)->assertViewHas('passCount', 2);
+        $this->get(route('examination-reports.index', ['report' => 'student_results', ...$canonical]))
+            ->assertViewHas('counts', fn ($counts) => $counts['pass'] === 1)->assertViewHas('passRate', 100.0);
+        $this->get(route('examination-reports.index', ['report' => 'result_history', ...$canonical]))
+            ->assertViewHas('resultsCount', 1)->assertViewHas('passCount', 1);
+        $response = $this->get(route('examination-reports.index', ['report' => 'student_results', ...$canonical]))->assertOk();
+        $this->assertSame(1, substr_count($response->getContent(), 'name="program_id"'));
+        $this->assertSame(1, substr_count($response->getContent(), 'name="academic_context"'));
+        $this->get(route('examination-reports.index', ['report' => 'student_results', 'student_number' => 'NO-SUCH-STUDENT']))
+            ->assertViewHas('rows', fn ($rows) => $rows->total() === 0)
+            ->assertViewHas('counts', fn ($counts) => array_sum($counts) === 0);
+        $this->get(route('examination-reports.index', ['report' => 'summary']))
+            ->assertViewHas('studentFilterEnabled', false);
     }
 
     /* ------------------------------------------------------------------ *

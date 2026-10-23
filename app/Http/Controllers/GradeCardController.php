@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\AcademicTerm;
 use App\Models\AcademicYear;
 use App\Models\Examination;
@@ -37,19 +38,22 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class GradeCardController extends Controller
 {
-    public function __construct(private readonly ResultQueryService $query)
-    {
+    public function __construct(
+        private readonly ResultQueryService $query,
+        private readonly StudentFilter $studentFilter,
+    ) {
     }
 
     public function index(Request $request): View
     {
         $this->authorize('viewAny', GradeCard::class);
+        $studentFilters = $this->studentFilter->fromRequest($request, user: $request->user());
 
         return view('grade_cards.index', array_merge($this->filterOptions(), [
-            'results' => $this->query->paginate($request, false),
+            'results' => $this->query->paginate($request, false, $this->studentFilter, $studentFilters),
             'filters' => $this->query->currentFilters($request),
             'resultStatuses' => ExamResult::RESULT_STATUSES,
-        ]));
+        ], $this->studentFilter->viewData($studentFilters, StudentFilter::STUDENT_LIST_FIELDS, $request->user())));
     }
 
     /**
@@ -69,11 +73,13 @@ class GradeCardController extends Controller
     public function export(Request $request, AuditLogService $audit): StreamedResponse
     {
         $this->authorize('viewAny', GradeCard::class);
+        $studentFilters = $this->studentFilter->fromRequest($request, user: $request->user());
 
         $query = $this->query
             ->applyFilters($this->query->baseQuery(false), $request, false)
             ->with(['examination', 'studentEnrollment.student', 'studentEnrollment.program', 'studentEnrollment.section', 'gradeScale'])
             ->reorder('exam_results.id');
+        $this->query->applyStudentFilters($query, $this->studentFilter, $studentFilters);
 
         $ids = ListSelection::ids($request->input('ids', []));
         if ($ids !== []) {
@@ -83,6 +89,7 @@ class GradeCardController extends Controller
         $audit->record('grade_cards.exported', null, [], [
             'selected_ids' => count($ids),
             'rows' => (clone $query)->count(),
+            'student_filters' => $this->studentFilter->auditSafe($studentFilters),
         ]);
 
         return CsvStreamExport::make('grade-cards-export-'.now()->format('Y-m-d').'.csv')

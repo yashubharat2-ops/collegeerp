@@ -45,14 +45,15 @@ class StudentController extends Controller
 
         // Deterministic creation-order pagination (oldest first) with an id
         // tiebreak, so equal timestamps can never shuffle rows between pages.
-        $builder = $list->builder($request)->tiebreaker('students.id');
+        $filters = $list->filters($request);
+        $builder = $list->builder($request, $filters)->tiebreaker('students.id');
 
         $students = $builder->paginate(StudentListService::PER_PAGE);
 
         return view('students.index', array_merge([
             'students' => $students,
             'listContext' => ListContext::make($builder->getAppliedFilters(), $students, $request, 'students.index'),
-        ], $list->filterOptions()));
+        ], $list->filterViewData($filters)));
     }
 
     /**
@@ -92,7 +93,7 @@ class StudentController extends Controller
         }
 
         $audit->record('students.exported', null, [], [
-            'filters' => $builder->getAppliedFilters(),
+            'filters' => $list->canonical()->auditSafe($builder->getAppliedFilters()),
             'selected_ids' => count($ids),
             'rows' => (clone $query)->count(),
         ]);
@@ -225,7 +226,7 @@ class StudentController extends Controller
 
         $audit->record('students.exported', null, [], [
             'format' => $format,
-            'filters' => $builder->getAppliedFilters(),
+            'filters' => $list->canonical()->auditSafe($builder->getAppliedFilters()),
             'selected_ids' => count($ids),
             'rows' => $students->count(),
         ]);

@@ -64,6 +64,8 @@ class DatabaseSeeder extends Seeder
             // Students — the list's CSV export is its own permission, so a
             // read-only user can browse the list without being able to extract it.
             'students.view', 'students.create', 'students.update', 'students.delete', 'students.export',
+            // Sensitive identity filtering is separate from ordinary read/export access.
+            'students.view_sensitive_identity',
             'student_enrollments.view', 'student_enrollments.create', 'student_enrollments.update', 'student_enrollments.delete',
             'student_academic_records.view', 'student_academic_records.create', 'student_academic_records.update', 'student_academic_records.delete',
             'student_documents.view', 'student_documents.create', 'student_documents.update', 'student_documents.delete',
