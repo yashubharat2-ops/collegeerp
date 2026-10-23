@@ -433,12 +433,13 @@
     color: var(--erp-nav-text-muted);
 }
 
-/* Active module (a child page is open) — subtle; the child row stays loudest. */
+/* Active top-level module (a child page is open) — subtle; the child row stays
+ * loudest. Nested groups keep the standard transparent row surface instead. */
 .nav-group__head[aria-expanded="true"] .nav-group__icon {
     color: var(--erp-nav-text-muted);
 }
 
-.nav-group[data-nav-active="true"] > .nav-group__head {
+.nav-group[data-nav-active="true"]:not(.nav-group--nested) > .nav-group__head {
     background-color: rgba(188, 216, 198, 0.1);
     color: var(--erp-nav-text);
 }
@@ -459,23 +460,23 @@
     display: none;
 }
 
-/* Nested collapsible parents inside Admission (Transfers, Settings) */
+/* Nested collapsible parents use the same geometry and resting surface as the
+ * standard child rows. Their extra child indentation supplies the hierarchy. */
 .nav-group--nested {
-    margin: 2px 0;
+    margin: 0;
 }
 
 .nav-group--nested .nav-group__head--nested {
-    height: 32px;
-    padding-left: 8px;
+    height: var(--erp-nav-child-h);
+    padding: 0 var(--erp-nav-pad-x) 0 0;
     font-size: 13px;
-    background: rgba(255,255,255,0.03);
-    border-radius: 8px;
+    border-radius: 10px;
 }
 
 .nav-group--nested .nav-group__label--nested {
+    color: inherit;
     font-size: 13px;
-    font-weight: 500;
-    color: var(--erp-nav-text-muted);
+    font-weight: 400;
 }
 
 .nav-group--nested .nav-items--nested {

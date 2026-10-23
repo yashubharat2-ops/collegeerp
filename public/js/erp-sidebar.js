@@ -72,7 +72,17 @@
         return group.querySelector('.nav-items');
     }
 
-    function setOpen(group, open) {
+    function setOpen(group, open, closeSiblings) {
+        // Nested groups are accordions within their own parent module only. Keeping
+        // this in the shared state path covers clicks and ArrowRight without adding
+        // another event handler; unrelated parent modules retain their own state.
+        if (open && closeSiblings !== false && group.hasAttribute('data-nested-group') && group.parentElement) {
+            Array.prototype.forEach.call(group.parentElement.children, function (sibling) {
+                if (sibling !== group && sibling.hasAttribute('data-nested-group')) {
+                    setOpen(sibling, false);
+                }
+            });
+        }
         var head = group.querySelector('.nav-group__head');
         var items = itemsOf(group);
         group.setAttribute('data-nav-open', open ? 'true' : 'false');
@@ -166,7 +176,9 @@
             group.setAttribute('data-nav-match', show ? 'true' : 'false');
             if (show) {
                 matches += 1;
-                setOpen(group, true);
+                // Filtering is a temporary reveal-all view: hiding a matching result
+                // behind the single-open accordion would make search incomplete.
+                setOpen(group, true, false);
             }
         });
         var dashboard = sidebar.querySelector('.nav-dashboard');
