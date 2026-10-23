@@ -60,7 +60,9 @@ class FinanceFilterLayoutTest extends TestCase
         $page = (string) $response->getContent();
         $start = strpos($page, '<form class="mt-6 grid');
         $panelStart = strpos($page, 'class="panel"');
-        $tableStart = strpos($page, '<table');
+        // The shared Student Filter contains an accessible calendar table;
+        // locate the first table AFTER the module filter form instead.
+        $tableStart = strpos($page, '<table', (int) $start);
 
         $this->assertNotFalse($panelStart, "The {$route} screen must render its card.");
         $this->assertNotFalse($start, "The {$route} filter bar must be a grid form.");

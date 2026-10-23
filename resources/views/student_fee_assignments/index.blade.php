@@ -10,60 +10,33 @@
             <p class="panel-subtitle">Fee structures assigned to student enrollments. The assigned amount is captured when the plan is assigned and never re-priced afterwards.</p>
         </div>
         @can('create', App\Models\StudentFeeAssignment::class)
-            <a class="button" href="{{ route('student-fee-assignments.create') }}">+ Assign fee structure</a>
+            <div class="flex flex-wrap gap-2">
+                <a class="button !bg-slate-200 !text-slate-700" href="{{ route('student-fee-assignments.create') }}">+ Assign whole structure</a>
+                <a class="button" href="{{ route('student-fee-assignments.allocate') }}">Allocate Fee Heads</a>
+            </div>
         @endcan
     </div>
 
-    <form class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5" method="GET" action="{{ route('student-fee-assignments.index') }}">
-        <div>
-            <label class="label" for="student_id">Student</label>
-            <select class="input" id="student_id" name="student_id">
-                <option value="">All students</option>
-                @foreach($students as $student)
-                    <option value="{{ $student->id }}" @selected((int) $selected['student_id'] === $student->id)>{{ $student->student_number }} · {{ $student->fullName() }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div>
-            <label class="label" for="academic_year_id">Academic Year</label>
-            <select class="input" id="academic_year_id" name="academic_year_id">
-                <option value="">All years</option>
-                @foreach($academicYears as $year)
-                    <option value="{{ $year->id }}" @selected((int) $selected['academic_year_id'] === $year->id)>{{ $year->name }} ({{ $year->code }})</option>
-                @endforeach
-            </select>
-        </div>
-        <div>
-            <label class="label" for="program_id">Program</label>
-            <select class="input" id="program_id" name="program_id">
-                <option value="">All programs</option>
-                @foreach($programs as $program)
-                    <option value="{{ $program->id }}" @selected((int) $selected['program_id'] === $program->id)>{{ $program->name }} ({{ $program->code }})</option>
-                @endforeach
-            </select>
-        </div>
-        <div>
-            <label class="label" for="fee_structure_id">Fee Structure</label>
-            <select class="input" id="fee_structure_id" name="fee_structure_id">
-                <option value="">All structures</option>
-                @foreach($feeStructures as $structure)
-                    <option value="{{ $structure->id }}" @selected((int) $selected['fee_structure_id'] === $structure->id)>{{ $structure->name }} ({{ $structure->code }})</option>
-                @endforeach
-            </select>
-        </div>
-        <div>
-            <label class="label" for="status">Status</label>
-            <div class="flex gap-2">
-                <select class="input" id="status" name="status">
-                    <option value="">All statuses</option>
-                    @foreach($assignmentStatuses as $status)
-                        <option value="{{ $status }}" @selected($selected['status'] === $status)>{{ ucfirst($status) }}</option>
-                    @endforeach
-                </select>
-                <button class="button" type="submit">Filter</button>
-            </div>
-        </div>
-    </form>
+    <x-student-filter
+        :fields="$studentFilterFields"
+        :options="$studentFilterOptions"
+        :values="$studentFilterValues"
+        :applied="$studentFilterApplied"
+        :action="route('student-fee-assignments.index')"
+        :preserve="['student_id' => request('student_id')]"
+        title="Filter Students for Fee Assignment"
+    >
+        <x-list.filter-select name="fee_structure_id" label="Fee Structure" :value="$selected['fee_structure_id']" placeholder="All structures">
+            @foreach($feeStructures as $structure)
+                <option value="{{ $structure->id }}">{{ $structure->name }} ({{ $structure->code }})</option>
+            @endforeach
+        </x-list.filter-select>
+        <x-list.filter-select name="status" label="Assignment Status" :value="$selected['status']" placeholder="All assignment statuses">
+            @foreach($assignmentStatuses as $status)
+                <option value="{{ $status }}">{{ ucfirst($status) }}</option>
+            @endforeach
+        </x-list.filter-select>
+    </x-student-filter>
     {{-- Bulk selection over the filtered fee assignments list. Export only — the shared
          handler re-queries every ticked id inside the active college and re-authorizes
          each record before the CSV endpoint streams. --}}
@@ -100,7 +73,14 @@
                         <td class="py-2"><x-list.row-checkbox :id="$assignment->id" /></td>
                         <td>{{ $assignment->studentEnrollment?->enrollment_number ?? '—' }}</td>
                         <td>{{ $assignment->studentEnrollment?->academicYear?->name ?? '—' }} · {{ $assignment->studentEnrollment?->program?->code ?? '—' }}</td>
-                        <td>{{ $assignment->feeStructure?->name ?? '—' }}</td>
+                        <td>
+                            {{ $assignment->feeStructure?->name ?? '—' }}
+                            @if($assignment->isPerFeeHead())
+                                <span class="block text-xs font-medium text-indigo-700">Fee Head: {{ $assignment->feeHeadLabel() }}</span>
+                            @else
+                                <span class="block text-xs text-slate-500">Whole structure</span>
+                            @endif
+                        </td>
                         <td class="text-right">{{ number_format((float) $assignment->assigned_amount, 2) }}</td>
                         <td class="text-right">{{ number_format((float) ($assignment->ledger['concession'] ?? 0), 2) }}</td>
                         <td class="text-right">{{ number_format((float) ($assignment->ledger['net_collected'] ?? 0), 2) }}</td>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Domain\Finance\Services\FeeDuesService;
 use App\Domain\Finance\Support\FeeFormOptions;
 use App\Domain\Finance\Support\FeeLedger;
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\FeeDue;
 use App\Models\StudentFeeAssignment;
 use App\Support\Tenancy\TenantContext;
@@ -26,32 +27,27 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class FeeDueController extends Controller
 {
-    public function __construct(private readonly FeeDuesService $dues)
-    {
+    public function __construct(
+        private readonly FeeDuesService $dues,
+        private readonly StudentFilter $studentFilter,
+    ) {
     }
 
     public function index(Request $request): View
     {
         $this->authorize('viewAny', FeeDue::class);
 
-        $filters = [
-            'academic_year_id' => $request->input('academic_year_id'),
-            'program_id' => $request->input('program_id'),
-            'student_id' => $request->input('student_id'),
-            'student_enrollment_id' => $request->input('student_enrollment_id'),
-            'fee_structure_id' => $request->input('fee_structure_id'),
-            'status' => $request->input('status'),
-            'assignment_status' => $request->input('assignment_status'),
-        ];
-
+        $filters = $this->filters($request);
         $dues = $this->dues->paginate($filters, 15);
+        $selected = $filters;
+        unset($selected['student_filters']);
 
-        return view('fee_dues.index', array_merge(FeeFormOptions::all(), [
+        return view('fee_dues.index', array_merge(FeeFormOptions::all(), $this->studentFilter->viewData($filters['student_filters'], StudentFilter::STUDENT_LIST_FIELDS, $request->user()), [
             'college' => app(TenantContext::class)->college(),
             'dues' => $dues,
             'totals' => $this->dues->totals($filters),
             'ledgerStatuses' => FeeLedger::STATUSES,
-            'selected' => $filters,
+            'selected' => $selected,
         ]));
     }
 
@@ -69,45 +65,56 @@ class FeeDueController extends Controller
     public function export(Request $request, AuditLogService $audit): StreamedResponse
     {
         $this->authorize('viewAny', FeeDue::class);
-
+        $filters = $this->filters($request);
         $ids = ListSelection::ids($request->input('ids', []));
-
-        $assignments = StudentFeeAssignment::query()
-            ->with(['studentEnrollment.student', 'studentEnrollment.academicYear', 'studentEnrollment.program', 'feeStructure'])
-            ->whereIn('student_fee_assignments.id', $ids)
-            ->orderBy('student_fee_assignments.id')
-            ->get();
-
-        $ledger = $this->dues->ledgerFor($assignments);
-
-        $rows = $assignments->map(function (StudentFeeAssignment $assignment) use ($ledger): array {
-            $summary = $ledger[$assignment->getKey()] ?? [];
-
-            return [
-                $assignment->studentEnrollment?->student?->fullName(),
-                $assignment->studentEnrollment?->enrollment_number,
-                $assignment->studentEnrollment?->academicYear?->name,
-                $assignment->studentEnrollment?->program?->code,
-                $assignment->feeStructure?->name,
-                $summary['assigned'] ?? 0,
-                $summary['concession'] ?? 0,
-                $summary['paid'] ?? 0,
-                $summary['refunded'] ?? 0,
-                $summary['outstanding'] ?? 0,
-                $assignment->status,
-            ];
-        });
+        $query = $this->dues->query($filters)
+            ->when($ids !== [], fn ($builder) => $builder->whereIn('student_fee_assignments.id', $ids))
+            ->reorder('student_fee_assignments.id', 'asc');
 
         $audit->record('fee_dues.exported', null, [], [
             'selected_ids' => count($ids),
-            'rows' => $assignments->count(),
+            'filters' => $this->studentFilter->auditSafe($filters['student_filters']),
+            'rows' => (clone $query)->count(),
         ]);
 
         return CsvStreamExport::make('fee-dues-export-'.now()->format('Y-m-d').'.csv')
             ->withHeaders([
-                'Student', 'Enrollment', 'Year', 'Program', 'Fee structure',
+                'Student', 'Enrollment', 'Year', 'Program', 'Fee structure', 'Fee Head',
                 'Assigned', 'Concession', 'Paid', 'Refunded', 'Outstanding', 'Status',
             ])
-            ->streamFromCollection($rows);
+            ->map(function (StudentFeeAssignment $assignment): array {
+                $summary = $this->dues->summaryFromRow($assignment);
+
+                return [
+                    $assignment->studentEnrollment?->student?->fullName(),
+                    $assignment->studentEnrollment?->enrollment_number,
+                    $assignment->studentEnrollment?->academicYear?->name,
+                    $assignment->studentEnrollment?->program?->code,
+                    $assignment->feeStructure?->name,
+                    $assignment->isPerFeeHead() ? $assignment->feeHeadLabel() : 'Whole structure',
+                    $summary['assigned'] ?? 0,
+                    $summary['concession'] ?? 0,
+                    $summary['paid'] ?? 0,
+                    $summary['refunded'] ?? 0,
+                    $summary['outstanding'] ?? 0,
+                    $assignment->status,
+                ];
+            })
+            ->streamFromQuery($query);
+    }
+
+    /** @return array<string, mixed> */
+    private function filters(Request $request): array
+    {
+        return [
+            'academic_year_id' => $request->input('academic_year_id'),
+            'program_id' => $request->input('program_id'),
+            'student_id' => $request->input('student_id'),
+            'student_enrollment_id' => $request->input('student_enrollment_id'),
+            'fee_structure_id' => $request->input('fee_structure_id'),
+            'status' => $request->input('status'),
+            'assignment_status' => $request->input('assignment_status'),
+            'student_filters' => $this->studentFilter->fromRequest($request, user: $request->user()),
+        ];
     }
 }

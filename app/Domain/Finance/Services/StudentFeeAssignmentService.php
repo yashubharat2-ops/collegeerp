@@ -5,6 +5,7 @@ namespace App\Domain\Finance\Services;
 use App\Domain\Finance\Support\FeeLedger;
 use App\Models\College;
 use App\Models\FeeStructure;
+use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentFeeAssignment;
 use App\Models\User;
@@ -44,10 +45,13 @@ class StudentFeeAssignmentService
     private const AUDITED = [
         'student_enrollment_id',
         'fee_structure_id',
+        'fee_structure_item_id',
+        'fee_head_name',
         'assigned_amount',
         'assigned_at',
         'status',
         'remarks',
+        'allocation_batch_id',
     ];
 
     public function __construct(private readonly AuditLogService $audit)
@@ -65,8 +69,13 @@ class StudentFeeAssignmentService
 
             $this->assertContextMatches($enrollment, $structure);
 
-            // Serialize assignments for this enrollment so two concurrent
-            // requests cannot both pass the duplicate check below.
+            // Use the same student-then-enrollment lock order as batch Fee Head
+            // allocation so whole-structure and per-head writes cannot race.
+            Student::withoutGlobalScopes()
+                ->where('college_id', $college->getKey())
+                ->whereKey($enrollment->student_id)
+                ->lockForUpdate()
+                ->first();
             StudentEnrollment::withoutGlobalScopes()
                 ->whereKey($enrollment->getKey())
                 ->lockForUpdate()
@@ -74,6 +83,11 @@ class StudentFeeAssignmentService
 
             if ($this->activeAssignmentExists($college->getKey(), $enrollment->getKey(), $structure->getKey())) {
                 throw ValidationException::withMessages(['fee_structure_id' => self::DUPLICATE_MESSAGE]);
+            }
+            if ($this->payablePerHeadAssignmentExists($college->getKey(), $enrollment->getKey(), $structure->getKey())) {
+                throw ValidationException::withMessages([
+                    'fee_structure_id' => 'Individual Fee Heads from this structure are already assigned. Cancel those assignments before assigning the whole structure.',
+                ]);
             }
 
             $assignedAmount = FeeLedger::assignedFromItems($structure->allItems()->get());
@@ -234,6 +248,19 @@ class StudentFeeAssignmentService
             ->where('college_id', $collegeId)
             ->where('student_enrollment_id', $enrollmentId)
             ->where('fee_structure_id', $structureId)
+            ->whereNull('fee_structure_item_id')
+            ->whereIn('status', StudentFeeAssignment::PAYABLE_STATUSES)
+            ->whereNull('deleted_at')
+            ->exists();
+    }
+
+    private function payablePerHeadAssignmentExists(int $collegeId, int $enrollmentId, int $structureId): bool
+    {
+        return StudentFeeAssignment::withoutGlobalScopes()
+            ->where('college_id', $collegeId)
+            ->where('student_enrollment_id', $enrollmentId)
+            ->where('fee_structure_id', $structureId)
+            ->whereNotNull('fee_structure_item_id')
             ->whereIn('status', StudentFeeAssignment::PAYABLE_STATUSES)
             ->whereNull('deleted_at')
             ->exists();

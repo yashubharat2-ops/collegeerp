@@ -15,34 +15,29 @@
         @endcan
     </div>
 
+    <x-student-filter
+        :fields="$studentFilterFields"
+        :options="$studentFilterOptions"
+        :values="$studentFilterValues"
+        :applied="$studentFilterApplied"
+        :action="route('fee-collections.index')"
+        :preserve="[
+            'student_id' => request('student_id'),
+            'student_enrollment_id' => request('student_enrollment_id'),
+            'fee_structure_id' => request('fee_structure_id'),
+            'payment_mode' => request('payment_mode'),
+            'status' => request('status'),
+            'from' => request('from'),
+            'to' => request('to'),
+        ]"
+        title="Filter Students for Fee Collection"
+    />
+
     <form class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7" method="GET" action="{{ route('fee-collections.index') }}">
-        <div>
-            <label class="label" for="student_id">Student</label>
-            <select class="input" id="student_id" name="student_id">
-                <option value="">All students</option>
-                @foreach($students as $student)
-                    <option value="{{ $student->id }}" @selected((int) $selected['student_id'] === $student->id)>{{ $student->student_number }} · {{ $student->fullName() }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div>
-            <label class="label" for="academic_year_id">Academic Year</label>
-            <select class="input" id="academic_year_id" name="academic_year_id">
-                <option value="">All years</option>
-                @foreach($academicYears as $year)
-                    <option value="{{ $year->id }}" @selected((int) $selected['academic_year_id'] === $year->id)>{{ $year->name }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div>
-            <label class="label" for="program_id">Program</label>
-            <select class="input" id="program_id" name="program_id">
-                <option value="">All programs</option>
-                @foreach($programs as $program)
-                    <option value="{{ $program->id }}" @selected((int) $selected['program_id'] === $program->id)>{{ $program->name }}</option>
-                @endforeach
-            </select>
-        </div>
+        @foreach($studentFilterInput as $filterName => $filterValue)
+            <input type="hidden" name="{{ $filterName }}" value="{{ $filterValue }}">
+        @endforeach
+
         <div>
             <label class="label" for="payment_mode">Payment Mode</label>
             <select class="input" id="payment_mode" name="payment_mode">
