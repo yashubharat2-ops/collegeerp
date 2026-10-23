@@ -59,143 +59,64 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ route('students.index') }}" class="erp-list-filters mt-6 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-        {{-- Re-applying a filter must not silently drop the sort the user chose. --}}
-        @if($activeSort !== '')
-            <input type="hidden" name="sort" value="{{ $activeSort }}">
-            <input type="hidden" name="direction" value="{{ $activeDirection }}">
-        @endif
-
-        <div class="erp-list-grid">
-            <div class="erp-list-filter-span-2">
-                <label for="students-list-search" class="mb-1 block text-xs font-semibold text-slate-700">Search</label>
-                <x-list.search-input
-                    id="students-list-search"
-                    class="!py-2 !text-xs"
-                    placeholder="Search name, student no., enrollment no., email or mobile"
-                    :value="$listContext->filter('search')"
-                />
-            </div>
-
-            <x-list.filter-select name="academic_year_id" label="Academic year" placeholder="All academic years">
-                @foreach($academicYears as $year)
-                    <option value="{{ $year->id }}" @selected($scalar($listContext->filter('academic_year_id')) === (string) $year->id)>{{ $year->name }} ({{ $year->code }})</option>
-                @endforeach
-            </x-list.filter-select>
-
-            <x-list.filter-select name="department_id" label="Department" placeholder="All departments">
-                @foreach($departments as $department)
-                    <option value="{{ $department->id }}" @selected($scalar($listContext->filter('department_id')) === (string) $department->id)>{{ $department->name }} ({{ $department->code }})</option>
-                @endforeach
-            </x-list.filter-select>
-
-            <x-list.filter-select name="program_id" label="Program / Course" placeholder="All programs">
-                @foreach($programs as $program)
-                    <option value="{{ $program->id }}" @selected($scalar($listContext->filter('program_id')) === (string) $program->id)>{{ $program->name }} ({{ $program->code }})</option>
-                @endforeach
-            </x-list.filter-select>
-
-            <x-list.filter-select name="academic_term_id" label="Academic term / semester" placeholder="All terms">
-                @foreach($academicTerms as $term)
-                    <option value="{{ $term->id }}" @selected($scalar($listContext->filter('academic_term_id')) === (string) $term->id)>
-                        {{ $term->name }} ({{ $term->code }}){{ $term->academicYear ? ' · '.$term->academicYear->name : '' }}
-                    </option>
-                @endforeach
-            </x-list.filter-select>
-
-            <x-list.filter-select name="section_id" label="Section" placeholder="All sections">
-                @foreach($sections as $section)
-                    <option value="{{ $section->id }}" @selected($scalar($listContext->filter('section_id')) === (string) $section->id)>
-                        {{ $section->name }} ({{ $section->code }}){{ $section->academicYear ? ' · '.$section->academicYear->name : '' }}{{ $section->program ? ' · '.$section->program->name : '' }}
-                    </option>
-                @endforeach
-            </x-list.filter-select>
-
-            <x-list.filter-select name="gender" label="Gender" placeholder="All genders">
-                @foreach(\App\Models\Student::GENDERS as $gender)
-                    <option value="{{ $gender }}" @selected(in_array($gender, (array) $listContext->filter('gender', []), true))>{{ ucfirst(str_replace('_', ' ', $gender)) }}</option>
-                @endforeach
-            </x-list.filter-select>
-
-            <x-list.filter-select name="category" label="Category" placeholder="All categories">
-                @foreach(\App\Models\Student::CATEGORIES as $category)
-                    <option value="{{ $category }}" @selected(in_array($category, (array) $listContext->filter('category', []), true))>{{ \App\Models\Student::categoryLabel($category) }}</option>
-                @endforeach
-            </x-list.filter-select>
-
-            {{-- Registration number: the college's own unique student number
-                 (STU-YYYY-NNNN). Both "Registration Number" and "Unique Student
-                 ID" name this one field — no second student identifier exists in
-                 the schema, so there is one control, not two.
-
-                 Deliberately NOT offered: Aadhaar, government ID and APAAR ID. Two
-                 of those are encrypted at rest and the third is a government
-                 identity number; a GET filter would write any of them into the
-                 query string, and therefore into server logs and browser history. --}}
-            <x-list.filter-text
-                name="student_number"
-                label="Registration Number"
-                placeholder="e.g. STU-2026-0001"
-                :value="$listContext->filter('student_number')"
+    <x-student-filter
+        :fields="$studentFilterFields"
+        :options="$studentFilterOptions"
+        :values="$studentFilterValues"
+        :applied="$studentFilterApplied"
+        :action="route('students.index')"
+        :reset-url="$clearUrl"
+        :preserve="['sort' => $activeSort, 'direction' => $activeDirection]"
+    >
+        <div class="erp-list-filter-span-2">
+            <x-list.search-input
+                name="search"
+                label="Search"
+                placeholder="Search name, student no., enrollment no., email or mobile"
+                :value="$listContext->filter('search')"
             />
-
-            <x-list.filter-select name="blood_group" label="Blood group" placeholder="All blood groups">
-                @foreach(\App\Models\Student::BLOOD_GROUPS as $bloodGroup)
-                    <option value="{{ $bloodGroup }}" @selected(in_array($bloodGroup, (array) $listContext->filter('blood_group', []), true))>{{ $bloodGroup }}</option>
-                @endforeach
-            </x-list.filter-select>
-
-            <x-list.filter-text
-                name="nationality"
-                label="Nationality"
-                placeholder="Contains…"
-                :value="$listContext->filter('nationality')"
-            />
-
-            <x-list.filter-text
-                name="mother_tongue"
-                label="Mother tongue"
-                placeholder="Contains…"
-                :value="$listContext->filter('mother_tongue')"
-            />
-
-            <x-list.filter-select name="status" label="Student status" placeholder="All statuses">
-                @foreach(\App\Models\Student::STATUSES as $status)
-                    <option value="{{ $status }}" @selected(in_array($status, (array) $listContext->filter('status', []), true))>{{ ucfirst($status) }}</option>
-                @endforeach
-            </x-list.filter-select>
-
-            <div class="erp-list-filter-span-2-desktop">
-                <x-list.filter-select name="enrollment_status" label="Enrollment status" placeholder="All enrollment statuses">
-                    @foreach(\App\Models\StudentEnrollment::STATUSES as $enrollmentStatus)
-                        <option value="{{ $enrollmentStatus }}" @selected(in_array($enrollmentStatus, (array) $listContext->filter('enrollment_status', []), true))>{{ ucfirst($enrollmentStatus) }}</option>
-                    @endforeach
-                </x-list.filter-select>
-            </div>
-
-            <x-list.filter-date-range
-                class="erp-list-filter-span-2"
-                from-name="admission_date_from"
-                to-name="admission_date_to"
-                label="Admission date"
-                :from-value="$listContext->filter('admission_date_from')"
-                :to-value="$listContext->filter('admission_date_to')"
-            />
-
-            {{-- Date of birth, on its own column and its own parameter pair, so
-                 the two ranges can never be mistaken for one another. --}}
-            <x-list.filter-date-range
-                class="erp-list-filter-span-2"
-                from-name="date_of_birth_from"
-                to-name="date_of_birth_to"
-                label="Date of birth"
-                :from-value="$listContext->filter('date_of_birth_from')"
-                :to-value="$listContext->filter('date_of_birth_to')"
-            />
-
-            <x-list.filter-actions class="erp-list-filter-span-2-xl justify-end" :clear-url="$clearUrl" :has-filters="$hasFilters" />
         </div>
-    </form>
+
+        <x-list.filter-select name="gender" label="Gender" placeholder="All genders">
+            @foreach(\App\Models\Student::GENDERS as $gender)
+                <option value="{{ $gender }}" @selected(in_array($gender, (array) $listContext->filter('gender', []), true))>{{ ucfirst(str_replace('_', ' ', $gender)) }}</option>
+            @endforeach
+        </x-list.filter-select>
+
+        <x-list.filter-select name="category" label="Category" placeholder="All categories">
+            @foreach(\App\Models\Student::CATEGORIES as $category)
+                <option value="{{ $category }}" @selected(in_array($category, (array) $listContext->filter('category', []), true))>{{ \App\Models\Student::categoryLabel($category) }}</option>
+            @endforeach
+        </x-list.filter-select>
+
+        <x-list.filter-select name="blood_group" label="Blood group" placeholder="All blood groups">
+            @foreach(\App\Models\Student::BLOOD_GROUPS as $bloodGroup)
+                <option value="{{ $bloodGroup }}" @selected(in_array($bloodGroup, (array) $listContext->filter('blood_group', []), true))>{{ $bloodGroup }}</option>
+            @endforeach
+        </x-list.filter-select>
+
+        <x-list.filter-text
+            name="nationality"
+            label="Nationality"
+            placeholder="Contains…"
+            :value="$listContext->filter('nationality')"
+        />
+        <x-list.filter-text
+            name="mother_tongue"
+            label="Mother tongue"
+            placeholder="Contains…"
+            :value="$listContext->filter('mother_tongue')"
+        />
+
+        <x-list.filter-date-range
+            class="erp-list-filter-span-2"
+            from-name="date_of_birth_from"
+            to-name="date_of_birth_to"
+            label="Date of birth"
+            :from-value="$listContext->filter('date_of_birth_from')"
+            :to-value="$listContext->filter('date_of_birth_to')"
+        />
+    </x-student-filter>
 
     {{-- Selection bar: rendered inside the panel so the shared script
          (public/js/erp-list.js) finds the table's select-all and row checkboxes,

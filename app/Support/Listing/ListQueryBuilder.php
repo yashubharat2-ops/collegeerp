@@ -453,6 +453,18 @@ class ListQueryBuilder
         return $this->appliedFilters;
     }
 
+    /**
+     * Merge filters already normalized and applied by a domain filter service.
+     * This keeps ListContext/exports aware of canonical filters without making
+     * the generic query builder know about Student or Enrollment columns.
+     */
+    public function addAppliedFilters(array $filters): static
+    {
+        $this->appliedFilters = array_replace($this->appliedFilters, $filters);
+
+        return $this;
+    }
+
     public function getCurrentSort(): array
     {
         return [

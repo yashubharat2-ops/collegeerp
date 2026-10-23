@@ -286,7 +286,7 @@ class StudentListFiltersTest extends TestCase
         // the whole page would be asserting 4 and calling it "the admission date
         // range" — which is exactly what broke when the Date of birth range was
         // added beside it.
-        $admission = $this->dateRangeControl($html, 'Admission date');
+        $admission = $this->dateRangeControl($html, 'REG. DATE');
 
         $this->assertSame(2, substr_count($admission, 'data-date-picker-toggle'), 'The Admission date range has a From and a To picker.');
         $this->assertSame(2, substr_count($admission, 'data-date-picker-prev'));
@@ -335,7 +335,7 @@ class StudentListFiltersTest extends TestCase
 
         // Per control again: "the admission range's two popovers are both closed"
         // is a statement about the admission control, not about the page.
-        $admission = $this->dateRangeControl($html, 'Admission date');
+        $admission = $this->dateRangeControl($html, 'REG. DATE');
         $this->assertSame(2, substr_count($admission, 'data-date-picker-popover'), 'The Admission date range has a From and a To popover.');
         $this->assertSame(2, substr_count($admission, 'data-list-date-display'));
         $this->assertStringContainsString('aria-expanded="false"', $admission);
@@ -360,11 +360,11 @@ class StudentListFiltersTest extends TestCase
 
         $this->assertSame(2, substr_count($html, 'data-list-date-range'), 'Exactly two date ranges: admission and date of birth.');
 
-        $admission = $this->dateRangeControl($html, 'Admission date');
+        $admission = $this->dateRangeControl($html, 'REG. DATE');
         $birth = $this->dateRangeControl($html, 'Date of birth');
 
         $ranges = [
-            'Admission date' => [$admission, 'admission_date_from', 'admission_date_to', '05/07/2026', '2026-07-05'],
+            'REG. DATE' => [$admission, 'admission_date_from', 'admission_date_to', '05/07/2026', '2026-07-05'],
             'Date of birth' => [$birth, 'date_of_birth_from', 'date_of_birth_to', '15/06/2005', '2005-06-15'],
         ];
 
@@ -569,20 +569,22 @@ class StudentListFiltersTest extends TestCase
         $this->assertStringContainsString('class="erp-list-grid"', $html);
         $this->assertStringContainsString('erp-list-filter-span-2', $html);
         foreach ([
-            'academic_year_id', 'department_id', 'program_id', 'academic_term_id', 'section_id',
-            'gender', 'category', 'status', 'enrollment_status', 'admission_date_from', 'admission_date_to',
-            'student_number', 'blood_group', 'nationality', 'mother_tongue',
+            'academic_year_id', 'department_id', 'program_id', 'academic_context',
+            'gender', 'category', 'student_status', 'enrollment_status', 'admission_date_from', 'admission_date_to',
+            'student_number', 'student_name', 'unique_student_id', 'apaar_id', 'enrollment_number',
+            'mobile_number', 'father_name', 'mother_name', 'blood_group', 'nationality', 'mother_tongue',
             'date_of_birth_from', 'date_of_birth_to',
         ] as $filter) {
             $this->assertStringContainsString('name="'.$filter.'"', $html, "The {$filter} filter must be rendered.");
         }
         foreach ([
-            'Academic year', 'Department', 'Program / Course', 'Academic term / semester',
-            'Section', 'Gender', 'Category', 'Student status', 'Enrollment status',
-            'Admission date', 'Registration Number', 'Blood group', 'Nationality',
-            'Mother tongue', 'Date of birth', 'From', 'To',
+            'Academic year', 'Department', 'PROGRAM/CLASS', 'SEMESTER/SECTION',
+            'Gender', 'Category', 'STATUS', 'ACADEMIC STATUS',
+            'REG. DATE', 'REG.NO', 'NAME OF STUDENT', 'UNIQUE STUDENT ID', 'ABC ID / APAAR ID',
+            'ENROLLMENT NO.', 'MOBILE NUMBER', "FATHER'S NAME", "MOTHER'S NAME",
+            'Blood group', 'Nationality', 'Mother tongue', 'Date of birth', 'From', 'To',
         ] as $label) {
-            $this->assertStringContainsString($label, $html, "The {$label} filter label must be visible.");
+            $this->assertStringContainsString(e($label), $html, "The {$label} filter label must be visible.");
         }
 
         // Section is a Section. The old "Section / Batch" wording represented the
@@ -878,31 +880,25 @@ class StudentListFiltersTest extends TestCase
                 && $students->first()->first_name === 'Target');
     }
 
-    public function test_identity_documents_are_not_offered_as_filters(): void
+    public function test_identity_filters_expose_only_safe_supported_controls(): void
     {
-        // aadhaar_number, govt_id_number and apaar_id are deliberately not
-        // filterable: the first two are encrypted at rest, govt_id_number has no
-        // digest column to match on, and all three are government identity
-        // numbers that a GET filter would write into the query string — and so
-        // into server logs, browser history and the Referer header. This test
-        // exists so that adding such a control has to be a deliberate act.
+        // Full encrypted identity values and unrelated government IDs remain
+        // unavailable. APAAR is a separate canonical identifier; Aadhaar uses
+        // only its existing last-four column and is permission-gated.
         [$college, $viewer] = $this->collegeWithViewer('SLF20');
 
         $html = $this->list($college, $viewer)->assertOk()->getContent();
 
-        foreach ([
-            'aadhaar_number', 'aadhaar_hash', 'aadhaar_last4',
-            'govt_id_number', 'govt_id_type', 'apaar_id',
-        ] as $field) {
+        foreach (['aadhaar_number', 'aadhaar_hash', 'govt_id_number', 'govt_id_type', 'aadhaar_last4'] as $field) {
             $this->assertStringNotContainsString(
                 'name="'.$field.'"',
                 $html,
-                "The {$field} column must not be exposed as a filter control."
+                "The {$field} column must not be exposed to an ordinary viewer."
             );
         }
 
-        // The one identifier that IS offered is the college's own student number.
         $this->assertStringContainsString('name="student_number"', $html);
+        $this->assertStringContainsString('name="apaar_id"', $html);
     }
 
     public function test_malformed_values_for_the_new_filters_are_ignored(): void
