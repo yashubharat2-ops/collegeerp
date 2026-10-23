@@ -389,6 +389,10 @@ class SidebarStructureTest extends TestCase
         // later modules and .erp-app-main outside their intended parents.
         $this->assertSame(2, substr_count($admission, '<div class="nav-group nav-group--nested"'), 'Nested collapsible parents must be divs inside .nav-items.');
         $this->assertStringNotContainsString('<li class="nav-group nav-group--nested"', $admission, 'A list item is invalid here and breaks the browser DOM.');
+        $this->assertSame(2, substr_count($admission, '<button type="button" class="nav-group__head nav-group__head--nested"'), 'Both nested parents use the same standard header classes.');
+        $this->assertSame(2, substr_count($admission, '<div class="nav-group__label nav-group__label--nested">'), 'Both nested parents use the same label structure.');
+        $this->assertStringContainsString('id="nav-head-admission-transfers" aria-expanded="false" aria-controls="nav-items-admission-transfers"', $admission);
+        $this->assertStringContainsString('id="nav-head-admission-settings" aria-expanded="false" aria-controls="nav-items-admission-settings"', $admission);
 
         // Those nested groups must NOT be rendered as flat sub-label headings
         $this->assertStringNotContainsString('erp-nav__sub-label', $admission, 'Admission must not use static sub-label headings for Transfers/Settings; they must be collapsible parents.');
@@ -404,6 +408,51 @@ class SidebarStructureTest extends TestCase
         $this->assertNotFalse($settingsPos);
         $this->assertNotFalse($idCardsPos);
         $this->assertTrue($idCardsPos < $settingsPos, 'ID Cards must be independent and appear before Settings, not inside it.');
+    }
+
+    public function test_nested_group_headers_use_the_standard_child_row_style_contract(): void
+    {
+        $css = (string) file_get_contents(public_path('css/erp-sidebar.css'));
+
+        $this->assertSame(1, preg_match('/^\.nav-group--nested\s*\{(?<style>[^}]*)\}/m', $css, $group));
+        $this->assertStringContainsString('margin: 0;', $group['style'], 'Nested groups use the parent gap instead of adding vertical margins.');
+
+        $this->assertSame(1, preg_match('/\.nav-group--nested \.nav-group__head--nested\s*\{(?<style>[^}]*)\}/', $css, $header));
+        $this->assertStringContainsString('height: var(--erp-nav-child-h);', $header['style']);
+        $this->assertStringContainsString('padding: 0 var(--erp-nav-pad-x) 0 0;', $header['style']);
+        $this->assertStringContainsString('font-size: 13px;', $header['style']);
+        $this->assertStringContainsString('border-radius: 10px;', $header['style']);
+        $this->assertStringNotContainsString('background', $header['style'], 'The resting surface comes from the standard transparent header, not a permanent pressed background.');
+
+        $this->assertSame(1, preg_match('/\.nav-group--nested \.nav-group__label--nested\s*\{(?<style>[^}]*)\}/', $css, $label));
+        $this->assertStringContainsString('color: inherit;', $label['style'], 'Nested labels brighten on hover exactly like standard child links.');
+        $this->assertStringContainsString('font-weight: 400;', $label['style']);
+        $this->assertStringContainsString('.nav-group[data-nav-active="true"]:not(.nav-group--nested) > .nav-group__head', $css, 'Only top-level modules use the active parent background.');
+    }
+
+    public function test_nested_groups_keep_active_route_state_and_permission_gates(): void
+    {
+        $college = $this->makeCollege('STRUCT6B');
+        $user = $this->makeUserWithPermissions($college, ['student_transfers.view', 'settings.view']);
+        $html = $this->asCollege($college, $user)
+            ->get(route('student-transfers.index', ['direction' => 'in']))
+            ->assertOk()
+            ->getContent();
+        $aside = $this->aside($html);
+        $this->assertSame(1, preg_match('/<li class="nav-group" data-nav-group="admission".*?(?=<li class="nav-group" data-nav-group="approval-management")/s', $aside, $admissionMatch));
+        $admission = $admissionMatch[0];
+
+        $this->assertMatchesRegularExpression('/data-nav-group="admission" data-nav-open="true"\s+data-nav-active="true"/', $admission, 'The parent module still opens for its active child.');
+        $this->assertMatchesRegularExpression('/data-nested-group="admission-transfers" data-nav-open="true"\s+data-nav-active="true"/', $admission, 'The active nested route still expands its own parent.');
+        $this->assertStringContainsString('id="nav-head-admission-transfers" aria-expanded="true"', $admission);
+        $this->assertMatchesRegularExpression('/data-nested-group="admission-settings" data-nav-open="false"\s*>/', $admission, 'The inactive sibling starts closed and has no active marker.');
+        $this->assertStringContainsString('id="nav-head-admission-settings" aria-expanded="false"', $admission);
+        $this->assertSame(2, substr_count($admission, 'data-nav-active="true"'), 'Only Admission and its active nested parent are marked active.');
+
+        $limited = $this->group($this->dashboardFor($college, ['student_transfers.view']), 'Admission');
+        $this->assertStringContainsString('data-nested-group="admission-transfers"', $limited, 'A permitted nested group remains visible.');
+        $this->assertStringNotContainsString('data-nested-group="admission-settings"', $limited, 'Settings remains hidden without either of its permissions.');
+        $this->assertStringContainsString('>Applications</span>', $limited, 'The existing parent and ungated rows still render.');
     }
 
     public function test_academics_destinations_render_flat_in_their_existing_order(): void
