@@ -2,8 +2,12 @@
 
 namespace App\Domain\Academic\BulkActions;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\AcademicAttendance;
+use App\Models\College;
+use App\Models\User;
 use App\Support\BulkAction\BulkExportHandler;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Bulk export of selected academic attendance rows.
@@ -21,6 +25,8 @@ use App\Support\BulkAction\BulkExportHandler;
  */
 class AcademicAttendanceBulkExportHandler extends BulkExportHandler
 {
+    public function __construct(private readonly StudentFilter $studentFilter) {}
+
     public function modelClass(): string
     {
         return AcademicAttendance::class;
@@ -34,6 +40,13 @@ class AcademicAttendanceBulkExportHandler extends BulkExportHandler
     protected function exportRouteName(): string
     {
         return 'academic-attendance.export';
+    }
+
+    protected function exportParameters(Collection $records, User $user, College $college, array $parameters): array
+    {
+        $filters = $this->studentFilter->fromArray($parameters, user: $user);
+
+        return $this->studentFilter->requestParameters($filters);
     }
 
     protected function recordNoun(int $count): string

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Academic\Services\FacultyWorkloadService;
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\AcademicAttendance;
 use App\Models\AcademicCalendarEvent;
 use App\Models\AcademicSubjectEnrollment;
@@ -44,6 +45,7 @@ class AcademicsExportController extends Controller
     public function __construct(
         private readonly TenantContext $tenant,
         private readonly FacultyWorkloadService $workload,
+        private readonly StudentFilter $studentFilter,
     ) {
     }
 
@@ -53,15 +55,29 @@ class AcademicsExportController extends Controller
     public function subjectEnrollments(Request $request, AuditLogService $audit): StreamedResponse
     {
         $collegeId = $this->authorizeExport($request, 'academic_subject_enrollments.view');
+        $filters = $this->studentFilter->fromRequest($request, studentListAliases: true, user: $request->user());
 
         $query = AcademicSubjectEnrollment::query()
             ->where('academic_subject_enrollments.college_id', $collegeId)
             ->with(['student', 'subject', 'academicTerm', 'section'])
             ->orderBy('academic_subject_enrollments.id');
 
+        $search = trim(is_scalar($request->input('search')) ? (string) $request->input('search') : '');
+        if ($search !== '') {
+            $query->where(function (Builder $query) use ($search): void {
+                $query->whereHas('student', fn (Builder $student) => $student
+                    ->where('first_name', 'like', '%'.$search.'%')
+                    ->orWhere('last_name', 'like', '%'.$search.'%'))
+                    ->orWhereHas('subject', fn (Builder $subject) => $subject->where('name', 'like', '%'.$search.'%'));
+            });
+        }
+        $this->studentFilter->applyToTermScopedRecord($query, $filters, 'academic_subject_enrollments.academic_term_id');
+
         $ids = $this->applySelection($query, $request, 'academic_subject_enrollments.id');
 
-        $this->auditSelection($audit, $query, 'academic_subject_enrollments.exported', $ids);
+        $this->auditSelection($audit, $query, 'academic_subject_enrollments.exported', $ids, [
+            'student_filters' => $this->studentFilter->auditSafe($filters),
+        ]);
 
         return CsvStreamExport::make($this->filename('subject-enrollments'))
             ->withHeaders([
@@ -175,15 +191,19 @@ class AcademicsExportController extends Controller
     public function attendance(Request $request, AuditLogService $audit): StreamedResponse
     {
         $collegeId = $this->authorizeExport($request, 'academic_attendance.view');
+        $filters = $this->studentFilter->fromRequest($request, studentListAliases: true, user: $request->user());
 
         $query = AcademicAttendance::query()
             ->where('academic_attendances.college_id', $collegeId)
             ->with(['student', 'studentEnrollment', 'subject', 'section', 'faculty', 'academicYear', 'academicTerm'])
             ->orderBy('academic_attendances.id');
+        $this->studentFilter->applyToTermScopedRecord($query, $filters, 'academic_attendances.academic_term_id');
 
         $ids = $this->applySelection($query, $request, 'academic_attendances.id');
 
-        $this->auditSelection($audit, $query, 'academic_attendance.exported', $ids);
+        $this->auditSelection($audit, $query, 'academic_attendance.exported', $ids, [
+            'student_filters' => $this->studentFilter->auditSafe($filters),
+        ]);
 
         return CsvStreamExport::make($this->filename('academic-attendance'))
             ->withHeaders([
@@ -322,12 +342,12 @@ class AcademicsExportController extends Controller
     /**
      * @param  array<int, int>  $ids
      */
-    private function auditSelection(AuditLogService $audit, Builder $query, string $action, array $ids): void
+    private function auditSelection(AuditLogService $audit, Builder $query, string $action, array $ids, array $context = []): void
     {
-        $audit->record($action, null, [], [
+        $audit->record($action, null, [], array_merge($context, [
             'selected_ids' => count($ids),
             'rows' => (clone $query)->count(),
-        ]);
+        ]));
     }
 
     private function filename(string $name): string

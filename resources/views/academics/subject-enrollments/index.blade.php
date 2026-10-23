@@ -1,1 +1,69 @@
-@extends('layouts.app') @section('title','Student Subject Enrollment') @section('content')<div class="flex justify-between mb-5"><p class="text-slate-500">Operational subject choices by student and term.</p><a class="btn-primary" href="{{route('academic-subject-enrollments.create')}}">Enroll subject</a></div><form class="mb-4"><input class="input" name="search" value="{{request('search')}}" placeholder="Search student or subject"></form><div data-bulk-scope><x-list.bulk-selection-bar module="academic_subject_enrollments">@if(auth()->user()?->hasPermission('academic_subject_enrollments.view'))<button type="button" data-bulk-action="export" class="button !py-2 !text-xs font-semibold">Export selected</button>@endif</x-list.bulk-selection-bar><div class="card overflow-x-auto"><table class="table"><tr><th class="w-10"><x-list.select-all /></th><th>Student</th><th>Subject</th><th>Term</th><th>Section</th><th>Status</th><th>Date</th></tr>@forelse($items as $i)<tr><td><x-list.row-checkbox :id="$i->id" /></td><td>{{$i->student?->fullName()}}</td><td>{{$i->subject?->name}}</td><td>{{$i->academicTerm?->name}}</td><td>{{$i->section?->name}}</td><td>{{$i->status}}</td><td>{{$i->enrollment_date?->format('d M Y')}}</td></tr>@empty<tr><td colspan="7">No subject enrollments yet.</td></tr>@endforelse</table>{{$items->links()}}</div></div>@endsection
+@extends('layouts.app')
+
+@section('title', 'Student Subject Enrollment')
+
+@section('content')
+<div class="flex justify-between mb-5">
+    <p class="text-slate-500">Operational subject choices by student and term.</p>
+    <a class="btn-primary" href="{{ route('academic-subject-enrollments.create') }}">Enroll subject</a>
+</div>
+
+<form class="mb-4">
+    <input class="input" name="search" value="{{ $search }}" placeholder="Search student or subject">
+    <x-student-filter-hidden :parameters="$studentFilterParameters" />
+</form>
+
+<x-student-filter
+    :fields="$studentFilterFields"
+    :options="$studentFilterOptions"
+    :values="$studentFilterValues"
+    :applied="$studentFilterApplied"
+    :action="route('academic-subject-enrollments.index')"
+    :preserve="['search' => $search]"
+    title="Filter Student Subject Enrollments"
+/>
+
+<div data-bulk-scope>
+    <x-list.bulk-selection-bar module="academic_subject_enrollments">
+        @if(auth()->user()?->hasPermission('academic_subject_enrollments.view'))
+            <button
+                type="button"
+                data-bulk-action="export"
+                data-bulk-param-search="{{ $search }}"
+                @foreach($studentFilterParameters as $filterName => $filterValue)
+                    data-bulk-param-{{ str_replace('_', '-', $filterName) }}="{{ $filterValue }}"
+                @endforeach
+                class="button !py-2 !text-xs font-semibold"
+            >Export selected</button>
+        @endif
+    </x-list.bulk-selection-bar>
+
+    <div class="card overflow-x-auto">
+        <table class="table">
+            <tr>
+                <th class="w-10"><x-list.select-all /></th>
+                <th>Student</th>
+                <th>Subject</th>
+                <th>Term</th>
+                <th>Section</th>
+                <th>Status</th>
+                <th>Date</th>
+            </tr>
+            @forelse($items as $i)
+                <tr>
+                    <td><x-list.row-checkbox :id="$i->id" /></td>
+                    <td>{{ $i->student?->fullName() }}</td>
+                    <td>{{ $i->subject?->name }}</td>
+                    <td>{{ $i->academicTerm?->name }}</td>
+                    <td>{{ $i->section?->name }}</td>
+                    <td>{{ $i->status }}</td>
+                    <td>{{ $i->enrollment_date?->format('d M Y') }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="7">No subject enrollments yet.</td></tr>
+            @endforelse
+        </table>
+        {{ $items->links() }}
+    </div>
+</div>
+@endsection

@@ -403,6 +403,89 @@ class AcademicBulkActionTest extends TestCase
         $this->assertStringNotContainsString('aadhaar', strtolower($body));
     }
 
+    public function test_academic_attendance_list_and_export_share_the_canonical_student_filter(): void
+    {
+        $college = $this->makeCollege('ACFILTER');
+        $user = $this->makeUserWithPermissions($college, $this->academicPermissions());
+        $first = $this->academicContext($college, 'ACFILTERA');
+        $second = $this->academicContext($college, 'ACFILTERB');
+        $query = [
+            'student_number' => $first['student']->student_number,
+            'academic_context' => 'section:'.$first['section']->id,
+        ];
+
+        $this->asCollege($college, $user)->get(route('academic-attendance.index', $query))
+            ->assertOk()->assertSee('STU-ACFILTERA')->assertDontSee('STU-ACFILTERB')
+            ->assertSee('ACADEMIC STATUS')->assertSee('SEMESTER/SECTION');
+
+        $csv = $this->asCollege($college, $user)->get(route('academic-attendance.export', $query + [
+            'ids' => [$first['attendance']->id, $second['attendance']->id],
+        ]))->assertOk()->streamedContent();
+        $this->assertStringContainsString('ENR-ACFILTERA', $csv);
+        $this->assertStringNotContainsString('ENR-ACFILTERB', $csv);
+
+        // The attendance row owns the term; no Student Academic Record fixture
+        // is required for the canonical term filter to select it.
+        $termQuery = [
+            'student_number' => $first['student']->student_number,
+            'academic_context' => 'term:'.$first['term']->id,
+        ];
+        $this->asCollege($college, $user)->get(route('academic-attendance.index', $termQuery))
+            ->assertOk()->assertSee('STU-ACFILTERA')->assertDontSee('STU-ACFILTERB');
+        $termCsv = $this->asCollege($college, $user)->get(route('academic-attendance.export', $termQuery + [
+            'ids' => [$first['attendance']->id, $second['attendance']->id],
+        ]))->assertOk()->streamedContent();
+        $this->assertStringContainsString('ENR-ACFILTERA', $termCsv);
+        $this->assertStringNotContainsString('ENR-ACFILTERB', $termCsv);
+
+        $bulkExport = $this->asCollege($college, $user)->postJson(route('bulk-actions.execute'), [
+            'module' => 'academic_attendance',
+            'action' => 'export',
+            'ids' => [$first['attendance']->id, $second['attendance']->id],
+            'parameters' => $termQuery,
+        ])->assertOk()->json('data.redirect');
+        $this->assertStringContainsString('student_number=STU-ACFILTERA', $bulkExport);
+        $bulkCsv = $this->asCollege($college, $user)->get($bulkExport)->assertOk()->streamedContent();
+        $this->assertStringContainsString('ENR-ACFILTERA', $bulkCsv);
+        $this->assertStringNotContainsString('ENR-ACFILTERB', $bulkCsv);
+    }
+
+    public function test_subject_enrollment_list_and_exports_reapply_canonical_filters_and_search(): void
+    {
+        $college = $this->makeCollege('ACSEFILTER');
+        $user = $this->makeUserWithPermissions($college, $this->academicPermissions());
+        $first = $this->academicContext($college, 'ACSEFILTERA');
+        $second = $this->academicContext($college, 'ACSEFILTERB');
+        $query = [
+            'search' => 'Subject ACSEFILTERA',
+            'student_number' => $first['student']->student_number,
+            'academic_context' => 'term:'.$first['term']->id,
+        ];
+
+        $this->asCollege($college, $user)->get(route('academic-subject-enrollments.index', $query))
+            ->assertOk()->assertSee('Subject ACSEFILTERA')->assertDontSee('Subject ACSEFILTERB')
+            ->assertSee('NAME OF STUDENT')->assertSee('SEMESTER/SECTION')
+            ->assertSee('data-bulk-param-student-number="STU-ACSEFILTERA"', false);
+
+        $selectedIds = [$first['subjectEnrollment']->id, $second['subjectEnrollment']->id];
+        $csv = $this->asCollege($college, $user)->get(route('academic-subject-enrollments.export', $query + [
+            'ids' => $selectedIds,
+        ]))->assertOk()->streamedContent();
+        $this->assertStringContainsString('STU-ACSEFILTERA', $csv);
+        $this->assertStringNotContainsString('STU-ACSEFILTERB', $csv);
+
+        $bulkExport = $this->asCollege($college, $user)->postJson(route('bulk-actions.execute'), [
+            'module' => 'academic_subject_enrollments',
+            'action' => 'export',
+            'ids' => $selectedIds,
+            'parameters' => $query,
+        ])->assertOk()->json('data.redirect');
+        $this->assertStringContainsString('student_number=STU-ACSEFILTERA', $bulkExport);
+        $bulkCsv = $this->asCollege($college, $user)->get($bulkExport)->assertOk()->streamedContent();
+        $this->assertStringContainsString('STU-ACSEFILTERA', $bulkCsv);
+        $this->assertStringNotContainsString('STU-ACSEFILTERB', $bulkCsv);
+    }
+
     public function test_bulk_export_requires_the_listing_permission(): void
     {
         $college = $this->makeCollege('ACPERM');

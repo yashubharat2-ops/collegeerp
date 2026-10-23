@@ -365,6 +365,57 @@ class ExamAttendanceManagementTest extends TestCase
         }
     }
 
+    public function test_canonical_student_filter_applies_to_records_export_board_and_bulk_revalidation(): void
+    {
+        $college = $this->makeCollege('EAFILTER');
+        $admin = $this->makeUserWithPermissions($college, self::PERMS);
+        $ctx = $this->makeExamContext($college, 'EAFILTER');
+        [$firstStudent, $first] = $this->makeEnrolledStudent($college, $ctx, 'EAFILTERA');
+        [, $second] = $this->makeEnrolledStudent($college, $ctx, 'EAFILTERB');
+        $firstAttendance = ExamAttendance::create([
+            'college_id' => $college->id, 'exam_schedule_id' => $ctx['schedule']->id,
+            'student_enrollment_id' => $first->id, 'attendance_status' => 'present', 'marked_at' => now(),
+        ]);
+        $secondAttendance = ExamAttendance::create([
+            'college_id' => $college->id, 'exam_schedule_id' => $ctx['schedule']->id,
+            'student_enrollment_id' => $second->id, 'attendance_status' => 'absent', 'marked_at' => now(),
+        ]);
+        $query = ['student_number' => $firstStudent->student_number];
+
+        $response = $this->asCollege($college, $admin)->get(route('exam-attendance.index', $query))
+            ->assertOk()->assertSee($first->enrollment_number)->assertDontSee($second->enrollment_number)
+            ->assertSee('PROGRAM/CLASS')->assertSee('SEMESTER/SECTION');
+        $this->assertSame(1, substr_count($response->getContent(), 'name="academic_context"'));
+
+        $csv = $this->asCollege($college, $admin)->get(route('exam-attendance.export', $query + [
+            'ids' => [$firstAttendance->id, $secondAttendance->id],
+        ]))->assertOk()->streamedContent();
+        $this->assertStringContainsString($first->enrollment_number, $csv);
+        $this->assertStringNotContainsString($second->enrollment_number, $csv);
+
+        $this->asCollege($college, $admin)->get(route('exam-attendance.index', $query + [
+            'exam_schedule_id' => $ctx['schedule']->id,
+        ]))->assertOk()->assertSee($first->enrollment_number)->assertDontSee($second->enrollment_number);
+
+        $payload = [
+            'exam_schedule_id' => $ctx['schedule']->id,
+            'student_number' => $firstStudent->student_number,
+            'records' => [
+                ['student_enrollment_id' => $first->id, 'attendance_status' => 'late'],
+                ['student_enrollment_id' => $second->id, 'attendance_status' => 'present'],
+            ],
+        ];
+        $this->asCollege($college, $admin)->post(route('exam-attendance.bulk'), $payload)->assertStatus(422);
+        $this->assertSame('present', $firstAttendance->fresh()->attendance_status);
+        $this->assertSame('absent', $secondAttendance->fresh()->attendance_status);
+
+        $payload['records'] = [['student_enrollment_id' => $first->id, 'attendance_status' => 'late']];
+        $this->asCollege($college, $admin)->post(route('exam-attendance.bulk'), $payload)
+            ->assertRedirect(route('exam-attendance.index', array_merge(['exam_schedule_id' => $ctx['schedule']->id], $query)));
+        $this->assertSame('late', $firstAttendance->fresh()->attendance_status);
+        $this->assertSame('absent', $secondAttendance->fresh()->attendance_status);
+    }
+
     public function test_bulk_attendance_is_audited_as_one_traceable_entry(): void
     {
         $college = $this->makeCollege('EA14');
