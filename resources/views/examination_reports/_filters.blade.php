@@ -1,3 +1,6 @@
+@if($studentFilterEnabled)
+    @include('examination_reports._student_filters')
+@else
 @php
     $show = fn (string $key): bool => in_array($key, $visible, true);
     $searchLabel = $report === 'summary' ? 'Search examination' : 'Search student';
@@ -163,3 +166,4 @@
         <span class="text-xs text-slate-500">Only records from the active college are shown.</span>
     </div>
 </form>
+@endif

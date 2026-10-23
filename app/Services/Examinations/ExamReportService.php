@@ -2,6 +2,7 @@
 
 namespace App\Services\Examinations;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\Examination;
 use App\Models\ExamResult;
 use App\Models\ExamResultItem;
@@ -27,8 +28,10 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class ExamReportService
 {
-    public function __construct(private readonly TenantContext $tenant)
-    {
+    public function __construct(
+        private readonly TenantContext $tenant,
+        private readonly StudentFilter $studentFilter,
+    ) {
     }
 
     /**
@@ -57,9 +60,9 @@ class ExamReportService
      *
      * @return array{total: int, by_status: array<string, int>, pass_rate: float|null}
      */
-    public function statusSummary(?int $examinationId, ?int $programId): array
+    public function statusSummary(?int $examinationId, ?int $programId, array $studentFilters = []): array
     {
-        $base = $this->filteredResults($examinationId, $programId);
+        $base = $this->filteredResults($examinationId, $programId, $studentFilters);
 
         $total = (clone $base)->count();
 
@@ -84,9 +87,9 @@ class ExamReportService
     /**
      * Per-program published-result counts, deterministically paginated.
      */
-    public function programSummaries(?int $examinationId, ?int $programId): LengthAwarePaginator
+    public function programSummaries(?int $examinationId, ?int $programId, array $studentFilters = []): LengthAwarePaginator
     {
-        return $this->programSummaryQuery($examinationId, $programId)
+        return $this->programSummaryQuery($examinationId, $programId, $studentFilters)
             ->paginate(15, ['*'], 'program_page')
             ->withQueryString()
             ->through(fn ($row) => $this->withPassRate($row));
@@ -104,9 +107,9 @@ class ExamReportService
      *
      * @param  array<int, int>  $programIds
      */
-    public function programSummaryRows(array $programIds, ?int $examinationId, ?int $programId): Collection
+    public function programSummaryRows(array $programIds, ?int $examinationId, ?int $programId, array $studentFilters = []): Collection
     {
-        return $this->programSummaryQuery($examinationId, $programId)
+        return $this->programSummaryQuery($examinationId, $programId, $studentFilters)
             ->when($programIds !== [], fn ($query) => $query->whereIn('programs.id', $programIds))
             ->get()
             ->map(fn ($row) => $this->withPassRate($row));
@@ -116,11 +119,11 @@ class ExamReportService
      * The shared program-wise aggregate: published results only, every joined
      * table guarded by its own college + soft-delete predicate.
      */
-    private function programSummaryQuery(?int $examinationId, ?int $programId): Builder
+    private function programSummaryQuery(?int $examinationId, ?int $programId, array $studentFilters): Builder
     {
         $collegeId = $this->tenant->id();
 
-        return ExamResult::query()
+        $query = ExamResult::query()
             ->join('student_enrollments', 'student_enrollments.id', '=', 'exam_results.student_enrollment_id')
             ->join('programs', 'programs.id', '=', 'student_enrollments.program_id')
             ->whereNotNull('exam_results.published_at')
@@ -129,7 +132,11 @@ class ExamReportService
             ->where('programs.college_id', $collegeId)
             ->whereNull('programs.deleted_at')
             ->when($examinationId !== null, fn ($query) => $query->where('exam_results.examination_id', $examinationId))
-            ->when($programId !== null, fn ($query) => $query->where('student_enrollments.program_id', $programId))
+            ->when($programId !== null, fn ($query) => $query->where('student_enrollments.program_id', $programId));
+
+        $this->applyStudentFilters($query, $studentFilters);
+
+        return $query
             ->groupBy('programs.id', 'programs.name', 'programs.code')
             ->selectRaw('programs.id, programs.name, programs.code, COUNT(*) AS total, '.$this->statusSums('exam_results.result_status'))
             ->orderBy('programs.name')
@@ -139,9 +146,9 @@ class ExamReportService
     /**
      * Per-subject published item counts, deterministically paginated.
      */
-    public function subjectSummaries(?int $examinationId, ?int $programId): LengthAwarePaginator
+    public function subjectSummaries(?int $examinationId, ?int $programId, array $studentFilters = []): LengthAwarePaginator
     {
-        return $this->subjectSummaryQuery($examinationId, $programId)
+        return $this->subjectSummaryQuery($examinationId, $programId, $studentFilters)
             ->paginate(15, ['*'], 'subject_page')
             ->withQueryString()
             ->through(fn ($row) => $this->withPassRate($row));
@@ -154,9 +161,9 @@ class ExamReportService
      *
      * @param  array<int, int>  $subjectIds
      */
-    public function subjectSummaryRows(array $subjectIds, ?int $examinationId, ?int $programId): Collection
+    public function subjectSummaryRows(array $subjectIds, ?int $examinationId, ?int $programId, array $studentFilters = []): Collection
     {
-        return $this->subjectSummaryQuery($examinationId, $programId)
+        return $this->subjectSummaryQuery($examinationId, $programId, $studentFilters)
             ->when($subjectIds !== [], fn ($query) => $query->whereIn('subjects.id', $subjectIds))
             ->get()
             ->map(fn ($row) => $this->withPassRate($row));
@@ -166,11 +173,11 @@ class ExamReportService
      * The shared subject-wise aggregate: published result items only, every
      * joined table guarded by its own college + soft-delete predicate.
      */
-    private function subjectSummaryQuery(?int $examinationId, ?int $programId): Builder
+    private function subjectSummaryQuery(?int $examinationId, ?int $programId, array $studentFilters): Builder
     {
         $collegeId = $this->tenant->id();
 
-        return ExamResultItem::query()
+        $query = ExamResultItem::query()
             ->join('exam_results', 'exam_results.id', '=', 'exam_result_items.exam_result_id')
             ->join('student_enrollments', 'student_enrollments.id', '=', 'exam_results.student_enrollment_id')
             ->join('subjects', 'subjects.id', '=', 'exam_result_items.subject_id')
@@ -182,7 +189,11 @@ class ExamReportService
             ->where('subjects.college_id', $collegeId)
             ->whereNull('subjects.deleted_at')
             ->when($examinationId !== null, fn ($query) => $query->where('exam_results.examination_id', $examinationId))
-            ->when($programId !== null, fn ($query) => $query->where('student_enrollments.program_id', $programId))
+            ->when($programId !== null, fn ($query) => $query->where('student_enrollments.program_id', $programId));
+
+        $this->applyStudentFilters($query, $studentFilters, 'examResult.studentEnrollment');
+
+        return $query
             ->groupBy('subjects.id', 'subjects.name', 'subjects.code')
             ->selectRaw('subjects.id, subjects.name, subjects.code, MAX(exam_result_items.max_marks) AS max_marks, COUNT(*) AS total, '.$this->statusSums('exam_result_items.status'))
             ->orderBy('subjects.name')
@@ -192,7 +203,7 @@ class ExamReportService
     /**
      * Published results narrowed by the report filters.
      */
-    private function filteredResults(?int $examinationId, ?int $programId): \Illuminate\Database\Eloquent\Builder
+    private function filteredResults(?int $examinationId, ?int $programId, array $studentFilters): \Illuminate\Database\Eloquent\Builder
     {
         $query = ExamResult::query()->whereNotNull('published_at');
 
@@ -204,7 +215,23 @@ class ExamReportService
             $query->whereHas('studentEnrollment', fn ($enrollment) => $enrollment->where('program_id', $programId));
         }
 
+        $this->applyStudentFilters($query, $studentFilters);
+
         return $query;
+    }
+
+    private function applyStudentFilters(Builder $query, array $studentFilters, string $enrollmentRelation = 'studentEnrollment'): void
+    {
+        $this->studentFilter->applyThroughEnrollment(
+            $query,
+            $this->studentFilter->exceptAcademicContext($studentFilters, 'term'),
+            $enrollmentRelation,
+        );
+
+        [$contextType, $contextId] = $this->studentFilter->academicContext($studentFilters);
+        if ($contextType === 'term') {
+            $query->where('exam_results.academic_term_id', $contextId);
+        }
     }
 
     /**

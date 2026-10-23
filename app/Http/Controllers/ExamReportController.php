@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\Examination;
 use App\Models\ExamReport;
 use App\Models\Program;
@@ -32,7 +33,7 @@ class ExamReportController extends Controller
     {
     }
 
-    public function index(Request $request): View
+    public function index(Request $request, StudentFilter $studentFilter): View
     {
         $this->authorize('viewAny', ExamReport::class);
 
@@ -41,16 +42,17 @@ class ExamReportController extends Controller
 
         $examinationId = $this->selectedExaminationId($request, $examinations);
         $programId = $this->optionalFilter($request->input('program_id'), $programs);
+        $studentFilters = $studentFilter->fromRequest($request, user: $request->user());
 
-        return view('exam_reports.index', [
+        return view('exam_reports.index', array_merge([
             'examinations' => $examinations,
             'programs' => $programs,
             'examinationId' => $examinationId,
             'programId' => $programId,
-            'summary' => $this->reports->statusSummary($examinationId, $programId),
-            'programSummaries' => $this->reports->programSummaries($examinationId, $programId),
-            'subjectSummaries' => $this->reports->subjectSummaries($examinationId, $programId),
-        ]);
+            'summary' => $this->reports->statusSummary($examinationId, $programId, $studentFilters),
+            'programSummaries' => $this->reports->programSummaries($examinationId, $programId, $studentFilters),
+            'subjectSummaries' => $this->reports->subjectSummaries($examinationId, $programId, $studentFilters),
+        ], $studentFilter->viewData($studentFilters, StudentFilter::STUDENT_LIST_FIELDS, $request->user())));
     }
 
     /**
@@ -74,7 +76,7 @@ class ExamReportController extends Controller
      *
      * The report stays read-only: nothing here writes a result, a mark or a grade.
      */
-    public function export(Request $request, AuditLogService $audit): StreamedResponse
+    public function export(Request $request, AuditLogService $audit, StudentFilter $studentFilter): StreamedResponse
     {
         $this->authorize('viewAny', ExamReport::class);
 
@@ -85,6 +87,7 @@ class ExamReportController extends Controller
 
         $examinationId = $this->selectedExaminationId($request, $examinations);
         $programId = $this->optionalFilter($request->input('program_id'), $programs);
+        $studentFilters = $studentFilter->fromRequest($request, user: $request->user());
 
         $ids = ListSelection::ids($request->input('ids', []));
 
@@ -92,12 +95,13 @@ class ExamReportController extends Controller
             'group' => $group,
             'examination_id' => $examinationId,
             'program_id' => $programId,
+            'student_filters' => $studentFilter->auditSafe($studentFilters),
             'selected_ids' => count($ids),
         ]);
 
         return $group === 'subjects'
-            ? $this->subjectExport($this->reports->subjectSummaryRows($ids, $examinationId, $programId))
-            : $this->programExport($this->reports->programSummaryRows($ids, $examinationId, $programId));
+            ? $this->subjectExport($this->reports->subjectSummaryRows($ids, $examinationId, $programId, $studentFilters))
+            : $this->programExport($this->reports->programSummaryRows($ids, $examinationId, $programId, $studentFilters));
     }
 
     /**

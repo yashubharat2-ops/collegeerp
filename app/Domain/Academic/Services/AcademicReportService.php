@@ -2,6 +2,7 @@
 
 namespace App\Domain\Academic\Services;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\AcademicAttendance;
 use App\Models\AcademicCalendarEvent;
 use App\Models\AcademicSubjectEnrollment;
@@ -45,6 +46,8 @@ class AcademicReportService
     public const TIMETABLE_STATUSES = ['active', 'inactive'];
 
     public const CALENDAR_STATUSES = ['draft', 'published', 'cancelled'];
+
+    public function __construct(private readonly StudentFilter $studentFilter) {}
 
     /** 1. Enrollment / Subject Enrollment: one row per student-subject enrollment. */
     public function subjectEnrollments(array $filters): array
@@ -451,6 +454,14 @@ class AcademicReportService
     private function subjectEnrollmentQuery(array $filters): Builder
     {
         $query = AcademicSubjectEnrollment::query();
+        $canonical = $this->canonicalFilters($filters);
+        [$contextType, $contextId] = $this->studentFilter->academicContext($canonical);
+        if ($contextType === 'section') {
+            $query->where('academic_subject_enrollments.section_id', $contextId);
+        } elseif ($contextType === 'term') {
+            $query->where('academic_subject_enrollments.academic_term_id', $contextId);
+        }
+
         if ($filters['academic_year_id']) {
             $query->where('academic_subject_enrollments.academic_year_id', $filters['academic_year_id']);
         }
@@ -471,6 +482,7 @@ class AcademicReportService
             $query->whereHas('student', fn (Builder $student) => $this->searchStudent($student, $like));
         }
         $this->dateRange($query, $filters, 'academic_subject_enrollments.enrollment_date');
+        $this->studentFilter->applyThroughEnrollment($query, $this->studentFilter->exceptAcademicContext($canonical, 'term'));
 
         return $query;
     }
@@ -507,6 +519,14 @@ class AcademicReportService
     private function attendanceQuery(array $filters): Builder
     {
         $query = AcademicAttendance::query();
+        $canonical = $this->canonicalFilters($filters);
+        [$contextType, $contextId] = $this->studentFilter->academicContext($canonical);
+        if ($contextType === 'section') {
+            $query->where('academic_attendances.section_id', $contextId);
+        } elseif ($contextType === 'term') {
+            $query->where('academic_attendances.academic_term_id', $contextId);
+        }
+
         if ($filters['academic_year_id']) {
             $query->where('academic_attendances.academic_year_id', $filters['academic_year_id']);
         }
@@ -529,8 +549,15 @@ class AcademicReportService
             $query->whereHas('student', fn (Builder $student) => $this->searchStudent($student, $like));
         }
         $this->dateRange($query, $filters, 'academic_attendances.attendance_date');
+        $this->studentFilter->applyThroughEnrollment($query, $this->studentFilter->exceptAcademicContext($canonical, 'term'));
 
         return $query;
+    }
+
+    /** @return array<string, mixed> */
+    private function canonicalFilters(array $filters): array
+    {
+        return is_array($filters['student_filters'] ?? null) ? $filters['student_filters'] : [];
     }
 
     /** Program by column; Department through the (tenant-scoped) Program. */

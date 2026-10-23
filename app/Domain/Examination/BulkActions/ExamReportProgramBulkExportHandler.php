@@ -2,6 +2,7 @@
 
 namespace App\Domain\Examination\BulkActions;
 
+use App\Domain\Student\Filters\StudentFilter;
 use App\Models\College;
 use App\Models\Program;
 use App\Models\User;
@@ -27,6 +28,8 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class ExamReportProgramBulkExportHandler extends BulkExportHandler
 {
+    public function __construct(private readonly StudentFilter $studentFilter) {}
+
     public function modelClass(): string
     {
         return Program::class;
@@ -51,10 +54,12 @@ class ExamReportProgramBulkExportHandler extends BulkExportHandler
      */
     protected function exportParameters(Collection $records, User $user, College $college, array $parameters): array
     {
+        $studentFilters = $this->studentFilter->fromArray($parameters, user: $user);
+
         return [
             'group' => 'programs',
             'examination_id' => $this->intOrNull($parameters['examination_id'] ?? null),
-            'program_id' => $this->intOrNull($parameters['program_id'] ?? null),
+            ...$this->studentFilter->requestParameters($studentFilters),
         ];
     }
 

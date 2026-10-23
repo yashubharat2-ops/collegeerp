@@ -1,3 +1,6 @@
+@if($studentFilterEnabled)
+    @include('academic_reports._student_filters')
+@else
 @php
     $show = fn (string $key): bool => in_array($key, $visible, true);
     $departmentLabel = in_array($report, ['faculty_subjects', 'workload'], true) ? 'Faculty department' : 'Department';
@@ -170,3 +173,4 @@
         <span class="text-xs text-slate-500">Only records from the active college are shown.</span>
     </div>
 </form>
+@endif

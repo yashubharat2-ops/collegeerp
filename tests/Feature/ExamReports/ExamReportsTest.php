@@ -342,6 +342,43 @@ class ExamReportsTest extends TestCase
         $this->assertStringContainsString('AAA Program', $this->tableBodies($html)[0]);
     }
 
+    public function test_canonical_student_filters_narrow_all_aggregates_and_selected_exports(): void
+    {
+        $f = $this->twoProgramFixture('RPCANON');
+        $user = $this->makeUserWithPermissions($f['college'], self::VIEW);
+        $query = [
+            'student_number' => $f['student1']->student_number,
+            'academic_context' => 'term:'.$f['ctx']['term']->id,
+        ];
+
+        $this->asCollege($f['college'], $user)
+            ->get(route('exam-reports.index', $query))->assertOk()
+            ->assertViewHas('summary', fn (array $summary): bool => $summary['total'] === 1
+                && $summary['by_status']['pass'] === 1 && $summary['by_status']['fail'] === 0
+                && $summary['pass_rate'] === 100.0)
+            ->assertViewHas('programSummaries', fn ($rows): bool => $rows->total() === 1
+                && $rows->first()->id === $f['ctx']['prog']->id && (int) $rows->first()->total === 1)
+            ->assertViewHas('subjectSummaries', fn ($rows): bool => $rows->total() === 2
+                && (int) $rows->getCollection()->sum('total') === 2)
+            ->assertSee('data-bulk-param-student-number="'.$f['student1']->student_number.'"', false)
+            ->assertSee('name="academic_context"', false);
+
+        $this->asCollege($f['college'], $user)
+            ->get(route('exam-reports.index', [...$query, 'student_number' => 'RPCANON-MISSING']))->assertOk()
+            ->assertViewHas('summary', fn (array $summary): bool => $summary['total'] === 0 && $summary['pass_rate'] === null)
+            ->assertViewHas('programSummaries', fn ($rows): bool => $rows->total() === 0)
+            ->assertViewHas('subjectSummaries', fn ($rows): bool => $rows->total() === 0);
+
+        $csv = $this->asCollege($f['college'], $user)->get(route('exam-reports.export', [
+            'group' => 'programs',
+            'ids' => [$f['ctx']['prog']->id, $f['program2']->id],
+            ...$query,
+        ]))->assertOk()->streamedContent();
+
+        $this->assertStringContainsString($f['ctx']['prog']->name, $csv);
+        $this->assertStringNotContainsString($f['program2']->name, $csv);
+    }
+
     // ------------------------------------------------- published-only enforcement
 
     public function test_unpublished_results_are_excluded_from_reports(): void
