@@ -28,12 +28,18 @@ final class ApprovalRegistry
                 'model' => \App\Models\AdmissionApplication::class,
                 'description' => 'Changing application status requires approval.',
             ],
-            'admission_create' => [
-                'label' => 'Create Admission',
-                'permission_approve' => 'admissions.create',
-                'model' => \App\Models\Admission::class,
-                'description' => 'Creating a final admission record requires approval.',
-            ],
+            // NOTE: an `admission_create` action used to be declared here. It
+            // was removed because nothing ever called submitRequest() for it and
+            // applyApproval() handled it with an empty "not needed yet" branch —
+            // yet Approval Settings still rendered a live toggle for it, so an
+            // administrator could enable "Create Admission requires approval"
+            // and nothing would change. Admission confirmation is now gated by
+            // AdmissionService::ADMITTABLE_STATUSES (confirmation follows
+            // approval) and, in the unified registration workflow, by the single
+            // `student.registration_approval` decision. Removal is safe: no
+            // caller and no test ever created such a request, so none can be
+            // orphaned, and ApprovalController@updateSettings() already skips
+            // unsupported module/action pairs.
         ],
         'student' => [
             'student_data_change' => [

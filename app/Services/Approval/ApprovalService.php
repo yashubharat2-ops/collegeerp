@@ -252,14 +252,13 @@ class ApprovalService
 
     private function applyApproval(ApprovalRequest $request, int $deciderId): void
     {
-        // Module-specific side effects
+        // Module-specific side effects. The former empty `admission_create`
+        // branch is gone with its registry entry — see the note in
+        // ApprovalRegistry::MODULES['admission'].
         if ($request->module === 'admission' && $request->action === 'application_submit') {
             $this->approveAdmissionApplication($request, $deciderId);
         } elseif ($request->module === 'admission' && $request->action === 'application_status_change') {
             $this->approveAdmissionApplicationStatusChange($request, $deciderId);
-        } elseif ($request->module === 'admission' && $request->action === 'admission_create') {
-            // Future: admission creation already handled via AdmissionService separate flow
-            // For now, if payload contains admission data, create it - but not needed yet
         }
         // For student sensitive updates, payload would be applied here
         if ($request->payload && is_array($request->payload) && $request->target_type && $request->target_id) {
