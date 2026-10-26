@@ -104,32 +104,43 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p /tmp/check
-          for f in $(find /tmp/out -maxdepth 1 -name '*.txt' | sort); do
-            base=$(basename "$f" .txt)
-            safe=$(echo "$base" | tr -c 'A-Za-z0-9_-' '-')
-            if [ "$base" = "full" ]; then
-              sed -r 's/\x1B\[[0-9;]*[mK]//g' "$f" | tail -n 900 > "/tmp/check/${safe}.raw"
-            else
-              sed -r 's/\x1B\[[0-9;]*[mK]//g' "$f" > "/tmp/check/${safe}.raw"
-            fi
-            {
-              echo "PHPUnit output file: ${base}.txt"
-              grep -E '^[[:space:]]*(PASS|FAIL|Tests:|Duration:|FAILED)' "/tmp/check/${safe}.raw" | head -n 40
-              echo '----- failure summaries -----'
-              grep -n -E -A 18 -B 2 'FAILED |Failed asserting|Expected response status|The following exception|syntax error' "/tmp/check/${safe}.raw" | head -n 500
-              echo '----- tail (failure detail and summary) -----'
-              tail -c 40000 "/tmp/check/${safe}.raw"
-            } > "/tmp/check/${safe}.txt"
-            head -c 60000 "/tmp/check/${safe}.txt" > "/tmp/check/${safe}.final"
-            mv "/tmp/check/${safe}.final" "/tmp/check/${safe}.txt"
-            jq -n \
-              --arg name "phpunit-${safe}-${GITHUB_RUN_ID}" \
-              --arg sha "$GITHUB_SHA" \
-              --arg title "PHPUnit ${base} output for ${GITHUB_SHA}" \
-              --arg summary "Raw ${base} test output." \
-              --rawfile text "/tmp/check/${safe}.txt" \
-              '{name:$name, head_sha:$sha, status:"completed", conclusion:"neutral", output:{title:$title, summary:$summary, text:$text}}' \
-              > "/tmp/check/${safe}.json"
-            gh api "repos/${GITHUB_REPOSITORY}/check-runs" --method POST --input "/tmp/check/${safe}.json" > "/tmp/check/${safe}-response.json"
-            echo "Published check run phpunit-${safe}-${GITHUB_RUN_ID}"
+          python3 - <<'PY'
+          import json, os, pathlib, re
+          run_id = os.environ['GITHUB_RUN_ID']
+          sha = os.environ['GITHUB_SHA']
+          out = pathlib.Path('/tmp/out')
+          check = pathlib.Path('/tmp/check')
+          ansi = re.compile(r'\x1B\[[0-9;]*[mK]')
+          for f in sorted(out.glob('*.txt')):
+              base = f.stem
+              lines = ansi.sub('', f.read_text(errors='replace')).splitlines()
+              if base == 'full':
+                  lines = lines[-900:]
+              header = [
+                  f'PHPUnit output file: {base}.txt',
+                  '----- summaries -----',
+              ]
+              header += [ln for ln in lines if re.match(r'^\s*(PASS|FAIL|Tests:|Duration:|FAILED)', ln)][:60]
+              header += ['----- failure detail -----']
+              for i, ln in enumerate(lines):
+                  if re.search(r'FAILED |Failed asserting|Expected response status|The following exception|syntax error', ln):
+                      header += lines[max(0, i - 2): i + 22]
+              header += ['----- tail -----'] + lines[-250:]
+              text = '\n'.join(header)[:60000]
+              payload = {
+                  'name': f'phpunit-{base}-{run_id}',
+                  'head_sha': sha,
+                  'status': 'completed',
+                  'conclusion': 'neutral',
+                  'output': {
+                      'title': f'PHPUnit {base} output for {sha[:8]}',
+                      'summary': f'Raw {base} test output.',
+                      'text': text,
+                  },
+              }
+              (check / f'{base}.json').write_text(json.dumps(payload))
+          PY
+          for j in /tmp/check/*.json; do
+            gh api "repos/${GITHUB_REPOSITORY}/check-runs" --method POST --input "$j" > "${j%.json}-response.json"
+            echo "Published $(basename "$j")"
           done
