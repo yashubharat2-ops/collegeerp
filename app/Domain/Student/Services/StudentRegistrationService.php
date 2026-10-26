@@ -45,19 +45,34 @@ final class StudentRegistrationService
         }
 
         return DB::transaction(function () use ($data, $files, $collegeId, $actorId): array {
-            $existing = $this->duplicatePending($data, $collegeId);
-            if ($existing) {
-                $request = ApprovalRequest::withoutGlobalScopes()
+            $fingerprint = $this->fingerprint($data);
+
+            // A repeated POST is matched by the server-side identity fingerprint
+            // stored on the pending ApprovalRequest, not by a client token. This
+            // works for the form and for a future public entry point alike.
+            $pendingRequests = ApprovalRequest::withoutGlobalScopes()
+                ->where('college_id', $collegeId)
+                ->where('module', 'student')
+                ->where('action', 'registration_approval')
+                ->where('status', ApprovalRequest::STATUS_PENDING)
+                ->get();
+
+            foreach ($pendingRequests as $pending) {
+                if (($pending->payload['registration_fingerprint'] ?? null) !== $fingerprint) {
+                    continue;
+                }
+
+                $existingStudent = Student::withoutGlobalScopes()
                     ->where('college_id', $collegeId)
-                    ->where('module', 'student')
-                    ->where('action', 'registration_approval')
-                    ->where('target_type', 'student.registration_approval')
-                    ->where('target_id', $existing->id)
-                    ->where('status', ApprovalRequest::STATUS_PENDING)
+                    ->whereKey($pending->target_id)
                     ->first();
 
-                if ($request) {
-                    return ['student' => $existing, 'approval_request' => $request, 'created' => false];
+                if ($existingStudent) {
+                    return [
+                        'student' => $existingStudent,
+                        'approval_request' => $pending,
+                        'created' => false,
+                    ];
                 }
             }
 
@@ -106,6 +121,7 @@ final class StudentRegistrationService
                 'title' => 'Student registration: '.$student->student_number,
                 'description' => 'Registration submitted by '.$actorId.' for '.$student->first_name.' '.$student->last_name.'.',
                 'payload' => [
+                    'registration_fingerprint' => $fingerprint,
                     'student_id' => $student->id,
                     'academic_year_id' => $data['academic_year_id'] ?? null,
                     'program_id' => $data['program_id'] ?? null,
@@ -131,6 +147,24 @@ final class StudentRegistrationService
 
             return ['student' => $student, 'approval_request' => $approvalRequest, 'created' => true];
         });
+    }
+
+    /**
+     * Stable identity fingerprint for duplicate-submission detection. Only
+     * derived hashes and non-sensitive identity fields are used; the plaintext
+     * Aadhaar number is never stored in the approval payload or fingerprint.
+     */
+    private function fingerprint(array $data): string
+    {
+        $aadhaar = Aadhaar::normalise($data['aadhaar_number'] ?? null);
+
+        return hash('sha256', json_encode([
+            'first_name' => mb_strtolower(trim((string) ($data['first_name'] ?? ''))),
+            'last_name' => mb_strtolower(trim((string) ($data['last_name'] ?? ''))),
+            'date_of_birth' => (string) ($data['date_of_birth'] ?? ''),
+            'phone' => trim((string) ($data['phone'] ?? '')),
+            'aadhaar_hash' => $aadhaar !== null ? Aadhaar::hash($aadhaar) : null,
+        ], JSON_THROW_ON_ERROR));
     }
 
     /**
