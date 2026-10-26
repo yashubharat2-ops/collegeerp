@@ -48,49 +48,62 @@ final class StudentRegistrationService
             $fingerprint = $this->fingerprint($data);
 
             // A repeated POST is matched by the server-side identity fingerprint
-            // stored on the pending ApprovalRequest, not by a client token. This
-            // works for the form and for a future public entry point alike.
-            $pendingRequests = ApprovalRequest::withoutGlobalScopes()
+            // stored on the ApprovalRequest, not by a client token. A live
+            // pending request is returned unchanged; a cancelled/rejected
+            // request reuses its Student and raises one new request.
+            $priorRequests = ApprovalRequest::withoutGlobalScopes()
                 ->where('college_id', $collegeId)
                 ->where('module', 'student')
                 ->where('action', 'registration_approval')
-                ->where('status', ApprovalRequest::STATUS_PENDING)
                 ->get();
 
-            foreach ($pendingRequests as $pending) {
-                if (($pending->payload['registration_fingerprint'] ?? null) !== $fingerprint) {
+            $reusableStudent = null;
+            foreach ($priorRequests as $prior) {
+                if (($prior->payload['registration_fingerprint'] ?? null) !== $fingerprint) {
                     continue;
                 }
 
-                $existingStudent = Student::withoutGlobalScopes()
+                $candidate = Student::withoutGlobalScopes()
                     ->where('college_id', $collegeId)
-                    ->whereKey($pending->target_id)
+                    ->whereKey($prior->target_id)
                     ->first();
 
-                if ($existingStudent) {
+                if (! $candidate || $candidate->isRegistrationApproved()) {
+                    continue;
+                }
+
+                if ($prior->status === ApprovalRequest::STATUS_PENDING) {
                     return [
-                        'student' => $existingStudent,
-                        'approval_request' => $pending,
+                        'student' => $candidate,
+                        'approval_request' => $prior,
                         'created' => false,
                     ];
                 }
+
+                $reusableStudent = $candidate;
             }
 
-            // A cancelled/expired request may have left a pending Student without
-            // a live ApprovalRequest. Reuse that Student and raise one request;
-            // never create a second person record.
-            $orphanedPending = $this->duplicatePending($data, $collegeId);
-            if ($orphanedPending) {
+            if ($reusableStudent) {
+                $old = $reusableStudent->only(['status', 'registration_status']);
+                $reusableStudent->update([
+                    'status' => 'inactive',
+                    'registration_status' => Student::REGISTRATION_PENDING,
+                ]);
                 $approvalRequest = $this->submitApprovalRequest(
-                    $orphanedPending,
+                    $reusableStudent,
                     $fingerprint,
                     $data,
                     $collegeId,
                     $actorId,
                 );
+                $this->audit->record('student.registration_resubmitted', $reusableStudent, $old, [
+                    'status' => $reusableStudent->status,
+                    'registration_status' => $reusableStudent->registration_status,
+                    'approval_request_id' => $approvalRequest->id,
+                ]);
 
                 return [
-                    'student' => $orphanedPending,
+                    'student' => $reusableStudent,
                     'approval_request' => $approvalRequest,
                     'created' => false,
                 ];

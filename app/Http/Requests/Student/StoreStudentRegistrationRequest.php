@@ -36,8 +36,14 @@ class StoreStudentRegistrationRequest extends FormRequest
         // idempotently by StudentRegistrationService, so a pending row must not
         // trip the unique phone/Aadhaar checks. Approved/legacy rows still do.
         $operationalStudent = function ($query): void {
+            // Legacy/approved students block reuse. Pending and rejected
+            // registrations may be resubmitted without creating a second
+            // person record; StudentRegistrationService reuses that row.
             $query->whereNull('registration_status')
-                ->orWhere('registration_status', '!=', Student::REGISTRATION_PENDING);
+                ->orWhereNotIn('registration_status', [
+                    Student::REGISTRATION_PENDING,
+                    Student::REGISTRATION_REJECTED,
+                ]);
         };
 
         $rules['phone'] = [
