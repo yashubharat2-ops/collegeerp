@@ -50,32 +50,29 @@ class ApprovalManagementTest extends TestCase
 
     // === ADMISSION SIDEBAR ===
 
-    public function test_admission_sidebar_follows_approved_hierarchy(): void
+    public function test_admission_sidebar_group_is_removed_and_approval_management_remains(): void
     {
         $college = $this->makeCollege('ADSBH');
         $user = $this->makeUserWithPermissions($college, \App\Models\Permission::query()->pluck('slug')->all());
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
         $aside = $this->aside($html);
 
-        $this->assertStringContainsString('nav-group__label">Admission<', $aside, 'Admission group must exist with correct label');
-        $this->assertStringContainsString('data-nav-group="admission"', $aside);
-        $this->assertStringContainsString('data-nav-group="approval-management"', $aside, 'Approval Management must be central menu');
-        $this->assertStringNotContainsString('data-nav-group="admissions"', $aside, 'Old plural id must be gone');
+        $this->assertStringNotContainsString('nav-group__label">Admission<', $aside, 'Admission must no longer be a standalone module.');
+        $this->assertStringNotContainsString('data-nav-group="admission"', $aside, 'The Admission group id must be gone.');
+        $this->assertStringContainsString('data-nav-group="approval-management"', $aside, 'Approval Management must remain the central approval menu.');
+        $this->assertStringNotContainsString('data-nav-group="admissions"', $aside, 'Old plural id must stay gone.');
     }
 
-    public function test_reports_appears_exactly_once_and_last(): void
+    public function test_admission_reports_route_remains_without_a_sidebar_link(): void
     {
         $college = $this->makeCollege('ADSBR');
         $user = $this->makeUserWithPermissions($college, \App\Models\Permission::query()->pluck('slug')->all());
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
         $aside = $this->aside($html);
 
-        // Reports exactly once in Admission group (avoid counting global Reports module label)
-        $admissionBlock = $this->group($aside, 'Admission');
-        $this->assertSame(1, substr_count($admissionBlock, '>Reports<'), 'Reports should appear as last direct item in Admission');
-        $hrefs = $this->hrefs($admissionBlock);
-        $last = end($hrefs);
-        $this->assertStringContainsString(parse_url(route('admission-reports.index'), PHP_URL_PATH), $last, 'Reports must be last in Admission');
+        $this->assertTrue(\Illuminate\Support\Facades\Route::has('admission-reports.index'), 'The legacy report route must remain registered.');
+        $this->assertStringNotContainsString(parse_url(route('admission-reports.index'), PHP_URL_PATH), $aside, 'The legacy report must not be linked from the removed Admission menu.');
+        $this->assertStringNotContainsString('>Reports</span>', $aside, 'No standalone Admission Reports row may remain.');
     }
 
     public function test_admission_reports_require_permission(): void

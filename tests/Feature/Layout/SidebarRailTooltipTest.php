@@ -243,9 +243,14 @@ class SidebarRailTooltipTest extends TestCase
         // six retained academic destinations now live inside Academics and are
         // asserted there, by SidebarStructureTest; Campuses is not a sidebar row,
         // and what must not come back is a second Platform row.
-        foreach (['Admission', 'Students', 'Academics', 'Examinations', 'Reports'] as $label) {
+        foreach (['Students', 'Academics', 'Examinations', 'Reports'] as $label) {
             $this->assertSame(1, substr_count($aside, 'nav-group__label">'.$label.'<'), "{$label} is not one of the renamed modules.");
         }
+
+        // Admission is no longer a standalone module button; its legacy routes
+        // remain registered but are deliberately not part of primary navigation.
+        $this->assertSame(0, substr_count($aside, 'nav-group__label">Admission<'), 'The standalone Admission module must be gone.');
+        $this->assertStringNotContainsString('data-nav-group="admission"', $aside, 'The Admission group id must not render.');
 
         $this->assertSame(0, substr_count($aside, 'nav-group__label">Platform<'), 'Platform must not be a top-level group any more.');
         $this->assertStringNotContainsString('data-nav-group="platform"', $aside, 'The old Platform group id must be gone.');

@@ -91,23 +91,26 @@ class AdmissionToStudentConversionTest extends TestCase
         return $admission;
     }
 
-    public function test_sidebar_lists_legacy_applicants_before_enquiries(): void
+    public function test_legacy_admission_routes_remain_available_without_a_standalone_menu(): void
     {
         $college = $this->makeCollege('ADNV');
         $admin = $this->makeUserWithPermissions($college, [
             'admissions.view', 'admission_applicants.view', 'admission_enquiries.view',
         ]);
 
-        // The final Admission → Register (legacy) group keeps both legacy
-        // destinations reachable, with Applicants before Enquiries. The order
-        // is asserted on the rendered hrefs, never on route names.
-        $this->asCollege($college, $admin)
+        // The Admission sidebar group is gone, but in-flight/historical
+        // workflows still depend on these routes and controllers.
+        $response = $this->asCollege($college, $admin)
             ->get(route('admissions.index'))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'href="'.route('admission-applicants.index').'"',
-                'href="'.route('admission-enquiries.index').'"',
-            ], false);
+            ->assertOk();
+        $response->assertDontSee('data-nav-group="admission"', false);
+
+        $this->asCollege($college, $admin)
+            ->get(route('admission-applicants.index'))
+            ->assertOk();
+        $this->asCollege($college, $admin)
+            ->get(route('admission-enquiries.index'))
+            ->assertOk();
     }
 
     public function test_list_is_titled_final_admissions_and_offers_convert(): void

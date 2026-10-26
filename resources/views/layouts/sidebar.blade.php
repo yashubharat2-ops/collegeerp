@@ -87,22 +87,11 @@
         <div class="erp-nav__scroll">
             <p class="erp-nav__empty" data-nav-empty hidden>No menu item matches that search.</p>
             <ul class="erp-nav__list" id="erp-nav-list" aria-labelledby="erp-nav-section-label">
-                    <x-nav.group id="admission" label="Admission" icon="user-plus">
-                        {{-- Legacy/in-flight admission process only. New student
-                             registration and student record management live in
-                             the Students module; duplicate entries are removed. --}}
-                        <x-nav.nested-group id="admission-register-legacy" label="Register (legacy)" perm="admission_applications.view|admission_applicants.view|admission_enquiries.view|admission_documents.view|admission_merit.view|admissions.view|admission_dashboard.view|admission.status_types.view">
-                            <x-nav.link label="Applications" route="admission-applications.index" perm="admission_applications.view" />
-                            <x-nav.link label="Applicants" route="admission-applicants.index" perm="admission_applicants.view" />
-                            <x-nav.link label="Enquiries" route="admission-enquiries.index" perm="admission_enquiries.view" />
-                            <x-nav.link label="Admission Documents" route="admission-documents.index" perm="admission_documents.view" />
-                            <x-nav.link label="Merit & Selection" route="admission-merit-lists.index" perm="admission_merit.view" />
-                            <x-nav.link label="Final Admissions" route="admissions.index" perm="admissions.view" />
-                            <x-nav.link label="Dashboard" route="admission.dashboard" perm="admission_dashboard.view" />
-                            <x-nav.link label="Status Types" route="admission.status-types.index" perm="admission.status_types.view" />
-                        </x-nav.nested-group>
-                        <x-nav.link label="Reports" route="admission-reports.index" perm="admission_reports.view" />
-                    </x-nav.group>
+                    {{-- Admission is no longer a standalone sidebar module.
+                         Legacy admission routes, controllers, reports and
+                         in-flight workflows remain registered for compatibility;
+                         primary registration and student management live in
+                         Students. --}}
                     <x-nav.group id="approval-management" label="Approval Management" icon="clipboard-check">
                         <x-nav.link label="Pending Approvals" route="approvals.pending" />
                         <x-nav.link label="Approval History" route="approvals.history" />

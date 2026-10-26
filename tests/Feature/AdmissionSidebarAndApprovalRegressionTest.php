@@ -44,6 +44,7 @@ class AdmissionSidebarAndApprovalRegressionTest extends TestCase
         preg_match_all('/<a class="nav-(?:link|dashboard)" href="([^"]+)"/', $aside, $m);
         $hrefs = $m[1];
         $this->assertCount(count(array_unique($hrefs)), $hrefs, 'No duplicate hrefs in sidebar');
+        $this->assertStringNotContainsString('data-nav-group="admission"', $aside, 'The standalone Admission menu must stay removed.');
     }
 
     public function test_unrelated_modules_still_work(): void
