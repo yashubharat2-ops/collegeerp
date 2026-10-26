@@ -91,20 +91,22 @@ class AdmissionToStudentConversionTest extends TestCase
         return $admission;
     }
 
-    public function test_sidebar_lists_enquiries_before_applicants(): void
+    public function test_sidebar_lists_legacy_applicants_before_enquiries(): void
     {
         $college = $this->makeCollege('ADNV');
-        $admin = $this->makeUserWithPermissions($college, ['admissions.view']);
+        $admin = $this->makeUserWithPermissions($college, [
+            'admissions.view', 'admission_applicants.view', 'admission_enquiries.view',
+        ]);
 
-        // The sidebar renders real hrefs (route URIs), never route names, so
-        // the order is asserted on the rendered links — the same convention
-        // the Transport navigation tests use for sidebar order.
+        // The final Admission → Register (legacy) group keeps both legacy
+        // destinations reachable, with Applicants before Enquiries. The order
+        // is asserted on the rendered hrefs, never on route names.
         $this->asCollege($college, $admin)
             ->get(route('admissions.index'))
             ->assertOk()
             ->assertSeeInOrder([
-                'href="'.route('admission-enquiries.index').'"',
                 'href="'.route('admission-applicants.index').'"',
+                'href="'.route('admission-enquiries.index').'"',
             ], false);
     }
 

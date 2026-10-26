@@ -261,7 +261,7 @@ class FinanceReportController extends Controller
                 ->orderBy('name')->orderBy('id')->get(['id', 'name', 'code', 'academic_year_id', 'program_id']);
         }
         if (isset($visible['student_id'])) {
-            $options['students'] = Student::query()->orderBy('first_name')->orderBy('last_name')->orderBy('id')
+            $options['students'] = Student::query()->approvedForOperations()->orderBy('first_name')->orderBy('last_name')->orderBy('id')
                 ->get(['id', 'student_number', 'first_name', 'middle_name', 'last_name']);
         }
         if (isset($visible['fee_structure_id'])) {

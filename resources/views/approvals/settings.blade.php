@@ -22,7 +22,11 @@
                         @php
                             $key = $item['module'].'.'.$item['action'];
                             $existing = $settingsMap[$key] ?? null;
-                            $isRequired = $existing ? (bool) $existing->is_required : ($item['module']==='admission');
+                            // Admission actions and unified student registration
+                            // default to required; every other module opts in.
+                            $isRequired = $existing
+                                ? (bool) $existing->is_required
+                                : ($item['module']==='admission' || ($item['module']==='student' && $item['action']==='registration_approval'));
                         @endphp
                         <tr class="border-b">
                             <td class="py-2 font-medium">{{ ucfirst($item['module']) }}</td>

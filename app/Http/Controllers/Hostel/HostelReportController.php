@@ -230,6 +230,7 @@ class HostelReportController extends Controller
                 ->when($filters['section_id'] ?? null, fn (Builder $query, $id) => $query->where('section_id', $id))
                 ->select('student_id');
             $options['students'] = Student::query()
+                ->approvedForOperations()
                 ->whereIn('id', $studentIds)
                 ->orderBy('first_name')->orderBy('last_name')->orderBy('id')
                 ->get(['id', 'student_number', 'first_name', 'middle_name', 'last_name']);

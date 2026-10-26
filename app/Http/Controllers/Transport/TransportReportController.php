@@ -213,6 +213,7 @@ class TransportReportController extends Controller
             // Students who actually use transport, derived from the existing
             // assignment rows — no second student list is invented.
             $options['students'] = Student::query()
+                ->approvedForOperations()
                 ->whereIn('id', StudentTransportAssignment::query()
                     ->join('student_enrollments', 'student_enrollments.id', '=', 'student_transport_assignments.student_enrollment_id')
                     ->select('student_enrollments.student_id'))

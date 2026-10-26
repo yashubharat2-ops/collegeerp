@@ -238,7 +238,7 @@ class StudentReportService
 
     private function studentQuery(array $filters): Builder
     {
-        $query = Student::query();
+        $query = Student::query()->approvedForOperations();
         $this->studentFilter->applyToStudents($query, $this->canonicalFilters($filters));
         $this->studentIdentity($query, $filters);
 

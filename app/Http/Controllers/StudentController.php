@@ -6,12 +6,15 @@ use App\Domain\Student\Actions\ConvertAdmissionToStudent;
 use App\Domain\Student\Actions\ConvertApplicationToStudent;
 use App\Domain\Student\Services\StudentHistoryService;
 use App\Domain\Student\Services\StudentListService;
+use App\Domain\Student\Services\StudentRegistrationService;
 use App\Domain\Student\Services\StudentService;
 use App\Http\Requests\Student\StoreStudentFromAdmissionRequest;
+use App\Http\Requests\Student\StoreStudentRegistrationRequest;
 use App\Http\Requests\Student\StoreStudentRequest;
 use App\Http\Requests\Student\UpdateStudentRequest;
 use App\Models\AcademicYear;
 use App\Models\Admission;
+use App\Models\AdmissionDocumentType;
 use App\Models\Program;
 use App\Models\Section;
 use App\Models\Student;
@@ -258,7 +261,48 @@ class StudentController extends Controller
     {
         $this->authorize('create', Student::class);
 
-        return view('students.create', $this->profileFormOptions($request));
+        return view('students.create', array_merge(
+            $this->profileFormOptions($request),
+            ['registrationMode' => false],
+        ));
+    }
+
+    /**
+     * The single primary registration entry point. It reuses the rich Student
+     * Create form; only the submit target and server-side workflow differ.
+     */
+    public function registration(Request $request): View
+    {
+        $this->authorize('create', Student::class);
+
+        return view('students.create', array_merge(
+            $this->profileFormOptions($request, true),
+            ['registrationMode' => true],
+        ));
+    }
+
+    public function registrationStore(
+        StoreStudentRegistrationRequest $request,
+        StudentRegistrationService $registration,
+    ): RedirectResponse {
+        $collegeId = app(TenantContext::class)->id();
+        $files = $request->file('registration_documents', []);
+        $files = is_array($files) ? $files : [$files];
+
+        $result = $registration->register(
+            $request->validated(),
+            $files,
+            (int) $collegeId,
+            (int) $request->user()->getKey(),
+        );
+
+        $message = $result['created']
+            ? 'Registration '.$result['student']->student_number.' submitted for approval.'
+            : 'A pending registration already exists for this student; no duplicate was created.';
+
+        return redirect()
+            ->route('students.index')
+            ->with('success', $message.' Approval request '.$result['approval_request']->reference_number.'.');
     }
 
     /**
@@ -291,6 +335,7 @@ class StudentController extends Controller
 
         return view('students.create', array_merge($this->profileFormOptions($request), [
             'fromAdmission' => $model,
+            'registrationMode' => false,
         ]));
     }
 
@@ -523,10 +568,18 @@ class StudentController extends Controller
         ];
     }
 
-    private function profileFormOptions(Request $request): array
+    private function profileFormOptions(Request $request, bool $includeEnrollmentOptions = false): array
     {
-        if (! $request->user()?->can('create', StudentEnrollment::class)) {
-            return ['academicYears' => collect(), 'programs' => collect(), 'sections' => collect()];
+        $canEnroll = $includeEnrollmentOptions
+            || (bool) $request->user()?->can('create', StudentEnrollment::class);
+
+        if (! $canEnroll) {
+            return [
+                'academicYears' => collect(),
+                'programs' => collect(),
+                'sections' => collect(),
+                'documentTypes' => $this->documentTypeOptions(),
+            ];
         }
 
         return [
@@ -537,6 +590,15 @@ class StudentController extends Controller
                 ->orderBy('name')
                 ->orderBy('id')
                 ->get(['id', 'name', 'code', 'academic_year_id', 'program_id']),
+            'documentTypes' => $this->documentTypeOptions(),
         ];
+    }
+
+    private function documentTypeOptions()
+    {
+        return AdmissionDocumentType::query()
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'is_required']);
     }
 }

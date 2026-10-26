@@ -63,6 +63,13 @@ return [
             'placeholder' => 'All student statuses',
             'values' => Student::STATUSES,
         ],
+        'registration_status' => [
+            'label' => 'REGISTRATION',
+            'type' => 'select',
+            'options' => 'registration_statuses',
+            'placeholder' => 'All registration states',
+            'values' => [...Student::REGISTRATION_STATUSES, 'legacy'],
+        ],
         'program_id' => [
             'label' => 'PROGRAM/CLASS',
             'type' => 'select',

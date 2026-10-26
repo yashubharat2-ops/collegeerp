@@ -40,6 +40,7 @@ class StudentHistoryController extends Controller
             'events' => $events,
             'student_id' => $request->input('student_id'),
             'students' => Student::query()
+                ->approvedForOperations()
                 ->orderBy('first_name')
                 ->orderBy('last_name')
                 ->get(['id', 'student_number', 'first_name', 'last_name']),

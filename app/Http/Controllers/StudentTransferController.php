@@ -217,6 +217,7 @@ class StudentTransferController extends Controller
     private function studentOptions()
     {
         return Student::query()
+            ->approvedForOperations()
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get(['id', 'student_number', 'first_name', 'last_name', 'status']);

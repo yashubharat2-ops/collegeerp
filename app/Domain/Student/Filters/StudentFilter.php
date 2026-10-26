@@ -38,7 +38,7 @@ class StudentFilter
 
     public const STUDENT_LIST_FIELDS = [
         'registration_number', 'registration_date', 'academic_year_id', 'department_id',
-        'enrollment_status', 'student_status', 'program_id', 'academic_context', 'batch',
+        'enrollment_status', 'student_status', 'registration_status', 'program_id', 'academic_context', 'batch',
         'student_name', 'unique_student_id', 'email', 'apaar_id', 'enrollment_number',
         'mobile_number', 'aadhaar_last4', 'father_name', 'mother_name',
     ];
@@ -256,6 +256,13 @@ class StudentFilter
         }
         if (isset($filters['student_status'])) {
             $students->where('students.status', $filters['student_status']);
+        }
+        if (isset($filters['registration_status'])) {
+            if ($filters['registration_status'] === 'legacy') {
+                $students->whereNull('students.registration_status');
+            } else {
+                $students->where('students.registration_status', $filters['registration_status']);
+            }
         }
         if (isset($filters['registration_date_from'])) {
             $students->whereDate('students.admission_date', '>=', $filters['registration_date_from']);
@@ -540,6 +547,7 @@ class StudentFilter
                 }
             }],
             'student_status' => [Rule::in(Student::STATUSES)],
+            'registration_status' => [Rule::in([...Student::REGISTRATION_STATUSES, 'legacy'])],
             'program_id' => ['integer', 'min:1'],
             'academic_year_id' => ['integer', 'min:1'],
             'department_id' => ['integer', 'min:1'],
@@ -656,6 +664,7 @@ class StudentFilter
         foreach ($needed as $key) {
             $options[$key] = match ($key) {
                 'student_statuses' => $this->enumOptions(Student::STATUSES),
+                'registration_statuses' => $this->enumOptions([...Student::REGISTRATION_STATUSES, 'legacy']),
                 'enrollment_statuses' => $this->enumOptions(StudentEnrollment::STATUSES),
                 'programs' => Program::query()->orderBy('name')->orderBy('id')
                     ->get(['id', 'name', 'code'])->map(fn (Program $program) => [

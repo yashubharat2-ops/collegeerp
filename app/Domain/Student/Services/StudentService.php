@@ -44,7 +44,7 @@ class StudentService
         'first_name', 'middle_name', 'last_name', 'email', 'phone', 'alternate_phone',
         'gender', 'category', 'date_of_birth', 'admission_date',
         'address_line_1', 'address_line_2', 'city', 'state', 'postal_code', 'country',
-        'status',
+        'status', 'registration_status',
         // Parent / guardian
         'father_name', 'mother_name', 'guardian_name', 'guardian_relation',
         'guardian_phone', 'guardian_email', 'guardian_occupation', 'guardian_address',

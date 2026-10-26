@@ -45,7 +45,7 @@ final class FeeFormOptions
     /** @return \Illuminate\Database\Eloquent\Collection<int, Student> */
     public static function students(): mixed
     {
-        return Student::query()->orderBy('first_name')->orderBy('last_name')->limit(500)->get(['id', 'first_name', 'middle_name', 'last_name', 'student_number']);
+        return Student::query()->approvedForOperations()->orderBy('first_name')->orderBy('last_name')->limit(500)->get(['id', 'first_name', 'middle_name', 'last_name', 'student_number']);
     }
 
     /** @return \Illuminate\Database\Eloquent\Collection<int, StudentEnrollment> */

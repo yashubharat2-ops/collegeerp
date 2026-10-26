@@ -102,7 +102,7 @@ class StudentDocumentController extends Controller
 
         abort_if($ids === [], 404, 'Select at least one student to build a document pack for.');
 
-        $studentQuery = Student::query()->with(['enrollments.academicYear', 'enrollments.program', 'enrollments.section']);
+        $studentQuery = Student::query()->approvedForOperations()->with(['enrollments.academicYear', 'enrollments.program', 'enrollments.section']);
         $studentFilter->applyToStudents($studentQuery, $studentFilters);
         $students = $studentQuery
             ->whereIn('students.id', $ids)
@@ -232,6 +232,7 @@ class StudentDocumentController extends Controller
     private function studentOptions()
     {
         return Student::query()
+            ->approvedForOperations()
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get(['id', 'student_number', 'first_name', 'last_name']);

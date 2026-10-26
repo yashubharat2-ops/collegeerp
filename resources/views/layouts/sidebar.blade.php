@@ -88,17 +88,18 @@
             <p class="erp-nav__empty" data-nav-empty hidden>No menu item matches that search.</p>
             <ul class="erp-nav__list" id="erp-nav-list" aria-labelledby="erp-nav-section-label">
                     <x-nav.group id="admission" label="Admission" icon="user-plus">
-                        <x-nav.link label="Applications" route="admission-applications.index" />
-                        <x-nav.link label="New Registration" route="admission-applications.create" perm="admission_applications.create" />
-                        <x-nav.link label="Student List" :href="route('students.index', ['admission_filter' => 1])" pattern="students.index" />
-                        <x-nav.nested-group id="admission-transfers" label="Transfers" perm="student_transfers.view">
-                            <x-nav.link label="Transfer In" :href="route('student-transfers.index', ['direction' => 'in'])" pattern="student-transfers.index" :query="['direction' => 'in']" perm="student_transfers.view" />
-                            <x-nav.link label="Transfer Out" :href="route('student-transfers.index', ['direction' => 'out'])" pattern="student-transfers.index" :query="['direction' => 'out']" perm="student_transfers.view" />
-                        </x-nav.nested-group>
-                        <x-nav.link label="Status Types" route="admission.status-types.index" />
-                        <x-nav.link label="ID Cards" :href="route('student-id-cards.index', ['context' => 'admission'])" pattern="student-id-cards.index" perm="student_id_cards.view" />
-                        <x-nav.nested-group id="admission-settings" label="Settings" perm="settings.view|student_id_cards.view">
-                            <x-nav.link label="ID Card Setting" route="settings.index" perm="settings.view" />
+                        {{-- Legacy/in-flight admission process only. New student
+                             registration and student record management live in
+                             the Students module; duplicate entries are removed. --}}
+                        <x-nav.nested-group id="admission-register-legacy" label="Register (legacy)" perm="admission_applications.view|admission_applicants.view|admission_enquiries.view|admission_documents.view|admission_merit.view|admissions.view|admission_dashboard.view|admission.status_types.view">
+                            <x-nav.link label="Applications" route="admission-applications.index" perm="admission_applications.view" />
+                            <x-nav.link label="Applicants" route="admission-applicants.index" perm="admission_applicants.view" />
+                            <x-nav.link label="Enquiries" route="admission-enquiries.index" perm="admission_enquiries.view" />
+                            <x-nav.link label="Admission Documents" route="admission-documents.index" perm="admission_documents.view" />
+                            <x-nav.link label="Merit &amp; Selection" route="admission-merit-lists.index" perm="admission_merit.view" />
+                            <x-nav.link label="Final Admissions" route="admissions.index" perm="admissions.view" />
+                            <x-nav.link label="Dashboard" route="admission.dashboard" perm="admission_dashboard.view" />
+                            <x-nav.link label="Status Types" route="admission.status-types.index" perm="admission.status_types.view" />
                         </x-nav.nested-group>
                         <x-nav.link label="Reports" route="admission-reports.index" perm="admission_reports.view" />
                     </x-nav.group>
@@ -109,11 +110,13 @@
                         <x-nav.link label="Approval Settings" route="approvals.settings.index" perm="approvals.settings.manage" />
                     </x-nav.group>
                     <x-nav.group id="students" label="Students" icon="graduation-cap">
-                        <x-nav.link label="Students" route="students.index" />
+                        <x-nav.link label="Registration" route="students.registration.create" perm="students.create" />
+                        <x-nav.link label="Student List" route="students.index" />
                         <x-nav.link label="Bulk Registration & Import" route="students.import.index" perm="students.create" />
                         <x-nav.link label="Enrollments" route="student-enrollments.index" />
                         <x-nav.link label="Academic Records" route="student-academic-records.index" />
                         <x-nav.link label="Documents" route="student-documents.index" />
+                        <x-nav.link label="Document Types" route="admission-document-types.index" perm="admission_document_types.view" />
                         <x-nav.link label="ID Cards" route="student-id-cards.index" />
                         <x-nav.link label="Promotion" route="student-promotions.index" />
                         <x-nav.link label="Student Transfers" route="student-transfers.index" />

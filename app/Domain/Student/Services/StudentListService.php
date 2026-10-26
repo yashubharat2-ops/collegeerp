@@ -51,6 +51,14 @@ class StudentListService
             'enrollments.program.department',
             'enrollments.section',
         ]);
+
+        // Normal operational list: legacy (NULL) and approved registrations only.
+        // An explicit registration_status filter is an administrative review of
+        // pending/rejected registrations and overrides the default visibility.
+        if (! isset($filters['registration_status'])) {
+            $query->approvedForOperations();
+        }
+
         $this->studentFilter->applyToStudents($query, $filters);
 
         $builder = ListQueryBuilder::for($query, $request)->addAppliedFilters($filters);

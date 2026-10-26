@@ -164,6 +164,7 @@ class CertificateReportController extends Controller
             'verificationStatusOptions' => self::VERIFICATION_STATUS_LABELS,
             'students' => in_array('student_id', $activeFilters, true)
                 ? Student::query()
+                    ->approvedForOperations()
                     ->orderBy('first_name')
                     ->orderBy('last_name')
                     ->limit(300)

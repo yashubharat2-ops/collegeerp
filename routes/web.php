@@ -275,6 +275,11 @@ Route::middleware('auth')->group(function () {
         Route::post('admissions/{admission}/cancel', [AdmissionController::class, 'cancel'])->name('admissions.cancel');
         Route::resource('admissions', AdmissionController::class)->except('show');
         Route::post('students/convert/{admission_application}', [StudentController::class, 'convert'])->name('students.convert');
+        // Unified registration: same rich Student form, server-enforced pending
+        // status and one central ApprovalRequest. Declared before the resource
+        // route so "students/registration" cannot be captured as a student id.
+        Route::get('students/registration', [StudentController::class, 'registration'])->name('students.registration.create');
+        Route::post('students/registration', [StudentController::class, 'registrationStore'])->name('students.registration.store');
         // CSV export of the filtered list (or of an authorized selection of it).
         // Declared BEFORE the resource route: `students/{student}` would otherwise
         // capture "students/export" and 404 on a student named "export".

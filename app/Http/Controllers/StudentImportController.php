@@ -98,13 +98,18 @@ class StudentImportController extends Controller
         $canEnroll = (bool) $request->user()?->can('create', StudentEnrollment::class);
 
         try {
-            $result = $import->importPath($absolute, $collegeId, $canEnroll);
+            $result = $import->importPath(
+                $absolute,
+                $collegeId,
+                $canEnroll,
+                (int) $request->user()->getKey(),
+            );
         } finally {
             $import->forget($request->string('token')->toString());
         }
 
         return redirect()
             ->route('students.index')
-            ->with('success', $result['created'].' student(s) imported.');
+            ->with('success', $result['submitted'].' registration(s) submitted for approval.');
     }
 }
