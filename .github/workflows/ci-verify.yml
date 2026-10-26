@@ -1,0 +1,146 @@
+name: ci-verify
+
+on:
+  push:
+    branches: ['arena/8dc93f02-collegeerp']
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: ci-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      NO_COLOR: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_sqlite, sqlite3, mbstring, xml, curl, bcmath, intl, zip, gd, fileinfo, dom
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build assets
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Prepare environment
+        run: |
+          mkdir -p /tmp/out
+          cp .env.example .env
+          php artisan key:generate --force
+          php artisan config:clear
+
+      - name: Registration workflow tests
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/Students/StudentRegistrationApprovalTest.php --colors=never 2>&1 | tee /tmp/out/registration.txt
+
+      - name: Student import tests
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/Students/StudentImportTest.php --colors=never 2>&1 | tee /tmp/out/import.txt
+
+      - name: Student module regression
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/Students --colors=never 2>&1 | tee /tmp/out/students.txt
+
+      - name: Approval and gate regression
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/Approval/ApprovalManagementTest.php tests/Feature/Admissions/AdmissionConfirmationGateTest.php --colors=never 2>&1 | tee /tmp/out/approval.txt
+
+      - name: Sidebar and conversion regression
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/Layout tests/Feature/AdmissionSidebarAndApprovalRegressionTest.php tests/Feature/Admissions/AdmissionToStudentConversionTest.php --colors=never 2>&1 | tee /tmp/out/sidebar.txt
+
+      - name: Admission module regression
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/Admissions --colors=never 2>&1 | tee /tmp/out/admissions.txt
+
+      - name: Full suite
+        if: always() && contains(github.event.head_commit.message, '[full]')
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test --colors=never 2>&1 | tee /tmp/out/full.txt
+
+      - name: Publish raw output through the Checks API
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/check
+          python3 - <<'PY'
+          import json, os, pathlib, re
+          run_id = os.environ['GITHUB_RUN_ID']
+          sha = os.environ['GITHUB_SHA']
+          out = pathlib.Path('/tmp/out')
+          check = pathlib.Path('/tmp/check')
+          ansi = re.compile(r'\x1B\[[0-9;]*[mK]')
+          for f in sorted(out.glob('*.txt')):
+              base = f.stem
+              lines = ansi.sub('', f.read_text(errors='replace')).splitlines()
+              if base == 'full':
+                  lines = lines[-900:]
+              header = [
+                  f'PHPUnit output file: {base}.txt',
+                  '----- summaries -----',
+              ]
+              header += [ln for ln in lines if re.match(r'^\s*(PASS|FAIL|Tests:|Duration:|FAILED)', ln)][:60]
+              header += ['----- failure detail -----']
+              for i, ln in enumerate(lines):
+                  if re.search(r'FAILED |Failed asserting|Expected response status|The following exception|syntax error', ln):
+                      header += lines[max(0, i - 2): i + 22]
+              header += ['----- tail -----'] + lines[-250:]
+              text = '\n'.join(header)[:60000]
+              payload = {
+                  'name': f'phpunit-{base}-{run_id}',
+                  'head_sha': sha,
+                  'status': 'completed',
+                  'conclusion': 'neutral',
+                  'output': {
+                      'title': f'PHPUnit {base} output for {sha[:8]}',
+                      'summary': f'Raw {base} test output.',
+                      'text': text,
+                  },
+              }
+              (check / f'{base}.json').write_text(json.dumps(payload))
+          PY
+          for j in /tmp/check/*.json; do
+            gh api "repos/${GITHUB_REPOSITORY}/check-runs" --method POST --input "$j" > "${j%.json}-response.json"
+            echo "Published $(basename "$j")"
+          done

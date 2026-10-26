@@ -76,6 +76,26 @@ final class StudentRegistrationService
                 }
             }
 
+            // A cancelled/expired request may have left a pending Student without
+            // a live ApprovalRequest. Reuse that Student and raise one request;
+            // never create a second person record.
+            $orphanedPending = $this->duplicatePending($data, $collegeId);
+            if ($orphanedPending) {
+                $approvalRequest = $this->submitApprovalRequest(
+                    $orphanedPending,
+                    $fingerprint,
+                    $data,
+                    $collegeId,
+                    $actorId,
+                );
+
+                return [
+                    'student' => $orphanedPending,
+                    'approval_request' => $approvalRequest,
+                    'created' => false,
+                ];
+            }
+
             $academicYearId = $data['academic_year_id'] ?? null;
             $year = $academicYearId ? AcademicYear::query()->find($academicYearId) : null;
             if ($academicYearId && ! $year) {
@@ -113,28 +133,13 @@ final class StudentRegistrationService
                 ], $file, $collegeId, $actorId);
             }
 
-            $approvalRequest = $this->approvals->submitRequest([
-                'module' => 'student',
-                'action' => 'registration_approval',
-                'target_type' => 'student.registration_approval',
-                'target_id' => $student->id,
-                'title' => 'Student registration: '.$student->student_number,
-                'description' => 'Registration submitted by '.$actorId.' for '.$student->first_name.' '.$student->last_name.'.',
-                'payload' => [
-                    'registration_fingerprint' => $fingerprint,
-                    'student_id' => $student->id,
-                    'academic_year_id' => $data['academic_year_id'] ?? null,
-                    'program_id' => $data['program_id'] ?? null,
-                    'section_id' => $data['section_id'] ?? null,
-                    'enrollment_date' => $data['enrollment_date'] ?? null,
-                    'admission_date' => $studentData['admission_date'] ?? now()->toDateString(),
-                ],
-                'previous_data' => [
-                    'status' => 'inactive',
-                    'registration_status' => Student::REGISTRATION_PENDING,
-                ],
-                'request_reason' => $studentData['remarks'] ?? null,
-            ], $collegeId, $actorId);
+            $approvalRequest = $this->submitApprovalRequest(
+                $student,
+                $fingerprint,
+                array_merge($data, ['admission_date' => $studentData['admission_date'] ?? now()->toDateString()]),
+                $collegeId,
+                $actorId,
+            );
 
             $this->audit->record('student.registration_submitted', $student, [], [
                 'id' => $student->id,
@@ -147,6 +152,37 @@ final class StudentRegistrationService
 
             return ['student' => $student, 'approval_request' => $approvalRequest, 'created' => true];
         });
+    }
+
+    private function submitApprovalRequest(
+        Student $student,
+        string $fingerprint,
+        array $data,
+        int $collegeId,
+        int $actorId,
+    ): ApprovalRequest {
+        return $this->approvals->submitRequest([
+            'module' => 'student',
+            'action' => 'registration_approval',
+            'target_type' => 'student.registration_approval',
+            'target_id' => $student->id,
+            'title' => 'Student registration: '.$student->student_number,
+            'description' => 'Registration submitted by '.$actorId.' for '.$student->first_name.' '.$student->last_name.'.',
+            'payload' => [
+                'registration_fingerprint' => $fingerprint,
+                'student_id' => $student->id,
+                'academic_year_id' => $data['academic_year_id'] ?? null,
+                'program_id' => $data['program_id'] ?? null,
+                'section_id' => $data['section_id'] ?? null,
+                'enrollment_date' => $data['enrollment_date'] ?? null,
+                'admission_date' => $data['admission_date'] ?? now()->toDateString(),
+            ],
+            'previous_data' => [
+                'status' => 'inactive',
+                'registration_status' => Student::REGISTRATION_PENDING,
+            ],
+            'request_reason' => $data['remarks'] ?? null,
+        ], $collegeId, $actorId);
     }
 
     /**

@@ -144,6 +144,34 @@ class StudentRegistrationApprovalTest extends TestCase
             ->count());
     }
 
+    public function test_resubmission_after_cancelled_request_reuses_the_pending_student(): void
+    {
+        $college = $this->makeCollege('REGC');
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+        $submitter = $this->makeUserWithPermissions($college, ['students.view', 'students.create']);
+        $payload = $this->payload($college, $year, $program);
+
+        $this->submitRegistration($college, $submitter, $payload)->assertRedirect();
+        $student = Student::withoutGlobalScopes()->where('college_id', $college->id)->firstOrFail();
+        $request = $this->pendingRequest($student);
+
+        $this->asCollege($college, $submitter)
+            ->post(route('approvals.cancel', $request), [])
+            ->assertRedirect();
+
+        $this->submitRegistration($college, $submitter, $payload)
+            ->assertRedirect(route('students.index'));
+
+        $this->assertSame(1, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame(1, ApprovalRequest::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->where('module', 'student')
+            ->where('action', 'registration_approval')
+            ->where('status', 'pending')
+            ->count());
+    }
+
     public function test_pending_and_rejected_registrations_are_hidden_but_legacy_students_remain_visible(): void
     {
         $college = $this->makeCollege('REGV');
