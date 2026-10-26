@@ -23,6 +23,23 @@ use Illuminate\Validation\ValidationException;
  */
 class AdmissionService
 {
+    /**
+     * The application statuses that may be confirmed as a final admission.
+     *
+     * An allowlist, not a denylist: the previous rule blocked only
+     * draft/rejected/cancelled, which let an application that was merely
+     * `submitted` or `under_review` — i.e. still awaiting the administrator's
+     * decision — be confirmed as an admission. That contradicted the admission
+     * workflow, where confirmation must FOLLOW approval.
+     *
+     * Deliberately the same vocabulary as
+     * {@see \App\Domain\Student\Actions\ConvertApplicationToStudent::CONVERTIBLE},
+     * so the two things that happen after approval — creating the admission
+     * record and converting it to a student — can never disagree about what
+     * "approved" means.
+     */
+    public const ADMITTABLE_STATUSES = ['approved', 'admitted'];
+
     public function __construct(
         private readonly GenerateAdmissionNumber $numberGenerator,
         private readonly AuditLogService $audit,
@@ -62,13 +79,15 @@ class AdmissionService
                 ]);
             }
 
-            // Only approved/selected applications should become admissions, but allow configurable:
-            // If application is not in approved/admitted, still allow if explicitly approved? We enforce approved or admitted or selected via merit.
-            // For flexibility, we check status is in allowed set: approved, admitted, submitted, under_review.
-            // However we block draft, rejected, cancelled.
-            if (in_array($application->status, ['draft', 'rejected', 'cancelled'], true)) {
+            // Confirmation follows approval: only an application the
+            // administrator has actually approved (or one already admitted, so
+            // the operation is idempotent) may become a final admission. The
+            // previous denylist let `submitted` and `under_review` through,
+            // which confirmed an admission that was still awaiting a decision.
+            // See self::ADMITTABLE_STATUSES.
+            if (! in_array($application->status, self::ADMITTABLE_STATUSES, true)) {
                 throw ValidationException::withMessages([
-                    'application_id' => 'Only approved/submitted/under_review applications can be admitted. Current status: '.$application->status,
+                    'application_id' => 'Only approved or admitted applications can be admitted. Current status: '.$application->status,
                 ]);
             }
 

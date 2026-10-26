@@ -20,6 +20,42 @@
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <!--
+            APP_URL is pinned here because the suite is otherwise at the mercy of
+            whatever the developer's .env happens to say, and every single request
+            in every feature test is built with route() (228 test files, ~5,200
+            route() calls, zero hardcoded paths).
+
+            route() renders an ABSOLUTE URL from config('app.url'). If APP_URL
+            carries a path prefix (http://localhost/collegeerp/public, common on
+            XAMPP/Windows setups) or a trailing slash, the generated URL becomes
+            http://localhost/collegeerp/public/admissions/create — and the test
+            client then requests THAT path, which matches no registered route, so
+            the request 404s. `php artisan route:list` still reports the route as
+            existing, because it prints URIs relative to the application root and
+            is unaffected by APP_URL. That combination (routes verified present,
+            middleware correct, yet 404) is the signature of this misconfiguration.
+
+            The symptom is uniform and easy to misread as a routing or tenancy
+            bug: every test that issues an HTTP request fails, while every
+            assertion that does not touch HTTP passes. Tenant middleware is not
+            implicated — ResolveTenant and EnsureTenantAccess both abort(403),
+            never 404.
+
+            SidebarStructureTest::pathFromHref() already documents this hazard
+            ("route() renders an absolute URL — http://localhost/students in this
+            suite, the configured APP_URL elsewhere") and defends against it by
+            comparing only the path component. Pinning the value removes the
+            hazard at the source instead of defensively working around it in each
+            test.
+
+            force="true" so the value wins over BOTH .env and any APP_URL exported
+            into the shell or CI environment — determinism is the whole point.
+            This uses the same override mechanism phpunit.xml already relies on
+            for SESSION_DRIVER, CACHE_STORE and QUEUE_CONNECTION, each of which
+            deliberately differs from .env.example.
+        -->
+        <env name="APP_URL" value="http://localhost" force="true"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>

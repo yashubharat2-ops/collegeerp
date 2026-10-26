@@ -196,11 +196,19 @@ class AdmissionController extends Controller
         return Program::query()->orderBy('name')->get(['id','name','code']);
     }
 
+    /**
+     * The applications the "New admission" form may offer.
+     *
+     * Narrowed to the same allowlist {@see AdmissionService} enforces, so the
+     * dropdown can never present a `submitted` or `under_review` application
+     * that the service would then refuse — the operator is not offered a choice
+     * that produces a validation error. Confirmation follows approval.
+     */
     private function applicationOptions()
     {
         return AdmissionApplication::query()
             ->with('applicant:id,first_name,last_name')
-            ->whereIn('status', ['approved','submitted','under_review','admitted'])
+            ->whereIn('status', AdmissionService::ADMITTABLE_STATUSES)
             ->orderByDesc('created_at')
             ->limit(50)
             ->get(['id','application_number','applicant_id','status','program_id','academic_year_id']);
