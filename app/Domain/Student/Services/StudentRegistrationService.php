@@ -2,6 +2,7 @@
 
 namespace App\Domain\Student\Services;
 
+use App\Domain\Student\Support\Aadhaar;
 use App\Models\AcademicYear;
 use App\Models\ApprovalRequest;
 use App\Models\Student;
@@ -139,6 +140,8 @@ final class StudentRegistrationService
      */
     private function duplicatePending(array $data, int $collegeId): ?Student
     {
+        $aadhaar = Aadhaar::normalise($data['aadhaar_number'] ?? null);
+
         return Student::withoutGlobalScopes()
             ->where('college_id', $collegeId)
             ->where('registration_status', Student::REGISTRATION_PENDING)
@@ -149,6 +152,10 @@ final class StudentRegistrationService
                 isset($data['phone']) && $data['phone'] !== '',
                 fn ($query) => $query->where('phone', $data['phone']),
                 fn ($query) => $query->whereNull('phone'),
+            )
+            ->when(
+                $aadhaar !== null,
+                fn ($query) => $query->where('aadhaar_hash', Aadhaar::hash($aadhaar)),
             )
             ->lockForUpdate()
             ->first();

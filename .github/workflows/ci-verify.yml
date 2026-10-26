@@ -115,8 +115,10 @@ jobs:
             {
               echo "PHPUnit output file: ${base}.txt"
               grep -E '^[[:space:]]*(PASS|FAIL|Tests:|Duration:|FAILED)' "/tmp/check/${safe}.raw" | head -n 40
+              echo '----- failure summaries -----'
+              grep -n -E -A 18 -B 2 'FAILED |Failed asserting|Expected response status|The following exception|syntax error' "/tmp/check/${safe}.raw" | head -n 500
               echo '----- tail (failure detail and summary) -----'
-              tail -c 50000 "/tmp/check/${safe}.raw"
+              tail -c 40000 "/tmp/check/${safe}.raw"
             } > "/tmp/check/${safe}.txt"
             head -c 60000 "/tmp/check/${safe}.txt" > "/tmp/check/${safe}.final"
             mv "/tmp/check/${safe}.final" "/tmp/check/${safe}.txt"

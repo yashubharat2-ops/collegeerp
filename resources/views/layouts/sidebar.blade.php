@@ -96,7 +96,7 @@
                             <x-nav.link label="Applicants" route="admission-applicants.index" perm="admission_applicants.view" />
                             <x-nav.link label="Enquiries" route="admission-enquiries.index" perm="admission_enquiries.view" />
                             <x-nav.link label="Admission Documents" route="admission-documents.index" perm="admission_documents.view" />
-                            <x-nav.link label="Merit &amp; Selection" route="admission-merit-lists.index" perm="admission_merit.view" />
+                            <x-nav.link label="Merit & Selection" route="admission-merit-lists.index" perm="admission_merit.view" />
                             <x-nav.link label="Final Admissions" route="admissions.index" perm="admissions.view" />
                             <x-nav.link label="Dashboard" route="admission.dashboard" perm="admission_dashboard.view" />
                             <x-nav.link label="Status Types" route="admission.status-types.index" perm="admission.status_types.view" />

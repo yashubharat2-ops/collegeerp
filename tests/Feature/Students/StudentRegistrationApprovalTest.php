@@ -95,7 +95,7 @@ class StudentRegistrationApprovalTest extends TestCase
         $this->assertDatabaseHas('audit_logs', [
             'college_id' => $college->id,
             'action' => 'student.registration_submitted',
-            'subject_type' => Student::class,
+            'subject_type' => (new Student)->getMorphClass(),
             'subject_id' => $student->id,
         ]);
         $this->assertSame(0, StudentEnrollment::withoutGlobalScopes()->where('student_id', $student->id)->count());
@@ -238,7 +238,7 @@ class StudentRegistrationApprovalTest extends TestCase
         $this->assertSame(1, StudentEnrollment::withoutGlobalScopes()->where('student_id', $student->id)->count());
         $this->assertDatabaseHas('audit_logs', [
             'action' => 'student.registration_approved',
-            'subject_type' => Student::class,
+            'subject_type' => (new Student)->getMorphClass(),
             'subject_id' => $student->id,
         ]);
 
@@ -273,7 +273,7 @@ class StudentRegistrationApprovalTest extends TestCase
         $this->assertSame(0, StudentEnrollment::withoutGlobalScopes()->where('student_id', $student->id)->count());
         $this->assertDatabaseHas('audit_logs', [
             'action' => 'student.registration_rejected',
-            'subject_type' => Student::class,
+            'subject_type' => (new Student)->getMorphClass(),
             'subject_id' => $student->id,
         ]);
 
@@ -322,7 +322,7 @@ class StudentRegistrationApprovalTest extends TestCase
             ->assertRedirect();
 
         $this->asCollege($college, $submitter)
-            ->get(route('students.show', $student))
+            ->get(route('students.show', ['student' => $student, 'tab' => 'history']))
             ->assertOk()
             ->assertSee($student->student_number)
             ->assertSee('Registration submitted')

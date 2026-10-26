@@ -603,7 +603,7 @@
                         <option value="">— Unclassified —</option>
                         @foreach(($documentTypes ?? collect()) as $type)
                             <option value="{{ $type->id }}" @selected((int) old('registration_document_type_id') === $type->id)>
-                                {{ $type->name }} ({{ $type->code }})@if($type->is_required) · required@endif
+                                {{ $type->name }} ({{ $type->code }}){{ $type->is_required ? ' · required' : '' }}
                             </option>
                         @endforeach
                     </select>

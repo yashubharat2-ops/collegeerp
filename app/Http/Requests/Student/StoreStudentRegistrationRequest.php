@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Student;
 
+use App\Domain\Student\Rules\ValidAadhaar;
+use App\Domain\Student\Support\Aadhaar;
 use App\Http\Requests\Student\Concerns\HandlesStudentProfile;
 use App\Models\Student;
 use App\Support\Tenancy\TenantContext;
@@ -29,6 +31,55 @@ class StoreStudentRegistrationRequest extends FormRequest
     {
         $collegeId = app(TenantContext::class)->id();
         $rules = (new StoreStudentRequest())->rules();
+
+        // A repeated submission of the SAME pending registration is handled
+        // idempotently by StudentRegistrationService, so a pending row must not
+        // trip the unique phone/Aadhaar checks. Approved/legacy rows still do.
+        $operationalStudent = function ($query): void {
+            $query->whereNull('registration_status')
+                ->orWhere('registration_status', '!=', Student::REGISTRATION_PENDING);
+        };
+
+        $rules['phone'] = [
+            'nullable', 'string', 'max:30',
+            function (string $attribute, mixed $value, callable $fail) use ($collegeId, $operationalStudent): void {
+                if (! is_string($value) || trim($value) === '') {
+                    return;
+                }
+
+                $exists = Student::withoutGlobalScopes()
+                    ->where('college_id', $collegeId)
+                    ->where('phone', $value)
+                    ->whereNull('deleted_at')
+                    ->where($operationalStudent)
+                    ->exists();
+
+                if ($exists) {
+                    $fail('The phone has already been taken.');
+                }
+            },
+        ];
+
+        $rules['aadhaar_number'] = [
+            'nullable', 'string', 'max:20', new ValidAadhaar(),
+            function (string $attribute, mixed $value, callable $fail) use ($collegeId, $operationalStudent): void {
+                $digits = Aadhaar::normalise($value);
+                if ($digits === null) {
+                    return;
+                }
+
+                $exists = Student::withoutGlobalScopes()
+                    ->where('college_id', $collegeId)
+                    ->where('aadhaar_hash', Aadhaar::hash($digits))
+                    ->whereNull('deleted_at')
+                    ->where($operationalStudent)
+                    ->exists();
+
+                if ($exists) {
+                    $fail('This Aadhaar number is already registered.');
+                }
+            },
+        ];
 
         // Status and registration timestamps are server-owned.
         $rules['status'] = ['prohibited'];
@@ -67,7 +118,8 @@ class StoreStudentRegistrationRequest extends FormRequest
 
     public function withValidator(Validator $validator): void
     {
-        $this->rejectDuplicateAadhaar($validator);
+        // Aadhaar uniqueness is enforced by the custom rule above so a repeated
+        // pending submission can be returned idempotently by the service.
         $this->requireGovtIdNumberForChosenType($validator);
     }
 

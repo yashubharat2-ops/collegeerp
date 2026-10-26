@@ -426,26 +426,24 @@ class SidebarStructureTest extends TestCase
     public function test_nested_groups_keep_active_route_state_and_permission_gates(): void
     {
         $college = $this->makeCollege('STRUCT6B');
-        $user = $this->makeUserWithPermissions($college, ['student_transfers.view', 'settings.view']);
+        $user = $this->makeUserWithPermissions($college, ['admission_applicants.view']);
         $html = $this->asCollege($college, $user)
-            ->get(route('student-transfers.index', ['direction' => 'in']))
+            ->get(route('admission-applicants.index'))
             ->assertOk()
             ->getContent();
         $aside = $this->aside($html);
         $this->assertSame(1, preg_match('/<li class="nav-group" data-nav-group="admission".*?(?=<li class="nav-group" data-nav-group="approval-management")/s', $aside, $admissionMatch));
         $admission = $admissionMatch[0];
 
-        $this->assertMatchesRegularExpression('/data-nav-group="admission" data-nav-open="true"\s+data-nav-active="true"/', $admission, 'The parent module still opens for its active child.');
-        $this->assertMatchesRegularExpression('/data-nested-group="admission-transfers" data-nav-open="true"\s+data-nav-active="true"/', $admission, 'The active nested route still expands its own parent.');
-        $this->assertStringContainsString('id="nav-head-admission-transfers" aria-expanded="true"', $admission);
-        $this->assertMatchesRegularExpression('/data-nested-group="admission-settings" data-nav-open="false"\s*>/', $admission, 'The inactive sibling starts closed and has no active marker.');
-        $this->assertStringContainsString('id="nav-head-admission-settings" aria-expanded="false"', $admission);
+        $this->assertMatchesRegularExpression('/data-nav-group="admission" data-nav-open="true"\s+data-nav-active="true"/', $admission, 'The parent module still opens for its active legacy child.');
+        $this->assertMatchesRegularExpression('/data-nested-group="admission-register-legacy" data-nav-open="true"\s+data-nav-active="true"/', $admission, 'The active legacy nested route expands its own parent.');
+        $this->assertStringContainsString('id="nav-head-admission-register-legacy" aria-expanded="true"', $admission);
         $this->assertSame(2, substr_count($admission, 'data-nav-active="true"'), 'Only Admission and its active nested parent are marked active.');
 
-        $limited = $this->group($this->dashboardFor($college, ['student_transfers.view']), 'Admission');
-        $this->assertStringContainsString('data-nested-group="admission-transfers"', $limited, 'A permitted nested group remains visible.');
-        $this->assertStringNotContainsString('data-nested-group="admission-settings"', $limited, 'Settings remains hidden without either of its permissions.');
-        $this->assertStringContainsString('>Applications</span>', $limited, 'The existing parent and ungated rows still render.');
+        $limited = $this->group($this->dashboardFor($college, ['admission_applicants.view']), 'Admission');
+        $this->assertStringContainsString('data-nested-group="admission-register-legacy"', $limited, 'A permitted legacy nested group remains visible.');
+        $this->assertStringContainsString('>Applicants</span>', $limited, 'The permitted legacy row still renders.');
+        $this->assertStringNotContainsString('>Enquiries</span>', $limited, 'A row without its permission stays hidden.');
     }
 
     public function test_academics_destinations_render_flat_in_their_existing_order(): void
