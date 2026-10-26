@@ -82,15 +82,18 @@ class SidebarRailTooltipTest extends TestCase
         $this->assertNotNull($foreground, 'The label needs an explicit colour.');
         $this->assertNotNull($background, 'The pill needs an explicit background.');
 
-        // 16.7:1 in the shipped pair; AAA (7:1) is the floor, so a "nicer" colour swap
-        // that quietly drops the contrast is still caught.
+        // 12.5:1 in the shipped green-dashboard pair; AAA (7:1) is the floor,
+        // so a "nicer" colour swap that quietly drops the contrast is still caught.
+        // The literals changed from the original navy pill (#0b1a2c / #f8fafc)
+        // in the 2026-10-16 green college dashboard work; the contrast contract
+        // and both explicit-colour assertions remain in force.
         $this->assertGreaterThanOrEqual(
             7.0,
             $this->contrastRatio($foreground, $background),
             "The rail label must be readable: {$foreground} on {$background}."
         );
-        $this->assertSame('#f8fafc', strtolower($foreground), 'Near-white is the sidebar text colour.');
-        $this->assertSame('#0b1a2c', strtolower($background), 'Solid navy, never transparent: the pill floats over content cards.');
+        $this->assertSame('#f2faf4', strtolower($foreground), 'Near-white mint is the sidebar tooltip text colour.');
+        $this->assertSame('#173529', strtolower($background), 'Raised forest green, never transparent: the pill floats over content cards.');
     }
 
     public function test_the_tip_stacks_above_the_chrome_that_could_cover_it(): void

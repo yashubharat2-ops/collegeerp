@@ -17,7 +17,9 @@ class ApprovalService
 
     /**
      * Determine if approval is required for this module/action in this college.
-     * Returns false when no setting exists (default: not required) or when disabled.
+     * Admission actions default to required when no setting exists, matching the
+     * Approval Settings screen; every other module defaults to not required.
+     * An explicit disabled setting always wins.
      */
     public function isApprovalRequired(int $collegeId, string $module, string $action): bool
     {

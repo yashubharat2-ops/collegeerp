@@ -195,6 +195,8 @@ class AdmissionApplicationManagementTest extends TestCase
     public function test_admin_can_update_application_but_applicant_and_number_are_immutable(): void
     {
         $college = $this->makeCollege('APLU');
+        // Direct-workflow CRUD regression: approval gating is exercised separately.
+        $this->disableAdmissionApplicationApproval($college);
         $admin = $this->makeUserWithPermissions($college, ['admission_applications.view', 'admission_applications.update']);
         $applicant = $this->makeApplicant($college);
         $otherApplicant = $this->makeApplicant($college, ['first_name' => 'Other']);
@@ -238,6 +240,8 @@ class AdmissionApplicationManagementTest extends TestCase
     public function test_status_change_back_to_draft_preserves_submitted_at_history(): void
     {
         $college = $this->makeCollege('APLH');
+        // Direct-workflow status regression: approval gating is exercised separately.
+        $this->disableAdmissionApplicationApproval($college);
         $admin = $this->makeUserWithPermissions($college, ['admission_applications.view', 'admission_applications.update']);
         $applicant = $this->makeApplicant($college);
         $year = $this->makeYear($college);
@@ -416,6 +420,8 @@ class AdmissionApplicationManagementTest extends TestCase
     public function test_audit_logs_record_application_create_update_and_delete(): void
     {
         $college = $this->makeCollege('APLA');
+        // Direct-workflow audit regression: approval gating is exercised separately.
+        $this->disableAdmissionApplicationApproval($college);
         $admin = $this->makeUserWithPermissions($college, ['admission_applications.view', 'admission_applications.create', 'admission_applications.update', 'admission_applications.delete']);
         $applicant = $this->makeApplicant($college);
         $year = $this->makeYear($college);

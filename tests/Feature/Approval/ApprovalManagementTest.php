@@ -6,6 +6,7 @@ use App\Models\AcademicYear;
 use App\Models\AdmissionApplicant;
 use App\Models\AdmissionApplication;
 use App\Models\ApprovalRequest;
+use App\Models\ApprovalSetting;
 use App\Models\College;
 use App\Models\Program;
 use Tests\Feature\Departments\DepartmentTestHelpers;
@@ -289,6 +290,55 @@ class ApprovalManagementTest extends TestCase
         $app->refresh();
         $this->assertSame('submitted', $app->status, 'Status should not have changed directly');
         $this->assertDatabaseHas('approval_requests', ['target_id'=>$app->id,'module'=>'admission','action'=>'application_status_change','status'=>'pending']);
+    }
+
+    public function test_pending_status_change_still_saves_and_audits_ordinary_field_edits(): void
+    {
+        $college = $this->makeCollege('APPR10B');
+        $staff = $this->makeUserWithPermissions($college, ['admission_applications.view','admission_applications.update']);
+        $year = $this->makeYear($college, '2026');
+        $nextYear = $this->makeYear($college, '2027');
+        $program = $this->makeProgram($college, 'BSC');
+        $nextProgram = $this->makeProgram($college, 'MSC');
+        $applicant = $this->makeApplicant($college);
+        ApprovalSetting::withoutGlobalScopes()->create(['college_id'=>$college->id,'module'=>'admission','action'=>'application_status_change','is_required'=>true]);
+        $app = AdmissionApplication::withoutGlobalScopes()->create([
+            'college_id'=>$college->id,
+            'applicant_id'=>$applicant->id,
+            'academic_year_id'=>$year->id,
+            'program_id'=>$program->id,
+            'application_number'=>'APP-FIELDS',
+            'status'=>'submitted',
+        ]);
+
+        $this->asCollege($college, $staff)->put(route('admission-applications.update', $app), [
+            'academic_year_id'=>$nextYear->id,
+            'program_id'=>$nextProgram->id,
+            'status'=>'approved',
+            'remarks'=>'Corrected while approval is pending',
+        ])->assertSessionHasNoErrors();
+
+        $app->refresh();
+        // Approval still gates only the status transition.
+        $this->assertSame('submitted', $app->status);
+        // Ordinary edits must not be silently discarded with the queued status.
+        $this->assertSame($nextYear->id, $app->academic_year_id);
+        $this->assertSame($nextProgram->id, $app->program_id);
+        $this->assertSame('Corrected while approval is pending', $app->remarks);
+        $this->assertDatabaseHas('audit_logs', [
+            'action'=>'admission_application.updated',
+            'subject_type'=>AdmissionApplication::class,
+            'subject_id'=>$app->id,
+        ]);
+
+        $request = ApprovalRequest::withoutGlobalScopes()
+            ->where('target_id', $app->id)
+            ->where('action', 'application_status_change')
+            ->first();
+        $this->assertNotNull($request);
+        // No stale ordinary-field values in the approval payload: approving the
+        // status later must not overwrite edits made while the request is pending.
+        $this->assertSame(['status','submitted_at'], array_keys($request->payload));
     }
 
     public function test_approval_settings_cannot_be_modified_by_unauthorized(): void

@@ -32,6 +32,9 @@ class AdmissionWorkflowTest extends TestCase
     public function test_invalid_transition_is_blocked_in_controller(): void
     {
         $college = $this->makeCollege('WFCT');
+        // This test pins the workflow transition map; central approval gating is
+        // covered separately in ApprovalManagementTest.
+        $this->disableAdmissionApplicationApproval($college);
         $admin = $this->makeUserWithPermissions($college, ['admission_applications.view','admission_applications.update']);
         $applicant = $this->makeApplicant($college);
         $application = AdmissionApplication::withoutGlobalScopes()->create([
@@ -84,6 +87,9 @@ class AdmissionWorkflowTest extends TestCase
     public function test_admitted_status_flow(): void
     {
         $college = $this->makeCollege('WFAD');
+        // This test pins the workflow transition map; central approval gating is
+        // covered separately in ApprovalManagementTest.
+        $this->disableAdmissionApplicationApproval($college);
         $admin = $this->makeUserWithPermissions($college, ['admission_applications.view','admission_applications.update']);
         $applicant = $this->makeApplicant($college);
         $year = \App\Models\AcademicYear::withoutGlobalScopes()->create([
