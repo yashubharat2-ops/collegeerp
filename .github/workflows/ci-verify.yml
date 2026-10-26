@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  checks: write
 
 concurrency:
   group: ci-verify-${{ github.ref }}
@@ -116,6 +117,54 @@ jobs:
         run: |
           set -o pipefail
           php artisan test --colors=never 2>&1 | tee /tmp/out/full.txt
+
+      - name: Publish raw output through the Checks API
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/check
+          {
+            echo "GitHub run: ${GITHUB_RUN_ID}"
+            echo "Commit: ${GITHUB_SHA}"
+            for f in $(find /tmp/out -maxdepth 1 -name '*.txt' ! -name 'full.txt' | sort); do
+              echo
+              echo "===== $(basename "$f") ====="
+              sed -r 's/\x1B\[[0-9;]*[mK]//g' "$f" | tail -n 60
+            done
+          } > /tmp/check/focused.raw
+          head -c 60000 /tmp/check/focused.raw > /tmp/check/focused.txt
+
+          jq -n \
+            --arg name "phpunit-focused-${GITHUB_RUN_ID}" \
+            --arg sha "$GITHUB_SHA" \
+            --arg title "Focused PHPUnit output for ${GITHUB_SHA}" \
+            --arg summary "Focused test output for PR #80 failure analysis." \
+            --rawfile text /tmp/check/focused.txt \
+            '{name:$name, head_sha:$sha, status:"completed", conclusion:"neutral", output:{title:$title, summary:$summary, text:$text}}' \
+            > /tmp/check/focused.json
+          gh api "repos/${GITHUB_REPOSITORY}/check-runs" --method POST --input /tmp/check/focused.json > /tmp/check/focused-response.json
+
+          if [ -f /tmp/out/full.txt ]; then
+            {
+              echo "GitHub run: ${GITHUB_RUN_ID}"
+              echo "Commit: ${GITHUB_SHA}"
+              echo "===== full.txt ====="
+              sed -r 's/\x1B\[[0-9;]*[mK]//g' /tmp/out/full.txt | tail -n 500
+            } > /tmp/check/full.raw
+            head -c 60000 /tmp/check/full.raw > /tmp/check/full.txt
+            jq -n \
+              --arg name "phpunit-full-${GITHUB_RUN_ID}" \
+              --arg sha "$GITHUB_SHA" \
+              --arg title "Full PHPUnit output for ${GITHUB_SHA}" \
+              --arg summary "Full-suite test output for PR #80 failure analysis." \
+              --rawfile text /tmp/check/full.txt \
+              '{name:$name, head_sha:$sha, status:"completed", conclusion:"neutral", output:{title:$title, summary:$summary, text:$text}}' \
+              > /tmp/check/full.json
+            gh api "repos/${GITHUB_REPOSITORY}/check-runs" --method POST --input /tmp/check/full.json > /tmp/check/full-response.json
+          fi
+          echo "Published focused output; full output present: $([ -f /tmp/out/full.txt ] && echo yes || echo no)"
 
       - name: Upload raw test output
         if: always()
