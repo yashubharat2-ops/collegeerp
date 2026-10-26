@@ -1,0 +1,126 @@
+name: ci-verify
+
+on:
+  push:
+    branches: ['arena/8dc93f02-collegeerp']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      NO_COLOR: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_sqlite, sqlite3, mbstring, xml, curl, bcmath, intl, zip, gd, fileinfo, dom
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build assets
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Prepare environment
+        run: |
+          mkdir -p /tmp/out
+          cp .env.example .env
+          php artisan key:generate --force
+          php artisan config:clear
+
+      - name: AdmissionApplicationAuthorizationTest
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/Admissions/AdmissionApplicationAuthorizationTest.php --colors=never 2>&1 | tee /tmp/out/auth.txt
+
+      - name: AdmissionApplicationManagementTest
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/Admissions/AdmissionApplicationManagementTest.php --colors=never 2>&1 | tee /tmp/out/management.txt
+
+      - name: AdmissionToStudentConversionTest
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/Admissions/AdmissionToStudentConversionTest.php --colors=never 2>&1 | tee /tmp/out/conversion.txt
+
+      - name: AdmissionWorkflowTest
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/Admissions/AdmissionWorkflowTest.php --colors=never 2>&1 | tee /tmp/out/workflow.txt
+
+      - name: SidebarRailTooltipTest
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/Layout/SidebarRailTooltipTest.php --colors=never 2>&1 | tee /tmp/out/tooltip.txt
+
+      - name: AdmissionConfirmationGateTest (must stay green)
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/Admissions/AdmissionConfirmationGateTest.php --colors=never 2>&1 | tee /tmp/out/gate.txt
+
+      - name: AdmissionManagementTest (must stay green)
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/Admissions/AdmissionManagementTest.php --colors=never 2>&1 | tee /tmp/out/admission-management.txt
+
+      - name: ApprovalManagementTest (must stay green)
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/Approval/ApprovalManagementTest.php --colors=never 2>&1 | tee /tmp/out/approval.txt
+
+      - name: SidebarStructureTest and navigation regression
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/Layout/SidebarStructureTest.php tests/Feature/AdmissionSidebarAndApprovalRegressionTest.php --colors=never 2>&1 | tee /tmp/out/sidebar.txt
+
+      - name: Full suite
+        if: always() && contains(github.event.head_commit.message, '[full]')
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test --colors=never 2>&1 | tee /tmp/out/full.txt
+
+      - name: Upload raw test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phpunit-output
+          path: /tmp/out
+          if-no-files-found: warn
