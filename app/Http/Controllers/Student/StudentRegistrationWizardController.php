@@ -90,7 +90,7 @@ class StudentRegistrationWizardController extends Controller
         }
 
         $collegeId = (int) app(TenantContext::class)->id();
-        $draft = $this->resolveDraft($request, createWhenMissing: false);
+        $draft = $this->resolveDraft($request);
 
         if ($draft === null) {
             return redirect()->route('students.registration.create');
@@ -137,7 +137,7 @@ class StudentRegistrationWizardController extends Controller
     public function uploadDocument(UploadRegistrationDocumentRequest $request): RedirectResponse
     {
         $collegeId = (int) app(TenantContext::class)->id();
-        $draft = $this->resolveDraft($request, createWhenMissing: false);
+        $draft = $this->resolveDraft($request);
 
         if ($draft === null) {
             return redirect()->route('students.registration.create');
@@ -167,7 +167,7 @@ class StudentRegistrationWizardController extends Controller
         $this->authorize('create', Student::class);
 
         $collegeId = (int) app(TenantContext::class)->id();
-        $draft = $this->resolveDraft($request, createWhenMissing: false);
+        $draft = $this->resolveDraft($request);
 
         if ($draft === null) {
             return redirect()->route('students.registration.create');
@@ -198,7 +198,7 @@ class StudentRegistrationWizardController extends Controller
     {
         $this->authorize('create', Student::class);
 
-        $draft = $this->resolveDraft($request, createWhenMissing: false);
+        $draft = $this->resolveDraft($request);
 
         if ($draft === null) {
             return redirect()->route('students.registration.create');
@@ -225,7 +225,7 @@ class StudentRegistrationWizardController extends Controller
         $this->authorize('create', Student::class);
 
         $collegeId = (int) app(TenantContext::class)->id();
-        $draft = $this->resolveDraft($request, createWhenMissing: false);
+        $draft = $this->resolveDraft($request);
 
         if ($draft === null) {
             abort(404, 'Registration draft not found.');
@@ -259,7 +259,7 @@ class StudentRegistrationWizardController extends Controller
         }
 
         $collegeId = (int) app(TenantContext::class)->id();
-        $draft = $this->resolveDraft($request, createWhenMissing: false);
+        $draft = $this->resolveDraft($request);
 
         if ($draft === null) {
             abort(404);
@@ -288,7 +288,7 @@ class StudentRegistrationWizardController extends Controller
     {
         $this->authorize('create', Student::class);
 
-        $draft = $this->resolveDraft($request, createWhenMissing: false);
+        $draft = $this->resolveDraft($request);
 
         if ($draft !== null) {
             $this->drafts->discard($draft, (int) $request->user()->getKey(), $this->staging);
@@ -303,7 +303,7 @@ class StudentRegistrationWizardController extends Controller
     public function submit(SubmitRegistrationRequest $request): RedirectResponse
     {
         $collegeId = (int) app(TenantContext::class)->id();
-        $draft = $this->resolveDraft($request, createWhenMissing: false);
+        $draft = $this->resolveDraft($request);
 
         if ($draft === null) {
             return redirect()->route('students.registration.create');
@@ -378,25 +378,27 @@ class StudentRegistrationWizardController extends Controller
     private function persistStep(SaveRegistrationStepRequest $request, int $step, bool $advance): RedirectResponse
     {
         $collegeId = (int) app(TenantContext::class)->id();
-        $draft = $this->resolveDraft($request, createWhenMissing: true);
 
-        if ($draft === null) {
-            return redirect()->route('students.registration.create');
+        if ($step < 1 || $step > StudentRegistrationDraft::LAST_STEP) {
+            abort(404, 'Unknown registration step.');
         }
 
-        if ($draft->isSubmitted()) {
+        // The draft is deliberately NOT created here. Everything below can still
+        // reject the request (duplicate identity, an address chain that does not
+        // line up, a field error raised during normalisation), and a rejected
+        // request must leave no trace at all — no draft row, no audit entry, no
+        // stored file. The row is created only once the save is certain.
+        $draft = $this->resolveDraft($request);
+
+        if ($draft !== null && $draft->isSubmitted()) {
             return redirect()->route('students.index')->with(
                 'success',
                 'This registration has already been submitted for approval.',
             );
         }
 
-        if ($step < 1 || $step > StudentRegistrationDraft::LAST_STEP) {
-            abort(404, 'Unknown registration step.');
-        }
-
         $data = $request->validated();
-        $merged = $draft->mergedData();
+        $merged = $draft?->mergedData() ?? [];
 
         // Identity uniqueness is checked BEFORE anything is written — not just
         // before the row is saved, but before a single image is stored — so a
@@ -443,9 +445,14 @@ class StudentRegistrationWizardController extends Controller
             $normalised = array_merge(
                 $normalised,
                 array_intersect_key($data, $mediaColumns),
-                $this->encryptIdentity($data, $draft->stepData(RegistrationStepRules::STEP_BASIC)),
+                $this->encryptIdentity($data, $draft?->stepData(RegistrationStepRules::STEP_BASIC) ?? []),
             );
         }
+
+        // Every rejection path has been passed: now the draft may exist. For a
+        // returning applicant this is the existing row (nothing is duplicated);
+        // for a first save it is created here, together with its audit entry.
+        $draft ??= $this->drafts->startOrResume($collegeId, (int) $request->user()->getKey());
 
         $this->drafts->saveStep($draft, $step, $normalised, advance: $advance);
 
@@ -480,7 +487,7 @@ class StudentRegistrationWizardController extends Controller
     private function stageImages(
         Request $request,
         array $data,
-        StudentRegistrationDraft $draft,
+        ?StudentRegistrationDraft $draft,
         int $step,
         int $collegeId,
         array &$pendingDeletes,
@@ -489,7 +496,9 @@ class StudentRegistrationWizardController extends Controller
             return $data;
         }
 
-        $previous = $draft->stepData(RegistrationStepRules::STEP_BASIC);
+        // No draft yet (a first save that has not been written): there is
+        // nothing to retain from a previous attempt.
+        $previous = $draft?->stepData(RegistrationStepRules::STEP_BASIC) ?? [];
 
         foreach (RegistrationStepRules::IMAGE_FIELDS as $field => $meta) {
             $column = $meta['column'];
@@ -654,14 +663,17 @@ class StudentRegistrationWizardController extends Controller
     // -----------------------------------------------------------------
 
     /**
-     * The draft this request acts on.
+     * The draft this request acts on, or null.
      *
      * A posted `draft_id` is resolved through the user-scoped lookup (so another
-     * user's draft is a 404); otherwise the user's live draft is used, and on a
-     * step save a missing draft is created so a first visit without a prior GET
-     * still works.
+     * user's draft is a 404); otherwise the user's live draft is used.
+     *
+     * This method never creates a draft. Creating one is a deliberate step taken
+     * only when a save is certain (see persistStep()), because a request that is
+     * rejected — duplicate phone, an address chain that does not line up, an
+     * invalid field — must not leave a draft row behind.
      */
-    private function resolveDraft(Request $request, bool $createWhenMissing): ?StudentRegistrationDraft
+    private function resolveDraft(Request $request): ?StudentRegistrationDraft
     {
         $collegeId = (int) app(TenantContext::class)->id();
         $userId = (int) $request->user()->getKey();
@@ -672,13 +684,7 @@ class StudentRegistrationWizardController extends Controller
             return $this->drafts->findForUser((int) $draftId, $collegeId, $userId);
         }
 
-        $draft = $this->drafts->current($collegeId, $userId);
-
-        if ($draft === null && $createWhenMissing) {
-            $draft = $this->drafts->startOrResume($collegeId, $userId);
-        }
-
-        return $draft;
+        return $this->drafts->current($collegeId, $userId);
     }
 
     /**

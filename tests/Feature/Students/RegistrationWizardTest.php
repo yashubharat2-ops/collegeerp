@@ -133,6 +133,12 @@ class RegistrationWizardTest extends TestCase
         $this->assertSame(0, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
         $this->assertSame(0, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
         $this->assertSame(0, ApprovalRequest::withoutGlobalScopes()->where('college_id', $college->id)->count());
+
+        // Exactly one working copy — a save never accumulates empty drafts.
+        $this->assertSame(1, StudentRegistrationDraft::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->where('user_id', $user->id)
+            ->count());
     }
 
     public function test_draft_survives_leaving_the_wizard_and_resumes_on_the_current_step(): void
@@ -792,16 +798,32 @@ class RegistrationWizardTest extends TestCase
         $this->assertSame(0, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
         $this->assertSame([], Storage::disk('private')->allFiles());
 
-        // Not even a draft row: the request was rejected before the controller
-        // (and therefore before any draft could be created or resumed).
+        // Not even a draft row: the draft is only created once a save is
+        // certain, so a rejected registration leaves no working copy behind.
         $this->assertSame(0, StudentRegistrationDraft::withoutGlobalScopes()
             ->where('college_id', $college->id)
             ->where('user_id', $user->id)
             ->count());
 
-        // A free number registers normally afterwards.
+        // A free number registers normally afterwards — one draft, one row.
         $this->saveStep($college, $user, 1, ['first_name' => 'Riya', 'phone' => '9555555556'])
             ->assertRedirect(route('students.registration.step', ['step' => 2]));
+        $this->assertSame('Riya', $this->draftFor($college, $user)->stepData(1)['first_name']);
+        $this->assertSame(1, StudentRegistrationDraft::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->where('user_id', $user->id)
+            ->count());
+
+        // Repeating the duplicate from an EXISTING draft neither duplicates the
+        // row nor overwrites what the applicant already saved.
+        $this->saveStep($college, $user, 1, ['first_name' => 'Changed', 'phone' => '9555555555'])
+            ->assertRedirect(route('students.registration.step', ['step' => 1]))
+            ->assertSessionHasErrors(['phone']);
+
+        $this->assertSame(1, StudentRegistrationDraft::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->where('user_id', $user->id)
+            ->count());
         $this->assertSame('Riya', $this->draftFor($college, $user)->stepData(1)['first_name']);
     }
 

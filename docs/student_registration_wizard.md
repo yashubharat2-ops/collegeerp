@@ -24,6 +24,12 @@ profile form (`students.create`) is unchanged for every other flow.
 | Approval is still the only way in | Submission calls the existing `StudentRegistrationService` → one pending `Student` (`status = inactive`, `registration_status = pending_approval`) + **one** `ApprovalRequest` (module `student`, action `registration_approval`). The approval side effects (activate student, create the enrollment) remain in `ApprovalService`. |
 | No enrollment before approval | Step 3 captures the academic context only; `ApprovalService::approveStudentRegistration()` creates the `StudentEnrollment` when an approver decides. |
 | Uploading is never verifying | Adopted documents are written with `verification_status = pending`; only an authorised verify action in the Documents module changes that. |
+| A rejected request leaves no trace | Opening the wizard (`GET students/registration`) starts or resumes exactly one draft. A step save creates the row only after every check has passed, so a registration rejected for a duplicate phone/Aadhaar or a mismatched address chain leaves no draft row, no audit entry and no stored file. |
+
+> **Draft lifecycle.** One live draft per (college, user). It is created either by
+> the wizard entry point or by the first *successful* step save, and is reused —
+> never duplicated — on every later save. A rejected save neither creates a new
+> row nor overwrites the payload already stored.
 
 ## 2. Steps and fields
 
