@@ -119,17 +119,28 @@ class StudentIdentityFilterController extends Controller
     /**
      * Only a path on this application is accepted as a redirect target, so the
      * form can never be used as an open redirect.
+     *
+     * The path part is validated strictly (a single leading slash, no host, no
+     * scheme, no `//`); the query string is left as the browser sent it and is
+     * rebuilt with http_build_query() in withToken(), so filter values such as
+     * `academic_context=section:5` survive.
      */
     private function localPath(?string $returnTo): string
     {
         $fallback = route('students.index', absolute: false);
         $candidate = is_string($returnTo) ? trim($returnTo) : '';
 
-        if ($candidate === '' || ! str_starts_with($candidate, '/') || str_starts_with($candidate, '//')) {
+        if ($candidate === '' || str_starts_with($candidate, '//')) {
             return $fallback;
         }
 
-        if (preg_match('#^/[A-Za-z0-9\-_./?=&%~+]*(#[A-Za-z0-9\-_.]*)?$#D', $candidate) !== 1) {
+        $parts = parse_url($candidate);
+        if (! is_array($parts) || isset($parts['scheme']) || isset($parts['host'])) {
+            return $fallback;
+        }
+
+        $path = (string) ($parts['path'] ?? '');
+        if (preg_match('#^/[A-Za-z0-9\-_./]*$#D', $path) !== 1) {
             return $fallback;
         }
 

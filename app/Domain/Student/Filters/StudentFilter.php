@@ -474,9 +474,14 @@ class StudentFilter
             }),
             'pass_out' => $students->where(function (Builder $query): void {
                 $query->where('students.status', 'graduated')
-                    ->orWhereHas('academicRecords', fn (Builder $record) => $record
-                        ->where('student_academic_records.academic_status', 'passed')
-                        ->orWhere('student_academic_records.completion_status', 'completed'));
+                    // The two record conditions are grouped INSIDE the existence
+                    // sub-query: an ungrouped orWhere there would sit next to the
+                    // relation's college constraint and leak across colleges.
+                    ->orWhereHas('academicRecords', fn (Builder $record) => $record->where(
+                        fn (Builder $state) => $state
+                            ->where('student_academic_records.academic_status', 'passed')
+                            ->orWhere('student_academic_records.completion_status', 'completed')
+                    ));
             }),
             'new_registration' => $students->whereNotNull('students.registration_submitted_at'),
             'transfer_out' => $students->where(function (Builder $query) use ($hasTransfer): void {
@@ -685,7 +690,10 @@ class StudentFilter
         $definitions = $this->definitions();
         $fields = [];
 
-        if ($this->canFilterSensitiveIdentity($user)) {
+        // Two gates, both enforced again server-side: the sensitive permission
+        // AND the right to open the Student list at all. Without the second, the
+        // POST endpoint would 403 the form this projection had just drawn.
+        if ($this->canFilterSensitiveIdentity($user) && ($user ?? auth()->user())?->can('viewAny', Student::class)) {
             foreach ($fieldKeys as $key) {
                 if (($definitions[$key]['type'] ?? null) === 'identity') {
                     $fields[$key] = $definitions[$key];

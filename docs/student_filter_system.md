@@ -36,7 +36,7 @@ canonical subset only), HR/other modules keep their own vocabularies.
 | --- | --- | --- | --- |
 | REG.NO | `student_number` | contains | `students.student_number` (the existing registration number — no duplicate column) |
 | REG. DATE | `admission_date_from`, `admission_date_to` | inclusive range | `students.admission_date` |
-| ACADEMIC STATUS | `academic_status` | derived (below) | `students.status`, `student_enrollments`, `student_transfers`, `students.registration_submitted_at` |
+| ACADEMIC STATUS | `academic_status` | derived (below) | `student_academic_records` + `students.status` / `students.registration_submitted_at` / `student_transfers` |
 | STUDENT STATUS | `student_status` | exact | `students.status` (control offers Active / Inactive) |
 | PROGRAM / CLASS | `program_id` | exact | `programs` (college-scoped) |
 | SEMESTER / SECTION | `academic_context` (`term:<id>` / `section:<id>`) | exact, same enrollment | `academic_terms`, `sections` (college-scoped) |
@@ -98,8 +98,10 @@ academic year. No duplicate batch system was introduced.
 * Every root query carries `CollegeScope` (`TenantContext`), so options and rows
   never cross colleges. A submitted `college_id` is never read.
 * Aadhaar / ABC ID searches require `students.view_sensitive_identity`
-  (`config('student-filter.sensitive_permission')`) on top of the page’s own
-  permission. The control is hidden without it and the server returns 403.
+  (`config('student-filter.sensitive_permission')`) **and** the right to open the
+  Student list (`students.view`), because the search is stored against the
+  Student list and the POST endpoint re-checks both. The control is hidden
+  without them and the server returns 403.
 * Identity values are submitted by **POST** and stored in a session vault bound
   to the user, the college and a 60-minute TTL. The URL carries only an opaque
   token; the page, the applied-filter chips, the audit log and the CSV export
@@ -118,3 +120,38 @@ Bulk documents; plus each module’s own export). Selection is current-page only
 `BulkActionController` re-queries every id inside the college scope, re-checks the
 action permission and per-record policy before doing anything. A follow-up URL is
 built server-side from the ids the handler authorized.
+
+## Tests
+
+| Suite | Covers |
+| --- | --- |
+| `tests/Feature/Students/StudentFilterSystemTest.php` | every required field changes the query; Academic vs Student Status independence; program/section dependency and rejection of impossible combinations; authorized Aadhaar + ABC ID; combined filters; search + filters; pagination preservation and reset; single-registration and bulk-import records; bulk actions on an explicit selection only; attendance/exam screens unchanged |
+| `tests/Feature/Students/CanonicalStudentFilterTest.php` | shared request names, no duplicate status controls, removed fields, identity privacy (page, URL, audit, export), same-enrollment semantics, pagination/sort/export reuse, tenant isolation |
+| `tests/Feature/Students/StudentListFiltersTest.php` | legacy list contract kept intact: search fields, profile filters, sorting allow-list, pagination links, tenant scoping, one date range |
+| `tests/Feature/Students/StudentFilterModuleIntegrationTest.php` | the same filters on Enrollments, Documents, ID cards, Admission lists, and section context without duplicate controls |
+| Module suites (`ExamAttendance`, `ExamMarks`, `StudentReports`, `ExamReports`, `ExaminationReports`, `AcademicReports`, `BulkAction`) | existing per-module behaviour, labels and single-control counts are unchanged |
+
+## Limitations
+
+* **Batch** has no table of its own; it is the Section cohort (see above).
+* **Online Registration** and **Transfer In** academic statuses have no backing
+  data and are not offered.
+* **ABC ID uniqueness** is not enforced by the schema; the filter is an exact
+  match, not a duplicate check.
+* **Aadhaar partial search** is limited to the stored last four digits; there is
+  no way to search on the full number without knowing it (by design).
+* Academic Status reads the progression ledger where it exists. Students created
+  before the ledger was introduced are matched through the `students.status`
+  columns instead; a student whose only signal is a ledger row that has not been
+  written yet is therefore indistinguishable from a lifecycle-only student.
+* `enrollment_status` remains a supported request parameter for old links but is
+  no longer a visible control.
+
+## Out of scope
+
+The removed Admission module, Admission Application module and the
+admission-to-student conversion workflow were **not** restored, recreated or
+reintroduced. The two admission *list* screens that exist today keep working and
+use only the canonical subset of fields (`student_name`, `email`,
+`mobile_number`, `academic_year_id`, `program_id`); their own workflow status
+control is untouched.
