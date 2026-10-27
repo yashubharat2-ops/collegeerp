@@ -7,7 +7,7 @@ use App\Models\Student;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Step 5 — the actual submission.
+ * The final submission (step 4, Final Review).
  *
  * Only the review-step fields are accepted from the browser: the substantive
  * data is re-read from the stored draft and re-validated server-side by

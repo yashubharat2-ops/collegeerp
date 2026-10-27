@@ -1,16 +1,21 @@
 # Student Registration Wizard
 
-Five steps, in this exact order:
+**Four** steps, in this exact order:
 
-1. **Basic Information**
-2. **Parent/Guardian**
-3. **Academic Record**
-4. **Attach Documents**
-5. **Final Review → Submit for Approval**
+1. **Basic Information** — sections A–H, including Parent and Guardian details
+2. **Academic Record**
+3. **Attach Documents**
+4. **Final Review → Submit for Approval**
 
 Entry point: `GET /students/registration` (`students.registration.create`).
 The old single-page registration form is replaced by the wizard; the Create/Edit
 profile form (`students.create`) is unchanged for every other flow.
+
+> **Why four and not five.** Parent/Guardian used to be a step of its own. It is
+> data about the same page of a paper form as the student's own details, so it is
+> now sections C and D of Basic Information. Nothing was merged away: the same
+> fields, the same rules and the same server-side derivation are used, and drafts
+> written by the five-step wizard are mapped onto the new layout (see §7).
 
 ---
 
@@ -18,13 +23,14 @@ profile form (`students.create`) is unchanged for every other flow.
 
 | Guarantee | How |
 | --- | --- |
-| A half-filled registration is **not** a student | Everything before the final submit lives in `student_registration_drafts` (per college + per user). No `students`, `student_enrollments`, `student_documents` or `approval_requests` row exists until step 5 is submitted. |
-| Nothing typed is lost | Every step has **Save draft**; drafts persist across steps and sessions and resume on `current_step`. |
+| A half-filled registration is **not** a student | Everything before the final submit lives in `student_registration_drafts` (per college + per user). No `students`, `student_enrollments`, `student_documents` or `approval_requests` row exists until step 4 is submitted. |
+| Nothing typed is lost | Every step has **Save draft**; drafts persist across steps and sessions and resume on the step the draft is actually on. |
 | One submission, one record | The draft flips to `submitted` and stores `student_id` + `approval_request_id`; a second submit returns the existing registration instead of creating another. |
-| Approval is still the only way in | Submission calls the existing `StudentRegistrationService` → one pending `Student` (`status = inactive`, `registration_status = pending_approval`) + **one** `ApprovalRequest` (module `student`, action `registration_approval`). The approval side effects (activate student, create the enrollment) remain in `ApprovalService`. |
-| No enrollment before approval | Step 3 captures the academic context only; `ApprovalService::approveStudentRegistration()` creates the `StudentEnrollment` when an approver decides. |
+| Approval is still the only way in | Submission calls the existing `StudentRegistrationService` → one pending `Student` (`status = inactive`, `registration_status = pending_approval`) + **one** `ApprovalRequest` (module `student`, action `registration_approval`). The approval side effects (activate student, create the enrollment, allocate the roll number) remain in `ApprovalService`. |
+| No enrollment before approval | Step 2 captures the academic context only; `ApprovalService::approveStudentRegistration()` creates the `StudentEnrollment` when an approver decides. |
+| No identifier is minted by the wizard | Opening the wizard, saving a draft or saving a step never creates a Student ID, Admission Number or Roll Number. Each comes from the workflow that owns it (§3). |
 | Uploading is never verifying | Adopted documents are written with `verification_status = pending`; only an authorised verify action in the Documents module changes that. |
-| A rejected request leaves no trace | Opening the wizard (`GET students/registration`) starts or resumes exactly one draft. A step save creates the row only after every check has passed, so a registration rejected for a duplicate phone/Aadhaar or a mismatched address chain leaves no draft row, no audit entry and no stored file. |
+| A rejected request leaves no trace | Opening the wizard (`GET students/registration`) starts or resumes exactly one draft. A step save creates the row only after every check has passed, so a registration rejected for a duplicate phone/Aadhaar/APAAR or a mismatched address chain leaves no draft row, no audit entry and no stored file. |
 
 > **Draft lifecycle.** One live draft per (college, user). It is created either by
 > the wizard entry point or by the first *successful* step save, and is reused —
@@ -44,23 +50,19 @@ profile form (`students.create`) is unchanged for every other flow.
 
 ### Step 1 — Basic Information
 
-Five sections, in this order, with plain headings (the five-step bar is the only
-numbering in the wizard):
+**Eight sections, in this exact order, with plain unnumbered headings** (the
+four-step bar is the only numbering in the wizard):
 
-1. **Personal Details** — first / middle / last name, date of birth, gender,
-   category, mother tongue, blood group, nationality, mobile, alternate mobile,
-   email. **Required: first name only** — the canonical Student rules are
-   unchanged; no optional field was made mandatory for the wizard.
-   Identity numbers live here too: Aadhaar (encrypted at rest, masked on screen),
-   APAAR/ABC ID (12 digits), other government ID (type + number pair).
-2. **Permanent Address** — country → state → district → block/tehsil →
-   village/city, gram panchayat/ward, postal code, address lines 1–2.
-3. **Temporary Address** — the correspondence address with **Same as permanent
-   address** in its header. When ticked, the correspondence columns are stored as
-   `NULL` and the flag drives the display — the address is never copied twice.
-4. **Photograph** — student photograph, plus a compact sub-block for the father,
-   mother and guardian photographs.
-5. **Signatures** — the student signature.
+| Section | Heading | Contents |
+| --- | --- | --- |
+| A | **Student Identification** | Student ID, Admission Number, Roll Number — read-only, `Pending` until the owning workflow allocates them (§3). No input exists for any of them. |
+| B | **Personal Details** | first / middle / last name, date of birth, gender, category, mother tongue, blood group, nationality, mobile, alternate mobile, email; Aadhaar (encrypted at rest, masked on screen), APAAR/ABC ID (12 digits), other government ID (type + number pair). **Required: first name only** — the canonical Student rules are unchanged; no optional field was made mandatory for the wizard. |
+| C | **Parent Details** | father and mother as separate records: name, mobile, email, occupation (their photographs come from section G and are linked, not re-uploaded). |
+| D | **Guardian Details** | relation **Father / Mother / Self / Other** and the guardian's own name, mobile, email, occupation, address. |
+| E | **Permanent Address** | country → state → district → block/tehsil → village/city, gram panchayat/ward, postal code, address lines 1–2. |
+| F | **Temporary Address** | the correspondence address with **Same as permanent address** in its header. When ticked, the correspondence columns are stored as `NULL` and the flag drives the display — the address is never copied twice. |
+| G | **Photograph** | student photograph, plus a compact sub-block for the father, mother and guardian photographs. |
+| H | **Signatures** | the student signature. |
 
 All five images are JPG/PNG/WebP, ≤ 2 MB, with preview + replace + remove, stored
 by `StudentPhotoService` on the private disk under a server-generated name.
@@ -68,6 +70,21 @@ by `StudentPhotoService` on the private disk under a server-generated name.
 The card chrome is compact (tighter paddings, 12-column grid, sticky action bar)
 and uses the Deep Blue / Navy tokens: primary `#1D4ED8`, hover `#1E40AF`, navy
 `#0F172A`, page `#F8FAFC`, surface white.
+
+**Guardian derivation (section D).**
+
+* Father, Mother, Self → `guardian_name`, `guardian_phone`, `guardian_email`,
+  `guardian_occupation` are **derived on the server** from that person's record,
+  so an auto-filled value can never drift from its source (a tampered value in
+  the POST is overwritten). Because the personal fields are on the same page, the
+  derivation runs against the values typed in the *same* request.
+* Other → the guardian block is independently maintained and stored exactly as
+  entered. Switching from a derived relation to Other keeps the values that were
+  on screen (the browser submits them), so no data is lost.
+* Consistency rule: choosing Father/Mother/Other without that person's name is
+  refused at submission (it would store a guardian identifying nobody). With no
+  relation chosen, nothing extra is demanded — this is a consistency check, not a
+  newly mandatory field.
 
 **Save draft vs Save & continue.** Every step — step 1 included — has a visible
 outlined **Save draft** button next to the primary **Save & continue**. Save draft
@@ -101,23 +118,7 @@ strictly and advances. Both are the same controller action with a different
 * A resumed draft re-selects its saved chain; `GeoLocationService::selection()`
   also fills in an ancestor that is missing from an older payload.
 
-### Step 2 — Parent/Guardian
-* Father and mother are separate records: name, mobile, email, occupation
-  (their photographs come from step 1 and are linked, not re-uploaded).
-* Guardian relation: **Father / Mother / Self / Other**.
-  * Father, Mother, Self → `guardian_name`, `guardian_phone`,
-    `guardian_email`, `guardian_occupation` are **derived on the server** from
-    that person's record, so an auto-filled value can never drift from its
-    source (a tampered value in the POST is overwritten).
-  * Other → the guardian block is independently maintained and stored exactly as
-    entered. Switching from a derived relation to Other keeps the values that
-    were on screen (the browser submits them), so no data is lost.
-  * Consistency rule: choosing Father/Mother/Other without that person's name is
-    refused at submission (it would store a guardian identifying nobody). With no
-    relation chosen, nothing extra is demanded — this is a consistency check, not
-    a newly mandatory field.
-
-### Step 3 — Academic Record
+### Step 2 — Academic Record
 Two blocks that are deliberately **never mixed**:
 
 * **Previous qualifications** → `student_qualifications` (new table).
@@ -141,9 +142,9 @@ Two blocks that are deliberately **never mixed**:
   batch, semester / year of study, admission date, enrollment date. Every id is
   tenant-scoped, and the section's academic-year + programme pair is verified
   server-side. The admission category is shown read-only because it is captured
-  once, on step 1.
+  once, in section B.
 
-### Step 4 — Attach Documents
+### Step 3 — Attach Documents
 
 Two compact parts, so the screen is a picker plus the cards that were picked:
 
@@ -182,19 +183,71 @@ available without crowding the list.
   through authorised routes only, and adopted (same blob) into `student_documents`
   on submission.
 
-### Step 5 — Final Review
-* Four groups (Basic Information / Parent-Guardian / Academic Record /
-  Documents), each with its own **Edit** link back to the owning step.
+### Step 4 — Final Review
+* Student Identification, Basic Information (sections B–H, including Parent and
+  Guardian), Academic Record and Documents — each group with its own **Edit**
+  link back to the owning step (all Basic groups edit step 1).
+* Possible-duplicate hints (§4) are shown as a review note, exactly as the
+  approver will see them.
 * Pre-submit validation re-runs every step in strict mode against the **stored**
   draft, plus: guardian consistency, qualification arithmetic, academic-context
   hierarchy, course-wise required documents, and identity uniqueness (against the
   decrypted numbers).
-* A failure sends the applicant to the step that owns the field, with field-level
-  errors.
+* A failure sends the applicant to the step that owns the field (step 1, 2 or 3),
+  with field-level errors.
 * Final remarks + a declaration checkbox. Submitting raises the pending student
   and the single approval request.
 
-## 3. Schema added
+## 3. Identifiers
+
+Three identifiers, three different lifetimes. **None of them is an input** — no
+validation rule carries them and `RegistrationStepRules` drops anything outside
+its field lists, so a hand-crafted POST cannot set one.
+
+| Identifier | Column | Format | Allocated by | Wizard shows |
+| --- | --- | --- | --- | --- |
+| **Student ID** | `students.student_number` | `STU-{YEAR}-{SEQ4}` (`STU-2026-0001`) | `GenerateStudentNumber` when the Student row is created (submission/approval), inside a college row lock | `Pending — generated when the registration is submitted.`, then the permanent number |
+| **Admission Number** | `admissions.admission_number` | `ADM-{YEAR}-{SEQ4}` | `GenerateAdmissionNumber`, when an admission is finalised (Admissions module) | the number of the admission the student came through, or `Pending — assigned when the admission is finalised. Registration does not mint one.` |
+| **Roll Number** | `student_enrollments.roll_number` | plain sequence, zero-padded to 2 (`01`, `02`, … `25`) | `GenerateRollNumber`, inside `StudentService::createEnrollment()` — i.e. only once the academic year, programme **and** section are known | the number of the live enrollment, or `Pending — assigned with the class/section enrollment, after approval.` |
+
+* **Student ID** is permanent: it is never regenerated on semester, year, class or
+  section changes, never reissued on edit, and never derived from the row id.
+* **Roll Number** belongs to one enrollment because it is per class/section: the
+  same number may exist in another section, programme or year. Uniqueness is
+  enforced per `(college, academic year, programme, section)` by
+  `student_enrollments_scope_roll_number_unique` **and** by the allocator, which
+  reads the used numbers under a college row lock and retries; it never relies on
+  `MAX(id) + 1`. An explicit office value that clashes is a `roll_number` field
+  error, never a silent overwrite.
+* Opening the wizard, saving a draft and saving any step allocate **nothing**: a
+  draft cannot hold an identifier.
+* `StudentIdentifierService` is read-only; it resolves what already exists and
+  reports the rest as pending. It never fabricates a value.
+
+## 4. Duplicate detection
+
+Two layers, deliberately different in strength:
+
+| Layer | Signal | Effect |
+| --- | --- | --- |
+| **Blocking** — `RegistrationIdentityGuard` | the student's own **phone**, **Aadhaar** (compared through its keyed digest, never the plain number) or **APAAR / ABC ID** already held by a live student of the same college | field-level validation error; checked on a strict step-1 save, at submit and again at approval (the student is excluded from its own check) |
+| **Warning** — `RegistrationDuplicateDetector` | the **name matches** (first name, and last name when given) **and at least one corroborating detail** agrees — date of birth, father's name or mother's name | a hint stored on the draft, shown on the Final Review and carried into the approval request; a human decides. Never a block |
+
+* A matching **name alone** is never a duplicate, and neither is a name + father's
+  name on its own: common names are common.
+* A **shared family mobile** does not identify the applicant — `father_phone`,
+  `mother_phone` and `guardian_phone` have no uniqueness rule, so two siblings
+  registering with the same parent number are both accepted. The student's *own*
+  `phone` keeps its existing one-live-student-per-number policy, unchanged.
+* Every check is scoped to the college; the same name, phone or APAAR in another
+  college is a different person.
+* A rejected registration never leaves a partial record: the checks run before any
+  write (including before a stored image or a draft row).
+* Aadhaar and government ID numbers never appear in a URL, a log line, the
+  approval payload or the client-side page state; the wizard shows only the masked
+  form.
+
+## 5. Schema added
 
 | Migration | Purpose |
 | --- | --- |
@@ -203,15 +256,19 @@ available without crowding the list.
 | `2026_10_28_000003_add_registration_profile_columns_to_students_table` | Parent mobiles/emails/occupations; signature + father/mother/guardian photo paths; district, block/tehsil, gram panchayat/ward; optional `geo_locations` ids; correspondence address block + same-as-permanent flag. |
 | `2026_10_28_000004_add_submission_timing_to_admission_document_type_program_table` | `can_submit_later` on the existing pivot. |
 | `2026_10_28_000005_add_semester_to_student_enrollments_table` | Year-of-study / semester of one enrollment. |
+| `2026_10_29_000001_add_roll_number_to_student_enrollments_table` | Nullable `roll_number` + `student_enrollments_scope_roll_number_unique` (college, academic year, programme, section). |
+| `2026_10_29_000002_add_duplicate_warnings_to_student_registration_drafts_table` | Nullable JSON `duplicate_warnings` (possible-duplicate hints). |
+| `2026_10_29_000003_upgrade_registration_draft_payloads_to_four_steps` | Rewrites stored five-step draft payloads to the four-step layout and remaps `current_step`. Additive (no column/row removed); irreversible by design (§7). |
 
-All columns are nullable and additive; no existing column changed its meaning.
+Every column is nullable and additive; no existing column changed its meaning and
+no existing identifier was renumbered.
 
-## 4. Routes
+## 6. Routes
 
 | Method | URI | Name |
 | --- | --- | --- |
 | GET | `students/registration` | `students.registration.create` (starts/resumes the wizard) |
-| GET | `students/registration/step/{step}` | `students.registration.step` |
+| GET | `students/registration/step/{step}` | `students.registration.step` (1–4) |
 | POST | `students/registration/step/{step}` | `students.registration.step.save` (Next) |
 | POST | `students/registration/step/{step}/draft` | `students.registration.step.draft` (Save draft) |
 | POST | `students/registration/documents` | `students.registration.documents.upload` |
@@ -223,11 +280,44 @@ All columns are nullable and additive; no existing column changed its meaning.
 | POST | `students/registration/submit` | `students.registration.submit` |
 | POST | `students/registration/cancel` | `students.registration.cancel` |
 
+A step number outside 1–4 is a 404 on both the read and the save routes.
+
 `POST students/registration` (`students.registration.store`) is **kept** for
 existing callers: it runs the same `StudentRegistrationService` and the same
 approval flow.
 
-## 5. Security notes
+## 7. Old (five-step) drafts
+
+A stored payload cannot simply be read with the new step numbers: step 2 used to
+hold parent/guardian data and now holds the academic record. Two mechanisms use
+**one** mapping, defined in `App\Domain\Student\Support\RegistrationDraftUpgrade`:
+
+| Old step | New step |
+| --- | --- |
+| 1 Basic | 1 Basic (keeps its keys) |
+| 2 Parent/Guardian | 1 Basic (merged in — the key sets are disjoint) |
+| 3 Academic | 2 Academic |
+| 4 Documents | 3 Documents |
+| 5 Review | 4 Review |
+
+`current_step` follows the same map, so an applicant parked on the old
+Parent/Guardian page reopens Basic Information — where their parent data now
+lives — instead of landing on the Academic Record by accident.
+
+* **At read time** (`StudentRegistrationDraft::upgradedPayload()`,
+  `currentStep()`) a legacy payload is translated in memory, so an old draft opens
+  correctly even before the migration has run.
+* **At rest** migration `2026_10_29_000003` rewrites the stored JSON and the step
+  marker, chunked and idempotent, and is deliberately irreversible: re-splitting a
+  merged step could no longer tell basic fields from parent fields.
+* Detection is content-based (`key 5` present, `step 2` holding parent fields, or
+  `step 3` holding academic fields) — never a blind "shift by one". The review
+  step is *not* used as a signal, because `remarks` is written by the new step 4
+  as well.
+* Staged document rows and their private files are untouched (they are rows, not
+  payload), and ownership (`college_id` + `user_id`) is unchanged.
+
+## 8. Security notes
 
 * Aadhaar and government ID numbers are stored **encrypted** inside the draft
   payload (Crypt / `APP_KEY`) with only the four-digit tail in clear text; they
@@ -240,7 +330,7 @@ approval flow.
 * Every action requires `students.create`; the college is the tenant context, not
   a form field.
 
-## 6. Known limitations / decisions
+## 9. Known limitations / decisions
 
 * **Districts, blocks and villages are not shipped.** The seeder loads India and
   its 36 states / union territories from `database/data/geo_locations.json`; the
@@ -257,27 +347,46 @@ approval flow.
 * **Document types are not seeded.** The wizard shows "no document types
   configured" and treats everything as optional until Admission → Document Types
   is populated.
+* **No identifier is mandatory at registration.** All three are read-only and may
+  legitimately be pending: a student can register (and be approved) without an
+  admission number (direct admission) or a roll number (no section chosen yet).
+* **Roll numbers are allocated, not typed, at approval.** An office that numbers
+  its own registers can supply a value on the enrollment screen; a clash is
+  refused with a field error rather than overwritten.
 
-## 7. Tests
+## 10. Tests
 
 `tests/Feature/Students/RegistrationWizardTest.php` covers navigation and step
 validation, draft persistence/resumption, the dependent address chain,
-same-as-permanent correspondence, guardian auto-fill (Father/Mother/Self/Other),
-multiple qualifications with marks arithmetic and grade preservation,
-course-wise required/deferred documents, upload authorization (foreign college
-type) and privacy, submission through the approval framework, duplicate
-submission prevention, tenancy isolation and permission checks.
+same-as-permanent correspondence, guardian auto-fill (Father/Mother/Self/Other) on
+the merged step 1, multiple qualifications with marks arithmetic and grade
+preservation, course-wise required/deferred documents, upload authorization
+(foreign college type) and privacy, submission through the approval framework,
+duplicate submission prevention, tenancy isolation and permission checks, plus:
+
+* the eight step-1 sections in order, with Section A = Student Identification and
+  Section B = Personal Details, no numeric prefixes and no identifier input;
+* identifiers: nothing allocated by opening/saving, the Student ID generated once
+  and never changed, roll numbers unique per section and refused on a clash (at
+  the service *and* at the database index);
+* duplicate policy: a name alone is not a duplicate, a name + father's name is a
+  warning and never a block, warnings are tenant-scoped, a shared parent mobile is
+  allowed while the student's own number still blocks, and a duplicate APAAR
+  blocks without writing anything;
+* four-step structure (exactly four steps, a fifth is a 404) and the old-draft
+  mapping, including a current four-step payload that must **not** be re-mapped.
 
 `tests/Feature/Layout/RegistrationNavigationTest.php` pins the sidebar: the
 Registration row opens the wizard, the Student List row keeps its own
-destination, exactly one of them is highlighted (including on all five wizard
-steps), and there is only one Registration row.
+destination, exactly one of them is highlighted (including on all four wizard
+steps), there is only one Registration row, and the fifth step no longer exists.
 
 `tests/JavaScript/registration-wizard.test.js` covers the client-side
 conveniences: the address cascade clearing children and reporting an empty
-directory, guardian auto-fill, marks/percentage arithmetic, adding and removing
-qualification rows, and the document picker showing/hiding upload cards while
-never hiding a card that holds a file.
+directory, guardian auto-fill (including the hidden mirrors that keep a "Self"
+guardian in step with the personal fields on the same page), marks/percentage
+arithmetic, adding and removing qualification rows, and the document picker
+showing/hiding upload cards while never hiding a card that holds a file.
 
 `tests/Feature/Students/StudentRegistrationApprovalTest.php` was updated for the
 new entry point (the wizard) and continues to cover the single-POST flow,

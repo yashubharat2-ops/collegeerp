@@ -2,6 +2,10 @@
 
 namespace Tests\Feature\Students;
 
+use App\Domain\Student\Services\StudentIdentifierService;
+use App\Domain\Student\Services\StudentService;
+use App\Domain\Student\Support\RegistrationStepRules;
+use App\Models\Admission;
 use App\Models\AdmissionDocumentType;
 use App\Models\ApprovalRequest;
 use App\Models\College;
@@ -17,10 +21,11 @@ use App\Models\User;
 use Database\Seeders\GeoLocationSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 /**
- * The five-step registration wizard.
+ * The four-step registration wizard.
  *
  * These tests exercise the behaviour the wizard promises: step navigation and
  * per-step validation, draft persistence without any student row, the dependent
@@ -64,31 +69,42 @@ class RegistrationWizardTest extends TestCase
             ->firstOrFail();
     }
 
-    /** Fill steps 1-4 with valid minimal data and return the draft. */
-    private function completeDraft(College $college, User $user, array $stepOne = [], array $stepThree = []): StudentRegistrationDraft
+    /**
+     * Save step 1 with the personal AND parent/guardian blocks.
+     *
+     * Parent/Guardian is no longer a step of its own — it is sections C and D of
+     * Basic Information — so a "basic" save has to carry both halves, exactly as
+     * the merged page posts them.
+     */
+    private function saveBasic(College $college, User $user, array $data = [], bool $draft = false)
     {
-        $this->saveStep($college, $user, 1, array_merge([
+        return $this->saveStep($college, $user, 1, array_merge([
             'first_name' => 'Riya',
             'last_name' => 'Verma',
-            'gender' => 'female',
             'date_of_birth' => '2008-06-15',
             'phone' => '9111111111',
-        ], $stepOne))->assertRedirect(route('students.registration.step', ['step' => 2]));
-
-        $this->saveStep($college, $user, 2, [
+            'email' => 'riya@example.test',
             'father_name' => 'Suresh Verma',
             'father_phone' => '9222222222',
             'mother_name' => 'Kavita Verma',
             'guardian_relation' => 'father',
-        ])->assertRedirect(route('students.registration.step', ['step' => 3]));
+        ], $data), $draft);
+    }
 
-        $this->saveStep($college, $user, 3, array_merge([
-            'academic_year_id' => $stepThree['academic_year_id'] ?? null,
-            'program_id' => $stepThree['program_id'] ?? null,
+    /** Fill steps 1-3 with valid minimal data and return the draft. */
+    private function completeDraft(College $college, User $user, array $stepOne = [], array $stepTwo = []): StudentRegistrationDraft
+    {
+        $this->saveBasic($college, $user, array_merge([
+            'gender' => 'female',
+        ], $stepOne))->assertRedirect(route('students.registration.step', ['step' => 2]));
+
+        $this->saveStep($college, $user, 2, array_merge([
+            'academic_year_id' => $stepTwo['academic_year_id'] ?? null,
+            'program_id' => $stepTwo['program_id'] ?? null,
             'semester' => '1',
             'admission_date' => '2026-06-01',
             'enrollment_date' => '2026-06-02',
-        ], $stepThree))->assertRedirect(route('students.registration.step', ['step' => 4]));
+        ], $stepTwo))->assertRedirect(route('students.registration.step', ['step' => 3]));
 
         return $this->draftFor($college, $user);
     }
@@ -97,7 +113,7 @@ class RegistrationWizardTest extends TestCase
     // Navigation + step validation
     // -----------------------------------------------------------------
 
-    public function test_registration_entry_point_starts_the_wizard_and_shows_the_five_steps(): void
+    public function test_registration_entry_point_starts_the_wizard_and_shows_the_four_steps(): void
     {
         $college = $this->makeCollege('WIZ1');
         $user = $this->staff($college);
@@ -110,9 +126,8 @@ class RegistrationWizardTest extends TestCase
             ->get(route('students.registration.step', ['step' => 1]))
             ->assertOk()
             ->assertSee('Student Registration')
-            ->assertSee('Step 1 of 5')
+            ->assertSee('Step 1 of 4')
             ->assertSee('Basic Information')
-            ->assertSee('Parent/Guardian')
             ->assertSee('Academic Record')
             ->assertSee('Attach Documents')
             ->assertSee('Final Review');
@@ -172,6 +187,8 @@ class RegistrationWizardTest extends TestCase
     {
         $college = $this->makeCollege('WIZ3B');
         $user = $this->staff($college);
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
 
         // Continue from step 1 → the draft is on step 2.
         $this->saveStep($college, $user, 1, ['first_name' => 'Aarav'])
@@ -183,7 +200,7 @@ class RegistrationWizardTest extends TestCase
             ->assertRedirect(route('students.registration.step', ['step' => 2]));
 
         // Saving a draft ON step 2 must not move the marker back to step 1.
-        $this->saveStep($college, $user, 2, ['father_name' => 'Suresh Verma'], draft: true)
+        $this->saveStep($college, $user, 2, ['semester' => '3'], draft: true)
             ->assertRedirect(route('students.registration.step', ['step' => 2]));
 
         $this->assertSame(2, $this->draftFor($college, $user)->current_step);
@@ -192,8 +209,11 @@ class RegistrationWizardTest extends TestCase
             ->assertRedirect(route('students.registration.step', ['step' => 2]));
 
         // Going on to step 3 moves the resume point with it.
-        $this->saveStep($college, $user, 2, ['father_name' => 'Suresh Verma'])
-            ->assertRedirect(route('students.registration.step', ['step' => 3]));
+        $this->saveStep($college, $user, 2, [
+            'academic_year_id' => $year->id,
+            'program_id' => $program->id,
+            'semester' => '3',
+        ])->assertRedirect(route('students.registration.step', ['step' => 3]));
 
         $this->asCollege($college, $user)->get(route('students.registration.create'))
             ->assertRedirect(route('students.registration.step', ['step' => 3]));
@@ -208,28 +228,28 @@ class RegistrationWizardTest extends TestCase
 
         $this->saveStep($college, $user, 1, ['first_name' => 'Riya'])->assertRedirect(route('students.registration.step', ['step' => 2]));
 
-        // Step 3 without the required academic context — back to STEP 3 (never
+        // Academic Record without the required context — back to STEP 2 (never
         // to "/" or to whatever page the browser came from), with the errors.
-        $this->saveStep($college, $user, 3, ['semester' => '1'])
-            ->assertRedirect(route('students.registration.step', ['step' => 3]))
+        $this->saveStep($college, $user, 2, ['semester' => '1'])
+            ->assertRedirect(route('students.registration.step', ['step' => 2]))
             ->assertSessionHasErrors(['academic_year_id', 'program_id']);
 
         // The failed attempt wrote nothing.
-        $this->assertSame([], $this->draftFor($college, $user)->stepData(3));
+        $this->assertSame([], $this->draftFor($college, $user)->stepData(2));
 
-        // A failing DRAFT save on the same step also returns to step 3.
-        $this->saveStep($college, $user, 3, ['academic_year_id' => 'not-an-id'], draft: true)
-            ->assertRedirect(route('students.registration.step', ['step' => 3]))
+        // A failing DRAFT save on the same step also returns to step 2.
+        $this->saveStep($college, $user, 2, ['academic_year_id' => 'not-an-id'], draft: true)
+            ->assertRedirect(route('students.registration.step', ['step' => 2]))
             ->assertSessionHasErrors(['academic_year_id']);
 
         // The wizard is still where it was: the applicant can fix and continue.
-        $this->saveStep($college, $user, 3, [
+        $this->saveStep($college, $user, 2, [
             'academic_year_id' => $year->id,
             'program_id' => $program->id,
-        ])->assertRedirect(route('students.registration.step', ['step' => 4]));
+        ])->assertRedirect(route('students.registration.step', ['step' => 3]));
     }
 
-    public function test_step_one_rejects_a_foreign_college_programme_and_section(): void
+    public function test_academic_record_rejects_a_foreign_college_programme_and_section(): void
     {
         $college = $this->makeCollege('WIZ5');
         $other = $this->makeCollege('WIZ5B');
@@ -237,7 +257,7 @@ class RegistrationWizardTest extends TestCase
         $otherYear = $this->makeYear($other);
         $otherProgram = $this->makeProgram($other);
 
-        $this->saveStep($college, $user, 3, [
+        $this->saveStep($college, $user, 2, [
             'academic_year_id' => $otherYear->id,
             'program_id' => $otherProgram->id,
         ])->assertSessionHasErrors(['academic_year_id', 'program_id']);
@@ -326,9 +346,10 @@ class RegistrationWizardTest extends TestCase
         $college = $this->makeCollege('WIZ8');
         $user = $this->staff($college);
 
-        $this->saveStep($college, $user, 1, ['first_name' => 'Riya', 'middle_name' => 'R', 'last_name' => 'Verma', 'phone' => '9111111111'])->assertRedirect();
-
-        $this->saveStep($college, $user, 2, [
+        // Sections B, C and D are one page: the personal details and the
+        // parent/guardian block arrive in the SAME save.
+        $this->saveStep($college, $user, 1, [
+            'first_name' => 'Riya', 'middle_name' => 'R', 'last_name' => 'Verma', 'phone' => '9111111111',
             'father_name' => 'Suresh Verma',
             'father_phone' => '9222222222',
             'father_email' => 'suresh@example.test',
@@ -337,23 +358,25 @@ class RegistrationWizardTest extends TestCase
             // A tampered value must not survive: the server rebuilds it.
             'guardian_name' => 'Someone Else',
             'guardian_phone' => '9000000000',
-        ])->assertRedirect();
+        ])->assertRedirect(route('students.registration.step', ['step' => 2]));
 
-        $step = $this->draftFor($college, $user)->stepData(2);
+        $step = $this->draftFor($college, $user)->stepData(1);
+        $this->assertSame('Riya', $step['first_name'], 'Personal and guardian data share one step.');
         $this->assertSame('Suresh Verma', $step['guardian_name']);
         $this->assertSame('9222222222', $step['guardian_phone']);
         $this->assertSame('suresh@example.test', $step['guardian_email']);
         $this->assertSame('Farmer', $step['guardian_occupation']);
 
         // Switching to the mother re-derives from the mother's record.
-        $this->saveStep($college, $user, 2, [
+        $this->saveStep($college, $user, 1, [
+            'first_name' => 'Riya',
             'father_name' => 'Suresh Verma',
             'mother_name' => 'Kavita Verma',
             'mother_phone' => '9333333333',
             'guardian_relation' => 'mother',
         ])->assertRedirect();
 
-        $step = $this->draftFor($college, $user)->stepData(2);
+        $step = $this->draftFor($college, $user)->stepData(1);
         $this->assertSame('Kavita Verma', $step['guardian_name']);
         $this->assertSame('9333333333', $step['guardian_phone']);
     }
@@ -363,9 +386,8 @@ class RegistrationWizardTest extends TestCase
         $college = $this->makeCollege('WIZ9');
         $user = $this->staff($college);
 
-        $this->saveStep($college, $user, 1, ['first_name' => 'Riya'])->assertRedirect();
-
-        $this->saveStep($college, $user, 2, [
+        $this->saveStep($college, $user, 1, [
+            'first_name' => 'Riya',
             'father_name' => 'Suresh Verma',
             'father_phone' => '9222222222',
             'guardian_relation' => 'father',
@@ -373,7 +395,8 @@ class RegistrationWizardTest extends TestCase
 
         // The browser submits the previously auto-filled values when the user
         // switches to "Other"; the server keeps them as independent data.
-        $this->saveStep($college, $user, 2, [
+        $this->saveStep($college, $user, 1, [
+            'first_name' => 'Riya',
             'father_name' => 'Suresh Verma',
             'father_phone' => '9222222222',
             'guardian_relation' => 'other',
@@ -382,7 +405,7 @@ class RegistrationWizardTest extends TestCase
             'guardian_occupation' => 'Guardian',
         ])->assertRedirect();
 
-        $step = $this->draftFor($college, $user)->stepData(2);
+        $step = $this->draftFor($college, $user)->stepData(1);
         $this->assertSame('other', $step['guardian_relation']);
         $this->assertSame('Suresh Verma', $step['guardian_name']);
         $this->assertSame('Guardian', $step['guardian_occupation']);
@@ -393,14 +416,15 @@ class RegistrationWizardTest extends TestCase
         $college = $this->makeCollege('WIZ10');
         $user = $this->staff($college);
 
+        // "Self" is chosen on the page that also holds the personal fields, and
+        // the derivation must read the values typed in the same request.
         $this->saveStep($college, $user, 1, [
             'first_name' => 'Riya', 'last_name' => 'Verma',
             'phone' => '9111111111', 'email' => 'riya@example.test',
+            'guardian_relation' => 'self',
         ])->assertRedirect();
 
-        $this->saveStep($college, $user, 2, ['guardian_relation' => 'self'])->assertRedirect();
-
-        $step = $this->draftFor($college, $user)->stepData(2);
+        $step = $this->draftFor($college, $user)->stepData(1);
         $this->assertSame('Riya Verma', $step['guardian_name']);
         $this->assertSame('9111111111', $step['guardian_phone']);
         $this->assertSame('riya@example.test', $step['guardian_email']);
@@ -424,7 +448,7 @@ class RegistrationWizardTest extends TestCase
             'program_id' => $program->id,
         ]);
 
-        $this->saveStep($college, $user, 3, [
+        $this->saveStep($college, $user, 2, [
             'academic_year_id' => $year->id,
             'program_id' => $program->id,
             'qualifications' => [
@@ -449,7 +473,7 @@ class RegistrationWizardTest extends TestCase
             ],
         ])->assertRedirect();
 
-        $rows = $this->draftFor($college, $user)->stepData(3)['qualifications'];
+        $rows = $this->draftFor($college, $user)->stepData(2)['qualifications'];
         $this->assertCount(2, $rows);
         $this->assertSame('class_10', $rows[0]['level']);
 
@@ -483,7 +507,7 @@ class RegistrationWizardTest extends TestCase
         $year = $this->makeYear($college);
         $program = $this->makeProgram($college);
 
-        $this->saveStep($college, $user, 3, [
+        $this->saveStep($college, $user, 2, [
             'academic_year_id' => $year->id,
             'program_id' => $program->id,
             'qualifications' => [
@@ -492,7 +516,7 @@ class RegistrationWizardTest extends TestCase
             ],
         ])->assertRedirect();
 
-        $this->saveStep($college, $user, 3, [
+        $this->saveStep($college, $user, 2, [
             'academic_year_id' => $year->id,
             'program_id' => $program->id,
             'qualifications' => [
@@ -501,7 +525,7 @@ class RegistrationWizardTest extends TestCase
             ],
         ])->assertRedirect();
 
-        $rows = $this->draftFor($college, $user)->stepData(3)['qualifications'];
+        $rows = $this->draftFor($college, $user)->stepData(2)['qualifications'];
         $this->assertCount(1, $rows);
         $this->assertSame('class_10', $rows[0]['level']);
     }
@@ -537,7 +561,7 @@ class RegistrationWizardTest extends TestCase
         $this->asCollege($college, $user)->post(route('students.registration.submit'), [
             'draft_id' => $draft->id,
             'confirm_declaration' => '1',
-        ])->assertRedirect(route('students.registration.step', ['step' => 4]))
+        ])->assertRedirect(route('students.registration.step', ['step' => 3]))
             ->assertSessionHasErrors(['documents']);
 
         $this->assertSame(0, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
@@ -547,7 +571,7 @@ class RegistrationWizardTest extends TestCase
             'draft_id' => $draft->id,
             'document_type_id' => $required->id,
             'file' => UploadedFile::fake()->create('transfer.pdf', 20, 'application/pdf'),
-        ])->assertRedirect(route('students.registration.step', ['step' => 4]));
+        ])->assertRedirect(route('students.registration.step', ['step' => 3]));
 
         // The deferred document is NOT required at submission time.
         $this->asCollege($college, $user)->post(route('students.registration.submit'), [
@@ -732,10 +756,11 @@ class RegistrationWizardTest extends TestCase
 
         // Nor act on it by posting its id.
         $this->asCollege($other, $intruder)
-            ->post(route('students.registration.step.save', ['step' => 2]), ['draft_id' => $draft->id, 'father_name' => 'X'])
+            ->post(route('students.registration.step.save', ['step' => 1]), ['draft_id' => $draft->id, 'first_name' => 'Intruder'])
             ->assertNotFound();
 
-        $this->assertNull($draft->fresh()->stepData(2)['father_name'] ?? null);
+        // The owner's data is untouched.
+        $this->assertSame('Riya', $draft->fresh()->stepData(1)['first_name']);
 
         // Refusing the intruder must not start a draft of their own either.
         $this->assertSame(0, StudentRegistrationDraft::withoutGlobalScopes()
@@ -776,9 +801,9 @@ class RegistrationWizardTest extends TestCase
 
             // POST a step naming it.
             $this->asCollege($tenant, $intruder)
-                ->post(route('students.registration.step.save', ['step' => 2]), [
+                ->post(route('students.registration.step.save', ['step' => 1]), [
                     'draft_id' => $draft->id,
-                    'father_name' => 'Intruder',
+                    'first_name' => 'Intruder',
                 ])
                 ->assertNotFound();
 
@@ -802,7 +827,7 @@ class RegistrationWizardTest extends TestCase
         // The owner's draft is untouched and is still the only one in the college.
         $fresh = $draft->fresh();
         $this->assertSame('Riya', $fresh->stepData(1)['first_name']);
-        $this->assertNull($fresh->stepData(2)['father_name'] ?? null);
+        $this->assertNull($fresh->stepData(1)['father_name'] ?? null);
         $this->assertSame(StudentRegistrationDraft::STATUS_DRAFT, $fresh->status);
         $this->assertSame(1, StudentRegistrationDraft::withoutGlobalScopes()
             ->where('college_id', $college->id)
@@ -918,7 +943,7 @@ class RegistrationWizardTest extends TestCase
             'program_id' => $program->id,
         ]);
 
-        $this->saveStep($college, $user, 3, [
+        $this->saveStep($college, $user, 2, [
             'academic_year_id' => $year->id,
             'program_id' => $program->id,
             'qualifications' => [[
@@ -927,7 +952,7 @@ class RegistrationWizardTest extends TestCase
                 'marks_obtained' => 430,
                 'max_marks' => 500,
             ]],
-        ])->assertRedirect(route('students.registration.step', ['step' => 4]));
+        ])->assertRedirect(route('students.registration.step', ['step' => 3]));
 
         // Meanwhile the same mobile number is registered for an approved student.
         $blocker = $this->makeStudent($college, ['student_number' => 'STU-TAKEN', 'phone' => '9111111111']);
@@ -993,25 +1018,29 @@ class RegistrationWizardTest extends TestCase
         $this->assertStringNotContainsString('disabled', $match[0], "The {$id} select must be usable.");
     }
 
-    public function test_step_one_headings_are_unnumbered_and_the_sections_are_in_order(): void
+    public function test_step_one_sections_are_unnumbered_and_run_from_identification_to_signatures(): void
     {
         $college = $this->makeCollege('WIZ30');
         $user = $this->staff($college);
 
         $html = $this->stepOneHtml($college, $user);
 
-        // No internal section numbering: the five-step bar is the only numbering.
+        // No internal section numbering: the four-step bar is the only numbering.
         $this->assertStringNotContainsString('erp-card__num', $html, 'Internal section headings carry no numbers.');
         $this->assertStringNotContainsString('>01<', $html);
         $this->assertStringNotContainsString('>02<', $html);
 
-        // Personal Details → Permanent Address → Temporary Address → Photograph → Signatures.
+        // A Student Identification → B Personal → C Parent → D Guardian →
+        // E Permanent → F Temporary → G Photograph → H Signatures.
         $order = [
-            'id="wz-basic-personal"',
-            'id="wz-basic-permanent"',
-            'id="wz-basic-temporary"',
-            'id="wz-basic-photograph"',
-            'id="wz-basic-signature"',
+            'id="wz-basic-identifiers"',   // A
+            'id="wz-basic-personal"',      // B
+            'id="wz-basic-parents"',       // C
+            'id="wz-basic-guardian"',      // D
+            'id="wz-basic-permanent"',     // E
+            'id="wz-basic-temporary"',     // F
+            'id="wz-basic-photograph"',    // G
+            'id="wz-basic-signature"',     // H
         ];
         $positions = array_map(fn (string $needle) => strpos($html, $needle), $order);
 
@@ -1022,6 +1051,28 @@ class RegistrationWizardTest extends TestCase
         $sorted = $positions;
         sort($sorted);
         $this->assertSame($sorted, $positions, 'The sections must render in the required order.');
+
+        // Section A is Student Identification and it comes first; B is Personal
+        // Details — the two headings the brief names explicitly.
+        $this->assertLessThan(
+            strpos($html, 'Personal Details'),
+            strpos($html, 'Student Identification'),
+            'Student Identification is section A, before Personal Details.',
+        );
+        $this->assertLessThan(strpos($html, 'Parent Details'), strpos($html, 'Personal Details'));
+
+        // A read-only identifier always has a label and an honest value, never a
+        // blank box: before submission all three are reported as pending.
+        foreach (['student_id', 'admission_number', 'roll_number'] as $key) {
+            $this->assertStringContainsString('data-erp-identifier="'.$key.'"', $html);
+        }
+        $this->assertStringContainsString('data-erp-identifier-value="student_id"', $html);
+        $this->assertStringContainsString('Pending', $html);
+
+        // There is no input for any identifier: the wizard cannot set one.
+        foreach (['student_number', 'admission_number', 'roll_number'] as $field) {
+            $this->assertStringNotContainsString('name="'.$field.'"', $html, "The {$field} is never user-editable.");
+        }
 
         // The media controls all survive the re-ordering.
         foreach (['photo', 'signature', 'father_photo', 'mother_photo', 'guardian_photo'] as $field) {
@@ -1100,32 +1151,32 @@ class RegistrationWizardTest extends TestCase
             ->where('user_id', $user->id)
             ->count();
 
-        // Step 3 (academic year + program are required) with no draft at all.
-        $this->saveStep($college, $user, 3, [])
-            ->assertRedirect(route('students.registration.step', ['step' => 3]))
+        // Step 2 (academic year + program are required) with no draft at all.
+        $this->saveStep($college, $user, 2, [])
+            ->assertRedirect(route('students.registration.step', ['step' => 2]))
             ->assertSessionHasErrors(['academic_year_id']);
 
         $this->assertSame(0, $drafts(), 'A rejected first save leaves no working copy.');
 
         // Reading a step is not a way to create one either.
         $this->asCollege($college, $user)
-            ->get(route('students.registration.step', ['step' => 3]))
+            ->get(route('students.registration.step', ['step' => 2]))
             ->assertRedirect(route('students.registration.create'));
 
         $this->assertSame(0, $drafts(), 'A GET must never start a draft.');
 
-        // The entry point starts it — for this user only — and reopens step 3,
+        // The entry point starts it — for this user only — and reopens step 2,
         // which is where the rejected save was, so the message is still shown.
         $this->asCollege($college, $user)
             ->get(route('students.registration.create'))
-            ->assertRedirect(route('students.registration.step', ['step' => 3]))
+            ->assertRedirect(route('students.registration.step', ['step' => 2]))
             ->assertSessionHasErrors(['academic_year_id']);
 
         $this->assertSame(1, $drafts(), 'Exactly one working copy is created.');
 
         // The draft is genuinely empty: the failed attempt stored nothing.
         $draft = $this->draftFor($college, $user);
-        $this->assertSame([], $draft->stepData(3));
+        $this->assertSame([], $draft->stepData(2));
         $this->assertSame(0, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
         $this->assertSame(0, ApprovalRequest::withoutGlobalScopes()->where('college_id', $college->id)->count());
     }
@@ -1371,7 +1422,7 @@ class RegistrationWizardTest extends TestCase
     }
 
     // -----------------------------------------------------------------
-    // Step 3 — multiple qualifications
+    // Step 2 — multiple qualifications
     // -----------------------------------------------------------------
 
     public function test_qualifications_can_be_added_resumed_and_edited_individually(): void
@@ -1388,7 +1439,7 @@ class RegistrationWizardTest extends TestCase
         ]);
 
         // Three rows, the way the "+ Add Qualification" button produces them.
-        $this->saveStep($college, $user, 3, [
+        $this->saveStep($college, $user, 2, [
             'academic_year_id' => $year->id,
             'program_id' => $program->id,
             'qualifications' => [
@@ -1396,13 +1447,13 @@ class RegistrationWizardTest extends TestCase
                 ['level' => 'class_12', 'qualification' => 'Higher Secondary', 'examination_year' => 2022, 'marks_obtained' => 450, 'max_marks' => 500],
                 ['level' => 'graduation', 'qualification' => 'B.Sc', 'examination_year' => 2025, 'grade' => 'A'],
             ],
-        ])->assertRedirect(route('students.registration.step', ['step' => 4]));
+        ])->assertRedirect(route('students.registration.step', ['step' => 3]));
 
-        $this->assertCount(3, $this->draftFor($college, $user)->stepData(3)['qualifications']);
+        $this->assertCount(3, $this->draftFor($college, $user)->stepData(2)['qualifications']);
 
         // The page is the repeatable form, with the visible add control.
         $html = $this->asCollege($college, $user)
-            ->get(route('students.registration.step', ['step' => 3]))
+            ->get(route('students.registration.step', ['step' => 2]))
             ->assertOk()
             ->getContent();
 
@@ -1418,7 +1469,7 @@ class RegistrationWizardTest extends TestCase
         $this->assertStringContainsString('data-erp-qualification-template', $html, 'The template for a new row is present.');
 
         // Edit the second row and remove the third: the first must be untouched.
-        $this->saveStep($college, $user, 3, [
+        $this->saveStep($college, $user, 2, [
             'academic_year_id' => $year->id,
             'program_id' => $program->id,
             'qualifications' => [
@@ -1428,7 +1479,7 @@ class RegistrationWizardTest extends TestCase
             ],
         ])->assertRedirect();
 
-        $rows = $this->draftFor($college, $user)->stepData(3)['qualifications'];
+        $rows = $this->draftFor($college, $user)->stepData(2)['qualifications'];
 
         $this->assertCount(2, $rows, 'Removing one row leaves the others in place.');
         $this->assertSame('High School', $rows[0]['qualification']);
@@ -1444,7 +1495,7 @@ class RegistrationWizardTest extends TestCase
         $year = $this->makeYear($college);
         $program = $this->makeProgram($college);
 
-        $this->saveStep($college, $user, 3, [
+        $this->saveStep($college, $user, 2, [
             'academic_year_id' => $year->id,
             'program_id' => $program->id,
             'qualifications' => [
@@ -1453,7 +1504,7 @@ class RegistrationWizardTest extends TestCase
             ],
         ])->assertRedirect();
 
-        $rows = $this->draftFor($college, $user)->stepData(3)['qualifications'];
+        $rows = $this->draftFor($college, $user)->stepData(2)['qualifications'];
 
         foreach ($rows as $row) {
             $this->assertTrue(
@@ -1464,7 +1515,7 @@ class RegistrationWizardTest extends TestCase
     }
 
     // -----------------------------------------------------------------
-    // Step 4 — checkbox-based document selection
+    // Step 3 — checkbox-based document selection
     // -----------------------------------------------------------------
 
     public function test_the_document_step_uses_a_compact_checkbox_picker(): void
@@ -1488,7 +1539,7 @@ class RegistrationWizardTest extends TestCase
         ]);
 
         $html = $this->asCollege($college, $user)
-            ->get(route('students.registration.step', ['step' => 4]))
+            ->get(route('students.registration.step', ['step' => 3]))
             ->assertOk()
             ->getContent();
 
@@ -1536,10 +1587,10 @@ class RegistrationWizardTest extends TestCase
             'draft_id' => $draft->id,
             'document_type_id' => $type->id,
             'file' => UploadedFile::fake()->create('sports.pdf', 20, 'application/pdf'),
-        ])->assertRedirect(route('students.registration.step', ['step' => 4]));
+        ])->assertRedirect(route('students.registration.step', ['step' => 3]));
 
         $html = $this->asCollege($college, $user)
-            ->get(route('students.registration.step', ['step' => 4]))
+            ->get(route('students.registration.step', ['step' => 3]))
             ->assertOk()
             ->getContent();
 
@@ -1588,7 +1639,7 @@ class RegistrationWizardTest extends TestCase
             'draft_id' => $draft->id,
             'confirm_declaration' => '1',
             'selected_documents' => [],
-        ])->assertRedirect(route('students.registration.step', ['step' => 4]))
+        ])->assertRedirect(route('students.registration.step', ['step' => 3]))
             ->assertSessionHasErrors(['documents']);
 
         $this->assertSame(0, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
@@ -1606,5 +1657,511 @@ class RegistrationWizardTest extends TestCase
         ])->assertRedirect(route('students.index'));
 
         $this->assertSame(1, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
+    }
+
+    // -----------------------------------------------------------------
+    // Part 2 — the three identifiers
+    // -----------------------------------------------------------------
+
+    public function test_the_wizard_never_allocates_an_identifier(): void
+    {
+        Storage::fake('private');
+        $college = $this->makeCollege('WIZ50');
+        $user = $this->staff($college);
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+
+        // Opening the wizard starts the working copy — and nothing else.
+        $this->asCollege($college, $user)->get(route('students.registration.create'))->assertRedirect();
+        $draft = $this->draftFor($college, $user);
+
+        // Saving steps, in draft mode and in strict mode, allocates nothing.
+        $this->saveBasic($college, $user, ['aadhaar_number' => '9999 4105 7058'], draft: true)->assertRedirect();
+        $this->saveStep($college, $user, 2, [
+            'academic_year_id' => $year->id,
+            'program_id' => $program->id,
+            'semester' => '1',
+        ], draft: true)->assertRedirect();
+
+        $this->assertSame(0, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame(0, Admission::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame(0, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
+
+        // No identifier is stored on the draft either.
+        $stored = (string) json_encode($draft->fresh()->payload);
+        foreach (['student_number', 'admission_number', 'roll_number'] as $key) {
+            $this->assertStringNotContainsString($key, $stored, "A draft must not carry a {$key}.");
+        }
+
+        // Section A reports all three honestly as pending, and there is no input
+        // for any of them, so a client cannot post one either.
+        $html = $this->asCollege($college, $user)
+            ->get(route('students.registration.step', ['step' => 1]))
+            ->assertOk()
+            ->getContent();
+
+        foreach (['student_id', 'admission_number', 'roll_number'] as $key) {
+            $this->assertStringContainsString('data-erp-identifier-value="'.$key.'"', $html);
+        }
+        $this->assertSame(3, substr_count($html, 'erp-id erp-id--pending'), 'All three identifiers are pending.');
+        foreach (['student_number', 'admission_number', 'roll_number'] as $field) {
+            $this->assertStringNotContainsString('name="'.$field.'"', $html);
+        }
+
+        // A hand-crafted POST cannot write one into the draft.
+        $this->saveStep($college, $user, 1, [
+            'first_name' => 'Riya',
+            'student_number' => 'STU-HACK-0001',
+            'admission_number' => 'ADM-HACK-0001',
+            'roll_number' => '99',
+        ])->assertRedirect();
+
+        $step = $this->draftFor($college, $user)->stepData(1);
+        $this->assertArrayNotHasKey('student_number', $step);
+        $this->assertArrayNotHasKey('admission_number', $step);
+        $this->assertArrayNotHasKey('roll_number', $step);
+    }
+
+    public function test_the_student_id_is_generated_once_on_submission_and_never_changes(): void
+    {
+        $college = $this->makeCollege('WIZ51');
+        $user = $this->staff($college);
+        $approver = $this->makeUserWithPermissions($college, ['students.view', 'students.create', 'approvals.view', 'approvals.approve']);
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+
+        $draft = $this->completeDraft($college, $user, [], [
+            'academic_year_id' => $year->id,
+            'program_id' => $program->id,
+        ]);
+
+        // Nothing has a Student ID yet.
+        $this->assertFalse((bool) Student::withoutGlobalScopes()->where('college_id', $college->id)->exists());
+
+        $this->asCollege($college, $user)->post(route('students.registration.submit'), [
+            'draft_id' => $draft->id,
+            'confirm_declaration' => '1',
+        ])->assertRedirect(route('students.index'));
+
+        $student = Student::withoutGlobalScopes()->where('college_id', $college->id)->sole();
+        $number = $student->student_number;
+
+        $this->assertMatchesRegularExpression('/^STU-\d{4}-\d{4}$/', (string) $number);
+
+        // Submitting twice must not mint a second number, and approval must not
+        // replace the one already printed on the student's record.
+        $this->asCollege($college, $user)->post(route('students.registration.submit'), [
+            'draft_id' => $draft->id,
+            'confirm_declaration' => '1',
+        ])->assertRedirect(route('students.index'));
+
+        $request = ApprovalRequest::withoutGlobalScopes()->where('target_id', $student->id)->sole();
+        $this->asCollege($college, $approver)->post(route('approvals.approve', $request), [])->assertRedirect();
+
+        $this->assertSame($number, $student->fresh()->student_number);
+        $this->assertSame(1, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
+
+        // The identifier is read-only everywhere: step 1 shows the assigned value
+        // once the student exists, still with no input to edit it.
+        $identifiers = app(StudentIdentifierService::class)->forStudent($student->fresh(), $college->id);
+        $this->assertSame($number, $identifiers['student_id']['value']);
+        $this->assertSame('assigned', $identifiers['student_id']['state']);
+        $this->assertSame('pending', $identifiers['roll_number']['state'], 'No section was chosen, so no roll number exists.');
+    }
+
+    public function test_roll_numbers_are_allocated_per_section_and_never_reused(): void
+    {
+        $college = $this->makeCollege('WIZ52');
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+        $sectionA = $this->makeSection($college, $year, $program, 'A');
+        $sectionB = $this->makeSection($college, $year, $program, 'B');
+
+        $service = app(StudentService::class);
+
+        $enroll = function (Student $student, $section) use ($service, $college, $year, $program): StudentEnrollment {
+            return $service->createEnrollment([
+                'student_id' => $student->id,
+                'academic_year_id' => $year->id,
+                'program_id' => $program->id,
+                'section_id' => $section->id,
+            ], $college->id, $year->code);
+        };
+
+        $first = $enroll($this->makeStudent($college, ['first_name' => 'One']), $sectionA);
+        $second = $enroll($this->makeStudent($college, ['first_name' => 'Two']), $sectionA);
+        $otherSection = $enroll($this->makeStudent($college, ['first_name' => 'Three']), $sectionB);
+
+        $this->assertSame('01', $first->roll_number);
+        $this->assertSame('02', $second->roll_number);
+        $this->assertSame('01', $otherSection->roll_number, 'A different section numbers its own list.');
+
+        // An explicit office value inside the scope is kept as given.
+        $explicit = $service->createEnrollment([
+            'student_id' => $this->makeStudent($college, ['first_name' => 'Four'])->id,
+            'academic_year_id' => $year->id,
+            'program_id' => $program->id,
+            'section_id' => $sectionA->id,
+            'roll_number' => '25',
+        ], $college->id, $year->code);
+
+        $this->assertSame('25', $explicit->roll_number);
+
+        // A clash inside the same scope is a field error and creates no row.
+        $before = StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count();
+
+        try {
+            $service->createEnrollment([
+                'student_id' => $this->makeStudent($college, ['first_name' => 'Five'])->id,
+                'academic_year_id' => $year->id,
+                'program_id' => $program->id,
+                'section_id' => $sectionA->id,
+                'roll_number' => '25',
+            ], $college->id, $year->code);
+
+            $this->fail('A roll number already used in this section must be refused.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('roll_number', $exception->errors());
+        }
+
+        $this->assertSame($before, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
+
+        // The database refuses the duplicate too, even if the service is bypassed.
+        $this->expectException(\Illuminate\Database\QueryException::class);
+
+        StudentEnrollment::withoutGlobalScopes()->create([
+            'college_id' => $college->id,
+            'student_id' => $first->student_id,
+            'academic_year_id' => $year->id,
+            'program_id' => $program->id,
+            'section_id' => $sectionA->id,
+            'roll_number' => '01',
+            'enrollment_number' => 'ENR-DUPLICATE-ROLL',
+            'enrollment_date' => now()->toDateString(),
+            'status' => 'active',
+        ]);
+    }
+
+    // -----------------------------------------------------------------
+    // Part 4 — duplicate detection
+    // -----------------------------------------------------------------
+
+    public function test_a_matching_name_alone_is_never_reported_or_blocked(): void
+    {
+        $college = $this->makeCollege('WIZ53');
+        $user = $this->staff($college);
+
+        // Same name, nothing else in common — and no corroborating detail sent.
+        $this->makeStudent($college, [
+            'student_number' => 'STU-NAME-ONLY',
+            'first_name' => 'Riya',
+            'last_name' => 'Verma',
+            'phone' => '9444444444',
+        ]);
+
+        $this->saveStep($college, $user, 1, ['first_name' => 'Riya', 'last_name' => 'Verma', 'phone' => '9111111111'])
+            ->assertRedirect(route('students.registration.step', ['step' => 2]));
+
+        $draft = $this->draftFor($college, $user);
+
+        $this->assertSame([], (array) $draft->duplicate_warnings, 'A shared name is not a duplicate.');
+        $this->assertSame('Riya', $draft->stepData(1)['first_name']);
+    }
+
+    public function test_a_name_with_a_corroborating_detail_is_a_warning_and_never_a_block(): void
+    {
+        $college = $this->makeCollege('WIZ54');
+        $user = $this->staff($college);
+
+        $existing = $this->makeStudent($college, [
+            'student_number' => 'STU-SAME-FAMILY',
+            'first_name' => 'Riya',
+            'last_name' => 'Verma',
+            'father_name' => 'Suresh Verma',
+            'date_of_birth' => '2005-01-01',
+            'phone' => '9444444444',
+        ]);
+
+        // Same name AND the same father's name: worth a human look, not a block.
+        $this->saveStep($college, $user, 1, [
+            'first_name' => 'Riya',
+            'last_name' => 'Verma',
+            'father_name' => 'Suresh Verma',
+            'date_of_birth' => '2008-06-15',
+            'phone' => '9111111111',
+        ])->assertRedirect(route('students.registration.step', ['step' => 2]));
+
+        $draft = $this->draftFor($college, $user);
+        $warnings = (array) $draft->duplicate_warnings;
+
+        $this->assertCount(1, $warnings);
+        $this->assertSame((int) $existing->id, (int) $warnings[0]['student_id']);
+        $this->assertSame('STU-SAME-FAMILY', $warnings[0]['student_number']);
+        $this->assertContains("father's name", $warnings[0]['matched_on']);
+        $this->assertStringContainsString('Check before approving', $warnings[0]['message']);
+
+        // The warning is visible on the review screen and travels into the
+        // approval request, where a human makes the decision.
+        $html = $this->asCollege($college, $user)
+            ->get(route('students.registration.step', ['step' => 4]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-erp-review-duplicates', $html);
+        $this->assertStringContainsString('STU-SAME-FAMILY', $html);
+    }
+
+    public function test_duplicate_warnings_are_scoped_to_the_college(): void
+    {
+        $college = $this->makeCollege('WIZ55');
+        $other = $this->makeCollege('WIZ55B');
+        $user = $this->staff($college);
+
+        // A namesake in a DIFFERENT college must never be reported.
+        $this->makeStudent($other, [
+            'student_number' => 'STU-OTHER-COLLEGE',
+            'first_name' => 'Riya',
+            'last_name' => 'Verma',
+            'father_name' => 'Suresh Verma',
+            'date_of_birth' => '2008-06-15',
+            'phone' => '9444444444',
+        ]);
+
+        $this->saveStep($college, $user, 1, [
+            'first_name' => 'Riya',
+            'last_name' => 'Verma',
+            'father_name' => 'Suresh Verma',
+            'date_of_birth' => '2008-06-15',
+            'phone' => '9111111111',
+        ])->assertRedirect(route('students.registration.step', ['step' => 2]));
+
+        $this->assertSame([], (array) $this->draftFor($college, $user)->duplicate_warnings);
+    }
+
+    /**
+     * A mobile number shared inside one family is not an identity, but the
+     * STUDENT's own number still is — the existing policy, unchanged.
+     */
+    public function test_a_shared_parent_mobile_is_allowed_while_the_students_own_number_still_blocks(): void
+    {
+        $college = $this->makeCollege('WIZ56');
+        $user = $this->staff($college);
+
+        $existing = $this->makeStudent($college, [
+            'student_number' => 'STU-SIBLING',
+            'first_name' => 'Aarav',
+            'last_name' => 'Verma',
+            'father_phone' => '9222222222',
+            'phone' => '9444444444',
+        ]);
+
+        // The sibling shares the father's mobile — accepted (no father_phone rule).
+        $this->saveStep($college, $user, 1, [
+            'first_name' => 'Riya',
+            'last_name' => 'Verma',
+            'father_name' => 'Suresh Verma',
+            'father_phone' => '9222222222',
+            'phone' => '9111111111',
+        ])->assertRedirect(route('students.registration.step', ['step' => 2]));
+
+        $this->assertSame('9222222222', $this->draftFor($college, $user)->stepData(1)['father_phone']);
+
+        // Reusing the student's own number is still refused, unchanged.
+        $this->saveStep($college, $user, 1, [
+            'first_name' => 'Riya',
+            'last_name' => 'Verma',
+            'phone' => '9444444444',
+        ])->assertRedirect(route('students.registration.step', ['step' => 1]))
+            ->assertSessionHasErrors(['phone']);
+
+        $this->assertSame('9111111111', $this->draftFor($college, $user)->stepData(1)['phone'], 'The rejected save changed nothing.');
+        $this->assertSame((int) $existing->id, (int) Student::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->where('phone', '9444444444')
+            ->sole()->id);
+    }
+
+    public function test_an_apaar_id_already_recorded_blocks_a_new_registration_without_writing_anything(): void
+    {
+        $college = $this->makeCollege('WIZ57');
+        $user = $this->staff($college);
+
+        $this->makeStudent($college, [
+            'student_number' => 'STU-APAAR',
+            'first_name' => 'Aarav',
+            'last_name' => 'Verma',
+            'apaar_id' => '123456789012',
+            'phone' => '9444444444',
+        ]);
+
+        $this->saveStep($college, $user, 1, [
+            'first_name' => 'Riya',
+            'last_name' => 'Verma',
+            'apaar_id' => '123456789012',
+            'phone' => '9111111111',
+        ])->assertRedirect(route('students.registration.step', ['step' => 1]))
+            ->assertSessionHasErrors(['apaar_id']);
+
+        // Nothing was written: no draft, no student, no file.
+        $this->assertSame(0, StudentRegistrationDraft::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->where('user_id', $user->id)
+            ->count());
+        $this->assertSame(1, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
+
+        // The same APAAR in another college is a different person's record.
+        $other = $this->makeCollege('WIZ57B');
+        $outsider = $this->staff($other);
+
+        $this->saveStep($other, $outsider, 1, [
+            'first_name' => 'Riya',
+            'last_name' => 'Verma',
+            'apaar_id' => '123456789012',
+            'phone' => '9111111111',
+        ])->assertRedirect(route('students.registration.step', ['step' => 2]));
+    }
+
+    // -----------------------------------------------------------------
+    // Part 5 + 10 — four steps and old drafts
+    // -----------------------------------------------------------------
+
+    public function test_the_wizard_has_exactly_four_steps_and_rejects_a_fifth(): void
+    {
+        $this->assertSame([1, 2, 3, 4], array_keys(RegistrationStepRules::STEPS));
+        $this->assertSame(
+            ['Basic Information', 'Academic Record', 'Attach Documents', 'Final Review'],
+            array_values(RegistrationStepRules::STEPS),
+        );
+
+        $college = $this->makeCollege('WIZ58');
+        $user = $this->staff($college);
+
+        $html = $this->stepOneHtml($college, $user);
+
+        $this->assertStringContainsString('Step 1 of 4', $html);
+        foreach (RegistrationStepRules::STEPS as $label) {
+            $this->assertStringContainsString($label, $html, "The progress bar lists {$label}.");
+        }
+        $this->assertStringNotContainsString('Step 1 of 5', $html);
+
+        // The old step count is gone from the routes as well.
+        $this->asCollege($college, $user)
+            ->get(route('students.registration.step', ['step' => 5]))
+            ->assertNotFound();
+
+        // Parent/Guardian is a section of step 1 now, never a step of its own.
+        $this->saveStep($college, $user, 1, [
+            'first_name' => 'Riya',
+            'father_name' => 'Suresh Verma',
+            'guardian_relation' => 'father',
+        ])->assertRedirect(route('students.registration.step', ['step' => 2]));
+
+        $step = $this->draftFor($college, $user)->stepData(1);
+        $this->assertSame('Suresh Verma', $step['father_name']);
+        $this->assertSame('father', $step['guardian_relation']);
+    }
+
+    public function test_a_four_step_draft_that_saved_the_review_step_is_not_treated_as_legacy(): void
+    {
+        $college = $this->makeCollege('WIZ59');
+        $user = $this->staff($college);
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+
+        // The current four-step shape: academic on 2, documents write nothing,
+        // review on 4 (a `remarks` key is part of the NEW review step).
+        $draft = StudentRegistrationDraft::withoutGlobalScopes()->create([
+            'college_id' => $college->id,
+            'user_id' => $user->id,
+            'status' => StudentRegistrationDraft::STATUS_DRAFT,
+            'current_step' => 4,
+            'payload' => [
+                2 => ['academic_year_id' => $year->id, 'program_id' => $program->id, 'semester' => '1'],
+                4 => ['remarks' => null],
+            ],
+        ]);
+
+        $this->assertFalse($draft->hasLegacyPayload(), 'A current payload is never re-mapped.');
+        $this->assertSame($year->id, (int) $draft->stepData(2)['academic_year_id']);
+        $this->assertSame([], $draft->stepData(1));
+        $this->assertSame(4, $draft->currentStep());
+
+        // Saving step 1 afterwards keeps the academic record where it is.
+        $this->saveStep($college, $user, 1, ['first_name' => 'Riya'], draft: true)->assertRedirect();
+
+        $fresh = $draft->fresh();
+        $this->assertSame('Riya', $fresh->stepData(1)['first_name']);
+        $this->assertSame($year->id, (int) $fresh->stepData(2)['academic_year_id']);
+        $this->assertFalse($fresh->hasLegacyPayload());
+    }
+
+    public function test_an_old_five_step_draft_resumes_in_the_four_step_wizard(): void
+    {
+        Storage::fake('private');
+        $college = $this->makeCollege('WIZ60');
+        $user = $this->staff($college);
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+
+        // An untouched five-step payload, exactly as the old wizard wrote it: the
+        // applicant was parked on step 3 (Academic Record).
+        $draft = StudentRegistrationDraft::withoutGlobalScopes()->create([
+            'college_id' => $college->id,
+            'user_id' => $user->id,
+            'status' => StudentRegistrationDraft::STATUS_DRAFT,
+            'current_step' => 3,
+            'payload' => [
+                1 => ['first_name' => 'Aarav', 'last_name' => 'Shah', 'phone' => '9111111111', 'email' => 'aarav@example.test'],
+                2 => ['father_name' => 'Rajesh Shah', 'father_phone' => '9222222222', 'guardian_relation' => 'father', 'guardian_name' => 'Rajesh Shah'],
+                3 => [
+                    'academic_year_id' => $year->id,
+                    'program_id' => $program->id,
+                    'semester' => '1',
+                    'qualifications' => [['level' => 'class_10', 'examination_year' => 2022]],
+                ],
+                4 => [],
+                5 => ['remarks' => 'old review remark'],
+            ],
+        ]);
+
+        $this->assertTrue($draft->hasLegacyPayload());
+
+        // Resuming maps old 3 (academic) → new 2, and starts no student.
+        $this->asCollege($college, $user)->get(route('students.registration.create'))
+            ->assertRedirect(route('students.registration.step', ['step' => 2]));
+
+        $this->assertSame(0, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame(1, StudentRegistrationDraft::withoutGlobalScopes()->where('college_id', $college->id)->count());
+
+        $fresh = $draft->fresh();
+        $this->assertSame('Aarav', $fresh->stepData(1)['first_name']);
+        $this->assertSame('Rajesh Shah', $fresh->stepData(1)['father_name'], 'Parent data moved into step 1.');
+        $this->assertSame($year->id, (int) $fresh->stepData(2)['academic_year_id']);
+        $this->assertCount(1, $fresh->stepData(2)['qualifications']);
+
+        // The forms render the mapped data on the right pages.
+        $this->asCollege($college, $user)->get(route('students.registration.step', ['step' => 1]))
+            ->assertOk()
+            ->assertSee('Aarav')
+            ->assertSee('Rajesh Shah');
+
+        $this->asCollege($college, $user)->get(route('students.registration.step', ['step' => 2]))
+            ->assertOk()
+            ->assertSee((string) $year->name);
+
+        // The next save converges the stored JSON to the new shape, and nothing
+        // is lost in the process.
+        $this->saveStep($college, $user, 2, [
+            'academic_year_id' => $year->id,
+            'program_id' => $program->id,
+            'semester' => '1',
+        ], draft: true)->assertRedirect();
+
+        $converged = $draft->fresh();
+        $this->assertFalse($converged->hasLegacyPayload());
+        $this->assertSame('Rajesh Shah', $converged->stepData(1)['father_name']);
+        $this->assertSame('Aarav', $converged->stepData(1)['first_name']);
+        $this->assertSame($year->id, (int) $converged->stepData(2)['academic_year_id']);
+        $this->assertSame(1, StudentRegistrationDraft::withoutGlobalScopes()->where('college_id', $college->id)->count());
     }
 }

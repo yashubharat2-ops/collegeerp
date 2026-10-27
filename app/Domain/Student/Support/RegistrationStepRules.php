@@ -10,7 +10,7 @@ use App\Models\StudentQualification;
 use Illuminate\Validation\Rule;
 
 /**
- * The five wizard steps, their validation and their server-side derivation.
+ * The four wizard steps, their validation and their server-side derivation.
  *
  * One class owns three things so they cannot drift apart:
  *
@@ -31,15 +31,19 @@ use Illuminate\Validation\Rule;
 final class RegistrationStepRules
 {
     public const STEP_BASIC = 1;
-    public const STEP_PARENT = 2;
-    public const STEP_ACADEMIC = 3;
-    public const STEP_DOCUMENTS = 4;
-    public const STEP_REVIEW = 5;
+    public const STEP_ACADEMIC = 2;
+    public const STEP_DOCUMENTS = 3;
+    public const STEP_REVIEW = 4;
 
-    /** The exact labels, in order — the progress indicator is built from this. */
+    /**
+     * The exact labels, in order — the progress indicator is built from this.
+     *
+     * Parent/Guardian is no longer a step of its own: it is captured inside
+     * Basic Information (see the section order in the step-1 view), so the
+     * wizard is Basic → Academic → Documents → Review.
+     */
     public const STEPS = [
         self::STEP_BASIC => 'Basic Information',
-        self::STEP_PARENT => 'Parent/Guardian',
         self::STEP_ACADEMIC => 'Academic Record',
         self::STEP_DOCUMENTS => 'Attach Documents',
         self::STEP_REVIEW => 'Final Review',
@@ -67,7 +71,11 @@ final class RegistrationStepRules
         'correspondence_state', 'correspondence_postal_code', 'correspondence_country',
     ];
 
-    /** Step-2 fields that map straight onto student columns. */
+    /**
+     * Parent / guardian fields. They are captured INSIDE step 1 (sections C and
+     * D) but keep their own validation and derivation, so the merge into one
+     * page did not merge their rules.
+     */
     public const PARENT_FIELDS = [
         'father_name', 'father_phone', 'father_email', 'father_occupation',
         'mother_name', 'mother_phone', 'mother_email', 'mother_occupation',
@@ -89,8 +97,7 @@ final class RegistrationStepRules
     public static function rules(int $step, bool $strict, int $collegeId): array
     {
         return match ($step) {
-            self::STEP_BASIC => self::basicRules($strict, $collegeId),
-            self::STEP_PARENT => self::parentRules($strict, $collegeId),
+            self::STEP_BASIC => self::basicRules($strict, $collegeId) + self::parentRules($strict, $collegeId),
             self::STEP_ACADEMIC => self::academicRules($strict, $collegeId),
             self::STEP_DOCUMENTS => self::documentRules($strict, $collegeId),
             self::STEP_REVIEW => self::reviewRules($strict),
@@ -309,13 +316,31 @@ final class RegistrationStepRules
     public static function normalise(int $step, array $data, array $merged, int $collegeId, GeoLocationService $geo): array
     {
         return match ($step) {
-            self::STEP_BASIC => self::normaliseBasic($data, $geo),
-            self::STEP_PARENT => self::normaliseParent($data, $merged),
+            self::STEP_BASIC => self::normaliseBasicWithParent($data, $merged, $geo),
             self::STEP_ACADEMIC => self::normaliseAcademic($data),
             self::STEP_DOCUMENTS => [],
             self::STEP_REVIEW => ['remarks' => $data['remarks'] ?? null],
             default => [],
         };
+    }
+
+    /**
+     * Step 1 holds BOTH the personal details and the parent/guardian block.
+     *
+     * The guardian "Self" derivation reads the student's own name/phone/email,
+     * so the freshly normalised personal details are merged into the context
+     * first — otherwise a first save of step 1 would derive the guardian from
+     * stale (or missing) data.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $merged
+     * @return array<string, mixed>
+     */
+    private static function normaliseBasicWithParent(array $data, array $merged, GeoLocationService $geo): array
+    {
+        $basic = self::normaliseBasic($data, $geo);
+
+        return array_merge($basic, self::normaliseParent($data, array_merge($merged, $basic)));
     }
 
     /**

@@ -48,6 +48,10 @@ class UpdateStudentEnrollmentRequest extends FormRequest
             'enrollment_date' => ['nullable', 'date'],
             'status' => ['required', Rule::in(StudentEnrollment::STATUSES)],
             'remarks' => ['nullable', 'string', 'max:2000'],
+            // Class/section roll number. Blank lets the server allocate one when
+            // a section is attached (GenerateRollNumber); an explicit value is
+            // checked against the same academic year + programme + section.
+            'roll_number' => ['nullable', 'string', 'max:30'],
         ];
     }
 

@@ -13,10 +13,9 @@
     $isFirst = (int) $step === 1;
     $isLast = (int) $step === \App\Models\StudentRegistrationDraft::LAST_STEP;
     $intro = match ((int) $step) {
-        1 => 'Personal details, addresses, photograph and signature.',
-        2 => 'Father, mother and guardian details.',
-        3 => 'Previous qualifications, then the course being joined.',
-        4 => 'Pick the documents your course requires, then attach them.',
+        1 => 'Identifiers, personal details, parents, guardian, addresses, photograph and signature.',
+        2 => 'Previous qualifications, then the course being joined.',
+        3 => 'Pick the documents your course requires, then attach them.',
         default => 'Check everything, then submit for approval.',
     };
 @endphp
@@ -61,7 +60,12 @@
         <div class="erp-alert erp-alert--ok" role="status">{{ session('success') }}</div>
     @endif
 
-    @include('students.registration.steps.'.((int) $step === 1 ? 'basic' : ((int) $step === 2 ? 'parent' : ((int) $step === 3 ? 'academic' : ((int) $step === 4 ? 'documents' : 'review')))))
+    @include('students.registration.steps.'.match ((int) $step) {
+        1 => 'basic',
+        2 => 'academic',
+        3 => 'documents',
+        default => 'review',
+    })
 
     {{--
         The cancel action is a form of its own, rendered OUTSIDE the step form

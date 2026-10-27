@@ -8,8 +8,10 @@ use App\Domain\Student\Services\RegistrationDocumentStagingService;
 use App\Domain\Student\Services\RegistrationDraftService;
 use App\Domain\Student\Services\RegistrationSubmissionService;
 use App\Domain\Student\Services\StudentDocumentService;
+use App\Domain\Student\Services\StudentIdentifierService;
 use App\Domain\Student\Services\StudentPhotoService;
 use App\Domain\Student\Support\Aadhaar;
+use App\Domain\Student\Support\RegistrationDuplicateDetector;
 use App\Domain\Student\Support\RegistrationIdentityGuard;
 use App\Domain\Student\Support\RegistrationStepRules;
 use App\Domain\Student\Support\SensitiveIdentity;
@@ -36,7 +38,7 @@ use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * The five-step student registration wizard.
+ * The four-step student registration wizard.
  *
  * Replaces the single long registration form with:
  *  1. Basic Information → 2. Parent/Guardian → 3. Academic Record →
@@ -64,6 +66,7 @@ class StudentRegistrationWizardController extends Controller
         private readonly GeoLocationService $geo,
         private readonly CourseDocumentRequirementService $requirements,
         private readonly StudentPhotoService $photos,
+        private readonly StudentIdentifierService $identifiers,
     ) {}
 
     /** GET students/registration — resume the live draft, or start one. */
@@ -78,7 +81,7 @@ class StudentRegistrationWizardController extends Controller
 
         // Resume where the draft actually is — a "Save draft" keeps the marker on
         // the step being edited, "Save & continue" advances it. Never a fixed 1.
-        $step = max(1, min((int) $draft->current_step, StudentRegistrationDraft::LAST_STEP));
+        $step = $draft->currentStep();
 
         // A rejected save with no draft behind it is answered with a redirect to
         // the step that failed; that step has nothing to render yet, so it
@@ -494,6 +497,18 @@ class StudentRegistrationWizardController extends Controller
 
         $this->drafts->saveStep($draft, $step, $normalised, advance: $advance);
 
+        // Possible duplicates (same name AND a corroborating detail) are hints,
+        // never blocks. They are recomputed on every strict step-1 save so the
+        // review screen shows what the approver will see, and the submit path
+        // computes them again against the committed data.
+        if ($step === RegistrationStepRules::STEP_BASIC && $request->isStrict()) {
+            $warnings = RegistrationDuplicateDetector::toWarnings(
+                RegistrationDuplicateDetector::possibleDuplicates($draft->mergedData(), $collegeId),
+            );
+
+            $draft->forceFill(['duplicate_warnings' => $warnings])->save();
+        }
+
         // Old blobs are removed only after the draft has been saved.
         foreach ($pendingDeletes as $path) {
             $this->photos->delete($path);
@@ -650,11 +665,14 @@ class StudentRegistrationWizardController extends Controller
                 ],
                 'aadhaarMasked' => Aadhaar::mask($draft->stepData(1)['aadhaar_last4'] ?? null),
                 'hasGovtId' => filled($draft->stepData(1)['govt_id_number_encrypted'] ?? null),
+                // Section A of step 1: the three identifiers, read-only. Only
+                // values the existing workflows have already allocated are
+                // shown; the rest are reported as pending.
+                'identifiers' => $this->identifiers->forDraft($draft, $collegeId),
+                // Guardian derivation (section D), also on step 1 now.
+                'derivedRelations' => Student::DERIVED_GUARDIAN_RELATIONS,
+                'duplicateWarnings' => (array) ($draft->duplicate_warnings ?? []),
             ];
-        }
-
-        if ($step === RegistrationStepRules::STEP_PARENT) {
-            return ['derivedRelations' => Student::DERIVED_GUARDIAN_RELATIONS];
         }
 
         if ($step === RegistrationStepRules::STEP_ACADEMIC) {
@@ -684,7 +702,7 @@ class StudentRegistrationWizardController extends Controller
             ];
         }
 
-        // Step 5 — grouped review.
+        // Final review — grouped, read-only echo of every step.
         $documents = $draft->documents()->with('documentType')->orderBy('id')->get();
 
         return [
@@ -700,6 +718,8 @@ class StudentRegistrationWizardController extends Controller
             'section' => isset($merged['section_id']) ? Section::query()->find($merged['section_id']) : null,
             'fullName' => RegistrationStepRules::fullName($merged),
             'aadhaarMasked' => Aadhaar::mask($draft->stepData(1)['aadhaar_last4'] ?? null),
+            'identifiers' => $this->identifiers->forDraft($draft, $collegeId),
+            'duplicateWarnings' => (array) ($draft->duplicate_warnings ?? []),
         ];
     }
 
@@ -782,10 +802,11 @@ class StudentRegistrationWizardController extends Controller
             $data = $draft->stepData($step);
 
             $completed[$step] = match ($step) {
-                RegistrationStepRules::STEP_BASIC => filled($data['first_name'] ?? null),
-                RegistrationStepRules::STEP_PARENT => filled($data['father_name'] ?? null)
-                    || filled($data['mother_name'] ?? null)
-                    || filled($data['guardian_name'] ?? null),
+                // Step 1 now also carries the parent/guardian block, so either
+                // half having data marks the step as started.
+                RegistrationStepRules::STEP_BASIC => filled($data['first_name'] ?? null)
+                    || filled($data['father_name'] ?? null)
+                    || filled($data['mother_name'] ?? null),
                 RegistrationStepRules::STEP_ACADEMIC => filled($data['academic_year_id'] ?? null)
                     && filled($data['program_id'] ?? null),
                 RegistrationStepRules::STEP_DOCUMENTS => $draft->documents()->exists(),

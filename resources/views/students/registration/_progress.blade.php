@@ -1,6 +1,6 @@
 @php
     /*
-     * The five-step progress indicator.
+     * The four-step progress indicator.
      *
      * Only step 1 of a fresh draft is a link-worthy target; every other step is
      * reachable too (data is preserved across steps) but a step is never shown

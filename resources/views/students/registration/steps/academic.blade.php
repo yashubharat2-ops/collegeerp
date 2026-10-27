@@ -1,6 +1,6 @@
 @php
     /*
-     * STEP 3 — Academic Record.
+     * STEP 2 — Academic Record.
      *
      * Two clearly separated blocks, because they are different facts:
      *
@@ -22,7 +22,7 @@
     $rows = is_array($rows) ? array_values($rows) : [];
 @endphp
 
-<form id="erp-step-form" data-erp-step-form method="POST" action="{{ route('students.registration.step.save', ['step' => 3]) }}" novalidate>
+<form id="erp-step-form" data-erp-step-form method="POST" action="{{ route('students.registration.step.save', ['step' => 2]) }}" novalidate>
     @csrf
     <input type="hidden" name="draft_id" value="{{ $draftId }}">
 
@@ -144,5 +144,5 @@
         </div>
     </section>
 
-    @include('students.registration._actions', ['step' => 3, 'draftId' => $draftId, 'submitMode' => false])
+    @include('students.registration._actions', ['step' => 2, 'draftId' => $draftId, 'submitMode' => false])
 </form>

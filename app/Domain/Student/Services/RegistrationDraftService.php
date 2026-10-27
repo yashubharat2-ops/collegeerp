@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * The persisted working copy behind the five-step registration wizard.
+ * The persisted working copy behind the four-step registration wizard.
  *
  * A draft is owned by (college, user) and holds one JSON payload per step. It
  * is NOT a student — no `students` row exists until the final submit — which is
@@ -100,7 +100,7 @@ class RegistrationDraftService
      *  - "Save & continue" (true) moves the marker to the next step.
      *
      * Either way the marker never moves backwards: a user who goes back from
-     * step 5 to fix step 2 and saves a draft still resumes at step 5.
+     * the review to fix step 1 and saves a draft still resumes at the review.
      *
      * @param  array<string, mixed>  $data
      */
@@ -121,7 +121,11 @@ class RegistrationDraftService
             abort(404, 'Unknown registration step.');
         }
 
-        $payload = is_array($draft->payload) ? $draft->payload : [];
+        // Read AND write through the current payload shape. A draft still
+        // holding the old five-step JSON is translated once here (Parent/Guardian
+        // merged into step 1, later steps shifted down), so the next write can
+        // never land on a bucket an older step number used to own.
+        $payload = $draft->upgradedPayload();
         $payload[$step] = $this->withoutNullBytes($data);
 
         // The step the draft is genuinely on: the next one after a "continue",
@@ -130,7 +134,7 @@ class RegistrationDraftService
             ? min($step + 1, StudentRegistrationDraft::LAST_STEP)
             : $step;
 
-        $currentStep = max((int) $draft->current_step, $targetStep);
+        $currentStep = max($draft->currentStep(), $targetStep);
 
         $draft->update([
             'payload' => $payload,

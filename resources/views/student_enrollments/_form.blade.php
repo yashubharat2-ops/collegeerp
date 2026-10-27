@@ -56,6 +56,16 @@
         <p class="mt-1 text-xs text-slate-500">A section is only accepted when it belongs to the selected academic year and program.</p>
     </div>
     <div>
+        <label class="text-sm font-semibold" for="roll_number">Roll Number</label>
+        <input class="input mt-1" id="roll_number" name="roll_number" maxlength="30"
+               value="{{ old('roll_number', $enrollment->roll_number ?? '') }}">
+        <p class="mt-1 text-xs text-rose-600">@error('roll_number'){{ $message }}@enderror</p>
+        <p class="mt-1 text-xs text-slate-500">
+            Leave blank to allocate the next free number in this academic year, program and section.
+            A roll number is per class/section; the Student ID never changes.
+        </p>
+    </div>
+    <div>
         <label class="text-sm font-semibold" for="enrollment_date">Enrollment Date</label>
         <input class="input mt-1" type="date" id="enrollment_date" name="enrollment_date" value="{{ old('enrollment_date', isset($enrollment) ? $enrollment->enrollment_date?->format('Y-m-d') : now()->format('Y-m-d')) }}">
         <p class="mt-1 text-xs text-rose-600">@error('enrollment_date'){{ $message }}@enderror</p>

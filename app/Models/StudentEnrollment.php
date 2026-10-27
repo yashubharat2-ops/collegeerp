@@ -40,6 +40,10 @@ class StudentEnrollment extends Model
         'section_id',
         // Year-of-study / semester of this enrollment (e.g. "1", "Semester 3").
         'semester',
+        // Class/section roll number for THIS enrollment. Unique per
+        // (college, academic year, programme, section); a student's roll number
+        // changes with the class, their Student ID never does.
+        'roll_number',
         'enrollment_number',
         'enrollment_date',
         'status',

@@ -17,6 +17,9 @@ function createPage(t) {
             <div data-erp-wizard data-geo-url="/students/registration/geo/children" data-draft-url="/students/registration/step/1/draft">
                 <form id="erp-step-form" data-erp-step-form>
                     <input name="first_name" value="Riya">
+                    <input name="last_name" value="Verma">
+                    <input name="phone" value="9111111111">
+                    <input name="email" value="riya@example.test">
                     <input name="father_name" value="Suresh Verma">
                     <input name="father_phone" value="9222222222">
                     <input name="father_email" value="suresh@example.test">
@@ -318,4 +321,26 @@ test('a qualification row can be added and removed before saving', (t) => {
 
     rows[1].querySelector('[data-erp-qualification-remove]').click();
     assert.equal(list.querySelectorAll('[data-erp-qualification]').length, 1);
+});
+
+test('the Self guardian follows personal fields typed on the same page', (t) => {
+    const window = createPage(t);
+    const relation = window.document.querySelector('[data-erp-guardian-relation]');
+    const phone = window.document.querySelector('[name="phone"]');
+    const firstName = window.document.querySelector('[name="first_name"]');
+
+    // Parent/Guardian now lives inside Basic Information, so the personal fields
+    // and the guardian block are on the same page: typing must keep the "Self"
+    // derivation in step instead of using the values the page was rendered with.
+    relation.value = 'self';
+    relation.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    phone.value = '9333333333';
+    phone.dispatchEvent(new window.Event('input', { bubbles: true }));
+    firstName.value = 'Riyaa';
+    firstName.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+    assert.equal(window.document.querySelector('[name="guardian_phone"]').value, '9333333333');
+    assert.equal(window.document.querySelector('[name="guardian_name"]').value, 'Riyaa Verma');
+    assert.equal(window.document.querySelector('[data-erp-self="name"]').value, 'Riyaa Verma');
 });

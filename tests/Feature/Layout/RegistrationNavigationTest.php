@@ -175,8 +175,9 @@ class RegistrationNavigationTest extends TestCase
 
         $this->asCollege($college, $user)->get(route('students.registration.create'))->assertRedirect();
 
-        // Steps 1–5 are all wizard screens and all belong to Registration.
-        foreach ([1, 2, 3, 4, 5] as $step) {
+        // The four wizard steps are all wizard screens and all belong to
+        // Registration.
+        foreach ([1, 2, 3, 4] as $step) {
             $aside = $this->aside(
                 $this->asCollege($college, $user)
                     ->get(route('students.registration.step', ['step' => $step]))
@@ -189,6 +190,30 @@ class RegistrationNavigationTest extends TestCase
             $this->assertCount(1, $current, "Step {$step} highlights exactly one row.");
             $this->assertSame('Registration', $current[0]['label'], "Step {$step} belongs to Registration.");
         }
+    }
+
+    public function test_the_wizard_has_no_fifth_step_and_the_entry_point_reopens_the_four_step_draft(): void
+    {
+        [$college, $user] = $this->fullAccessCollege('NAV8');
+
+        $this->asCollege($college, $user)->get(route('students.registration.create'))->assertRedirect();
+
+        // The old fifth step is gone: it is no longer a screen at all.
+        $this->asCollege($college, $user)
+            ->get(route('students.registration.step', ['step' => 5]))
+            ->assertNotFound();
+
+        // Saving the last (review) step keeps the applicant on step 4 and the
+        // entry point reopens that same step.
+        $this->asCollege($college, $user)
+            ->get(route('students.registration.step', ['step' => 4]))
+            ->assertOk()
+            ->assertSee('Final Review')
+            ->assertSee('Step 4 of 4');
+
+        $this->asCollege($college, $user)
+            ->get(route('students.registration.create'))
+            ->assertRedirect(route('students.registration.step', ['step' => 4]));
     }
 
     public function test_the_students_group_has_one_registration_row(): void

@@ -1,20 +1,26 @@
 @php
     /*
-     * STEP 1 — Basic Information.
+     * STEP 1 — Basic Information (four-step wizard).
      *
-     * Section order (fixed by the registration requirements):
-     *   1. Personal Details
-     *   2. Permanent Address
-     *   3. Temporary Address (correspondence, with "Same as permanent address")
-     *   4. Photograph
-     *   5. Signatures
+     * Section order is fixed and must not be rearranged:
+     *   A. Student Identification   (Student ID, Admission Number, Roll Number)
+     *   B. Personal Details
+     *   C. Parent Details           (father + mother)
+     *   D. Guardian Details
+     *   E. Permanent Address
+     *   F. Temporary Address        (correspondence, "Same as permanent")
+     *   G. Photograph
+     *   H. Signatures
      *
-     * The headings carry no section numbering: the five-step progress bar is the
-     * only numbered navigation in the wizard, so a second "01 / 02" scale inside
-     * one step only adds noise. The cards are deliberately compact (see
-     * public/css/erp-registration-wizard.css) and use the Deep Blue / Navy tokens.
+     * Parent/Guardian used to be a separate step; it is now sections C and D of
+     * this page. The headings carry no section numbering — the progress bar is
+     * the only numbered navigation in the wizard.
      *
      * Security notes honoured by this view:
+     * - the three identifiers in section A are READ-ONLY and come from the
+     *   server (StudentIdentifierService). No input is rendered for them, so a
+     *   crafted POST cannot set or change one; a value the workflow has not
+     *   allocated yet is shown as "Pending", never invented;
      * - the stored Aadhaar / government ID are NEVER echoed into the page, not
      *   even after a failed validation; only the masked tail is displayed, and a
      *   blank field means "keep what is stored";
@@ -25,8 +31,6 @@
      * control is a dependent <select> (children only, parent change clears the
      * children); when it does not, the control is a plain text input bound to the
      * existing student column, so the form is usable with no directory loaded.
-     * The country defaults to India when that is the directory's default and the
-     * draft has not chosen one yet, so the state list is never an empty box.
      */
     $value = fn (string $key) => old($key, $stepData[$key] ?? $merged[$key] ?? null);
 
@@ -58,6 +62,17 @@
         ['level' => 'village', 'id' => 'village_id', 'text' => 'city', 'label' => 'Village / City'],
     ];
     $directoryLoaded = in_array(true, $addressLevels, true);
+
+    // Section D — guardian derivation. Choosing Father / Mother / Self makes the
+    // guardian block follow that record (server-side derivation lives in
+    // RegistrationStepRules::normaliseParent()).
+    $relation = $value('guardian_relation');
+    $guardianDerived = in_array($relation, $derivedRelations, true);
+    $selfName = trim(implode(' ', array_filter([
+        (string) ($value('first_name') ?? ''),
+        (string) ($value('middle_name') ?? ''),
+        (string) ($value('last_name') ?? ''),
+    ], fn ($part) => trim($part) !== '')));
 @endphp
 
 <form id="erp-step-form" data-erp-step-form method="POST" action="{{ route('students.registration.step.save', ['step' => 1]) }}"
@@ -65,7 +80,40 @@
     @csrf
     <input type="hidden" name="draft_id" value="{{ $draftId }}">
 
-    {{-- --- 1. Personal Details --------------------------------------------- --}}
+    {{-- Values the "Self" guardian auto-fill copies from; never submitted. --}}
+    <input type="hidden" data-erp-self="name" value="{{ $selfName }}">
+    <input type="hidden" data-erp-self="phone" value="{{ $value('phone') }}">
+    <input type="hidden" data-erp-self="email" value="{{ $value('email') }}">
+
+    {{-- === A. Student Identification ==================================== --}}
+    <section class="erp-card erp-wizard__card" aria-labelledby="wz-basic-identifiers">
+        <header class="erp-card__head">
+            <div>
+                <h3 class="erp-card__title" id="wz-basic-identifiers">Student Identification</h3>
+                <p class="erp-card__desc">Assigned by the college — read-only on this form.</p>
+            </div>
+        </header>
+
+        <div class="erp-card__body">
+            <div class="erp-id-grid">
+                @foreach($identifiers as $key => $identifier)
+                    <div class="erp-id erp-id--{{ $identifier['state'] }}" data-erp-identifier="{{ $key }}">
+                        <span class="erp-id__label">{{ $identifier['label'] }}</span>
+                        <span class="erp-id__value" data-erp-identifier-value="{{ $key }}">
+                            {{ $identifier['value'] ?? 'Pending' }}
+                        </span>
+                        <span class="erp-id__note">{{ $identifier['note'] }}</span>
+                    </div>
+                @endforeach
+            </div>
+            <p class="erp-help">
+                These identifiers are generated by their own workflow (registration, admission, enrollment).
+                Opening or saving this wizard never creates one.
+            </p>
+        </div>
+    </section>
+
+    {{-- === B. Personal Details ========================================== --}}
     <section class="erp-card erp-wizard__card" aria-labelledby="wz-basic-personal">
         <header class="erp-card__head">
             <div>
@@ -141,8 +189,7 @@
                 </div>
                 <div class="erp-field erp-col-3">
                     <label class="erp-label" for="phone">Mobile number</label>
-                    <input class="erp-input" id="phone" name="phone" value="{{ $value('phone') }}" maxlength="30" inputmode="tel" autocomplete="tel"
-                           data-erp-self="phone">
+                    <input class="erp-input" id="phone" name="phone" value="{{ $value('phone') }}" maxlength="30" inputmode="tel" autocomplete="tel">
                     <p class="erp-error">@error('phone'){{ $message }}@enderror</p>
                 </div>
                 <div class="erp-field erp-col-3">
@@ -152,7 +199,7 @@
                 </div>
                 <div class="erp-field erp-col-6">
                     <label class="erp-label" for="email">Email</label>
-                    <input class="erp-input" id="email" name="email" type="email" value="{{ $value('email') }}" maxlength="255" autocomplete="email" data-erp-self="email">
+                    <input class="erp-input" id="email" name="email" type="email" value="{{ $value('email') }}" maxlength="255" autocomplete="email">
                     <p class="erp-error">@error('email'){{ $message }}@enderror</p>
                 </div>
 
@@ -193,10 +240,141 @@
                     <p class="erp-error">@error('govt_id_number'){{ $message }}@enderror</p>
                 </div>
             </div>
+
+            @if(! empty($duplicateWarnings))
+                <div class="erp-alert erp-alert--info" role="status" data-erp-duplicate-warning>
+                    <strong>Possible duplicate — please check:</strong>
+                    <ul>
+                        @foreach($duplicateWarnings as $warning)
+                            <li>{{ $warning['message'] }}</li>
+                        @endforeach
+                    </ul>
+                    This does not block the registration; an approver reviews it.
+                </div>
+            @endif
         </div>
     </section>
 
-    {{-- --- 2. Permanent Address ------------------------------------------- --}}
+    {{-- === C. Parent Details ============================================ --}}
+    <section class="erp-card erp-wizard__card" aria-labelledby="wz-basic-parents">
+        <header class="erp-card__head">
+            <div>
+                <h3 class="erp-card__title" id="wz-basic-parents">Parent Details</h3>
+                <p class="erp-card__desc">Kept separately from the guardian block below.</p>
+            </div>
+        </header>
+
+        <div class="erp-card__body">
+            @foreach([
+                'father' => ['label' => 'Father', 'photo' => 'father_photo_path'],
+                'mother' => ['label' => 'Mother', 'photo' => 'mother_photo_path'],
+            ] as $person => $meta)
+                <div class="erp-subcard">
+                    <p class="erp-subhead">
+                        {{ $meta['label'] }}
+                        @if(! empty($merged[$meta['photo']]))
+                            <span class="erp-subhead__hint">Photograph attached in this step.</span>
+                        @endif
+                    </p>
+
+                    <div class="erp-grid">
+                        <div class="erp-field erp-col-6">
+                            <label class="erp-label" for="{{ $person }}_name">{{ $meta['label'] }}'s name</label>
+                            <input class="erp-input" id="{{ $person }}_name" name="{{ $person }}_name"
+                                   value="{{ $value($person.'_name') }}" maxlength="255" autocomplete="off">
+                            <p class="erp-error">@error($person.'_name'){{ $message }}@enderror</p>
+                        </div>
+                        <div class="erp-field erp-col-3">
+                            <label class="erp-label" for="{{ $person }}_phone">Mobile number</label>
+                            <input class="erp-input" id="{{ $person }}_phone" name="{{ $person }}_phone"
+                                   value="{{ $value($person.'_phone') }}" maxlength="30" inputmode="tel">
+                            <p class="erp-error">@error($person.'_phone'){{ $message }}@enderror</p>
+                        </div>
+                        <div class="erp-field erp-col-3">
+                            <label class="erp-label" for="{{ $person }}_email">Email</label>
+                            <input class="erp-input" id="{{ $person }}_email" name="{{ $person }}_email" type="email"
+                                   value="{{ $value($person.'_email') }}" maxlength="255">
+                            <p class="erp-error">@error($person.'_email'){{ $message }}@enderror</p>
+                        </div>
+                        <div class="erp-field erp-col-6">
+                            <label class="erp-label" for="{{ $person }}_occupation">Occupation</label>
+                            <input class="erp-input" id="{{ $person }}_occupation" name="{{ $person }}_occupation"
+                                   value="{{ $value($person.'_occupation') }}" maxlength="150">
+                            <p class="erp-error">@error($person.'_occupation'){{ $message }}@enderror</p>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    </section>
+
+    {{-- === D. Guardian Details ========================================== --}}
+    <section class="erp-card erp-wizard__card" aria-labelledby="wz-basic-guardian">
+        <header class="erp-card__head">
+            <div>
+                <h3 class="erp-card__title" id="wz-basic-guardian">Guardian Details</h3>
+                <p class="erp-card__desc">Who the college contacts for this student.</p>
+            </div>
+        </header>
+
+        <div class="erp-card__body">
+            <div class="erp-grid">
+                <div class="erp-field erp-col-4">
+                    <label class="erp-label" for="guardian_relation">Guardian is</label>
+                    <select class="erp-input" id="guardian_relation" name="guardian_relation" data-erp-guardian-relation>
+                        <option value="">— Not chosen yet —</option>
+                        <option value="father" @selected($relation === 'father')>Father</option>
+                        <option value="mother" @selected($relation === 'mother')>Mother</option>
+                        <option value="self" @selected($relation === 'self')>Self (student is the guardian)</option>
+                        <option value="other" @selected($relation === 'other')>Other / legal guardian</option>
+                    </select>
+                    <p class="erp-error">@error('guardian_relation'){{ $message }}@enderror</p>
+                </div>
+
+                <div class="erp-field erp-col-8">
+                    <p class="erp-autofill-note" data-erp-guardian-note @if($relation === '') hidden @endif>
+                        Choosing Father, Mother or Self fills the guardian details from that record and keeps them in step.
+                    </p>
+                </div>
+
+                <div class="erp-field erp-col-6">
+                    <label class="erp-label" for="guardian_name">Guardian's name</label>
+                    <input class="erp-input" id="guardian_name" name="guardian_name" value="{{ $value('guardian_name') }}"
+                           maxlength="255" data-erp-guardian="name"
+                           @if($guardianDerived) readonly tabindex="-1" @endif>
+                    <p class="erp-error">@error('guardian_name'){{ $message }}@enderror</p>
+                </div>
+                <div class="erp-field erp-col-3">
+                    <label class="erp-label" for="guardian_phone">Guardian's mobile</label>
+                    <input class="erp-input" id="guardian_phone" name="guardian_phone" value="{{ $value('guardian_phone') }}"
+                           maxlength="30" inputmode="tel" data-erp-guardian="phone"
+                           @if($guardianDerived) readonly tabindex="-1" @endif>
+                    <p class="erp-error">@error('guardian_phone'){{ $message }}@enderror</p>
+                </div>
+                <div class="erp-field erp-col-3">
+                    <label class="erp-label" for="guardian_email">Guardian's email</label>
+                    <input class="erp-input" id="guardian_email" name="guardian_email" type="email" value="{{ $value('guardian_email') }}"
+                           maxlength="255" data-erp-guardian="email"
+                           @if($guardianDerived) readonly tabindex="-1" @endif>
+                    <p class="erp-error">@error('guardian_email'){{ $message }}@enderror</p>
+                </div>
+                <div class="erp-field erp-col-4">
+                    <label class="erp-label" for="guardian_occupation">Guardian's occupation</label>
+                    <input class="erp-input" id="guardian_occupation" name="guardian_occupation" value="{{ $value('guardian_occupation') }}"
+                           maxlength="150" data-erp-guardian="occupation"
+                           @if($guardianDerived) readonly tabindex="-1" @endif>
+                    <p class="erp-error">@error('guardian_occupation'){{ $message }}@enderror</p>
+                </div>
+                <div class="erp-field erp-col-8">
+                    <label class="erp-label" for="guardian_address">Guardian's address</label>
+                    <input class="erp-input" id="guardian_address" name="guardian_address" value="{{ $value('guardian_address') }}" maxlength="2000">
+                    <p class="erp-error">@error('guardian_address'){{ $message }}@enderror</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {{-- === E. Permanent Address ========================================= --}}
     <section class="erp-card erp-wizard__card" aria-labelledby="wz-basic-permanent">
         <header class="erp-card__head">
             <div>
@@ -270,7 +448,7 @@
         </div>
     </section>
 
-    {{-- --- 3. Temporary Address (correspondence) --------------------------- --}}
+    {{-- === F. Temporary Address (correspondence) ======================== --}}
     @php
         $sameAsPermanent = old('correspondence_same_as_permanent', $stepData['correspondence_same_as_permanent'] ?? true);
         $sameAsPermanent = filter_var($sameAsPermanent, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true;
@@ -330,7 +508,7 @@
         </div>
     </section>
 
-    {{-- --- 4. Photograph --------------------------------------------------- --}}
+    {{-- === G. Photograph ================================================ --}}
     <section class="erp-card erp-wizard__card" aria-labelledby="wz-basic-photograph">
         <header class="erp-card__head">
             <div>
@@ -358,7 +536,7 @@
         </div>
     </section>
 
-    {{-- --- 5. Signatures --------------------------------------------------- --}}
+    {{-- === H. Signatures ================================================ --}}
     <section class="erp-card erp-wizard__card" aria-labelledby="wz-basic-signature">
         <header class="erp-card__head">
             <div>

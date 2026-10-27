@@ -58,7 +58,7 @@ class StudentRegistrationApprovalTest extends TestCase
         $program = $this->makeProgram($college);
         $user = $this->makeUserWithPermissions($college, ['students.view', 'students.create']);
 
-        // Since the five-step wizard, the registration entry point starts the
+        // Since the wizard, the registration entry point starts the
         // wizard instead of rendering the single long Student form. The form
         // itself is unchanged for the non-registration Create/Edit pages.
         $this->asCollege($college, $user)

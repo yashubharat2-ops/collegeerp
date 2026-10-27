@@ -59,7 +59,7 @@
                 @if($programName)
                     Documents for {{ $programName }}. Required ones must be attached before submitting.
                 @else
-                    Choose the course on <a href="{{ route('students.registration.step', ['step' => 3]) }}">Step 3</a>
+                    Choose the course on <a href="{{ route('students.registration.step', ['step' => 2]) }}">Step 2</a>
                     to see which documents it requires. You can still attach documents now.
                 @endif
             </p>
@@ -254,8 +254,8 @@
 </section>
 
 {{-- Navigation only: this step has no data of its own to save. --}}
-<form id="erp-step-form" data-erp-step-form method="POST" action="{{ route('students.registration.step.save', ['step' => 4]) }}">
+<form id="erp-step-form" data-erp-step-form method="POST" action="{{ route('students.registration.step.save', ['step' => 3]) }}">
     @csrf
     <input type="hidden" name="draft_id" value="{{ $draftId }}">
-    @include('students.registration._actions', ['step' => 4, 'draftId' => $draftId, 'submitMode' => false])
+    @include('students.registration._actions', ['step' => 3, 'draftId' => $draftId, 'submitMode' => false])
 </form>

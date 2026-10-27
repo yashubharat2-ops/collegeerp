@@ -218,6 +218,58 @@
         }
     };
 
+    /*
+     * The "Self" source is carried by hidden inputs, so the derivation also
+     * works when the personal fields are not on the page. Parent/Guardian used
+     * to be its own step; it now lives in Basic Information, so those hidden
+     * values are kept in step with what the applicant is actually typing.
+     */
+    var selfSources = {
+        name: wizard.querySelector('[data-erp-self="name"]'),
+        phone: wizard.querySelector('[data-erp-self="phone"]'),
+        email: wizard.querySelector('[data-erp-self="email"]')
+    };
+
+    function syncSelfSources() {
+        var parts = ['first_name', 'middle_name', 'last_name'].map(function (field) {
+            var input = wizard.querySelector('[name="' + field + '"]');
+
+            return input && typeof input.value === 'string' ? input.value.trim() : '';
+        }).filter(function (part) { return part !== ''; });
+
+        if (selfSources.name) {
+            selfSources.name.value = parts.join(' ');
+        }
+
+        ['phone', 'email'].forEach(function (key) {
+            var input = wizard.querySelector('[name="' + key + '"]');
+
+            if (selfSources[key] && input) {
+                selfSources[key].value = input.value || '';
+            }
+        });
+    }
+
+    ['first_name', 'middle_name', 'last_name', 'phone', 'email'].forEach(function (field) {
+        var input = wizard.querySelector('[name="' + field + '"]');
+
+        if (!input) {
+            return;
+        }
+
+        input.addEventListener('input', function () {
+            syncSelfSources();
+
+            var relation = wizard.querySelector('[data-erp-guardian-relation]');
+
+            if (relation && relation.value === 'self') {
+                applyGuardian('self');
+            }
+        });
+    });
+
+    syncSelfSources();
+
     var derivedNote = wizard.querySelector('[data-erp-guardian-note]');
 
     function applyGuardian(relation) {

@@ -4,6 +4,7 @@ namespace App\Domain\Student\Services;
 
 use App\Domain\Student\Actions\GenerateStudentNumber;
 use App\Domain\Student\Actions\GenerateEnrollmentNumber;
+use App\Domain\Student\Actions\GenerateRollNumber;
 use App\Domain\Student\Support\Aadhaar;
 use App\Models\College;
 use App\Models\Student;
@@ -59,7 +60,7 @@ class StudentService
         'blood_group', 'nationality', 'mother_tongue', 'remarks',
     ];
 
-    public const AUDITED_ENROLLMENT = ['id', 'enrollment_number', 'student_id', 'academic_year_id', 'program_id', 'section_id', 'enrollment_date', 'status', 'remarks'];
+    public const AUDITED_ENROLLMENT = ['id', 'enrollment_number', 'student_id', 'academic_year_id', 'program_id', 'section_id', 'semester', 'roll_number', 'enrollment_date', 'status', 'remarks'];
 
     /**
      * Shared rejection message for a Section attached to a program-less
@@ -80,6 +81,7 @@ class StudentService
     public function __construct(
         private readonly GenerateStudentNumber $studentNumbers,
         private readonly GenerateEnrollmentNumber $enrollmentNumbers,
+        private readonly GenerateRollNumber $rollNumbers,
         private readonly StudentPhotoService $photos,
         private readonly AuditLogService $audit,
     ) {}
@@ -377,6 +379,15 @@ class StudentService
                 ]);
             }
 
+            // Roll number: the caller may supply one (office assignment), which
+            // must be free inside THIS class/section scope; otherwise one is
+            // allocated now — the enrollment is the first point at which the
+            // academic year, programme and section are all known, so it is the
+            // earliest stage at which a roll number can exist at all. Without a
+            // section there is no class list to number, so it stays null and the
+            // wizard keeps showing "Pending".
+            $rollNumber = $this->resolveRollNumber($data['roll_number'] ?? null, $collegeId, $yearId, $programId, $sectionId);
+
             $enrollment = StudentEnrollment::create([
                 'college_id' => $collegeId,
                 'student_id' => $studentId,
@@ -384,6 +395,7 @@ class StudentService
                 'program_id' => $programId,
                 'section_id' => $sectionId,
                 'semester' => $data['semester'] ?? null,
+                'roll_number' => $rollNumber,
                 'enrollment_number' => $this->enrollmentNumbers->executeWithCollegeLock($collegeId, $academicYearCode ?? $year->code),
                 'enrollment_date' => $data['enrollment_date'] ?? now()->toDateString(),
                 'status' => $data['status'] ?? 'active',
@@ -396,6 +408,42 @@ class StudentService
 
             return $enrollment;
         });
+    }
+
+    /**
+     * An explicit roll number, or one allocated inside the class/section scope.
+     *
+     * An explicit value is never silently overwritten: a clash is reported as a
+     * field error, so the office can pick another number instead of finding out
+     * later that two lists disagree.
+     *
+     * @throws ValidationException
+     */
+    private function resolveRollNumber(
+        mixed $requested,
+        int $collegeId,
+        int $academicYearId,
+        ?int $programId,
+        ?int $sectionId,
+    ): ?string {
+        $requested = is_string($requested) ? trim($requested) : $requested;
+
+        if ($sectionId === null) {
+            // No section, no class list: a roll number cannot be meaningful yet.
+            return $requested !== null && $requested !== '' ? (string) $requested : null;
+        }
+
+        if ($requested !== null && $requested !== '') {
+            if ($this->rollNumbers->isTaken($collegeId, $academicYearId, $programId, $sectionId, (string) $requested)) {
+                throw ValidationException::withMessages([
+                    'roll_number' => 'This roll number is already used by another student in this academic year, programme and section.',
+                ]);
+            }
+
+            return (string) $requested;
+        }
+
+        return $this->rollNumbers->execute($collegeId, $academicYearId, $programId, $sectionId, collegeLockHeld: true);
     }
 
     /**
@@ -505,6 +553,29 @@ class StudentService
                         ]);
                     }
                 }
+            }
+
+            // A roll number is per class/section and may be corrected, but it
+            // can never be moved onto a number another student already holds in
+            // the same academic year + programme + section.
+            if (array_key_exists('roll_number', $data)) {
+                $requestedRoll = is_string($data['roll_number']) ? trim($data['roll_number']) : $data['roll_number'];
+                $sectionId = array_key_exists('section_id', $data) ? $data['section_id'] : $enrollment->section_id;
+
+                if (filled($requestedRoll) && $this->rollNumbers->isTaken(
+                    $collegeId,
+                    (int) $enrollment->academic_year_id,
+                    $enrollment->program_id === null ? null : (int) $enrollment->program_id,
+                    $sectionId === null ? null : (int) $sectionId,
+                    (string) $requestedRoll,
+                    (int) $enrollment->id,
+                )) {
+                    throw ValidationException::withMessages([
+                        'roll_number' => 'This roll number is already used by another student in this academic year, programme and section.',
+                    ]);
+                }
+
+                $data['roll_number'] = filled($requestedRoll) ? (string) $requestedRoll : null;
             }
 
             $newStatus = $data['status'] ?? $enrollment->status;

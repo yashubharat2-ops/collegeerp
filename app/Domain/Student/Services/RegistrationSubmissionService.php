@@ -3,6 +3,7 @@
 namespace App\Domain\Student\Services;
 
 use App\Domain\Student\Support\Aadhaar;
+use App\Domain\Student\Support\RegistrationDuplicateDetector;
 use App\Domain\Student\Support\RegistrationIdentityGuard;
 use App\Domain\Student\Support\RegistrationStepRules;
 use App\Domain\Student\Support\SensitiveIdentity;
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Turns a five-step draft into a registration submission.
+ * Turns a four-step draft into a registration submission.
  *
  * Nothing is written to `students` before this point: the applicant's work lives
  * in the draft, so an abandoned form is inert. On submit the service
@@ -91,8 +92,14 @@ final class RegistrationSubmissionService
         int $collegeId,
         int $actorId,
     ): array {
+        // The review step's own data (final remarks + the declaration) is NOT
+        // stored on the draft — it is submitted with the request — so it is
+        // merged in here before the per-step re-validation, or validating the
+        // review step against the stored payload would always find the
+        // declaration missing.
         $merged = array_merge($draft->mergedData(), array_filter([
             'remarks' => $reviewData['remarks'] ?? null,
+            'confirm_declaration' => $reviewData['confirm_declaration'] ?? null,
         ], fn ($value) => $value !== null));
 
         // The draft stores the identity numbers encrypted (and only their
@@ -102,7 +109,7 @@ final class RegistrationSubmissionService
         $merged = $this->withDecryptedIdentity($merged);
 
         // --- 1. Per-step re-validation, in order ---------------------------
-        for ($step = 1; $step <= 4; $step++) {
+        for ($step = 1; $step <= StudentRegistrationDraft::LAST_STEP; $step++) {
             $this->validateStep($draft, $step, $merged);
         }
 
@@ -114,8 +121,18 @@ final class RegistrationSubmissionService
         try {
             RegistrationIdentityGuard::assertAvailable($merged, $collegeId);
         } catch (ValidationException $exception) {
-            throw $this->stepFailure(1, $exception->errors());
+            throw $this->stepFailure(RegistrationStepRules::STEP_BASIC, $exception->errors());
         }
+
+        // Possible duplicates (same name AND a corroborating detail) are WARNINGS,
+        // not blocks: they are recorded on the draft and travel into the approval
+        // request, where a person decides. Recomputing them here means a student
+        // added while the draft was open is still reported.
+        $warnings = RegistrationDuplicateDetector::toWarnings(
+            RegistrationDuplicateDetector::possibleDuplicates($merged, $collegeId),
+        );
+
+        $draft->forceFill(['duplicate_warnings' => $warnings])->save();
 
         $this->assertGuardianConsistency($merged);
         $this->assertQualifications($merged);
@@ -123,7 +140,14 @@ final class RegistrationSubmissionService
         $this->assertDocumentRequirements($draft, $merged, $collegeId);
 
         // --- 3. Assemble and submit ---------------------------------------
-        $payload = array_merge($merged, ['remarks' => $merged['remarks'] ?? null]);
+        $payload = array_merge($merged, [
+            'remarks' => $merged['remarks'] ?? null,
+            'duplicate_warnings' => $warnings,
+        ]);
+
+        // The declaration is an acknowledgement in this request, not student
+        // data: it never reaches the student row or the approval payload.
+        unset($payload['confirm_declaration']);
 
         $documents = $draft->documents()->get()->all();
 
@@ -185,7 +209,9 @@ final class RegistrationSubmissionService
      */
     private function validateStep(StudentRegistrationDraft $draft, int $step, array $merged): void
     {
-        $data = $step === 5 ? $merged : array_merge($merged, $draft->stepData($step));
+        $data = $step === RegistrationStepRules::STEP_REVIEW
+            ? $merged
+            : array_merge($merged, $draft->stepData($step));
 
         $rules = RegistrationStepRules::rules($step, true, (int) $draft->college_id);
 
@@ -232,7 +258,7 @@ final class RegistrationSubmissionService
         };
 
         if ($missing !== null) {
-            throw $this->stepFailure(2, [
+            throw $this->stepFailure(RegistrationStepRules::STEP_BASIC, [
                 $missing => [$relation === 'father'
                     ? 'Enter the father\'s name, or choose a different guardian.'
                     : ($relation === 'mother'
@@ -294,7 +320,7 @@ final class RegistrationSubmissionService
         }
 
         if ($errors !== []) {
-            throw $this->stepFailure(3, $errors);
+            throw $this->stepFailure(RegistrationStepRules::STEP_ACADEMIC, $errors);
         }
     }
 
@@ -318,15 +344,15 @@ final class RegistrationSubmissionService
             ->first();
 
         if ($section === null) {
-            throw $this->stepFailure(3, ['section_id' => ['Choose a section that belongs to this college.']]);
+            throw $this->stepFailure(RegistrationStepRules::STEP_ACADEMIC, ['section_id' => ['Choose a section that belongs to this college.']]);
         }
 
         if ((string) $section->academic_year_id !== (string) ($merged['academic_year_id'] ?? '')) {
-            throw $this->stepFailure(3, ['section_id' => ['The selected section does not belong to the selected academic year.']]);
+            throw $this->stepFailure(RegistrationStepRules::STEP_ACADEMIC, ['section_id' => ['The selected section does not belong to the selected academic year.']]);
         }
 
         if (filled($merged['program_id'] ?? null) && (string) $section->program_id !== (string) $merged['program_id']) {
-            throw $this->stepFailure(3, ['section_id' => ['The selected section does not belong to the selected programme.']]);
+            throw $this->stepFailure(RegistrationStepRules::STEP_ACADEMIC, ['section_id' => ['The selected section does not belong to the selected programme.']]);
         }
     }
 
@@ -357,7 +383,7 @@ final class RegistrationSubmissionService
 
         $names = $missing->map(fn ($type) => $type->name)->implode(', ');
 
-        throw $this->stepFailure(4, [
+        throw $this->stepFailure(RegistrationStepRules::STEP_DOCUMENTS, [
             'documents' => ['Attach the documents required for the selected course: '.$names.'.'],
         ]);
     }

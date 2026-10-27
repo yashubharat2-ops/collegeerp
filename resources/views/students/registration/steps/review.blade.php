@@ -1,10 +1,11 @@
 @php
     /*
-     * STEP 5 — Final Review → Submit for Approval.
+     * STEP 4 — Final Review → Submit for Approval.
      *
-     * Four groups, each with its own Edit button back to the step that owns the
-     * data. Nothing here is editable except the final remarks: the review screen
-     * shows exactly what will be submitted.
+     * One group per section of the application, each with its own Edit button
+     * back to the step that owns the data (parent/guardian lives on step 1 now).
+     * Nothing here is editable except the final remarks: the review screen shows
+     * exactly what will be submitted.
      *
      * Submitting raises ONE pending student and ONE approval request through the
      * existing approval framework. The student stays pending — and out of the
@@ -36,9 +37,43 @@
     <div class="erp-alert erp-alert--error" role="alert">
         <strong>Required documents are missing:</strong>
         {{ $missingDocuments->map(fn ($row) => $row['type']->name)->implode(', ') }}.
-        <a href="{{ route('students.registration.step', ['step' => 4]) }}">Attach them</a> before submitting.
+        <a href="{{ route('students.registration.step', ['step' => 3]) }}">Attach them</a> before submitting.
     </div>
 @endif
+
+@if(! empty($duplicateWarnings))
+    <div class="erp-alert erp-alert--info" role="status" data-erp-review-duplicates>
+        <strong>Possible duplicate — the approver will see this:</strong>
+        <ul>
+            @foreach($duplicateWarnings as $warning)
+                <li>{{ $warning['message'] }}</li>
+            @endforeach
+        </ul>
+        This is a warning only. Verified identifiers (mobile, Aadhaar, APAAR) are checked separately and do block.
+    </div>
+@endif
+
+{{-- --- Student identification ------------------------------------------ --}}
+<section class="erp-review-group">
+    <header class="erp-review-group__head">
+        <h3 class="erp-review-group__title">Student Identification</h3>
+    </header>
+    <div class="erp-review-group__body">
+        <dl class="erp-review-list">
+            @foreach($identifiers as $key => $identifier)
+                <div>
+                    <dt>{{ $identifier['label'] }}</dt>
+                    <dd data-erp-identifier="{{ $key }}">
+                        {{ $identifier['value'] ?? 'Pending' }}
+                        @if($identifier['state'] === 'pending')
+                            <span class="erp-chip erp-chip--pending">Pending</span>
+                        @endif
+                    </dd>
+                </div>
+            @endforeach
+        </dl>
+    </div>
+</section>
 
 {{-- --- Basic information ------------------------------------------------ --}}
 <section class="erp-review-group">
@@ -78,11 +113,11 @@
     </div>
 </section>
 
-{{-- --- 02 Parent / guardian ----------------------------------------------- --}}
+{{-- --- Parent / guardian -------------------------------------------------- --}}
 <section class="erp-review-group">
     <header class="erp-review-group__head">
-        <h3 class="erp-review-group__title">Parent/Guardian</h3>
-        <a class="erp-btn erp-btn--ghost erp-btn--sm" href="{{ route('students.registration.step', ['step' => 2]) }}">Edit</a>
+        <h3 class="erp-review-group__title">Parent &amp; Guardian</h3>
+        <a class="erp-btn erp-btn--ghost erp-btn--sm" href="{{ route('students.registration.step', ['step' => 1]) }}">Edit</a>
     </header>
     <div class="erp-review-group__body">
         <dl class="erp-review-list">
@@ -100,11 +135,11 @@
     </div>
 </section>
 
-{{-- --- 03 Academic record ------------------------------------------------- --}}
+{{-- --- Academic record ---------------------------------------------------- --}}
 <section class="erp-review-group">
     <header class="erp-review-group__head">
         <h3 class="erp-review-group__title">Academic Record</h3>
-        <a class="erp-btn erp-btn--ghost erp-btn--sm" href="{{ route('students.registration.step', ['step' => 3]) }}">Edit</a>
+        <a class="erp-btn erp-btn--ghost erp-btn--sm" href="{{ route('students.registration.step', ['step' => 2]) }}">Edit</a>
     </header>
     <div class="erp-review-group__body">
         <dl class="erp-review-list">
@@ -164,11 +199,11 @@
     </div>
 </section>
 
-{{-- --- 04 Documents ------------------------------------------------------- --}}
+{{-- --- Documents ---------------------------------------------------------- --}}
 <section class="erp-review-group">
     <header class="erp-review-group__head">
         <h3 class="erp-review-group__title">Documents</h3>
-        <a class="erp-btn erp-btn--ghost erp-btn--sm" href="{{ route('students.registration.step', ['step' => 4]) }}">Edit</a>
+        <a class="erp-btn erp-btn--ghost erp-btn--sm" href="{{ route('students.registration.step', ['step' => 3]) }}">Edit</a>
     </header>
     <div class="erp-review-group__body">
         @if($requirements->isNotEmpty())
@@ -233,5 +268,5 @@
         </div>
     </section>
 
-    @include('students.registration._actions', ['step' => 5, 'draftId' => $draftId, 'submitMode' => true])
+    @include('students.registration._actions', ['step' => 4, 'draftId' => $draftId, 'submitMode' => true])
 </form>

@@ -226,6 +226,9 @@ final class StudentRegistrationService
                 'semester' => $data['semester'] ?? null,
                 'enrollment_date' => $data['enrollment_date'] ?? null,
                 'admission_date' => $data['admission_date'] ?? now()->toDateString(),
+                // Possible-duplicate hints (same name + a corroborating detail).
+                // Never a block — the approver sees them and decides.
+                'duplicate_warnings' => $data['duplicate_warnings'] ?? [],
             ],
             'previous_data' => [
                 'status' => 'inactive',

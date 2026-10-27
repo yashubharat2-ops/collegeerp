@@ -1,6 +1,6 @@
 @php
     /*
-     * The wizard action bar — ONE definition for all five steps, so the
+     * The wizard action bar — ONE definition for all four steps, so the
      * buttons are in the same order with the same wording everywhere.
      *
      * "Save draft" submits the same step form to the draft endpoint, which
@@ -14,7 +14,9 @@
      * step's strict endpoint; the two intents never share a button.
      */
     $draftRoute = route('students.registration.step.draft', ['step' => $step]);
-    $nextLabel = (int) $step === 4 ? 'Continue to review' : 'Save & continue';
+    $nextLabel = (int) $step === \App\Domain\Student\Support\RegistrationStepRules::STEP_DOCUMENTS
+        ? 'Continue to review'
+        : 'Save & continue';
     $submitMode = (bool) ($submitMode ?? false);
 @endphp
 

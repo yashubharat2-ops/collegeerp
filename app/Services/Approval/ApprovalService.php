@@ -3,6 +3,7 @@
 namespace App\Services\Approval;
 
 use App\Domain\Student\Services\StudentService;
+use App\Domain\Student\Support\RegistrationIdentityGuard;
 use App\Models\AcademicYear;
 use App\Models\ApprovalRequest;
 use App\Models\ApprovalSetting;
@@ -453,6 +454,24 @@ class ApprovalService
         // effect. A rejected registration must be resubmitted, not approved.
         if ($student->isRegistrationApproved()) {
             return;
+        }
+
+        // Final duplicate check, at the moment the student becomes active: a
+        // verified identifier (phone, Aadhaar, APAAR) may have been taken by
+        // another registration while this request was waiting. The student is
+        // excluded from its own check, and nothing is written if it fails.
+        try {
+            RegistrationIdentityGuard::assertAvailable([
+                'phone' => $student->phone,
+                'apaar_id' => $student->apaar_id,
+                // Decrypted in memory by the model accessor; never logged.
+                'aadhaar_number' => $student->aadhaar_number,
+            ], (int) $request->college_id, (int) $student->id);
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            throw ValidationException::withMessages([
+                'registration' => 'This registration duplicates an existing student: '
+                    .implode(' ', array_merge(...array_values($exception->errors()))),
+            ]);
         }
         if ($student->isRegistrationRejected()) {
             throw ValidationException::withMessages([

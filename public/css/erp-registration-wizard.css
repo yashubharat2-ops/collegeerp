@@ -1,5 +1,5 @@
 /*
- * Student registration wizard — five-step layout.
+ * Student registration wizard — four-step layout.
  *
  * Reuses the Deep Blue / Navy tokens and the compact ERP controls already
  * defined in erp-theme.css and erp-student-form.css (.erp-card, .erp-grid,
@@ -30,7 +30,7 @@
 
 .erp-steps {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
     list-style: none;
     margin: 0 0 18px;
@@ -551,6 +551,52 @@
 .erp-chip--verified { background: #e7f4ee; color: var(--wz-ok); border-color: #bfe0d1; }
 .erp-chip--missing { background: #fdecec; color: var(--wz-err); border-color: #f3c9cb; }
 .erp-chip--not-uploaded { background: #f1f5f9; color: var(--wz-muted); border-color: var(--wz-line); }
+.erp-chip--pending { background: #fff5e0; color: var(--wz-warn); border-color: #f0dfb5; }
+
+/* ---------- Section A: the three identifiers ---------- */
+
+.erp-id-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.erp-id {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border: 1px solid var(--wz-line);
+    border-radius: 8px;
+    background: #fff;
+}
+
+.erp-id--assigned { border-left: 3px solid var(--wz-primary); }
+.erp-id--pending { border-left: 3px solid var(--wz-warn); background: #fffdf7; }
+
+.erp-id__label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    color: var(--wz-muted);
+}
+
+.erp-id__value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--wz-navy);
+}
+
+.erp-id--pending .erp-id__value { color: var(--wz-warn); }
+
+.erp-id__note { font-size: 11.5px; line-height: 1.45; color: var(--wz-muted); }
+
+/* ---------- Parent details: two stacked sub-cards ---------- */
+
+.erp-subcard { padding: 10px 0; border-top: 1px dashed var(--wz-line); }
+.erp-subcard:first-child { padding-top: 0; border-top: 0; }
+.erp-subcard:last-child { padding-bottom: 0; }
 
 .erp-doc-table { width: 100%; border-collapse: collapse; }
 
@@ -663,6 +709,7 @@
 @media (max-width: 767px) {
     .erp-steps { grid-template-columns: 1fr; }
     .erp-doc-picker { grid-template-columns: 1fr; }
+    .erp-id-grid { grid-template-columns: 1fr; }
     .erp-steps__item::after { display: none; }
     .erp-wizard__footer { flex-direction: column-reverse; align-items: stretch; }
     .erp-wizard__footer-group { justify-content: space-between; }
