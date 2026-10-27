@@ -233,6 +233,11 @@ final class StudentRegistrationService
                 // Possible-duplicate hints (same name + a corroborating detail).
                 // Never a block — the approver sees them and decides.
                 'duplicate_warnings' => $data['duplicate_warnings'] ?? [],
+                // What the applicant DECLARED on step 3 (readable id + name),
+                // kept next to the files that were adopted into the Documents
+                // module. A declaration is not a verification: the files stay
+                // `pending` until a person verifies them.
+                'declared_documents' => $data['declared_documents'] ?? [],
             ],
             'previous_data' => [
                 'status' => 'inactive',

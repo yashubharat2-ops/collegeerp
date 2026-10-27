@@ -15,7 +15,7 @@
     $intro = match ((int) $step) {
         1 => 'Identifiers, personal details, parents, guardian, addresses, photograph and signature.',
         2 => 'Previous qualifications, then the course being joined.',
-        3 => 'Pick the documents your course requires, then attach them.',
+        3 => 'Select the documents you have — the files themselves are optional.',
         default => 'Check everything, then submit for approval.',
     };
 @endphp

@@ -9,7 +9,7 @@ use App\Domain\Student\Support\RegistrationStepRules;
 use App\Domain\Student\Support\SensitiveIdentity;
 use App\Models\Section;
 use App\Models\StudentRegistrationDraft;
-use App\Models\StudentRegistrationDraftDocument;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -140,9 +140,18 @@ final class RegistrationSubmissionService
         $this->assertDocumentRequirements($draft, $merged, $collegeId);
 
         // --- 3. Assemble and submit ---------------------------------------
+        // The declarations travel with the submission (and therefore into the
+        // approval request's payload) in a human-readable form, next to — not
+        // instead of — the files, which are adopted into the Documents module.
         $payload = array_merge($merged, [
             'remarks' => $merged['remarks'] ?? null,
             'duplicate_warnings' => $warnings,
+            'declared_documents' => $this->declaredDocuments(
+                (array) ($merged['declared_documents'] ?? []),
+                $merged,
+                $collegeId,
+                $draft->documents()->get(),
+            ),
         ]);
 
         // The declaration is an acknowledgement in this request, not student
@@ -366,15 +375,22 @@ final class RegistrationSubmissionService
      *
      * @param  array<string, mixed>  $merged
      */
+    /**
+     * The course's required document TYPES must be declared on step 3.
+     *
+     * A file is deliberately NOT required here: the applicant states which
+     * documents they have, and a scanned copy can follow later (that is what the
+     * Documents module and its verification workflow are for). What is refused is
+     * a submission that silently omits a type the selected course demands —
+     * including one whose box was ticked in the browser but never stored, because
+     * this check reads the draft payload, not the request.
+     */
     private function assertDocumentRequirements(StudentRegistrationDraft $draft, array $merged, int $collegeId): void
     {
-        /** @var \Illuminate\Support\Collection<int, StudentRegistrationDraftDocument> $documents */
-        $documents = $draft->documents()->get();
-
-        $missing = $this->requirements->missingRequired(
+        $missing = $this->requirements->missingDeclared(
             isset($merged['program_id']) ? (int) $merged['program_id'] : null,
             $collegeId,
-            $documents->pluck('document_type_id')->filter()->map(fn ($id) => (int) $id)->all(),
+            (array) ($merged['declared_documents'] ?? []),
         );
 
         if ($missing->isEmpty()) {
@@ -384,7 +400,48 @@ final class RegistrationSubmissionService
         $names = $missing->map(fn ($type) => $type->name)->implode(', ');
 
         throw $this->stepFailure(RegistrationStepRules::STEP_DOCUMENTS, [
-            'documents' => ['Attach the documents required for the selected course: '.$names.'.'],
+            'documents' => ['Tick the documents required for the selected course before submitting: '.$names.'.'],
         ]);
+    }
+
+    /**
+     * The declarations in a form the approver can read, alongside the ids.
+     *
+     * Only types that belong to this college are listed, and nothing here claims a
+     * file exists: the files travel separately (they are adopted into the
+     * Documents module with `pending` verification). A declaration that no longer
+     * matches the configuration is dropped rather than blocking the submission.
+     *
+     * @param  array<int, int|null>  $declaredTypeIds
+     * @return array<int, array{id: int, name: string, required: bool, file_attached: bool}>
+     */
+    public function declaredDocuments(
+        array $declaredTypeIds,
+        array $merged,
+        int $collegeId,
+        ?Collection $documents = null,
+    ): array {
+        $declared = array_values(array_unique(array_filter(array_map('intval', (array) $declaredTypeIds))));
+
+        if ($declared === []) {
+            return [];
+        }
+
+        return $this->requirements
+            ->checklist(
+                isset($merged['program_id']) ? (int) $merged['program_id'] : null,
+                $collegeId,
+                $documents ?? collect(),
+                $declared,
+            )
+            ->filter(fn (array $row) => $row['declared'])
+            ->map(fn (array $row) => [
+                'id' => (int) $row['type']->id,
+                'name' => (string) $row['type']->name,
+                'required' => (bool) $row['is_required'],
+                'file_attached' => (bool) $row['uploaded'],
+            ])
+            ->values()
+            ->all();
     }
 }

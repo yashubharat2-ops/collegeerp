@@ -15,7 +15,7 @@ function createPage(t) {
     const dom = new JSDOM(`<!doctype html>
         <html><body>
             <div data-erp-wizard data-geo-url="/students/registration/geo/children" data-draft-url="/students/registration/step/1/draft" data-academic-options-url="/students/registration/academic-options">
-                <form id="erp-step-form" data-erp-step-form>
+                <form id="erp-step-form" data-erp-step-form data-erp-declaration-form>
                     <input name="first_name" value="Riya">
                     <input name="last_name" value="Verma">
                     <input name="phone" value="9111111111">
@@ -115,9 +115,15 @@ function createPage(t) {
                     <ul data-erp-doc-picker>
                         <li>
                             <input type="checkbox" id="doc-type-1" value="1" data-erp-doc-toggle="1" checked>
-                            <input type="checkbox" id="doc-type-2" value="2" data-erp-doc-toggle="2">
+                            <input type="checkbox" id="doc-type-2" value="2" data-erp-doc-toggle="2"
+                                   data-erp-doc-name="Transfer Certificate" data-erp-doc-required="true">
                             <input type="checkbox" id="doc-type-3" value="3" data-erp-doc-toggle="3">
+                            <span data-erp-doc-declared="2" hidden>Selected</span>
                         </ul>
+
+                        <p role="alert" data-erp-doc-missing hidden>
+                            <span data-erp-doc-missing-names></span>
+                        </p>
 
                         <div class="erp-doc-card" data-erp-doc-card="1">
                             <input type="file" name="file">
@@ -480,4 +486,70 @@ test('the Self guardian follows personal fields typed on the same page', (t) => 
     assert.equal(window.document.querySelector('[name="guardian_phone"]').value, '9333333333');
     assert.equal(window.document.querySelector('[name="guardian_name"]').value, 'Riyaa Verma');
     assert.equal(window.document.querySelector('[data-erp-self="name"]').value, 'Riyaa Verma');
+});
+
+test('the "Selected" marker follows the checkbox, not the uploaded files', (t) => {
+    const window = createPage(t);
+    const toggle = window.document.querySelector('[data-erp-doc-toggle="2"]');
+    const chip = window.document.querySelector('[data-erp-doc-declared="2"]');
+
+    assert.equal(chip.hidden, true, 'an un-declared type shows no marker');
+
+    toggle.checked = true;
+    toggle.dispatchEvent(new window.Event('change', { bubbles: true }));
+    assert.equal(chip.hidden, false, 'ticking the box marks the type as selected');
+
+    toggle.checked = false;
+    toggle.dispatchEvent(new window.Event('change', { bubbles: true }));
+    assert.equal(chip.hidden, true, 'un-ticking hides the marker again');
+});
+
+test('"Continue to review" is blocked while a required document is unselected', (t) => {
+    const window = createPage(t);
+    const form = window.document.querySelector('[data-erp-declaration-form]');
+    const alert = window.document.querySelector('[data-erp-doc-missing]');
+    const toggle = window.document.querySelector('[data-erp-doc-toggle="2"]');
+
+    toggle.checked = false;
+    toggle.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    const blocked = new window.Event('submit', { bubbles: true, cancelable: true });
+    form.dispatchEvent(blocked);
+
+    assert.equal(blocked.defaultPrevented, true, 'an incomplete declaration must not advance the wizard');
+    assert.equal(alert.hidden, false, 'the applicant is told what is missing');
+    assert.match(
+        window.document.querySelector('[data-erp-doc-missing-names]').textContent,
+        /Transfer Certificate/,
+        'the message names the missing document',
+    );
+
+    toggle.checked = true;
+    toggle.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    const allowed = new window.Event('submit', { bubbles: true, cancelable: true });
+    form.dispatchEvent(allowed);
+
+    assert.equal(allowed.defaultPrevented, false, 'a complete declaration may continue');
+    assert.equal(alert.hidden, true, 'the warning is gone once every required type is selected');
+});
+
+test('"Save draft" is never blocked by an incomplete declaration', (t) => {
+    const window = createPage(t);
+    const form = window.document.querySelector('[data-erp-declaration-form]');
+    const toggle = window.document.querySelector('[data-erp-doc-toggle="2"]');
+
+    toggle.checked = false;
+    toggle.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    const button = window.document.createElement('button');
+    button.setAttribute('data-erp-save-draft', '');
+    form.appendChild(button);
+
+    const event = new window.Event('submit', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'submitter', { value: button });
+
+    form.dispatchEvent(event);
+
+    assert.equal(event.defaultPrevented, false, 'a draft is allowed to be incomplete');
 });

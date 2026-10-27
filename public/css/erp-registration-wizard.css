@@ -404,8 +404,8 @@
 /* Part A — the compact checkbox grid of configured document types. */
 .erp-doc-picker {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-    gap: 6px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 8px;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -415,31 +415,42 @@
 
 .erp-doc-option {
     display: flex;
-    align-items: center;
-    gap: 7px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 6px 8px;
     min-width: 0;
-    padding: 6px 8px;
+    height: 100%;
+    padding: 9px 10px;
     border: 1px solid var(--wz-line);
     border-radius: 6px;
     background: #fff;
     font-size: 12.5px;
     color: var(--wz-navy);
+    cursor: pointer;
 }
 
 .erp-doc-option:hover { border-color: #c7d5ea; background: #f8fbff; }
 
 .erp-doc-option input[type="checkbox"] { flex: 0 0 auto; margin: 0; }
 
+/* The label is never truncated: an applicant must be able to read the whole
+   document name, including on a narrow screen. */
 .erp-doc-option__label {
     flex: 1 1 auto;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
     font-weight: 600;
 }
 
-.erp-doc-option__state { flex: 0 0 auto; font-size: 11px; color: var(--wz-muted); }
+.erp-doc-option__state {
+    flex: 1 0 100%;
+    padding-left: 22px;
+    font-size: 11px;
+    line-height: 1.35;
+    color: var(--wz-muted);
+}
 
 /* A document the course requires cannot be unticked: it reads as locked, not
    as broken. */
@@ -551,6 +562,9 @@
 .erp-chip--verified { background: #e7f4ee; color: var(--wz-ok); border-color: #bfe0d1; }
 .erp-chip--missing { background: #fdecec; color: var(--wz-err); border-color: #f3c9cb; }
 .erp-chip--not-uploaded { background: #f1f5f9; color: var(--wz-muted); border-color: var(--wz-line); }
+/* "Selected" is a DECLARATION, not a file: it is deliberately not green. */
+.erp-chip--declared { background: #eaf2ff; color: var(--wz-navy); border-color: #cbdcef; font-weight: 600; }
+.erp-chip[hidden] { display: none; }
 .erp-chip--pending { background: #fff5e0; color: var(--wz-warn); border-color: #f0dfb5; }
 
 /* ---------- Section A: the three identifiers ---------- */
@@ -646,6 +660,22 @@
     border-bottom: 1px solid var(--wz-line);
     background: #f7f9fc;
     border-radius: 8px 8px 0 0;
+}
+
+.erp-review-group__subtitle {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--wz-muted);
+}
+
+.erp-doc-files { margin-top: 12px; }
+
+.erp-doc-files caption {
+    text-align: left;
+    padding: 0 0 6px;
 }
 
 .erp-review-group__title {

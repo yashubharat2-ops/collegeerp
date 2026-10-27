@@ -723,6 +723,32 @@
 
     var docToggles = Array.prototype.slice.call(wizard.querySelectorAll('[data-erp-doc-toggle]'));
     var docEmpty = wizard.querySelector('[data-erp-doc-empty]');
+    var docMissing = wizard.querySelector('[data-erp-doc-missing]');
+    var docMissingNames = wizard.querySelector('[data-erp-doc-missing-names]');
+    var docPicker = wizard.querySelector('[data-erp-doc-picker]');
+    var declarationForm = wizard.querySelector('[data-erp-declaration-form]');
+    var requiredToggles = docToggles.filter(function (toggle) {
+        return toggle.getAttribute('data-erp-doc-required') === 'true';
+    });
+
+    function missingRequiredToggles() {
+        return requiredToggles.filter(function (toggle) {
+            return !toggle.checked;
+        });
+    }
+
+    function toggleDeclarationState(toggle) {
+        var id = toggle.getAttribute('data-erp-doc-toggle');
+        var chip = wizard.querySelector('[data-erp-doc-declared="' + id + '"]');
+
+        if (chip) {
+            if (toggle.checked) {
+                chip.removeAttribute('hidden');
+            } else {
+                chip.setAttribute('hidden', 'hidden');
+            }
+        }
+    }
 
     function syncDocCards() {
         var anySelected = false;
@@ -736,11 +762,16 @@
                 anySelected = true;
             }
 
+            toggleDeclarationState(toggle);
+
             if (!card) {
                 return;
             }
 
-            var attached = card.getAttribute('data-erp-doc-attached') === 'true';
+            // An attached file keeps its card visible whatever the tick state,
+            // so un-selecting a type never looks like it deleted the upload.
+            var attached = card.getAttribute('data-erp-doc-attached') === 'true' ||
+                card.classList.contains('erp-doc-card--attached');
 
             if (selected || attached) {
                 card.removeAttribute('hidden');
@@ -752,15 +783,156 @@
         if (docEmpty) {
             docEmpty.hidden = anySelected || docToggles.length === 0;
         }
+
+        // The "required, not selected yet" warning is informational until the
+        // applicant tries to continue; it is shown again on that attempt.
+        if (docMissing) {
+            var missing = missingRequiredToggles();
+
+            if (missing.length === 0) {
+                docMissing.hidden = true;
+            } else if (docMissingNames && !docMissing.hidden) {
+                docMissingNames.textContent = missing.map(function (toggle) {
+                    return toggle.getAttribute('data-erp-doc-name') || toggle.value;
+                }).join(', ');
+            }
+        }
     }
 
     docToggles.forEach(function (toggle) {
-        // A selection toggle changes nothing on the server (uploads are their own
-        // form), so it must not raise the "unsaved changes" guard.
-        toggle.addEventListener('change', syncDocCards);
+        toggle.addEventListener('change', function () {
+            syncDocCards();
+
+            // A declaration is data, so it is saved straight away. That way a file
+            // attached from one of the cards below cannot lose the ticks (the
+            // upload is its own POST and redirects back to this step).
+            persistDeclarations();
+        });
     });
 
     syncDocCards();
+
+    /**
+     * Save the declaration list as a draft, without leaving the step.
+     *
+     * The step form's own submit does the same thing; this only makes the ticks
+     * survive an upload round-trip. A failure is silent by design: the explicit
+     * "Save draft" / "Continue to review" buttons remain authoritative.
+     */
+    function persistDeclarations() {
+        if (!declarationForm || !draftUrl || typeof window.FormData === 'undefined') {
+            return;
+        }
+
+        dirty = false;
+
+        var body = new FormData(declarationForm);
+
+        window.fetch(draftUrl, {
+            method: 'POST',
+            body: body,
+            headers: {
+                'X-CSRF-TOKEN': csrf,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'text/html'
+            },
+            credentials: 'same-origin'
+        }).then(function (response) {
+            if (response.ok && state) {
+                state.textContent = 'Selection saved';
+            }
+        }).catch(function () {
+            // Best effort; the applicant can always use the buttons.
+        });
+    }
+
+    /**
+     * "Continue to review" must not pass with a course-required type unselected.
+     *
+     * This is a convenience, not the rule: the server enforces the same thing
+     * (the step save and the submission both re-check the STORED declarations),
+     * so a browser with this file blocked is still correct — just less friendly.
+     */
+    if (declarationForm) {
+        declarationForm.addEventListener('submit', function (event) {
+            var submitter = event.submitter;
+
+            // "Save draft" may always go through: a draft is allowed to be
+            // incomplete.
+            if (submitter && submitter.hasAttribute('data-erp-save-draft')) {
+                return;
+            }
+
+            var missing = missingRequiredToggles();
+
+            if (missing.length === 0) {
+                return;
+            }
+
+            event.preventDefault();
+
+            if (docMissing) {
+                if (docMissingNames) {
+                    docMissingNames.textContent = missing.map(function (toggle) {
+                        return toggle.getAttribute('data-erp-doc-name') || toggle.value;
+                    }).join(', ');
+                }
+
+                docMissing.hidden = false;
+
+                if (typeof docMissing.scrollIntoView === 'function') {
+                    docMissing.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+
+            if (docPicker && typeof docPicker.scrollIntoView === 'function') {
+                docPicker.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            try {
+                missing[0].focus();
+            } catch (error) {
+                // Focus is a nicety; the message is what matters.
+            }
+        });
+    }
+
+    /* ------------------------------------------------------------------
+     * 4c. "+ Attach a document" row — an empty form never submits
+     *
+     * The row is one collapsed optional form. It is not required to be filled,
+     * but a submitted row must carry a file: the server refuses one without a
+     * file, and this stops the round-trip.
+     * ------------------------------------------------------------------ */
+
+    Array.prototype.forEach.call(wizard.querySelectorAll('[data-erp-doc-attach-form]'), function (form) {
+        form.addEventListener('submit', function (event) {
+            var fileInput = form.querySelector('input[name="file"][type="file"]');
+            var message = form.querySelector('[data-erp-doc-attach-error]');
+
+            if (!fileInput || (fileInput.files && fileInput.files.length > 0)) {
+                return;
+            }
+
+            if (fileInput.required) {
+                // The browser's own validation already blocks this and points at
+                // the field; nothing to add.
+                return;
+            }
+
+            event.preventDefault();
+
+            if (message) {
+                message.hidden = false;
+            }
+
+            try {
+                fileInput.focus();
+            } catch (error) {
+                // ignore
+            }
+        });
+    });
 
     /* ------------------------------------------------------------------
      * 5. Image preview

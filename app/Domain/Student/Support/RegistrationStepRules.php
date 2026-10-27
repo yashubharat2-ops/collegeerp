@@ -293,10 +293,50 @@ final class RegistrationStepRules
     /** @return array<string, mixed> */
     private static function documentRules(bool $strict, int $collegeId): array
     {
-        // Uploads are their own endpoint (a multipart POST per file), so the
-        // step itself has nothing to validate beyond the course requirements,
-        // which need the stored draft and live in the submission service.
-        return [];
+        // Step 3 carries DECLARATIONS only. Files are uploaded through their own
+        // endpoint (one multipart POST per file), so nothing about a file can be
+        // validated here — and nothing here may imply a file exists.
+        //
+        // The list is not `required`: which types a course demands depends on the
+        // programme stored in the draft, so the cross-step check lives where the
+        // whole draft is visible — CourseDocumentRequirementService::missingDeclared()
+        // is applied by the wizard controller (on "Continue to review") and by the
+        // submission service (on submit). Draft mode accepts any subset.
+        return [
+            'declared_documents' => ['nullable', 'array', 'max:200'],
+            'declared_documents.*' => [
+                'integer',
+                // A type from another college is not a declaration this tenant can
+                // record, so it is rejected here rather than silently ignored.
+                Rule::exists('admission_document_types', 'id')
+                    ->where('college_id', $collegeId)
+                    ->whereNull('deleted_at'),
+            ],
+        ];
+    }
+
+    /**
+     * Step 3's stored shape: the declared type ids, de-duplicated and as ints.
+     * Everything else the browser may post with the step (an accidental file
+     * field, a display-only value) is dropped, so a declaration can never carry
+     * a file path or a status.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private static function normaliseDocuments(array $data): array
+    {
+        $declared = [];
+
+        foreach ((array) ($data['declared_documents'] ?? []) as $value) {
+            $id = (int) $value;
+
+            if ($id > 0 && ! in_array($id, $declared, true)) {
+                $declared[] = $id;
+            }
+        }
+
+        return ['declared_documents' => $declared];
     }
 
     /** @return array<string, mixed> */
@@ -354,7 +394,7 @@ final class RegistrationStepRules
         return match ($step) {
             self::STEP_BASIC => self::normaliseBasicWithParent($data, $merged, $geo),
             self::STEP_ACADEMIC => self::normaliseAcademic($data, $collegeId),
-            self::STEP_DOCUMENTS => [],
+            self::STEP_DOCUMENTS => self::normaliseDocuments($data),
             self::STEP_REVIEW => ['remarks' => $data['remarks'] ?? null],
             default => [],
         };

@@ -29,6 +29,7 @@ profile form (`students.create`) is unchanged for every other flow.
 | Approval is still the only way in | Submission calls the existing `StudentRegistrationService` → one pending `Student` (`status = inactive`, `registration_status = pending_approval`) + **one** `ApprovalRequest` (module `student`, action `registration_approval`). The approval side effects (activate student, create the enrollment, allocate the roll number) remain in `ApprovalService`. |
 | No enrollment before approval | Step 2 captures the academic context only; `ApprovalService::approveStudentRegistration()` creates the `StudentEnrollment` when an approver decides. |
 | No identifier is minted by the wizard | Opening the wizard, saving a draft or saving a step never creates a Student ID, Admission Number or Roll Number. Each comes from the workflow that owns it (§3). |
+| Declaring is never uploading | The step-3 checkboxes record what the applicant *has* (`declared_documents` in the draft). They create no document row, attach no file and verify nothing. |
 | Uploading is never verifying | Adopted documents are written with `verification_status = pending`; only an authorised verify action in the Documents module changes that. |
 | A rejected request leaves no trace | Opening the wizard (`GET students/registration`) starts or resumes exactly one draft. A step save creates the row only after every check has passed, so a registration rejected for a duplicate phone/Aadhaar/APAAR or a mismatched address chain leaves no draft row, no audit entry and no stored file. |
 
@@ -177,42 +178,69 @@ Two blocks that are deliberately **never mixed**:
 
 ### Step 3 — Attach Documents
 
-Two compact parts, so the screen is a picker plus the cards that were picked:
+Three separate things, in this order — declarations, the files themselves, and
+one optional row for anything else. They are never conflated:
 
-**A. Select documents** — one checkbox per document type, in a responsive grid
-(`.erp-doc-picker`). The list is built from the configuration that already exists:
-`admission_document_types` (per-college master: allowed extensions/MIMEs, max
-size, global `is_required`) + the `admission_document_type_program` pivot
-(`is_required`, `can_submit_later`).
+**A. Select the documents you have (declarations).** One checkbox card per
+document type, in a responsive grid (`.erp-doc-picker`). The list is built from
+the configuration that already exists: `admission_document_types` (per-college
+master: allowed extensions/MIMEs, max size, global `is_required`) +
+the `admission_document_type_program` pivot (`is_required`, `can_submit_later`).
 
 * An explicit pivot row wins over the global flag (so a course can make a
   globally-required document optional, or vice versa).
 * `can_submit_later = true` marks a document as "may be submitted after
   admission" — it does not block submission.
-* A document required by the selected course is rendered **ticked and locked**
-  (`disabled`) with a `Required` chip, so un-ticking can never make the
-  requirement disappear. Optional and deferred types are the applicant's choice.
-  Each row also shows `Uploaded` / `Not uploaded`.
+* **Nothing is pre-selected or locked.** The applicant states what they have and
+  can change their mind; a required type carries a `Required` chip and a
+  `data-erp-doc-required` marker (used by the browser and re-checked by the
+  server). Optional and deferred types are the applicant's choice.
+* Every card is a clean, readable checkbox with the **full** type name (the label
+  wraps, it is never truncated) plus the *file* state: `No file attached` /
+  `File attached — awaiting verification` / `Verified` (a human decision made in
+  the Documents module). A `Selected` chip follows the checkbox.
 * Nothing is hard-coded: the picker only ever lists configured types, and an empty
   master shows a clear "no document types configured" state.
 
-**B. Attach documents** — one compact card per *selected* type, each with its own
-upload form (type, file, remarks, Attach) or, when a file already exists, the
-file link + `Replace` / `Remove`. Ticking a box reveals its card; un-ticking hides
-only an *empty* card. **A card that holds a staged file is never hidden and its
-file is never discarded by a toggle** — removal is the explicit `Remove` action.
-A collapsed "attach another document" section keeps the untyped/other upload
-available without crowding the list.
+**Required type vs optional file.** A type the course requires must be
+**declared** before Final Review / submission. Its **file stays optional**: the
+registration can be submitted with zero files, and a scanned copy can be added
+later from the student's Documents tab. The declaration is what is enforced:
 
-* The requirement check at submission reads the **stored files**, never the
-  checkbox state, so the browser cannot bypass a mandatory document
-  (`RegistrationSubmissionService::assertDocumentRequirements()`).
+| Where | What is checked |
+| --- | --- |
+| "Continue to review" (browser) | every `data-erp-doc-required` box is ticked — the step does not advance, the missing types are named, the group is scrolled into view and the first missing box is focused (all other data kept) |
+| "Continue to review" (server) | `StudentRegistrationWizardController::persistStep()` → `CourseDocumentRequirementService::missingDeclared()`; a failure redirects back to step 3 with the same message |
+| Submit (server) | `RegistrationSubmissionService::assertDocumentRequirements()` — reads the **stored declarations**, never the request, so a hand-crafted POST cannot skip a required type |
+
+Declarations are persisted in the draft payload (`declared_documents`, a list of
+document-type ids) and saved with the step — including an immediate background
+save when a box changes, so attaching a file afterwards cannot lose the ticks.
+"Save draft" is never blocked by a missing declaration; only continuing and
+submitting are.
+
+**B. Attach the files (optional).** One compact card per *declared* type, each
+with its own upload form (file + remarks + Attach). Ticking a box reveals its
+card; un-ticking hides only an *empty* card. **A card that holds a staged file is
+never hidden and its file is never discarded by a toggle** — removal is the
+explicit `Remove` action. Below the cards, every staged file is listed in one
+table (type, file name, size, status, Replace / Remove), and several files of the
+same type are allowed.
+
+**C. "+ Attach a document"** — a collapsed `<details>` row (Document type,
+optional Title, File, Attach) for a file that is not in the list above. The row
+is optional; it asks for a file only when it is actually submitted, and an empty
+submission is refused (server-side `file.required`, never a placeholder record).
+
+* A declaration never uploads, selects or verifies a file, and an upload never
+  silently declares its type.
 * Status is always **awaiting verification** until a human verifies it in the
   Documents module.
 * Files are stored privately under
   `students/{college_id}/registration-drafts/{draft_id}/{uuid}.{ext}`, streamed
   through authorised routes only, and adopted (same blob) into `student_documents`
-  on submission.
+  on submission. Existing file validation (mimes, size, tenant, authorization) is
+  unchanged.
 
 ### Step 4 — Final Review
 * Student Identification, Basic Information (sections B–H, including Parent and
@@ -220,6 +248,10 @@ available without crowding the list.
   link back to the owning step (all Basic groups edit step 1).
 * Possible-duplicate hints (§4) are shown as a review note, exactly as the
   approver will see them.
+* Documents are shown as **two separate lists**: *Declared documents* (what the
+  applicant states they have, with its own status label) and *Attached files*
+  (each awaiting verification). Neither list is derived from the other, and a
+  missing required declaration is called out with a link back to step 3.
 * Pre-submit validation re-runs every step in strict mode against the **stored**
   draft, plus: guardian consistency, qualification arithmetic, academic-context
   hierarchy, course-wise required documents, and identity uniqueness (against the
@@ -480,7 +512,16 @@ duplicate submission prevention, tenancy isolation and permission checks, plus:
   allowed while the student's own number still blocks, and a duplicate APAAR
   blocks without writing anything;
 * four-step structure (exactly four steps, a fifth is a 404) and the old-draft
-  mapping, including a current four-step payload that must **not** be re-mapped.
+  mapping, including a current four-step payload that must **not** be re-mapped.;
+* step-3 declarations vs files: the required type is identified in the UI and
+  nothing is pre-selected or locked, an unselected required type blocks "Continue
+  to review" (the message names it) and the server refuses the same step, a
+  submission whose stored declarations are incomplete is refused, a declared type
+  submits with **no file at all**, an optional type may stay undeclared, a file
+  with a foreign type and a form with no file are both refused, a real attachment
+  is listed as pending, draft save/resume keeps declarations *and* files,
+  un-selecting a type deletes no file, a repeated save duplicates nothing, and
+  declaring never verifies anything.
 
 `tests/Feature/Layout/RegistrationNavigationTest.php` pins the sidebar: the
 Registration row opens the wizard, the Student List row keeps its own

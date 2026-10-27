@@ -34,6 +34,14 @@ class CourseDocumentRequirementService
     public const STATUS_REQUIRED = 'required';
     public const STATUS_OPTIONAL = 'optional';
     public const STATUS_DEFERRED = 'deferred';
+    /**
+     * The applicant has DECLARED the document (ticked it on step 3) but no file
+     * has been attached yet. A declaration is not a file and not a verification:
+     * it is the applicant's statement that the document exists, and it is what
+     * the submission check requires for a course-mandated type.
+     */
+    public const STATUS_DECLARED = 'declared';
+
     public const STATUS_UPLOADED = 'uploaded';
     public const STATUS_VERIFIED = 'verified';
     public const STATUS_MISSING = 'missing';
@@ -100,6 +108,11 @@ class CourseDocumentRequirementService
     /**
      * Requirements that are not satisfied by the uploaded type ids.
      *
+     * Retained for callers that reason about FILES (for example a future
+     * "documents received" report). Submission no longer uses it: step 3 asks
+     * for a declaration and keeps the upload optional, see
+     * {@see missingDeclared()}.
+     *
      * @param  array<int, int|null>  $uploadedTypeIds
      * @return Collection<int, AdmissionDocumentType>
      */
@@ -113,20 +126,46 @@ class CourseDocumentRequirementService
     }
 
     /**
+     * Requirements that have not been DECLARED yet.
+     *
+     * This is the check that governs submission: a course-mandated type must be
+     * declared on step 3, and the FILE for it remains optional (a scanned copy
+     * can always be handed in later, and the Documents module is where it is
+     * verified by a person). Declaring a type never marks anything as uploaded or
+     * verified — the two states are read from the stored files.
+     *
+     * @param  array<int, int|null>  $declaredTypeIds
+     * @return Collection<int, AdmissionDocumentType>
+     */
+    public function missingDeclared(?int $programId, int $collegeId, array $declaredTypeIds): Collection
+    {
+        $declared = array_values(array_unique(array_filter(array_map('intval', (array) $declaredTypeIds))));
+
+        return $this->requiredBeforeSubmission($programId, $collegeId)
+            ->reject(fn (AdmissionDocumentType $type) => in_array((int) $type->id, $declared, true))
+            ->values();
+    }
+
+    /**
      * The checklist shown on the review step and above the upload list:
      * required / optional / deferred, plus what has been uploaded and whether a
      * human has verified it.
      *
      * @param  Collection<int, StudentDocument|\App\Models\StudentRegistrationDraftDocument>  $documents
+     * @param  array<int, int|null>  $declaredTypeIds
      * @return Collection<int, array<string, mixed>>
      */
-    public function checklist(?int $programId, int $collegeId, Collection $documents): Collection
+    public function checklist(?int $programId, int $collegeId, Collection $documents, array $declaredTypeIds = []): Collection
     {
         $byType = $documents
             ->filter(fn ($document) => $document->document_type_id !== null)
             ->groupBy(fn ($document) => (int) $document->document_type_id);
 
-        return $this->forProgram($programId, $collegeId)->map(function (array $row) use ($byType): array {
+        // Declarations are kept in the draft payload, not in the file rows: a
+        // ticked box must never create, mark or verify a document.
+        $declared = array_values(array_unique(array_filter(array_map('intval', (array) $declaredTypeIds))));
+
+        return $this->forProgram($programId, $collegeId)->map(function (array $row) use ($byType, $declared): array {
             /** @var AdmissionDocumentType $type */
             $type = $row['type'];
             $files = $byType->get((int) $type->id, collect());
@@ -134,9 +173,12 @@ class CourseDocumentRequirementService
             $uploaded = $files->isNotEmpty();
             $verified = $files->contains(fn ($document) => ($document->verification_status ?? 'pending') === 'verified');
 
+            $isDeclared = in_array((int) $type->id, $declared, true);
+
             $status = match (true) {
                 $verified => self::STATUS_VERIFIED,
                 $uploaded => self::STATUS_UPLOADED,
+                $isDeclared => self::STATUS_DECLARED,
                 $row['is_required'] && $row['can_submit_later'] => self::STATUS_DEFERRED,
                 $row['is_required'] => self::STATUS_MISSING,
                 default => self::STATUS_OPTIONAL,
@@ -148,6 +190,7 @@ class CourseDocumentRequirementService
                 'can_submit_later' => $row['can_submit_later'],
                 'source' => $row['source'],
                 'status' => $status,
+                'declared' => $isDeclared,
                 'uploaded' => $uploaded,
                 'verified' => $verified,
                 'documents' => $files->values(),
@@ -163,6 +206,7 @@ class CourseDocumentRequirementService
             self::STATUS_OPTIONAL => 'Optional',
             self::STATUS_DEFERRED => 'May be submitted later',
             self::STATUS_UPLOADED => 'Uploaded — awaiting verification',
+            self::STATUS_DECLARED => 'Declared — no file attached',
             self::STATUS_VERIFIED => 'Verified',
             self::STATUS_MISSING => 'Missing — required',
             default => ucfirst($status),

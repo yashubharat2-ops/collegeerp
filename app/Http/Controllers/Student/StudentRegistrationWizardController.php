@@ -510,6 +510,29 @@ class StudentRegistrationWizardController extends Controller
             return $this->stepError($step, $exception, $draft);
         }
 
+        // Step 3 → review: the types the selected course requires must be
+        // DECLARED. Only "Continue to review" enforces this — "Save draft" stays
+        // permissive so an applicant can leave the page and come back. The files
+        // are never demanded here; a declared type with no file is a complete
+        // answer (see CourseDocumentRequirementService::missingDeclared()).
+        if ($step === RegistrationStepRules::STEP_DOCUMENTS && $request->isStrict()) {
+            $missing = $this->requirements->missingDeclared(
+                isset($merged['program_id']) ? (int) $merged['program_id'] : null,
+                $collegeId,
+                (array) ($normalised['declared_documents'] ?? []),
+            );
+
+            if ($missing->isNotEmpty()) {
+                $names = $missing->map(fn ($type) => $type->name)->implode(', ');
+
+                return $this->stepError($step, ValidationException::withMessages([
+                    'documents' => 'Tick the document'
+                        .($missing->count() === 1 ? '' : 's')
+                        .' your course requires before continuing: '.$names.'.',
+                ]), $draft);
+            }
+        }
+
         // Server-owned paths are re-attached after normalisation, because the
         // normalised payload is built from fields only.
         if ($step === RegistrationStepRules::STEP_BASIC) {
@@ -746,13 +769,20 @@ class StudentRegistrationWizardController extends Controller
         if ($step === RegistrationStepRules::STEP_DOCUMENTS) {
             $documents = $draft->documents()->with('documentType')->orderBy('id')->get();
 
+            // The DECLARATIONS are the applicant's own ticks, stored in the draft
+            // payload; the files are separate rows. They are read separately here
+            // so neither can be inferred from the other.
+            $declared = array_values(array_map('intval', (array) ($merged['declared_documents'] ?? [])));
+
             return [
                 'documentTypes' => AdmissionDocumentType::query()->where('college_id', $collegeId)->orderBy('name')->get(),
                 'requirements' => $this->requirements->checklist(
                     isset($merged['program_id']) ? (int) $merged['program_id'] : null,
                     $collegeId,
                     $documents,
+                    $declared,
                 ),
+                'declaredDocuments' => $declared,
                 'documents' => $documents,
             ];
         }
@@ -760,12 +790,16 @@ class StudentRegistrationWizardController extends Controller
         // Final review — grouped, read-only echo of every step.
         $documents = $draft->documents()->with('documentType')->orderBy('id')->get();
 
+        $declared = array_values(array_map('intval', (array) ($merged['declared_documents'] ?? [])));
+
         return [
             'documents' => $documents,
+            'declaredDocuments' => $declared,
             'requirements' => $this->requirements->checklist(
                 isset($merged['program_id']) ? (int) $merged['program_id'] : null,
                 $collegeId,
                 $documents,
+                $declared,
             ),
             'qualificationRows' => (array) ($merged['qualifications'] ?? []),
             'academicYear' => isset($merged['academic_year_id']) ? AcademicYear::query()->find($merged['academic_year_id']) : null,
@@ -865,7 +899,10 @@ class StudentRegistrationWizardController extends Controller
                     || filled($data['mother_name'] ?? null),
                 RegistrationStepRules::STEP_ACADEMIC => filled($data['academic_year_id'] ?? null)
                     && filled($data['program_id'] ?? null),
-                RegistrationStepRules::STEP_DOCUMENTS => $draft->documents()->exists(),
+                // A declaration is progress in its own right: step 3 is about
+                // stating what you have, and a file is optional.
+                RegistrationStepRules::STEP_DOCUMENTS => $draft->documents()->exists()
+                    || filled($data['declared_documents'] ?? null),
                 default => false,
             };
         }

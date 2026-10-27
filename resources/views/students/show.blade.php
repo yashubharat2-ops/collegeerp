@@ -222,7 +222,12 @@
                 <div class="sp-card__body">
                     @if(! $currentEnrollment)
                         <p class="sp-empty">
-                            No active enrollment@if($student->enrollments->isNotEmpty()) in the current academic year ({{ $student->enrollments->count() }} historical enrollment(s) are preserved)@endif.
+                            @if($student->enrollments->isNotEmpty())
+                                No active enrollment in the current academic year
+                                ({{ $student->enrollments->count() }} historical enrollment(s) are preserved).
+                            @else
+                                No active enrollment for the current academic year.
+                            @endif
                             @if($student->isRegistrationPending()) The registration is still awaiting approval. @endif
                         </p>
                     @else
@@ -688,7 +693,12 @@
                     <p class="sp-card__hint" style="margin:0 0 12px">
                         {{ $profile['documentStats']['total'] }} file(s) ·
                         {{ $profile['documentStats']['verified'] }} verified ·
-                        {{ $profile['documentStats']['pending'] }} pending verification@if($profile['documentStats']['rejected'] > 0) · {{ $profile['documentStats']['rejected'] }} rejected @endif
+                        @if($profile['documentStats']['rejected'] > 0)
+                            {{ $profile['documentStats']['pending'] }} pending verification ·
+                            {{ $profile['documentStats']['rejected'] }} rejected
+                        @else
+                            {{ $profile['documentStats']['pending'] }} pending verification
+                        @endif
                     </p>
 
                     <div class="sp-docs">

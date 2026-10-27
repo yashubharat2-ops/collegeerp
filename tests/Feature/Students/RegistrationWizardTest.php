@@ -536,7 +536,10 @@ class RegistrationWizardTest extends TestCase
     // Documents
     // -----------------------------------------------------------------
 
-    public function test_required_course_documents_block_submission_and_uploading_never_verifies(): void
+    /**
+     * A course-required type must be DECLARED; the file is optional.
+     */
+    public function test_required_course_documents_must_be_declared_and_uploading_never_verifies(): void
     {
         Storage::fake('private');
         $college = $this->makeCollege('WIZ13');
@@ -559,34 +562,54 @@ class RegistrationWizardTest extends TestCase
             'program_id' => $program->id,
         ]);
 
-        // Missing required document: submission is sent back to step 4.
+        // Nothing declared: submission is sent back to step 3, naming the type.
         $this->asCollege($college, $user)->post(route('students.registration.submit'), [
             'draft_id' => $draft->id,
             'confirm_declaration' => '1',
         ])->assertRedirect(route('students.registration.step', ['step' => 3]))
             ->assertSessionHasErrors(['documents']);
 
+        $this->assertStringContainsString(
+            $required->name,
+            (string) session('errors')->first('documents'),
+            'The message names the document the course requires.',
+        );
         $this->assertSame(0, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
 
-        // Attach the required document.
-        $this->asCollege($college, $user)->post(route('students.registration.documents.upload'), [
+        // Declaring the type is what satisfies the requirement — no file needed.
+        $this->saveStep($college, $user, 3, [
             'draft_id' => $draft->id,
-            'document_type_id' => $required->id,
-            'file' => UploadedFile::fake()->create('transfer.pdf', 20, 'application/pdf'),
-        ])->assertRedirect(route('students.registration.step', ['step' => 3]));
+            'declared_documents' => [$required->id],
+        ])->assertRedirect(route('students.registration.step', ['step' => 4]));
 
-        // The deferred document is NOT required at submission time.
+        $this->assertSame(
+            [$required->id],
+            $this->draftFor($college, $user)->stepData(3)['declared_documents'],
+            'The declaration is stored as its own list, not derived from the files.',
+        );
+
+        // The deferred type is NOT demanded — that is what "may be submitted
+        // later" means — and the registration goes through with zero files.
         $this->asCollege($college, $user)->post(route('students.registration.submit'), [
             'draft_id' => $draft->id,
             'confirm_declaration' => '1',
         ])->assertRedirect(route('students.index'));
 
         $student = Student::withoutGlobalScopes()->where('college_id', $college->id)->firstOrFail();
-        $document = StudentDocument::withoutGlobalScopes()->where('student_id', $student->id)->firstOrFail();
 
-        $this->assertSame($required->id, $document->document_type_id);
-        $this->assertSame('pending', $document->verification_status);
+        $this->assertSame(0, StudentDocument::withoutGlobalScopes()->where('student_id', $student->id)->count(),
+            'Declaring a document must not create a document row.');
         $this->assertSame(0, StudentRegistrationDraftDocument::withoutGlobalScopes()->where('draft_id', $draft->id)->count());
+
+        $approval = ApprovalRequest::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->where('module', 'student')
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame([
+            ['id' => $required->id, 'name' => $required->name, 'required' => true, 'file_attached' => false],
+        ], $approval->payload['declared_documents'], 'The declarations travel with the approval request.');
     }
 
     public function test_a_document_type_from_another_college_is_rejected(): void
@@ -1717,7 +1740,7 @@ class RegistrationWizardTest extends TestCase
     // Step 3 — checkbox-based document selection
     // -----------------------------------------------------------------
 
-    public function test_the_document_step_uses_a_compact_checkbox_picker(): void
+    public function test_the_document_step_asks_for_declarations_before_files(): void
     {
         Storage::fake('private');
         $college = $this->makeCollege('WIZ39');
@@ -1744,7 +1767,7 @@ class RegistrationWizardTest extends TestCase
 
         // The old bulky heading is gone; the compact picker is in.
         $this->assertStringNotContainsString('Document Required For', $html);
-        $this->assertStringContainsString('Select documents', $html);
+        $this->assertStringContainsString('Select the documents you have', $html);
         $this->assertStringContainsString('data-erp-doc-picker', $html);
 
         // Every configured type is one checkbox + one upload card.
@@ -1753,22 +1776,37 @@ class RegistrationWizardTest extends TestCase
         $this->assertStringContainsString('data-erp-doc-card="'.$required->id.'"', $html);
         $this->assertStringContainsString('data-erp-doc-card="'.$optional->id.'"', $html);
 
-        // The course-required type is locked; the optional one is not.
+        // Nothing is selected or locked on the applicant's behalf: the
+        // declaration is their own statement, and they can change it.
         preg_match('/<input[^>]*data-erp-doc-toggle="'.$required->id.'"[^>]*>/', $html, $requiredInput);
         $this->assertNotEmpty($requiredInput);
-        $this->assertStringContainsString('disabled', $requiredInput[0], 'A required document cannot be un-ticked.');
-        $this->assertStringContainsString('checked', $requiredInput[0], 'A required document starts selected.');
+        $this->assertStringNotContainsString('disabled', $requiredInput[0], 'A required type must stay editable.');
+        $this->assertStringNotContainsString('checked', $requiredInput[0], 'Nothing is pre-selected for the applicant.');
+        $this->assertStringContainsString('data-erp-doc-required="true"', $requiredInput[0],
+            'The browser is told which types block the review step.');
 
         preg_match('/<input[^>]*data-erp-doc-toggle="'.$optional->id.'"[^>]*>/', $html, $optionalInput);
         $this->assertNotEmpty($optionalInput);
-        $this->assertStringNotContainsString('disabled', $optionalInput[0], 'An optional document is the applicant\'s choice.');
+        $this->assertStringNotContainsString('data-erp-doc-required', $optionalInput[0],
+            'An optional type carries no mandatory marker.');
 
-        // Required / optional are distinguishable, and the upload state is shown.
+        // Required / optional are distinguishable, the FILE state is reported
+        // separately from the selection, and the full label is rendered.
         $this->assertStringContainsString('Required', $html);
-        $this->assertStringContainsString('Not uploaded', $html);
+        $this->assertStringContainsString('Optional', $html);
+        $this->assertStringContainsString('No file attached', $html);
+        $this->assertStringContainsString('erp-doc-option__label', $html);
+        $this->assertStringContainsString($required->name, $html);
+
+        // The optional attachment row is collapsed, separate, and asks for a file
+        // only when it is actually used.
+        $this->assertStringContainsString('<details class="erp-doc-other"', $html);
+        $this->assertStringContainsString('+ Attach a document', $html);
+        $this->assertStringContainsString('data-erp-doc-attach-form', $html);
+        $this->assertStringContainsString('Choose a file to attach, or close this row', $html);
     }
 
-    public function test_a_staged_document_stays_selected_and_visible_after_a_reload(): void
+    public function test_a_staged_file_stays_visible_after_a_reload_without_declaring_its_type(): void
     {
         Storage::fake('private');
         $college = $this->makeCollege('WIZ40');
@@ -1793,17 +1831,22 @@ class RegistrationWizardTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        // The card is marked as holding a file, so the client never hides it on
-        // deselect, and the checkbox comes back ticked.
+        // The card is flagged as holding a file, so the client never hides it on
+        // deselect — the file is only ever removed by an explicit action.
         $this->assertMatchesRegularExpression(
             '/data-erp-doc-card="'.$type->id.'"[^>]*data-erp-doc-attached="true"/',
             $html,
             'A card with a staged file must be identifiable so it is never hidden.',
         );
+
+        // Attaching a file is NOT a declaration: the box stays exactly as the
+        // applicant left it.
         preg_match('/<input[^>]*data-erp-doc-toggle="'.$type->id.'"[^>]*>/', $html, $input);
         $this->assertNotEmpty($input);
-        $this->assertStringContainsString('checked', $input[0], 'A type with an attached file resumes selected.');
-        $this->assertStringContainsString('Uploaded', $html);
+        $this->assertStringNotContainsString('checked', $input[0],
+            'An uploaded file must not silently select (declare) the type.');
+
+        $this->assertStringContainsString('File attached — awaiting verification', $html);
         $this->assertStringContainsString(
             route('students.registration.documents.download', ['document' => $draft->documents()->first()->id]),
             $html,
@@ -1814,7 +1857,7 @@ class RegistrationWizardTest extends TestCase
         $this->assertStringNotContainsString('registration-drafts/', $html);
     }
 
-    public function test_un_ticking_a_required_document_cannot_bypass_the_submission_check(): void
+    public function test_a_file_alone_never_satisfies_a_required_document(): void
     {
         Storage::fake('private');
         $college = $this->makeCollege('WIZ41');
@@ -1833,17 +1876,17 @@ class RegistrationWizardTest extends TestCase
         ]);
 
         // A hand-crafted POST that claims nothing is selected must still be
-        // refused: the server reads the STORED files, not the checkbox state.
+        // refused: the server reads the STORED declaration, not the request.
         $this->asCollege($college, $user)->post(route('students.registration.submit'), [
             'draft_id' => $draft->id,
             'confirm_declaration' => '1',
-            'selected_documents' => [],
+            'declared_documents' => [],
         ])->assertRedirect(route('students.registration.step', ['step' => 3]))
             ->assertSessionHasErrors(['documents']);
 
         $this->assertSame(0, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
 
-        // The requirement is satisfied only by actually attaching the file.
+        // Attaching the file does not declare the type either.
         $this->asCollege($college, $user)->post(route('students.registration.documents.upload'), [
             'draft_id' => $draft->id,
             'document_type_id' => $required->id,
@@ -1853,9 +1896,410 @@ class RegistrationWizardTest extends TestCase
         $this->asCollege($college, $user)->post(route('students.registration.submit'), [
             'draft_id' => $draft->id,
             'confirm_declaration' => '1',
+        ])->assertSessionHasErrors(['documents']);
+
+        $this->assertSame(0, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
+
+        // Declaring the type (with the file already attached) submits, and the
+        // file becomes a normal pending document — never "verified".
+        $this->saveStep($college, $user, 3, [
+            'draft_id' => $draft->id,
+            'declared_documents' => [$required->id],
+        ])->assertRedirect(route('students.registration.step', ['step' => 4]));
+
+        $this->asCollege($college, $user)->post(route('students.registration.submit'), [
+            'draft_id' => $draft->id,
+            'confirm_declaration' => '1',
         ])->assertRedirect(route('students.index'));
 
-        $this->assertSame(1, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $student = Student::withoutGlobalScopes()->where('college_id', $college->id)->firstOrFail();
+        $document = StudentDocument::withoutGlobalScopes()->where('student_id', $student->id)->firstOrFail();
+
+        $this->assertSame($required->id, (int) $document->document_type_id);
+        $this->assertSame('pending', $document->verification_status,
+            'A declaration plus an upload is still only "pending" verification.');
+    }
+
+    // -----------------------------------------------------------------
+    // Step 3 — declarations (checkbox) vs files (optional attachments)
+    // -----------------------------------------------------------------
+
+    /**
+     * A draft that has reached step 3, with one course-required type and one
+     * optional type configured for the programme.
+     *
+     * @return array{0: College, 1: User, 2: StudentRegistrationDraft, 3: AdmissionDocumentType, 4: AdmissionDocumentType}
+     */
+    private function documentStepScenario(string $code): array
+    {
+        $college = $this->makeCollege($code);
+        $user = $this->staff($college);
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+
+        Storage::fake('private');
+
+        $required = $this->makeDocumentType($college, 'TRANSFER');
+        $required->programs()->attach($program->id, [
+            'college_id' => $college->id, 'is_required' => true, 'can_submit_later' => false,
+        ]);
+
+        $optional = $this->makeDocumentType($college, 'SPORTS');
+
+        $draft = $this->completeDraft($college, $user, [], [
+            'academic_year_id' => $year->id,
+            'program_id' => $program->id,
+        ]);
+
+        return [$college, $user, $draft, $required, $optional];
+    }
+
+    public function test_continue_to_review_is_blocked_until_every_required_type_is_declared(): void
+    {
+        [$college, $user, $draft, $required, $optional] = $this->documentStepScenario('WIZ60');
+
+        // Nothing selected: the step does not advance and the message names the type.
+        $this->saveStep($college, $user, 3, ['draft_id' => $draft->id, 'declared_documents' => []])
+            ->assertRedirect(route('students.registration.step', ['step' => 3]))
+            ->assertSessionHasErrors(['documents']);
+
+        $this->assertStringContainsString(
+            $required->name,
+            (string) session('errors')->first('documents'),
+            'The applicant is told exactly which document is missing.',
+        );
+
+        // Nothing was stored and the wizard stays on step 3.
+        $draft->refresh();
+        $this->assertSame([], $draft->stepData(3)['declared_documents'] ?? []);
+        $this->assertSame(3, (int) $draft->current_step);
+
+        // Declaring only the optional type is not enough.
+        $this->saveStep($college, $user, 3, ['draft_id' => $draft->id, 'declared_documents' => [$optional->id]])
+            ->assertSessionHasErrors(['documents']);
+
+        // Declaring the required type lets the wizard continue.
+        $this->saveStep($college, $user, 3, [
+            'draft_id' => $draft->id,
+            'declared_documents' => [$required->id, $optional->id],
+        ])->assertRedirect(route('students.registration.step', ['step' => 4]));
+
+        $this->assertSame(
+            [$required->id, $optional->id],
+            $draft->refresh()->stepData(3)['declared_documents'],
+        );
+    }
+
+    public function test_a_draft_save_never_demands_the_document_declarations(): void
+    {
+        [$college, $user, $draft] = $this->documentStepScenario('WIZ61');
+
+        $this->saveStep($college, $user, 3, ['draft_id' => $draft->id], draft: true)
+            ->assertRedirect(route('students.registration.step', ['step' => 3]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame([], $draft->refresh()->stepData(3)['declared_documents']);
+    }
+
+    public function test_an_optional_document_may_stay_undeclared_while_a_required_one_submits(): void
+    {
+        [$college, $user, $draft, $required, $optional] = $this->documentStepScenario('WIZ62');
+
+        $this->saveStep($college, $user, 3, [
+            'draft_id' => $draft->id,
+            'declared_documents' => [$required->id],
+        ])->assertRedirect(route('students.registration.step', ['step' => 4]));
+
+        $this->asCollege($college, $user)->post(route('students.registration.submit'), [
+            'draft_id' => $draft->id,
+            'confirm_declaration' => '1',
+        ])->assertRedirect(route('students.index'));
+
+        $approval = ApprovalRequest::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->where('module', 'student')
+            ->latest('id')
+            ->firstOrFail();
+
+        $declared = collect($approval->payload['declared_documents']);
+
+        $this->assertTrue($declared->contains(fn ($row) => $row['id'] === $required->id));
+        $this->assertFalse($declared->contains(fn ($row) => $row['id'] === $optional->id),
+            'An optional type the applicant did not select is not recorded.');
+    }
+
+    public function test_the_review_step_shows_declarations_and_files_separately(): void
+    {
+        [$college, $user, $draft, $required, $optional] = $this->documentStepScenario('WIZ63');
+
+        // Declare one type, attach a file of a DIFFERENT type: the two lists must
+        // not be inferred from each other.
+        $this->saveStep($college, $user, 3, [
+            'draft_id' => $draft->id,
+            'declared_documents' => [$required->id],
+        ])->assertRedirect(route('students.registration.step', ['step' => 4]));
+
+        $this->asCollege($college, $user)->post(route('students.registration.documents.upload'), [
+            'draft_id' => $draft->id,
+            'document_type_id' => $optional->id,
+            'file' => UploadedFile::fake()->create('sports.pdf', 12, 'application/pdf'),
+        ])->assertRedirect(route('students.registration.step', ['step' => 3]));
+
+        $html = $this->asCollege($college, $user)
+            ->get(route('students.registration.step', ['step' => 4]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-erp-review-declared', $html);
+        $this->assertStringContainsString('data-erp-review-files', $html);
+
+        preg_match('/<ul[^>]*data-erp-review-declared[^>]*>(.*?)<\/ul>/s', $html, $declaredList);
+        preg_match('/<ul[^>]*data-erp-review-files[^>]*>(.*?)<\/ul>/s', $html, $filesList);
+
+        $this->assertNotEmpty($declaredList, 'The declared documents are listed.');
+        $this->assertNotEmpty($filesList, 'The attached files are listed.');
+
+        $this->assertStringContainsString($required->name, $declaredList[1]);
+        $this->assertStringContainsString('Declared — no file attached', $declaredList[1]);
+        $this->assertStringNotContainsString('sports.pdf', $declaredList[1],
+            'An attached file is not a declaration.');
+
+        $this->assertStringContainsString('sports.pdf', $filesList[1]);
+        $this->assertStringContainsString('Awaiting verification', $filesList[1]);
+        $this->assertStringNotContainsString('Verified', $filesList[1],
+            'An attached file is never presented as verified.');
+    }
+
+    public function test_an_upload_without_a_usable_type_or_without_a_file_is_refused(): void
+    {
+        [$college, $user, $draft] = $this->documentStepScenario('WIZ64');
+
+        $otherCollege = $this->makeCollege('WIZ64B');
+        $foreignType = $this->makeDocumentType($otherCollege, 'FOREIGN');
+
+        // A file whose document type belongs to another college.
+        $this->asCollege($college, $user)->post(route('students.registration.documents.upload'), [
+            'draft_id' => $draft->id,
+            'document_type_id' => $foreignType->id,
+            'file' => UploadedFile::fake()->create('x.pdf', 10, 'application/pdf'),
+        ])->assertSessionHasErrors(['document_type_id']);
+
+        // No file at all: an empty form must not create an attachment.
+        $this->asCollege($college, $user)->post(route('students.registration.documents.upload'), [
+            'draft_id' => $draft->id,
+            'document_type_id' => null,
+        ])->assertSessionHasErrors(['file']);
+
+        $this->assertSame(0, StudentRegistrationDraftDocument::withoutGlobalScopes()
+            ->where('draft_id', $draft->id)->count());
+        $this->assertSame([], Storage::disk('private')->allFiles());
+    }
+
+    public function test_a_real_attachment_is_saved_and_listed_as_pending(): void
+    {
+        [$college, $user, $draft, $required] = $this->documentStepScenario('WIZ65');
+
+        $this->asCollege($college, $user)->post(route('students.registration.documents.upload'), [
+            'draft_id' => $draft->id,
+            'document_type_id' => $required->id,
+            'title' => 'Transfer certificate',
+            'file' => UploadedFile::fake()->create('tc.pdf', 33, 'application/pdf'),
+        ])->assertRedirect(route('students.registration.step', ['step' => 3]));
+
+        $document = StudentRegistrationDraftDocument::withoutGlobalScopes()
+            ->where('draft_id', $draft->id)
+            ->firstOrFail();
+
+        $this->assertSame($required->id, (int) $document->document_type_id);
+        $this->assertSame('tc.pdf', $document->original_filename);
+        Storage::disk('private')->assertExists($document->file_path);
+
+        $html = $this->asCollege($college, $user)
+            ->get(route('students.registration.step', ['step' => 3]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('tc.pdf', $html);
+        $this->assertStringContainsString($required->name, $html);
+        $this->assertStringContainsString('Awaiting verification', $html);
+        $this->assertStringContainsString(
+            route('students.registration.documents.download', ['document' => $document->id]),
+            $html,
+        );
+        $this->assertStringNotContainsString($document->file_path, $html, 'No stored path is rendered.');
+    }
+
+    public function test_draft_save_and_resume_preserve_both_declarations_and_files(): void
+    {
+        [$college, $user, $draft, $required] = $this->documentStepScenario('WIZ66');
+
+        $this->saveStep($college, $user, 3, [
+            'draft_id' => $draft->id,
+            'declared_documents' => [$required->id],
+        ], draft: true)->assertSessionHasNoErrors();
+
+        $this->asCollege($college, $user)->post(route('students.registration.documents.upload'), [
+            'draft_id' => $draft->id,
+            'document_type_id' => $required->id,
+            'file' => UploadedFile::fake()->create('transfer.pdf', 21, 'application/pdf'),
+        ])->assertRedirect();
+
+        // Leave the wizard and come back: the stored draft carries both.
+        $html = $this->asCollege($college, $user)
+            ->get(route('students.registration.step', ['step' => 3]))
+            ->assertOk()
+            ->getContent();
+
+        preg_match('/<input[^>]*data-erp-doc-toggle="'.$required->id.'"[^>]*>/', $html, $input);
+        $this->assertNotEmpty($input);
+        $this->assertStringContainsString('checked', $input[0], 'The declaration is restored.');
+        $this->assertStringContainsString('transfer.pdf', $html, 'The file is restored.');
+
+        $this->assertSame([$required->id], $draft->refresh()->stepData(3)['declared_documents']);
+        $this->assertSame(1, StudentRegistrationDraftDocument::withoutGlobalScopes()
+            ->where('draft_id', $draft->id)->count());
+    }
+
+    public function test_un_declaring_a_type_never_deletes_its_files(): void
+    {
+        [$college, $user, $draft, $required] = $this->documentStepScenario('WIZ67');
+
+        $this->saveStep($college, $user, 3, [
+            'draft_id' => $draft->id,
+            'declared_documents' => [$required->id],
+        ])->assertRedirect(route('students.registration.step', ['step' => 4]));
+
+        $this->asCollege($college, $user)->post(route('students.registration.documents.upload'), [
+            'draft_id' => $draft->id,
+            'document_type_id' => $required->id,
+            'file' => UploadedFile::fake()->create('transfer.pdf', 18, 'application/pdf'),
+        ])->assertRedirect();
+
+        $document = StudentRegistrationDraftDocument::withoutGlobalScopes()
+            ->where('draft_id', $draft->id)
+            ->firstOrFail();
+        $path = $document->file_path;
+
+        // Clear the declaration through "Save draft" (which is allowed to be
+        // incomplete). The file must survive untouched.
+        $this->saveStep($college, $user, 3, ['draft_id' => $draft->id, 'declared_documents' => []], draft: true)
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(1, StudentRegistrationDraftDocument::withoutGlobalScopes()
+            ->where('draft_id', $draft->id)->count(), 'Un-selecting a type deletes no file.');
+        $this->assertSame($path, StudentRegistrationDraftDocument::withoutGlobalScopes()
+            ->where('draft_id', $draft->id)->firstOrFail()->file_path);
+        Storage::disk('private')->assertExists($path);
+
+        $html = $this->asCollege($college, $user)
+            ->get(route('students.registration.step', ['step' => 3]))
+            ->assertOk()
+            ->getContent();
+
+        // The card stays visible and reachable even though its type is unselected.
+        $this->assertMatchesRegularExpression(
+            '/data-erp-doc-card="'.$required->id.'"[^>]*data-erp-doc-attached="true"/',
+            $html,
+        );
+        $this->assertStringContainsString('transfer.pdf', $html);
+        $this->assertStringContainsString('Remove', $html, 'Removal stays an explicit action.');
+    }
+
+    public function test_a_repeated_declaration_save_does_not_duplicate_anything(): void
+    {
+        [$college, $user, $draft, $required] = $this->documentStepScenario('WIZ68');
+
+        // The same id twice in one request, then the same save twice.
+        $this->saveStep($college, $user, 3, [
+            'draft_id' => $draft->id,
+            'declared_documents' => [$required->id, $required->id],
+        ], draft: true)->assertSessionHasNoErrors();
+
+        $this->saveStep($college, $user, 3, [
+            'draft_id' => $draft->id,
+            'declared_documents' => [$required->id, $required->id],
+        ], draft: true)->assertSessionHasNoErrors();
+
+        $this->assertSame([$required->id], $draft->refresh()->stepData(3)['declared_documents']);
+        $this->assertSame(0, StudentRegistrationDraftDocument::withoutGlobalScopes()
+            ->where('draft_id', $draft->id)->count(), 'A declaration never creates a file row.');
+
+        $this->assertSame(1, StudentRegistrationDraft::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->where('user_id', $user->id)
+            ->count(), 'Saving the step never creates a second draft.');
+    }
+
+    public function test_a_document_type_from_another_college_cannot_be_declared(): void
+    {
+        [$college, $user, $draft] = $this->documentStepScenario('WIZ69');
+
+        $otherCollege = $this->makeCollege('WIZ69B');
+        $foreignType = $this->makeDocumentType($otherCollege, 'FOREIGN');
+
+        $this->saveStep($college, $user, 3, [
+            'draft_id' => $draft->id,
+            'declared_documents' => [$foreignType->id],
+        ], draft: true)->assertSessionHasErrors(['declared_documents.0']);
+
+        $this->assertSame([], $draft->refresh()->stepData(3)['declared_documents'] ?? []);
+    }
+
+    public function test_the_declaration_step_is_scoped_to_this_college_and_this_user(): void
+    {
+        [$college, $user, $draft, $required] = $this->documentStepScenario('WIZ70');
+
+        $otherCollege = $this->makeCollege('WIZ70B');
+        $intruder = $this->staff($otherCollege);
+
+        // Another college's user cannot write into this draft…
+        $this->asCollege($otherCollege, $intruder)
+            ->post(route('students.registration.step.save', ['step' => 3]), [
+                'draft_id' => $draft->id,
+                'declared_documents' => [$required->id],
+            ])->assertNotFound();
+
+        // …nor read it (the step redirects that user to their own wizard entry).
+        $this->asCollege($otherCollege, $intruder)
+            ->get(route('students.registration.step', ['step' => 3]))
+            ->assertRedirect();
+
+        $this->assertSame([], $draft->refresh()->stepData(3)['declared_documents'] ?? []);
+    }
+
+    public function test_declaring_a_document_never_marks_a_student_document_verified(): void
+    {
+        [$college, $user, $draft, $required] = $this->documentStepScenario('WIZ71');
+
+        $this->asCollege($college, $user)->post(route('students.registration.documents.upload'), [
+            'draft_id' => $draft->id,
+            'document_type_id' => $required->id,
+            'file' => UploadedFile::fake()->create('transfer.pdf', 16, 'application/pdf'),
+        ])->assertRedirect();
+
+        $this->saveStep($college, $user, 3, [
+            'draft_id' => $draft->id,
+            'declared_documents' => [$required->id],
+        ])->assertRedirect(route('students.registration.step', ['step' => 4]));
+
+        $html = $this->asCollege($college, $user)
+            ->get(route('students.registration.step', ['step' => 4]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Awaiting verification', $html);
+        $this->assertStringNotContainsString('>Verified<', $html, 'Nothing is verified by a declaration.');
+
+        $this->asCollege($college, $user)->post(route('students.registration.submit'), [
+            'draft_id' => $draft->id,
+            'confirm_declaration' => '1',
+        ])->assertRedirect(route('students.index'));
+
+        $student = Student::withoutGlobalScopes()->where('college_id', $college->id)->firstOrFail();
+        $document = StudentDocument::withoutGlobalScopes()->where('student_id', $student->id)->firstOrFail();
+
+        $this->assertSame('pending', $document->verification_status);
+        $this->assertSame($required->id, (int) $document->document_type_id);
     }
 
     // -----------------------------------------------------------------

@@ -30,14 +30,19 @@
         ? null
         : $address(['correspondence_address_line_1', 'correspondence_address_line_2', 'correspondence_city', 'correspondence_district', 'correspondence_state', 'correspondence_postal_code', 'correspondence_country']);
 
+    // Declarations and files are read as two separate things: a required type
+    // missing from the DECLARATIONS blocks the submission, while a file is
+    // optional and never turns a declaration into a verification.
+    $declaredRows = $requirements->filter(fn ($row) => $row['declared'])->values();
     $missingDocuments = $requirements->filter(fn ($row) => $row['status'] === \App\Domain\Student\Services\CourseDocumentRequirementService::STATUS_MISSING);
 @endphp
 
 @if($missingDocuments->isNotEmpty())
     <div class="erp-alert erp-alert--error" role="alert">
-        <strong>Required documents are missing:</strong>
+        <strong>Required documents are not selected yet:</strong>
         {{ $missingDocuments->map(fn ($row) => $row['type']->name)->implode(', ') }}.
-        <a href="{{ route('students.registration.step', ['step' => 3]) }}">Attach them</a> before submitting.
+        <a href="{{ route('students.registration.step', ['step' => 3]) }}">Select them</a> before submitting.
+        A file is not needed to select a document.
     </div>
 @endif
 
@@ -209,9 +214,15 @@
         <a class="erp-btn erp-btn--ghost erp-btn--sm" href="{{ route('students.registration.step', ['step' => 3]) }}">Edit</a>
     </header>
     <div class="erp-review-group__body">
-        @if($requirements->isNotEmpty())
-            <ul class="erp-req-list">
-                @foreach($requirements as $requirement)
+        <h4 class="erp-review-group__subtitle">Declared documents</h4>
+
+        @if($declaredRows->isEmpty())
+            <p class="erp-alert erp-alert--info" data-erp-review-declared-empty>
+                No document selected. Select the documents you have on step 3 — a file is optional.
+            </p>
+        @else
+            <ul class="erp-req-list" data-erp-review-declared>
+                @foreach($declaredRows as $requirement)
                     <li>
                         <span class="erp-req-list__name">{{ $requirement['type']->name }}</span>
                         <span class="erp-chip erp-chip--{{ $requirement['status'] }}">{{ \App\Domain\Student\Services\CourseDocumentRequirementService::statusLabel($requirement['status']) }}</span>
@@ -220,13 +231,17 @@
             </ul>
         @endif
 
+        <h4 class="erp-review-group__subtitle">Attached files</h4>
+
         @if($documents->isEmpty())
-            <p class="erp-alert erp-alert--info">No document attached.</p>
+            <p class="erp-alert erp-alert--info" data-erp-review-files-empty>
+                No file attached. Files are optional here and can be added later from the student's Documents tab.
+            </p>
         @else
-            <ul class="erp-req-list">
+            <ul class="erp-req-list" data-erp-review-files>
                 @foreach($documents as $document)
                     <li>
-                        <span class="erp-req-list__name">{{ $document->title }}</span>
+                        <span class="erp-req-list__name">{{ $document->documentType?->name ?? ($document->title ?: 'Other document') }}</span>
                         <span class="erp-help">{{ $document->original_filename }}</span>
                         <span class="erp-chip erp-chip--uploaded">Awaiting verification</span>
                     </li>
