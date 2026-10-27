@@ -3,7 +3,11 @@
 @section('title', 'Timetable')
 
 @section('content')
-<div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+{{-- The intro row keeps its original shell (`flex justify-between mb-5`):
+     the bulk-action layout contract asserts the Academic pages were not
+     restructured, so the Add action stays inside the header row that was
+     always there. --}}
+<div class="flex justify-between mb-5">
     <p class="text-slate-500">Conflicts are checked for faculty, section and room.</p>
     @if (auth()->user()?->hasPermission('academic_timetables.create'))
         <a class="btn-primary" href="{{ route('academic-timetables.create') }}">Add timetable entry</a>

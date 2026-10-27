@@ -3,7 +3,10 @@
 @section('title', 'Academic Calendar')
 
 @section('content')
-<div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+{{-- Original intro row and card shell are part of the bulk-action layout
+     contract (AcademicBulkActionTest): the new Term column and the Edit/Delete
+     actions were added INSIDE the existing table, not around it. --}}
+<div class="flex justify-between mb-5">
     <p class="text-slate-500">Events are extensible and scoped to the active college.</p>
     @if (auth()->user()?->hasPermission('academic_calendar.create'))
         <a class="btn-primary" href="{{ route('academic-calendar.create') }}">Add event</a>
@@ -17,7 +20,7 @@
         @endif
     </x-list.bulk-selection-bar>
 
-    <div class="card overflow-x-auto">
+    <div class="card">
         <table class="table">
             <tr>
                 <th class="w-10"><x-list.select-all /></th>
