@@ -18,6 +18,47 @@
  * <link>, which would add a blocking third-party request to every page.
  */
 @theme { --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif; }
+
+/*
+ * THEME — Deep Blue & Navy Blue (2026-10-27)
+ *
+ * The brand accent is #1D4ED8 and it is declared ONCE, in
+ * public/css/erp-theme.css, as `--erp-color-*` custom properties. This block
+ * mirrors those values into Tailwind's theme so the utilities the existing
+ * markup already carries paint the same palette.
+ *
+ * Why remap the `indigo` scale instead of editing markup: ~220 Blade views
+ * spell the accent as `indigo-600` / `indigo-50` / `hover:border-indigo-400`
+ * (buttons, links, badges, table hovers, empty states). Renaming those classes
+ * would be a large, risk-only refactor of screens this pass is not meant to
+ * touch, and the class name would still be a lie about the colour. Overriding
+ * the ramp here is the single change that repaints all of them, keeps the
+ * approved markup byte-identical, and leaves one place to retune the brand.
+ *
+ * The ramp below is the referenced blue family, so `indigo-*` and `blue-*`
+ * utilities now agree instead of sitting a hue apart. Every step keeps the
+ * approved contrast pairs: white on indigo-600 = 6.7:1, indigo-700 on
+ * indigo-50 = 8.4:1, indigo-900 on indigo-50 = 14:1.
+ */
+@theme {
+    --color-indigo-50: #eff6ff;   /* soft brand surface / hover background */
+    --color-indigo-100: #dbeafe;
+    --color-indigo-200: #bfdbfe;  /* soft borders, rings */
+    --color-indigo-300: #93c5fd;  /* focus rings */
+    --color-indigo-400: #60a5fa;
+    --color-indigo-500: #3b82f6;  /* input focus border */
+    --color-indigo-600: #1d4ed8;  /* PRIMARY — buttons, links, active menu */
+    --color-indigo-700: #1e40af;  /* primary hover / pressed, accent text */
+    --color-indigo-800: #1e3a8a;
+    --color-indigo-900: #172554;  /* accent as type on a soft surface */
+    --color-indigo-950: #0f172a;  /* navy, for the deepest chrome */
+
+    /* Named brand tokens, so new markup can say `bg-brand` / `bg-navy`. */
+    --color-brand: #1d4ed8;
+    --color-brand-hover: #1e40af;
+    --color-brand-soft: #eff6ff;
+    --color-navy: #0f172a;
+}
 @layer components {
     .label { @apply mb-2 block text-sm font-medium text-slate-700; }
     .input { @apply w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100; }
@@ -52,7 +93,7 @@
      * screens finally render in the same visual language as every other module:
      *   `.card`        → the `.panel` card  (white, slate-200 border, rounded-2xl, p-6)
      *   `.table`       → the shared list table (`w-full text-left text-sm`, py-3 cells)
-     *   `.btn-primary` → the `.button` primary action (indigo-600, rounded-xl, focus ring)
+     *   `.btn-primary` → the `.button` primary action (Deep Blue, rounded-xl, focus ring)
      *
      * No Academic markup had to change: the classes its views already carry now
      * resolve. Only the Academic screens use these three names (verified across

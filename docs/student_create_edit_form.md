@@ -260,7 +260,7 @@ is affected.
   full width. `minmax(0, 1fr)` tracks plus `min-width: 0` on `.erp-field` mean a
   long `<select>` option can never widen a row into horizontal overflow.
 - **Compact chrome.** Labels are 12px semibold with a 4px gap; inputs are 36px
-  tall with a 1px `#cbd5e1` border, white background, 6px radius and an indigo
+  tall with a 1px `#cbd5e1` border, white background, 6px radius and a Deep Blue
   focus ring; `.erp-error:empty` collapses so a valid field reserves no error
   height, and `:has()` tints the offending control (a graceful no-op where
   `:has()` is unsupported).

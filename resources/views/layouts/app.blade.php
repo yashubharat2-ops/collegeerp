@@ -33,6 +33,7 @@
             $m = @filemtime($p);
             return $m ? (string) $m : null;
         };
+        $erpThemeCssVersion = $erpCssVer('css/erp-theme.css');
         $erpSidebarCssVersion = $erpCssVer('css/erp-sidebar.css');
         $erpUserMenuCssVersion = $erpCssVer('css/erp-user-menu.css');
         $erpDropdownCssVersion = $erpCssVer('css/erp-dropdown.css');
@@ -54,6 +55,10 @@
             && \Illuminate\Support\Facades\Route::has('notifications.index');
         unset($erpNotifyUser);
     @endphp
+    {{-- Theme tokens FIRST: the Deep Blue / Navy Blue palette every sheet below
+         (and the Vite bundle) reads through var(--erp-color-*). Custom properties
+         only — no layout, so it cannot compete with any rule. --}}
+    <link rel="stylesheet" href="{{ asset('css/erp-theme.css') }}@if ($erpThemeCssVersion)?v={{ $erpThemeCssVersion }}@endif">
     <link rel="stylesheet" href="{{ asset('css/erp-sidebar.css') }}@if ($erpSidebarCssVersion)?v={{ $erpSidebarCssVersion }}@endif">
     {{-- The signed-in user panel in the header is its own component with its own
          stylesheet, so the sidebar file stays authoritative for the sidebar only. --}}
@@ -103,7 +108,7 @@
     <link rel="stylesheet" href="{{ asset('css/erp-student-form.css') }}@if ($erpStudentFormCssVersion)?v={{ $erpStudentFormCssVersion }}@endif">
     @stack('styles')
 </head>
-<body class="bg-slate-100 text-slate-900">
+<body class="bg-slate-50 text-slate-800">
     {{-- Skip link: the shell renders ~130 navigation rows before the page content, so
          without this a keyboard user tabs through the whole sidebar to reach the first
          field of a form. It is the first focusable element in the document, off-screen

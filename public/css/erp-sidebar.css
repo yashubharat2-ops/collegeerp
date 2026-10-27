@@ -27,24 +27,25 @@
  */
 
 .erp-sidebar {
-    /* Palette */
-    --erp-nav-bg: #0d2118;
-    --erp-nav-bg-raise: #173529;
-    --erp-nav-bg-hover: #204532;
-    --erp-nav-line: rgba(188, 216, 198, 0.16);
-    --erp-nav-text: #f8fafc;
-    --erp-nav-text-muted: #bfd0c5;
+    /* Palette — Navy Blue, mapped onto the shared Deep Blue & Navy tokens
+     * (public/css/erp-theme.css). Every value keeps a literal fallback, so the
+     * sidebar stays navy even if the token sheet is stale-cached or missing. */
+    --erp-nav-bg: var(--erp-color-navy, #0f172a);
+    --erp-nav-bg-raise: var(--erp-color-navy-raise, #17233b);
+    --erp-nav-bg-hover: var(--erp-color-navy-hover, #1e293b);
+    --erp-nav-line: var(--erp-color-navy-line, rgba(226, 232, 240, 0.14));
+    --erp-nav-text: var(--erp-color-navy-text, #f8fafc);
+    --erp-nav-text-muted: var(--erp-color-navy-muted, #cbd5e1);
     /*
      * The faint role (section label, sub-group label, search placeholder, icon
-     * boxes, chevrons) is a muted mint tone chosen to stay legible on both the
-     * forest-green sidebar and its raised search field, while remaining quieter
-     * than the primary navigation text.
+     * boxes, chevrons) is slate-400: legible on both the navy sidebar and its
+     * raised search field, while remaining quieter than the primary text.
      */
-    --erp-nav-text-faint: #a7beaf;
-    --erp-nav-accent: #21845a;
-    --erp-nav-accent-hover: #176342;
-    --erp-nav-accent-soft: rgba(33, 132, 90, 0.24);
-    --erp-nav-accent-ring: #91dfb0;
+    --erp-nav-text-faint: var(--erp-color-navy-faint, #94a3b8);
+    --erp-nav-accent: var(--erp-color-primary, #1d4ed8);
+    --erp-nav-accent-hover: var(--erp-color-primary-hover, #1e40af);
+    --erp-nav-accent-soft: rgba(29, 78, 216, 0.3);
+    --erp-nav-accent-ring: var(--erp-color-primary-ring, #bfdbfe);
 
     /* Geometry */
     --erp-nav-width: 280px;
@@ -178,8 +179,8 @@
 }
 
 .erp-nav-search__field:focus-within {
-    border-color: rgba(145, 223, 176, 0.62);
-    background-color: #1a3b2d;
+    border-color: rgba(147, 197, 253, 0.62);
+    background-color: #1b2a44;
 }
 
 /* The magnifier is deliberately pinned in its own 16px box: an explicit
@@ -285,7 +286,7 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
-    scrollbar-color: #315b44 transparent;
+    scrollbar-color: #334155 transparent;
 }
 
 .erp-nav__scroll::-webkit-scrollbar {
@@ -299,11 +300,11 @@
 .erp-nav__scroll::-webkit-scrollbar-thumb {
     border: 2px solid var(--erp-nav-bg);
     border-radius: 999px;
-    background-color: #315b44;
+    background-color: #334155;
 }
 
 .erp-nav__scroll::-webkit-scrollbar-thumb:hover {
-    background-color: #467257;
+    background-color: #475569;
 }
 
 .erp-nav__section-label {
@@ -440,7 +441,7 @@
 }
 
 .nav-group[data-nav-active="true"]:not(.nav-group--nested) > .nav-group__head {
-    background-color: rgba(188, 216, 198, 0.1);
+    background-color: rgba(226, 232, 240, 0.1);
     color: var(--erp-nav-text);
 }
 
@@ -799,8 +800,8 @@
  * it. Being outside `.erp-sidebar` also means the tokens declared there are out of
  * scope, so every value below is a literal — a `var(--erp-nav-*)` reference here
  * resolves to nothing and the text silently inherits the page's dark body colour,
- * which is how the pill ended up unreadable. Colours are the sidebar's own forest
- * green and near-white on a raised forest-green surface and the typeface is the same stack,
+ * which is how the pill ended up unreadable. Colours are the sidebar's own navy
+ * and near-white on a raised navy surface and the typeface is the same stack,
  * written out.
  *
  * Stacking, lowest to highest: drawer scrim (55) → sidebar / drawer (60) → header
@@ -815,11 +816,11 @@
     width: max-content;
     max-width: min(240px, calc(100vw - 96px));
     padding: 6px 9px;
-    border: 1px solid rgba(188, 216, 198, 0.25);
+    border: 1px solid rgba(226, 232, 240, 0.25);
     border-radius: 8px;
-    background-color: #173529;
+    background-color: #1e293b;
     box-shadow: 0 10px 24px rgba(2, 6, 23, 0.45);
-    color: #f2faf4;
+    color: #f8fafc;
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
         "Helvetica Neue", Arial, sans-serif;
     font-size: 12px;
@@ -933,7 +934,7 @@ body.erp-nav-drawer-lock {
 }
 
 .erp-nav-open-button:focus-visible {
-    outline: 2px solid #21845a;
+    outline: 2px solid var(--erp-color-primary, #1d4ed8);
     outline-offset: 2px;
 }
 

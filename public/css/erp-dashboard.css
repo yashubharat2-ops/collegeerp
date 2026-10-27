@@ -1,18 +1,21 @@
 /* College dashboard only. The shared shell, header, and module screens keep their existing surfaces. */
 #college-dashboard {
-    --dashboard-forest: #163d2e;
-    --dashboard-green: #21845a;
-    --dashboard-green-deep: #176342;
-    --dashboard-teal: #147d77;
-    --dashboard-mint: #eaf5ee;
-    --dashboard-line: #d9e8de;
-    --dashboard-muted: #62776b;
+    /* Deep Blue & Navy Blue, mapped onto the shared tokens declared in
+     * public/css/erp-theme.css. The property names are unchanged on purpose:
+     * every rule below keeps working, it just paints the new palette. */
+    --dashboard-forest: var(--erp-color-navy, #0f172a);
+    --dashboard-green: var(--erp-color-primary, #1d4ed8);
+    --dashboard-green-deep: var(--erp-color-primary-hover, #1e40af);
+    --dashboard-teal: var(--erp-color-primary, #1d4ed8);
+    --dashboard-mint: var(--erp-color-bg, #f8fafc);
+    --dashboard-line: var(--erp-color-border, #e2e8f0);
+    --dashboard-muted: var(--erp-color-muted, #64748b);
 
     min-height: calc(100vh - 72px);
     margin: -1.5rem;
     padding: clamp(1.1rem, 2vw, 2.25rem);
     background: var(--dashboard-mint);
-    color: #173126;
+    color: #1e293b;
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 }
 
@@ -68,10 +71,10 @@
     gap: 0.65rem;
     max-width: 22rem;
     padding: 0.75rem 1rem;
-    border: 1px solid #cfe2d5;
+    border: 1px solid #e2e8f0;
     border-radius: 0.9rem;
     background: rgba(255, 255, 255, 0.72);
-    color: #244b38;
+    color: #1e293b;
     font-size: 0.84rem;
     font-weight: 650;
     line-height: 1.4;
@@ -85,7 +88,7 @@
 #college-dashboard .erp-dashboard__context-label {
     display: block;
     margin-bottom: 0.1rem;
-    color: #71857a;
+    color: #64748b;
     font-size: 0.65rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -101,8 +104,8 @@
     height: 0.58rem;
     flex: 0 0 0.58rem;
     border-radius: 50%;
-    background: #31a36e;
-    box-shadow: 0 0 0 4px #d9f0e1;
+    background: #1d4ed8;
+    box-shadow: 0 0 0 4px #dbeafe;
 }
 
 #college-dashboard .erp-dashboard__grid {
@@ -118,7 +121,7 @@
     border: 1px solid var(--dashboard-line);
     border-radius: 1.2rem;
     background: #fff;
-    box-shadow: 0 12px 32px rgba(31, 79, 55, 0.055), 0 2px 5px rgba(31, 79, 55, 0.035);
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.055), 0 2px 5px rgba(15, 23, 42, 0.035);
 }
 
 #college-dashboard .erp-dashboard__metric-card {
@@ -137,9 +140,9 @@
     right: -4rem;
     width: 9rem;
     height: 9rem;
-    border: 1px solid #e5f1e9;
+    border: 1px solid #e2e8f0;
     border-radius: 50%;
-    box-shadow: 0 0 0 1.5rem #f8fcf9, 0 0 0 3rem #fbfdfb;
+    box-shadow: 0 0 0 1.5rem #f8fafc, 0 0 0 3rem #f1f5f9;
     content: "";
     pointer-events: none;
 }
@@ -159,9 +162,9 @@
     width: 1.9rem;
     height: 1.9rem;
     place-items: center;
-    border: 1px solid #d1e8da;
+    border: 1px solid #dbeafe;
     border-radius: 0.62rem;
-    background: #eef8f1;
+    background: #eff6ff;
     color: var(--dashboard-green-deep);
     font-size: 0.65rem;
     font-weight: 800;
@@ -169,7 +172,7 @@
 }
 
 #college-dashboard .erp-dashboard__metric-kicker {
-    color: #788c80;
+    color: #64748b;
     font-size: 0.66rem;
     font-weight: 650;
     letter-spacing: 0.025em;
@@ -179,7 +182,7 @@
     position: relative;
     z-index: 1;
     margin: 0.58rem 0 0;
-    color: #40594b;
+    color: #334155;
     font-size: 0.82rem;
     font-weight: 650;
     line-height: 1.25;
@@ -203,7 +206,7 @@
 }
 
 #college-dashboard .erp-dashboard__unavailable {
-    color: #8a9a8f;
+    color: #94a3b8;
     font-size: 1.15rem;
     font-weight: 600;
     letter-spacing: -0.02em;
@@ -224,10 +227,10 @@
     z-index: 1;
     margin: 0.9rem 0 0;
     padding: 0.62rem 0.78rem;
-    border-left: 3px solid #61b286;
+    border-left: 3px solid #3b82f6;
     border-radius: 0 0.45rem 0.45rem 0;
-    background: #f1f9f4;
-    color: #456b55;
+    background: #eff6ff;
+    color: #1e40af;
     font-size: 0.78rem;
     line-height: 1.5;
 }
@@ -268,7 +271,7 @@
 
 #college-dashboard .erp-dashboard__action:focus-visible {
     border-radius: 0.3rem;
-    outline: 3px solid #73c493;
+    outline: 3px solid #93c5fd;
     outline-offset: 4px;
 }
 
@@ -286,7 +289,7 @@
     place-items: center;
     margin-bottom: 1.45rem;
     border-radius: 0.85rem;
-    background: #eaf6ee;
+    background: #eff6ff;
     color: var(--dashboard-teal);
 }
 
@@ -319,12 +322,12 @@
     width: 100%;
     height: 1px;
     margin: 1.35rem 0 1rem;
-    background: #e8efe9;
+    background: #e2e8f0;
 }
 
 #college-dashboard .erp-dashboard__info-footnote {
     margin: 0;
-    color: #75877c;
+    color: #64748b;
     font-size: 0.74rem;
     line-height: 1.65;
 }
@@ -382,16 +385,16 @@
     flex-direction: column;
     justify-content: center;
     padding: 0.55rem 0.85rem;
-    border: 1px solid #cfe2d5;
+    border: 1px solid #e2e8f0;
     border-radius: 0.85rem;
     background: rgba(255, 255, 255, 0.72);
-    color: #244b38;
+    color: #1e293b;
     font-size: 0.82rem;
     font-weight: 650;
 }
 
 #college-dashboard .erp-dashboard__year-chip-label {
-    color: #71857a;
+    color: #64748b;
     font-size: 0.63rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -411,10 +414,10 @@
     justify-content: center;
     gap: 0.35rem;
     padding: 1.25rem 1.5rem;
-    border: 1px dashed #bfd7c6;
+    border: 1px dashed #cbd5e1;
     border-radius: 1rem;
     background: rgba(255, 255, 255, 0.68);
-    color: #315443;
+    color: #1e293b;
     font-size: 0.88rem;
 }
 
@@ -449,10 +452,10 @@
 
 #college-dashboard .erp-dashboard__section-context {
     padding: 0.38rem 0.65rem;
-    border: 1px solid #d0e4d7;
+    border: 1px solid #dbeafe;
     border-radius: 999px;
-    background: #f7fbf8;
-    color: #527260;
+    background: #f8fafc;
+    color: #64748b;
     font-size: 0.71rem;
     font-weight: 650;
 }
@@ -462,7 +465,7 @@
     border: 1px solid var(--dashboard-line);
     border-radius: 1.1rem;
     background: #fff;
-    box-shadow: 0 10px 28px rgba(31, 79, 55, 0.045), 0 1px 4px rgba(31, 79, 55, 0.03);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045), 0 1px 4px rgba(15, 23, 42, 0.03);
 }
 
 #college-dashboard .erp-dashboard__action-grid {
@@ -486,7 +489,7 @@
 
 #college-dashboard .erp-dashboard__panel-title {
     margin: 0;
-    color: #244634;
+    color: #1e293b;
     font-size: 0.95rem;
     font-weight: 700;
     letter-spacing: -0.01em;
@@ -494,7 +497,7 @@
 
 #college-dashboard .erp-dashboard__panel-caption {
     margin: 0.3rem 0 0;
-    color: #74877b;
+    color: #64748b;
     font-size: 0.72rem;
     line-height: 1.5;
 }
@@ -508,7 +511,7 @@
 }
 
 #college-dashboard .erp-dashboard__text-link:hover {
-    color: #0f5137;
+    color: #1e40af;
     text-decoration: underline;
     text-underline-offset: 3px;
 }
@@ -517,7 +520,7 @@
 #college-dashboard .erp-dashboard__action-list a:focus-visible,
 #college-dashboard .erp-dashboard__action:focus-visible {
     border-radius: 0.3rem;
-    outline: 3px solid #73c493;
+    outline: 3px solid #93c5fd;
     outline-offset: 3px;
 }
 
@@ -533,7 +536,7 @@
 #college-dashboard .erp-dashboard__action-list li + li,
 #college-dashboard .erp-dashboard__exam-list li + li,
 #college-dashboard .erp-dashboard__activity-list li + li {
-    border-top: 1px solid #edf2ee;
+    border-top: 1px solid #e2e8f0;
 }
 
 #college-dashboard .erp-dashboard__action-list a {
@@ -542,7 +545,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    color: #355844;
+    color: #1e293b;
     font-size: 0.82rem;
     font-weight: 650;
     text-decoration: none;
@@ -559,7 +562,7 @@
 }
 
 #college-dashboard .erp-dashboard__task-copy small {
-    color: #7b8d81;
+    color: #64748b;
     font-size: 0.68rem;
     font-weight: 450;
 }
@@ -571,7 +574,7 @@
     place-items: center;
     padding: 0 0.48rem;
     border-radius: 0.7rem;
-    background: #eaf6ee;
+    background: #eff6ff;
     color: var(--dashboard-green-deep);
     font-size: 0.78rem;
     font-weight: 750;
@@ -592,7 +595,7 @@
     flex: 0 0 3rem;
     place-items: center;
     border-radius: 0.7rem;
-    background: #edf7f0;
+    background: #eff6ff;
     color: var(--dashboard-green-deep);
     font-size: 0.7rem;
     font-weight: 750;
@@ -607,7 +610,7 @@
 
 #college-dashboard .erp-dashboard__exam-details strong {
     overflow: hidden;
-    color: #355844;
+    color: #1e293b;
     font-size: 0.79rem;
     font-weight: 650;
     text-overflow: ellipsis;
@@ -615,7 +618,7 @@
 }
 
 #college-dashboard .erp-dashboard__exam-details small {
-    color: #7b8d81;
+    color: #64748b;
     font-size: 0.69rem;
 }
 
@@ -650,7 +653,7 @@
 
 #college-dashboard .erp-dashboard__bar-label {
     overflow: hidden;
-    color: #506b5a;
+    color: #64748b;
     font-size: 0.72rem;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -662,7 +665,7 @@
     height: 0.52rem;
     overflow: hidden;
     border-radius: 999px;
-    background: #eaf2ec;
+    background: #f1f5f9;
 }
 
 #college-dashboard .erp-dashboard__bar-fill,
@@ -670,11 +673,11 @@
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, #4eaa78, #21845a);
+    background: linear-gradient(90deg, #60a5fa, #1d4ed8);
 }
 
 #college-dashboard .erp-dashboard__horizontal-bars strong {
-    color: #355844;
+    color: #1e293b;
     font-size: 0.74rem;
     font-variant-numeric: tabular-nums;
     text-align: right;
@@ -682,7 +685,7 @@
 
 #college-dashboard .erp-dashboard__chart-footnote {
     margin: 0.7rem 0 0;
-    color: #7a8b80;
+    color: #64748b;
     font-size: 0.68rem;
     line-height: 1.55;
 }
@@ -714,7 +717,7 @@
     flex: 1 1 auto;
     flex-direction: column;
     gap: 0.6rem;
-    color: #65796c;
+    color: #64748b;
     font-size: 0.73rem;
 }
 
@@ -745,7 +748,7 @@
 #college-dashboard .erp-dashboard__month-value {
     max-width: 100%;
     overflow: hidden;
-    color: #61766a;
+    color: #64748b;
     font-size: 0.65rem;
     font-variant-numeric: tabular-nums;
     text-overflow: ellipsis;
@@ -759,7 +762,7 @@
     align-items: flex-end;
     overflow: hidden;
     border-radius: 0.6rem 0.6rem 0.25rem 0.25rem;
-    background: #f0f6f2;
+    background: #f1f5f9;
 }
 
 #college-dashboard .erp-dashboard__month-bar {
@@ -767,15 +770,15 @@
     width: 100%;
     min-height: 0;
     border-radius: 0.55rem 0.55rem 0.2rem 0.2rem;
-    background: linear-gradient(180deg, #68bd88, #21845a);
+    background: linear-gradient(180deg, #3b82f6, #1d4ed8);
 }
 
 #college-dashboard .erp-dashboard__month-bar--teal {
-    background: linear-gradient(180deg, #56aaa4, #147d77);
+    background: linear-gradient(180deg, #0ea5e9, #1d4ed8);
 }
 
 #college-dashboard .erp-dashboard__month-label {
-    color: #718579;
+    color: #64748b;
     font-size: 0.66rem;
     font-weight: 600;
 }
@@ -793,13 +796,13 @@
     width: 0.48rem;
     height: 0.48rem;
     border-radius: 50%;
-    background: #38a66e;
-    box-shadow: 0 0 0 3px #eaf6ee;
+    background: #2563eb;
+    box-shadow: 0 0 0 3px #eff6ff;
 }
 
 #college-dashboard .erp-dashboard__activity-action {
     overflow: hidden;
-    color: #3d5a49;
+    color: #334155;
     font-size: 0.77rem;
     font-weight: 650;
     text-overflow: ellipsis;
@@ -809,7 +812,7 @@
 #college-dashboard .erp-dashboard__activity-user,
 #college-dashboard .erp-dashboard__activity-time {
     overflow: hidden;
-    color: #7a8b80;
+    color: #64748b;
     font-size: 0.7rem;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -823,7 +826,7 @@
 #college-dashboard .erp-dashboard__empty-copy {
     margin: 0;
     padding: 0.5rem 0 0.2rem;
-    color: #718579;
+    color: #64748b;
     font-size: 0.78rem;
     line-height: 1.6;
 }

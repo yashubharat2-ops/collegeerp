@@ -13,21 +13,21 @@
  *   - no global `svg { … }` rule: icon geometry comes from each <svg>'s own
  *     width/height attributes and is only nudged by the scoped classes below;
  *   - the panel is a light surface because it hangs off the white header, while
- *     its accents reuse the navy/indigo language of the shell;
+ *     its accents reuse the navy / Deep Blue language of the shell;
  *   - sizes stay compact: 34px trigger, 30px rows, 268px panel.
  */
 
 .erp-user-menu {
     /* Palette, mirroring the sidebar's tokens so the two never drift apart. */
-    --erp-user-navy: #07111f;
+    --erp-user-navy: var(--erp-color-navy, #0f172a);
     --erp-user-text: #0f172a;
     --erp-user-muted: #64748b;
     --erp-user-line: #e2e8f0;
     --erp-user-surface: #ffffff;
-    --erp-user-hover: #f1f5f9;
-    --erp-user-accent: #4f46e5;
-    --erp-user-accent-ink: #4338ca;
-    --erp-user-accent-soft: #eef2ff;
+    --erp-user-hover: var(--erp-color-hover, #eff6ff);
+    --erp-user-accent: var(--erp-color-primary, #1d4ed8);
+    --erp-user-accent-ink: var(--erp-color-primary-hover, #1e40af);
+    --erp-user-accent-soft: var(--erp-color-primary-soft, #eff6ff);
     --erp-user-danger: #be123c;
     --erp-user-radius: 12px;
     --erp-user-row-h: 30px;
@@ -38,7 +38,7 @@
 }
 
 /* -----------------------------------------------------------------------------
- * 1 · Trigger: avatar + name/email, indigo on hover and while the menu is open
+ * 1 · Trigger: avatar + name/email, Deep Blue on hover and while the menu is open
  * -------------------------------------------------------------------------- */
 /* The trigger is a <summary>: the disclosure works before any script runs, so the
  * marker is removed by hand and the panel keeps its own visual state. */
@@ -79,7 +79,7 @@
 
 .erp-user-menu[open] .erp-user-menu__trigger {
     background-color: var(--erp-user-accent-soft);
-    border-color: #c7d2fe;
+    border-color: var(--erp-color-primary-ring, #bfdbfe);
 }
 
 .erp-user-menu__avatar {

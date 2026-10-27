@@ -173,7 +173,7 @@
 }
 
 .erp-list-date-control:focus-within .erp-list-date-prefix {
-    color: #4338ca;
+    color: var(--erp-color-primary-hover, #1e40af);
 }
 
 .erp-list-date-control > .input {
@@ -200,14 +200,14 @@
 }
 
 .erp-list-date-picker-trigger:hover {
-    color: #4338ca;
+    color: var(--erp-color-primary-hover, #1e40af);
 }
 
 .erp-list-date-picker-trigger:focus-visible,
 .erp-list-date-picker-header > button:focus-visible,
 .erp-list-date-picker-footer button:focus-visible,
 .erp-list-date-picker-day:focus-visible {
-    outline: 2px solid #4f46e5;
+    outline: 2px solid var(--erp-color-primary, #1d4ed8);
     outline-offset: 2px;
 }
 
@@ -270,9 +270,9 @@
 
 .erp-list-date-picker-header > button:hover,
 .erp-list-date-picker-footer button:hover {
-    border-color: #c7d2fe;
-    background: #eef2ff;
-    color: #3730a3;
+    border-color: var(--erp-color-primary-ring, #bfdbfe);
+    background: var(--erp-color-primary-soft, #eff6ff);
+    color: #1e3a8a;
 }
 
 .erp-list-date-picker-header h3 {
@@ -319,19 +319,19 @@
 }
 
 .erp-list-date-picker-day:hover {
-    background: #eef2ff;
-    color: #3730a3;
+    background: var(--erp-color-primary-soft, #eff6ff);
+    color: #1e3a8a;
 }
 
 .erp-list-date-picker-day[aria-current="date"]:not(.is-selected) {
-    box-shadow: inset 0 0 0 1px #a5b4fc;
-    color: #3730a3;
+    box-shadow: inset 0 0 0 1px #93c5fd;
+    color: #1e3a8a;
     font-weight: 600;
 }
 
 .erp-list-date-picker-day.is-selected,
 .erp-list-date-picker-day[aria-pressed="true"] {
-    background: #4f46e5;
+    background: var(--erp-color-primary, #1d4ed8);
     color: #fff;
     font-weight: 700;
 }
