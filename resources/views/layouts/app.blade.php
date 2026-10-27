@@ -39,6 +39,7 @@
         $erpDropdownCssVersion = $erpCssVer('css/erp-dropdown.css');
         $erpListCssVersion = $erpCssVer('css/erp-list.css');
         $erpStudentFormCssVersion = $erpCssVer('css/erp-student-form.css');
+        $erpStudentProfileCssVersion = $erpCssVer('css/erp-student-profile.css');
         $erpUiCssVersion = $erpCssVer('css/erp-ui.css');
         unset($erpCssVer);
 
@@ -106,6 +107,13 @@
          ERP screen even when no bundle exists, and linking it after the Vite block
          means the form's own rules always win over a stale one. --}}
     <link rel="stylesheet" href="{{ asset('css/erp-student-form.css') }}@if ($erpStudentFormCssVersion)?v={{ $erpStudentFormCssVersion }}@endif">
+
+    {{-- Student Profile (one student's page): the dashboard shell, the portrait
+         slot and the gallery. Static and content-hash versioned like the sheets
+         above, so a profile always renders as a dashboard even without a bundle.
+         Its selectors are all `sp-`-prefixed, so loading it on every page cannot
+         leak into another module. --}}
+    <link rel="stylesheet" href="{{ asset('css/erp-student-profile.css') }}@if ($erpStudentProfileCssVersion)?v={{ $erpStudentProfileCssVersion }}@endif">
     @stack('styles')
 </head>
 <body class="bg-slate-50 text-slate-800">

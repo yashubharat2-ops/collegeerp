@@ -2,12 +2,14 @@
 
 namespace App\Domain\Student\Support;
 
+use App\Domain\Student\Services\AcademicContextService;
 use App\Domain\Student\Services\GeoLocationService;
 use App\Domain\Student\Services\StudentPhotoService;
 use App\Domain\Student\Rules\ValidAadhaar;
 use App\Models\Student;
 use App\Models\StudentQualification;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * The four wizard steps, their validation and their server-side derivation.
@@ -83,9 +85,30 @@ final class RegistrationStepRules
         'guardian_occupation', 'guardian_address',
     ];
 
+    /**
+     * The current-course fields, IN THE ORDER the step renders them.
+     *
+     * Academic Year → Programme / Course → Semester / Year of study →
+     * Section / Batch → Admission Date → Enrollment Date → Admission Category
+     *
+     * Each level can only be chosen after the ones it depends on, which is why
+     * the order is declared once here: the view renders it, the tests read it,
+     * and the dependent-option endpoint answers in the same order.
+     */
+    public const ACADEMIC_FIELD_ORDER = [
+        'academic_year_id',
+        'program_id',
+        'academic_term_id',
+        'section_id',
+        'admission_date',
+        'enrollment_date',
+        'category',
+    ];
+
     /** Step-3 current-enrollment context (captured, applied only on approval). */
     public const ACADEMIC_FIELDS = [
-        'academic_year_id', 'program_id', 'section_id', 'semester', 'enrollment_date', 'admission_date',
+        'academic_year_id', 'program_id', 'academic_term_id', 'section_id', 'semester',
+        'enrollment_date', 'admission_date',
     ];
 
     /**
@@ -219,10 +242,22 @@ final class RegistrationStepRules
                 $strict ? 'required' : 'nullable', 'integer',
                 Rule::exists('programs', 'id')->where('college_id', $collegeId)->whereNull('deleted_at'),
             ],
+            // Semester / year of study is a CONFIGURED level (academic_terms),
+            // not free text. Existence here is the cheap first check; whether it
+            // belongs to the chosen academic year is decided in normalise(),
+            // which can see both values.
+            'academic_term_id' => [
+                'nullable', 'integer',
+                Rule::exists('academic_terms', 'id')->where('college_id', $collegeId)->whereNull('deleted_at'),
+            ],
             'section_id' => [
                 'nullable', 'integer',
                 Rule::exists('sections', 'id')->where('college_id', $collegeId)->whereNull('deleted_at'),
             ],
+            // Legacy free-text label. Accepted only when the chosen academic year
+            // has no configured terms yet (or when it names one of them), so a
+            // college that has set up its structure cannot be registered into
+            // with an arbitrary string.
             'semester' => ['nullable', 'string', 'max:30'],
             'enrollment_date' => ['nullable', 'date'],
             'admission_date' => ['nullable', 'date'],
@@ -299,6 +334,7 @@ final class RegistrationStepRules
             'guardian_phone' => "guardian's mobile number",
             'academic_year_id' => 'academic year',
             'program_id' => 'programme',
+            'academic_term_id' => 'semester / year of study',
             'section_id' => 'section / batch',
             'qualifications.*.level' => 'qualification level',
             'qualifications.*.max_marks' => 'maximum marks',
@@ -317,7 +353,7 @@ final class RegistrationStepRules
     {
         return match ($step) {
             self::STEP_BASIC => self::normaliseBasicWithParent($data, $merged, $geo),
-            self::STEP_ACADEMIC => self::normaliseAcademic($data),
+            self::STEP_ACADEMIC => self::normaliseAcademic($data, $collegeId),
             self::STEP_DOCUMENTS => [],
             self::STEP_REVIEW => ['remarks' => $data['remarks'] ?? null],
             default => [],
@@ -496,7 +532,7 @@ final class RegistrationStepRules
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    private static function normaliseAcademic(array $data): array
+    private static function normaliseAcademic(array $data, int $collegeId): array
     {
         $clean = [];
 
@@ -507,9 +543,42 @@ final class RegistrationStepRules
             }
         }
 
-        foreach (['section_id', 'semester', 'enrollment_date', 'admission_date'] as $key) {
+        foreach (['academic_term_id', 'section_id', 'semester', 'enrollment_date', 'admission_date'] as $key) {
             if (array_key_exists($key, $clean) && ($clean[$key] === '' || $clean[$key] === null)) {
                 $clean[$key] = null;
+            }
+        }
+
+        // Semester / year of study: the CONFIGURED level wins. Its label is
+        // derived from the term, so the stored `semester` string and the
+        // reference can never describe different levels.
+        $academic = app(AcademicContextService::class);
+        $yearId = isset($clean['academic_year_id']) ? (int) $clean['academic_year_id'] : null;
+        $termId = isset($clean['academic_term_id']) ? (int) $clean['academic_term_id'] : null;
+        $freeText = $clean['semester'] ?? null;
+
+        if ($termId !== null) {
+            $term = $academic->resolveTerm($termId, $yearId, $collegeId);
+            $clean['academic_term_id'] = $term?->id;
+            $clean['semester'] = $academic->semesterLabel($term, null);
+        } elseif (is_string($freeText) && $freeText !== '' && $yearId !== null) {
+            $terms = $academic->terms($yearId, $collegeId);
+
+            if ($terms->isNotEmpty()) {
+                // The college HAS configured levels for this year: a free-text
+                // value is accepted only when it names one of them, so the
+                // reference is recorded instead of an unreconcilable string.
+                $match = $terms->first(fn ($term) => mb_strtolower(trim((string) $term->name)) === mb_strtolower($freeText)
+                    || mb_strtolower(trim((string) $term->code)) === mb_strtolower($freeText));
+
+                if ($match === null) {
+                    throw ValidationException::withMessages([
+                        'academic_term_id' => 'Choose the semester / year of study from the configured list for this academic year.',
+                    ]);
+                }
+
+                $clean['academic_term_id'] = $match->id;
+                $clean['semester'] = $academic->semesterLabel($match, null);
             }
         }
 

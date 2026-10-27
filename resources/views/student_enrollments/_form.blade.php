@@ -51,6 +51,7 @@
             <p class="text-sm"><span class="font-semibold">Roll Number:</span> {{ $enrollment->roll_number ?? 'Pending — assigned with a section' }}</p>
             <p class="text-sm"><span class="font-semibold">Academic Year:</span> {{ $enrollment->academicYear->name }} ({{ $enrollment->academicYear->code }})</p>
             <p class="text-sm"><span class="font-semibold">Program:</span> {{ $enrollment->program?->name ?? '—' }}</p>
+            <p class="text-sm"><span class="font-semibold">Semester / year:</span> {{ $enrollment->semesterLabel() ?? 'Not set' }}</p>
             <p class="text-sm"><span class="font-semibold">Status:</span> {{ $enrollment->statusLabel() }}</p>
             @if($enrollment->isPendingApproval())
                 <p class="text-xs text-amber-700">
@@ -60,6 +61,29 @@
             @endif
         </div>
     @endif
+    {{-- Academic order: Year → Programme → Semester/Year of study → Section.
+         The list is the college's configured levels for the chosen academic
+         year; the script below re-filters it when the year changes and clears a
+         stale choice. The server validates the combination again, so this
+         narrowing is convenience, not authority. --}}
+    <div>
+        <label class="text-sm font-semibold" for="academic_term_id">Semester / Year of study</label>
+        <select class="input mt-1" id="academic_term_id" name="academic_term_id">
+            <option value="">— Not set —</option>
+            @foreach(($terms ?? collect()) as $term)
+                <option value="{{ $term->id }}"
+                        data-academic-year-id="{{ $term->academic_year_id }}"
+                        @selected((int) old('academic_term_id', $enrollment->academic_term_id ?? 0) === (int) $term->id)>
+                    {{ $term->name }} ({{ $term->code }})
+                </option>
+            @endforeach
+        </select>
+        <p class="mt-1 text-xs text-rose-600">@error('academic_term_id'){{ $message }}@enderror</p>
+        <p class="mt-1 text-xs text-slate-500">
+            The configured levels of this enrollment's academic year. A year with no configured levels keeps the
+            free-text label an older record carries.
+        </p>
+    </div>
     <div>
         <label class="text-sm font-semibold" for="section_id">Section</label>
         <select class="input mt-1" id="section_id" name="section_id">
@@ -120,13 +144,13 @@
         const year = document.getElementById('academic_year_id');
         const program = document.getElementById('program_id');
         const section = document.getElementById('section_id');
-        if (!section) return;
+        const term = document.getElementById('academic_term_id');
+        if (!section && !term) return;
 
-        function apply() {
-            const yearId = year ? year.value : '';
-            const programId = program ? program.value : '';
+        function narrow(select, yearId, programId) {
+            if (!select) return;
 
-            Array.from(section.options).forEach(function (option, index) {
+            Array.from(select.options).forEach(function (option, index) {
                 if (index === 0) return;
                 const yearOk = !yearId || option.dataset.academicYearId === yearId;
                 const programOk = !programId || !option.dataset.programId || option.dataset.programId === programId;
@@ -135,9 +159,19 @@
                 option.disabled = !visible;
             });
 
-            if (section.selectedOptions[0] && section.selectedOptions[0].hidden) {
-                section.value = '';
+            // A selection that the new context no longer allows is cleared
+            // rather than left invisible-but-selected.
+            if (select.selectedOptions[0] && select.selectedOptions[0].hidden) {
+                select.value = '';
             }
+        }
+
+        function apply() {
+            const yearId = year ? year.value : (term && term.value ? term.selectedOptions[0].dataset.academicYearId : '');
+            const programId = program ? program.value : '';
+
+            narrow(term, yearId, '');
+            narrow(section, yearId, programId);
         }
 
         if (year) year.addEventListener('change', apply);

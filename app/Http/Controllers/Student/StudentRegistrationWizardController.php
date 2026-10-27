@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Student;
 
+use App\Domain\Student\Services\AcademicContextService;
 use App\Domain\Student\Services\CourseDocumentRequirementService;
 use App\Domain\Student\Services\GeoLocationService;
 use App\Domain\Student\Services\RegistrationDocumentStagingService;
@@ -19,6 +20,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Student\Registration\SaveRegistrationStepRequest;
 use App\Http\Requests\Student\Registration\SubmitRegistrationRequest;
 use App\Http\Requests\Student\Registration\UploadRegistrationDocumentRequest;
+use App\Models\AcademicTerm;
 use App\Models\AcademicYear;
 use App\Models\AdmissionDocumentType;
 use App\Models\GeoLocation;
@@ -67,6 +69,7 @@ class StudentRegistrationWizardController extends Controller
         private readonly CourseDocumentRequirementService $requirements,
         private readonly StudentPhotoService $photos,
         private readonly StudentIdentifierService $identifiers,
+        private readonly AcademicContextService $academic,
     ) {}
 
     /** GET students/registration — resume the live draft, or start one. */
@@ -388,6 +391,41 @@ class StudentRegistrationWizardController extends Controller
     }
 
     /**
+     * GET students/registration/academic-options — dependent academic levels.
+     *
+     * Answers "what can be chosen under this academic year / programme?" for the
+     * wizard's Current Course block, so the Semester/Year and Section selects
+     * follow the selection instead of every dropdown listing the whole college.
+     *
+     * Read-only reference data (ids and labels only — no student is involved),
+     * so a GET is safe. It goes through the same AcademicContextService the
+     * write path uses, which means the browser can never be offered a
+     * combination the server would then refuse.
+     */
+    public function academicOptions(Request $request): JsonResponse
+    {
+        $this->authorize('create', Student::class);
+
+        $collegeId = (int) app(TenantContext::class)->id();
+
+        $yearId = $request->query('academic_year_id');
+        $programId = $request->query('program_id');
+
+        $yearId = $yearId !== null && $yearId !== '' && ctype_digit((string) $yearId) ? (int) $yearId : null;
+        $programId = $programId !== null && $programId !== '' && ctype_digit((string) $programId) ? (int) $programId : null;
+
+        // A forged or foreign id resolves to "no rows" (the master tables carry
+        // CollegeScope and every query filters the explicit college), never to
+        // another tenant's structure and never to an error page.
+        $options = $this->academic->options($yearId, $programId, $collegeId);
+
+        return response()->json([
+            'data' => $options,
+            'terms_configured' => $options['terms'] !== [],
+        ]);
+    }
+
+    /**
      * GET students/registration/geo/children — dependent address options.
      *
      * Read-only reference data (no applicant data is involved), so a GET is
@@ -676,10 +714,27 @@ class StudentRegistrationWizardController extends Controller
         }
 
         if ($step === RegistrationStepRules::STEP_ACADEMIC) {
+            $yearId = isset($merged['academic_year_id']) ? (int) $merged['academic_year_id'] : null;
+            $programId = isset($merged['program_id']) ? (int) $merged['program_id'] : null;
+
+            // The dependent levels are resolved for the CURRENT selection, so a
+            // resumed draft shows the semester and section lists that belong to
+            // its own academic year and programme — not every row in the college.
+            $terms = $this->academic->terms($yearId, $collegeId);
+
             return [
                 'academicYears' => AcademicYear::query()->where('college_id', $collegeId)->orderBy('name')->get(),
                 'programs' => Program::query()->where('college_id', $collegeId)->orderBy('name')->get(),
-                'sections' => Section::query()->where('college_id', $collegeId)->orderBy('name')->get(),
+                'terms' => $terms,
+                // A college that has not configured academic terms yet keeps a
+                // free-text field (see the step view): the wizard must stay
+                // usable before the academic structure exists, and the server
+                // accepts free text only in exactly that case.
+                'termsConfigured' => $terms->isNotEmpty(),
+                'termLabel' => $this->academic->termLabel(
+                    isset($merged['academic_term_id']) ? $terms->firstWhere('id', (int) $merged['academic_term_id']) : null,
+                ),
+                'sections' => $this->academic->sections($yearId, $programId, $collegeId),
                 'qualificationLevels' => StudentQualification::LEVEL_LABELS,
                 'qualificationResultStatuses' => StudentQualification::RESULT_STATUSES,
                 // Read-only echo of the admission category captured on step 1:
@@ -716,6 +771,7 @@ class StudentRegistrationWizardController extends Controller
             'academicYear' => isset($merged['academic_year_id']) ? AcademicYear::query()->find($merged['academic_year_id']) : null,
             'program' => isset($merged['program_id']) ? Program::query()->find($merged['program_id']) : null,
             'section' => isset($merged['section_id']) ? Section::query()->find($merged['section_id']) : null,
+            'academicTerm' => isset($merged['academic_term_id']) ? AcademicTerm::query()->find($merged['academic_term_id']) : null,
             'fullName' => RegistrationStepRules::fullName($merged),
             'aadhaarMasked' => Aadhaar::mask($draft->stepData(1)['aadhaar_last4'] ?? null),
             'identifiers' => $this->identifiers->forDraft($draft, $collegeId),

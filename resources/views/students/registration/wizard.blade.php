@@ -30,6 +30,7 @@
 <div class="erp-student-page erp-wizard"
      data-erp-wizard
      data-geo-url="{{ route('students.registration.geo.children') }}"
+     data-academic-options-url="{{ route('students.registration.academic-options') }}"
      data-draft-url="{{ route('students.registration.step.draft', ['step' => $step]) }}">
 
     <header class="erp-page-header">

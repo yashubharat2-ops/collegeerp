@@ -531,10 +531,22 @@ class StudentFilter
         if ($hasEnrollmentRecord) {
             $students->whereHas('enrollments', fn (Builder $enrollment) => $this->applyEnrollmentDimensionsToEnrollment($enrollment, $filters));
         } elseif ($this->termId($filters) !== null || isset($filters['_legacy_academic_term_id'])) {
-            // Preserve the original Student List behavior for a term-only search:
-            // old academic records may not yet have an enrollment_id link.
-            $students->whereHas('academicRecords', function (Builder $record) use ($filters): void {
-                $this->applyTermToAcademicRecord($record, $filters);
+            // A term-only search answers from BOTH places a semester is recorded:
+            // the enrollment's own configured level (students registered through
+            // the wizard) and the progression ledger (which may predate the
+            // enrollment link). Either match finds the student, so no student
+            // who used to be found is lost.
+            $termId = $this->termId($filters);
+
+            $students->where(function (Builder $students) use ($filters, $termId): void {
+                if ($termId !== null) {
+                    $students->whereHas('enrollments', fn (Builder $enrollment) => $enrollment
+                        ->where('student_enrollments.academic_term_id', $termId));
+                }
+
+                $students->orWhereHas('academicRecords', function (Builder $record) use ($filters): void {
+                    $this->applyTermToAcademicRecord($record, $filters);
+                });
             });
         }
 
@@ -569,8 +581,24 @@ class StudentFilter
         }
 
         if ($type === 'term' || isset($filters['_legacy_academic_term_id'])) {
-            $enrollment->whereHas('academicRecords', function (Builder $record) use ($filters): void {
-                $this->applyTermToAcademicRecord($record, $filters);
+            // A semester now has TWO legitimate homes: the enrollment's own
+            // configured level (`student_enrollments.academic_term_id`, written
+            // by registration / enrollment) and the progression ledger
+            // (`student_academic_records.academic_term_id`, written per period).
+            // Matching either is what makes the Semester filter answer for a
+            // student who has an enrollment but no ledger row yet — it strictly
+            // widens the result set, so no previously-found student is lost.
+            $termId = $type === 'term' ? $id : null;
+            $legacyTermId = isset($filters['_legacy_academic_term_id']) ? (int) $filters['_legacy_academic_term_id'] : null;
+
+            $enrollment->where(function (Builder $enrollment) use ($filters, $termId): void {
+                if ($termId !== null) {
+                    $enrollment->where('student_enrollments.academic_term_id', $termId);
+                }
+
+                $enrollment->orWhereHas('academicRecords', function (Builder $record) use ($filters): void {
+                    $this->applyTermToAcademicRecord($record, $filters);
+                });
             });
         }
 

@@ -14,7 +14,7 @@ const script = readFileSync(new URL('../../public/js/erp-registration-wizard.js'
 function createPage(t) {
     const dom = new JSDOM(`<!doctype html>
         <html><body>
-            <div data-erp-wizard data-geo-url="/students/registration/geo/children" data-draft-url="/students/registration/step/1/draft">
+            <div data-erp-wizard data-geo-url="/students/registration/geo/children" data-draft-url="/students/registration/step/1/draft" data-academic-options-url="/students/registration/academic-options">
                 <form id="erp-step-form" data-erp-step-form>
                     <input name="first_name" value="Riya">
                     <input name="last_name" value="Verma">
@@ -59,6 +59,30 @@ function createPage(t) {
                     <div class="erp-field"><input name="guardian_phone" data-erp-guardian="phone"></div>
                     <div class="erp-field"><input name="guardian_email" data-erp-guardian="email"></div>
                     <div class="erp-field"><input name="guardian_occupation" data-erp-guardian="occupation"></div>
+
+                    {{-- Step 2: the academic chain, in its canonical order. --}}
+                    <select name="academic_year_id" data-erp-academic-year>
+                        <option value="">— Select —</option>
+                        <option value="7" selected>2026-27</option>
+                        <option value="8">2027-28</option>
+                    </select>
+                    <select name="program_id" data-erp-academic-program>
+                        <option value="">— Select —</option>
+                        <option value="3" selected>BSc</option>
+                        <option value="4">BCom</option>
+                    </select>
+                    <div data-erp-academic-term-slot>
+                        <select id="academic_term_id" name="academic_term_id" data-erp-academic-term>
+                            <option value="">— Select —</option>
+                            <option value="11" selected>Semester 1</option>
+                            <option value="12">Semester 2</option>
+                        </select>
+                    </div>
+                    <p data-erp-academic-term-note>Configured levels of the selected academic year.</p>
+                    <select id="section_id" name="section_id" data-erp-academic-section data-empty-label="— No section —">
+                        <option value="">— No section —</option>
+                        <option value="21" selected>Section A</option>
+                    </select>
 
                     <div data-erp-qualifications>
                         <div class="erp-qual-card" data-erp-qualification data-index="0">
@@ -242,6 +266,119 @@ test('loading an empty child level says so instead of showing a blank select', a
 
     assert.equal(state.disabled, false, 'the level is usable even when the directory is empty');
     assert.match(state.options[0].textContent, /No entries for/);
+});
+
+test('changing the academic year reloads the configured levels and drops stale dependents', async (t) => {
+    const window = createPage(t);
+    const document = window.document;
+    const requested = [];
+
+    window.fetch = (url) => {
+        requested.push(url);
+
+        return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({
+                data: {
+                    terms: [{ id: 31, label: 'Semester 5 (SEM5)', code: 'SEM5' }],
+                    sections: [{ id: 41, label: 'Section B (B)', code: 'B', program_id: 3 }],
+                },
+            }),
+        });
+    };
+
+    const year = document.querySelector('[data-erp-academic-year]');
+    const slot = document.querySelector('[data-erp-academic-term-slot]');
+    const section = document.querySelector('[data-erp-academic-section]');
+
+    year.value = '8';
+    year.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+
+    assert.equal(requested.length, 1, 'a year change asks the server for the new context');
+    assert.match(requested[0], /academic_year_id=8/);
+    assert.match(requested[0], /program_id=3/);
+
+    const term = slot.querySelector('select[name="academic_term_id"]');
+    assert.ok(term, 'the configured levels replace the free-text fallback');
+    assert.equal(term.value, '', 'a level from the previous year is never kept selected');
+    assert.deepEqual(
+        Array.from(term.options).map((option) => option.textContent),
+        ['— Select —', 'Semester 5 (SEM5)'],
+    );
+
+    assert.equal(section.value, '', 'a section from the previous year is cleared');
+    assert.deepEqual(
+        Array.from(section.options).map((option) => option.textContent),
+        ['— No section —', 'Section B (B)'],
+    );
+});
+
+test('changing the programme keeps a still-valid level and narrows the sections', async (t) => {
+    const window = createPage(t);
+    const document = window.document;
+    const requested = [];
+
+    window.fetch = (url) => {
+        requested.push(url);
+
+        return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({
+                data: {
+                    terms: [{ id: 11, label: 'Semester 1', code: 'SEM1' }],
+                    sections: [{ id: 42, label: 'Section C (C)', code: 'C', program_id: 4 }],
+                },
+            }),
+        });
+    };
+
+    const program = document.querySelector('[data-erp-academic-program]');
+    const slot = document.querySelector('[data-erp-academic-term-slot]');
+    const section = document.querySelector('[data-erp-academic-section]');
+
+    program.value = '4';
+    program.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+
+    assert.match(requested[0], /academic_year_id=7/);
+    assert.match(requested[0], /program_id=4/);
+
+    assert.equal(
+        slot.querySelector('select[name="academic_term_id"]').value,
+        '11',
+        'the semester still belongs to the selected year, so it is kept',
+    );
+    assert.deepEqual(
+        Array.from(section.options).map((option) => option.textContent),
+        ['— No section —', 'Section C (C)'],
+    );
+});
+
+test('a failed academic lookup clears both dependents instead of leaving a stale list', async (t) => {
+    const window = createPage(t);
+    const document = window.document;
+
+    window.fetch = () => Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) });
+
+    const year = document.querySelector('[data-erp-academic-year]');
+    const slot = document.querySelector('[data-erp-academic-term-slot]');
+    const section = document.querySelector('[data-erp-academic-section]');
+    const note = document.querySelector('[data-erp-academic-term-note]');
+
+    year.value = '8';
+    year.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+
+    assert.equal(slot.querySelectorAll('option').length, 0, 'no stale option survives a failed request');
+    assert.ok(slot.querySelector('input[name="semester"]'), 'the free-text fallback keeps the step usable');
+    assert.equal(section.options.length, 1, 'the section list is emptied, not left valid-looking');
+    assert.match(note.textContent, /Could not load the academic levels/);
 });
 
 test('the document picker reveals and hides one upload card per ticked type', (t) => {

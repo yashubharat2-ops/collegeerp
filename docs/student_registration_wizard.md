@@ -138,11 +138,42 @@ Two blocks that are deliberately **never mixed**:
   * This is why it is not `student_academic_records` (this college's progression
     ledger, result-agnostic) and not `exams`/`exam_results` (this college's own
     examinations).
-* **Current enrollment context** → academic year, programme/course, section /
-  batch, semester / year of study, admission date, enrollment date. Every id is
-  tenant-scoped, and the section's academic-year + programme pair is verified
-  server-side. The admission category is shown read-only because it is captured
-  once, in section B.
+* **Current enrollment context** — the ERP's one academic order, exactly as it
+  appears on the enrollment form and on the student profile:
+
+  | # | Field | Offered from | Depends on |
+  |---|-------|--------------|------------|
+  | 1 | Academic Year | `academic_years` | — |
+  | 2 | Programme / Course | `programs` | — |
+  | 3 | Semester / Year of study | `academic_terms` of the chosen year | academic year |
+  | 4 | Section / Batch | `sections` of the chosen (year, programme) | academic year + programme |
+  | 5 | Admission date | date input | — |
+  | 6 | Enrollment date | date input | — (applied on approval) |
+  | 7 | Admission category | read-only, captured in section B | — |
+
+  * The semester / year of study is a **configured dropdown** for the selected
+    academic year, not free text. Only while the chosen year has **no**
+    configured `academic_terms` does the same slot fall back to a text input, so
+    a college that has not set up its academic structure yet can still register
+    students (a legacy `semester` string is then stored).
+  * Changing the year clears the semester and section and reloads both lists from
+    `students.registration.academic-options`; changing the programme keeps a
+    semester that still belongs to the year and narrows the sections. A failed
+    lookup clears both lists and says so — a stale section is never left looking
+    valid.
+  * The endpoint answers from `AcademicContextService`, the same service the
+    write path validates with, so the browser can never offer a combination the
+    server refuses; a forged/foreign id resolves to an empty list, never to
+    another tenant's structure.
+  * Every id is tenant-scoped. On save the server re-validates the term against
+    the enrollment's own academic year and college, and the section against its
+    (year, programme) pair. A term from another year or college is a field error,
+    never a silent `null`.
+  * When a term is chosen, the stored `semester` **label** is derived from that
+    term, so the reference and the printed label can never describe different
+    levels.
+  * The admission category is shown read-only because it is captured once, in
+    section B.
 
 ### Step 3 — Attach Documents
 
@@ -259,6 +290,7 @@ Two layers, deliberately different in strength:
 | `2026_10_29_000001_add_roll_number_to_student_enrollments_table` | Nullable `roll_number` + `student_enrollments_scope_roll_number_unique` (college, academic year, programme, section). |
 | `2026_10_29_000002_add_duplicate_warnings_to_student_registration_drafts_table` | Nullable JSON `duplicate_warnings` (possible-duplicate hints). |
 | `2026_10_29_000003_upgrade_registration_draft_payloads_to_four_steps` | Rewrites stored five-step draft payloads to the four-step layout and remaps `current_step`. Additive (no column/row removed); irreversible by design (§7). |
+| `2026_10_30_000001_add_academic_term_id_to_student_enrollments_table` | Nullable `academic_term_id` reference to the configured semester / year of study. The free-text `semester` label is kept, so older rows, exports and ID cards are unaffected. |
 
 Every column is nullable and additive; no existing column changed its meaning and
 no existing identifier was renumbered.
@@ -277,6 +309,7 @@ no existing identifier was renumbered.
 | GET | `students/registration/documents/{document}/download` | `students.registration.documents.download` |
 | GET | `students/registration/image/{field}` | `students.registration.image` (draft photo preview) |
 | GET | `students/registration/geo/children` | `students.registration.geo.children` |
+| GET | `students/registration/academic-options` | `students.registration.academic-options` (dependent semester + section lists; ids and labels only) |
 | POST | `students/registration/submit` | `students.registration.submit` |
 | POST | `students/registration/cancel` | `students.registration.cancel` |
 
@@ -344,9 +377,12 @@ back to step 1 and step 4 back to step 3, i.e. resume the wrong page.
   previous education, so the wizard does not demand a qualification row; rows
   that exist are fully validated. If a college requires at least one, that is a
   business rule to confirm before it is enforced.
-* **Semester is free text.** The schema holds no semester master; a free-text
-  column works for annual, semester and trimester systems. A master can replace
-  it later without changing the wizard's contract.
+* **Semester follows the academic year, not the programme.** `academic_terms` is
+  scoped to a college and an academic year; the schema has no per-programme term
+  configuration. The dropdown therefore lists the levels of the selected year.
+  A programme→term table would be master data the office has never entered, so it
+  was not invented. Until a year has configured terms, the same field falls back
+  to the free-text `semester` string, and older rows keep that label.
 * **Document types are not seeded.** The wizard shows "no document types
   configured" and treats everything as optional until Admission → Document Types
   is populated.
@@ -357,7 +393,74 @@ back to step 1 and step 4 back to step 3, i.e. resume the wrong page.
   its own registers can supply a value on the enrollment screen; a clash is
   refused with a field error rather than overwritten.
 
-## 10. Tests
+## 10. The unified academic workflow
+
+One sequence is used everywhere — registration wizard, New/Edit Enrollment, the
+student profile, the student list filter and the reports:
+
+    Academic Year → Programme / Course → Semester / Year of study → Section / Batch
+
+What the schema actually models, and therefore what every screen offers:
+
+| Level | Table | Scoped to |
+|-------|-------|-----------|
+| Academic year | `academic_years` | college |
+| Programme | `programs` | college |
+| Semester / term | `academic_terms` | college **and** academic year |
+| Section / batch | `sections` | college, academic year and programme |
+
+There is no programme → term configuration in the database, so the semester list
+follows the academic year. That is a documented limitation, not a shortcut:
+inventing a programme→term table would be master data the office has never
+entered.
+
+`student_enrollments.academic_term_id` (additive, nullable) is the reference;
+the existing `semester` string keeps the human label so exports, ID cards and
+older records keep working. `StudentEnrollment::semesterLabel()` is the single
+place that decides what to print: the configured term's name when present, else
+the stored label, else "not set".
+
+### Current vs historical enrollment
+
+`Student::currentEnrollment()` does **not** return the newest row. It considers
+only `active` enrollments, prefers the one whose academic year contains today,
+and falls back to the latest active row when no year contains today (a college
+that has not opened the next session yet). `previousEnrollments()` and the
+profile's enrollment history keep every other row, newest academic year first,
+flagged current/historical — a promotion or a new admission adds a row and never
+rewrites or deletes an earlier one.
+
+### Student profile
+
+`students.show` is the single profile page (no second profile master, no new
+route):
+
+* **Overview** — registration/admission facts and the current academic position.
+* **Personal Information** — the fields the wizard writes, including both
+  addresses, parent/guardian, and the masked identity numbers.
+* **Academic Information** — the current enrollment's year, programme, semester,
+  section, numbers, dates, category and both statuses.
+* **Qualifications** — every saved row with level, exam year, board, institution,
+  roll/registration numbers, marks, percentage (only when legitimately derivable),
+  grade/grade letter, result, subjects and remarks.
+* **Documents** — type, file, upload date and the stored verification status, with
+  an inline preview for images through the authorized `student-documents.preview`
+  action and a download link otherwise. No storage path is ever rendered.
+* **Enrollment History** — every enrollment, newest first, current row marked.
+
+The five lifecycle modules that own their own screens (Academic Records, ID Card,
+Promotion, Transfer/TC, Lifecycle Log) stay reachable from a quieter second row of
+links, using their original `?tab=` keys, so no functionality was removed by the
+reorganisation.
+
+Data is assembled once by `App\Domain\Student\Services\StudentProfileService`;
+the view only prints it, which is why the header, the summary cards and the
+academic panel cannot disagree. The photograph reuses the existing
+`students.photo_path` column and is streamed by `students.photo`; when it is
+absent — or the file cannot be read — the initials fallback shows and the `<img>`
+removes itself, so a broken-image icon is never displayed.
+
+## 11. Tests
 
 `tests/Feature/Students/RegistrationWizardTest.php` covers navigation and step
 validation, draft persistence/resumption, the dependent address chain,
@@ -388,8 +491,24 @@ steps), there is only one Registration row, and the fifth step no longer exists.
 conveniences: the address cascade clearing children and reporting an empty
 directory, guardian auto-fill (including the hidden mirrors that keep a "Self"
 guardian in step with the personal fields on the same page), marks/percentage
-arithmetic, adding and removing qualification rows, and the document picker
-showing/hiding upload cards while never hiding a card that holds a file.
+arithmetic, adding and removing qualification rows, the document picker
+showing/hiding upload cards while never hiding a card that holds a file, and the
+dependent academic levels (a year change reloading the terms and clearing stale
+dependents, a programme change keeping a still-valid term and narrowing the
+sections, and a failed lookup clearing both lists).
+
+`tests/Feature/Students/RegistrationWizardTest.php` pins the workflow order and
+the dropdown source (field order, a configured term list replacing the free-text
+fallback, the options endpoint returning only the selected year/college, a term
+from another year or another college rejected on save) and asserts that approval
+carries the configured term into the created enrollment.
+`tests/Feature/Students/StudentEnrollmentAcademicContextTest.php` covers the same
+rules on New/Edit Enrollment, and
+`tests/Feature/Students/StudentProfilePresentationTest.php` plus
+`StudentProfileTabsTest.php` cover the profile itself (initials fallback vs
+streamed photograph, current-vs-historical by academic period, grade-based
+qualifications never gaining a percentage, documents via authorized routes with
+their stored verification status, personal data, and the six sections).
 
 `tests/Feature/Students/StudentRegistrationApprovalTest.php` was updated for the
 new entry point (the wizard) and continues to cover the single-POST flow,

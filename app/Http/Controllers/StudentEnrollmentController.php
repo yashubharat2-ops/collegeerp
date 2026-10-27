@@ -7,6 +7,7 @@ use App\Domain\Student\Services\EnrollmentApprovalService;
 use App\Domain\Student\Services\StudentService;
 use App\Http\Requests\StudentEnrollment\StoreStudentEnrollmentRequest;
 use App\Http\Requests\StudentEnrollment\UpdateStudentEnrollmentRequest;
+use App\Models\AcademicTerm;
 use App\Models\AcademicYear;
 use App\Models\Program;
 use App\Models\Section;
@@ -29,7 +30,7 @@ class StudentEnrollmentController extends Controller
         $filters = $this->filters($request, $studentFilter);
 
         // Deterministic creation-order pagination (oldest first) with id tiebreak.
-        $query = StudentEnrollment::query()->with(['student', 'academicYear', 'program', 'section']);
+        $query = StudentEnrollment::query()->with(['student', 'academicYear', 'academicTerm', 'program', 'section']);
         $studentFilter->applyToEnrollments($query, $filters);
         $query->when($request->input('student_id'), fn ($q, $value) => $q->where('student_id', $value))
             ->orderBy('created_at')->orderBy('id');
@@ -56,7 +57,7 @@ class StudentEnrollmentController extends Controller
     {
         $this->authorize('viewAny', StudentEnrollment::class);
         $filters = $this->filters($request, $studentFilter);
-        $query = StudentEnrollment::query()->with(['student', 'academicYear', 'program', 'section']);
+        $query = StudentEnrollment::query()->with(['student', 'academicYear', 'academicTerm', 'program', 'section']);
         $studentFilter->applyToEnrollments($query, $filters);
         $query->when($request->input('student_id'), fn ($q, $value) => $q->where('student_id', $value));
 
@@ -74,7 +75,7 @@ class StudentEnrollmentController extends Controller
         return CsvStreamExport::make('enrollments-export-'.now()->format('Y-m-d').'.csv')
             ->withHeaders([
                 'Enrollment number', 'Student number', 'Student', 'Academic year',
-                'Program', 'Section', 'Enrollment date', 'Status', 'Remarks',
+                'Semester / year', 'Program', 'Section', 'Enrollment date', 'Roll number', 'Status', 'Remarks',
             ])
             ->map(function (StudentEnrollment $enrollment): array {
                 return [
@@ -82,9 +83,13 @@ class StudentEnrollmentController extends Controller
                     $enrollment->student?->student_number,
                     trim(($enrollment->student?->first_name ?? '').' '.($enrollment->student?->last_name ?? '')),
                     $enrollment->academicYear?->name,
+                    // The configured level when there is one, else the stored
+                    // label — the same value the list and the profile print.
+                    $enrollment->semesterLabel(),
                     $enrollment->program?->name,
                     $enrollment->section?->name,
                     $enrollment->enrollment_date?->format('Y-m-d'),
+                    $enrollment->roll_number,
                     $enrollment->status,
                     $enrollment->remarks,
                 ];
@@ -146,6 +151,13 @@ class StudentEnrollmentController extends Controller
             'admissionNumbers' => $this->admissionNumbers(),
             'approvalRequired' => app(EnrollmentApprovalService::class)->isRequired($collegeId),
             'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(['id', 'name', 'code']),
+            // Configured semester / year of study, per academic year. The form
+            // narrows the list to the chosen year; StudentService re-validates
+            // the combination, so the browser is never the authority.
+            'terms' => AcademicTerm::query()
+                ->where('status', 'active')
+                ->orderBy('academic_year_id')->orderBy('sequence')->orderBy('name')
+                ->get(['id', 'academic_year_id', 'name', 'code', 'type']),
             'programs' => Program::query()->orderBy('name')->get(['id', 'name', 'code']),
             'sections' => $this->sectionOptions(),
             'selectedStudentId' => $request->input('student_id'),
@@ -215,9 +227,16 @@ class StudentEnrollmentController extends Controller
         $this->authorize('update', $model);
 
         return view('student_enrollments.edit', [
-            'enrollment' => $model->load(['student', 'academicYear', 'program', 'section']),
+            'enrollment' => $model->load(['student', 'academicYear', 'academicTerm', 'program', 'section']),
             'admissionNumbers' => $this->admissionNumbers(),
             'sections' => $this->sectionOptions(),
+            // The academic year of an enrollment is immutable, so only the
+            // levels of that year can be offered.
+            'terms' => AcademicTerm::query()
+                ->where('academic_year_id', $model->academic_year_id)
+                ->where('status', 'active')
+                ->orderBy('sequence')->orderBy('name')
+                ->get(['id', 'academic_year_id', 'name', 'code', 'type']),
         ]);
     }
 

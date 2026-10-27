@@ -30,6 +30,7 @@
 
     var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
     var geoUrl = wizard.getAttribute('data-geo-url') || '';
+    var academicUrl = wizard.getAttribute('data-academic-options-url') || '';
     var draftUrl = wizard.getAttribute('data-draft-url') || '';
     var dirty = false;
 
@@ -157,6 +158,196 @@
             }
         });
     });
+
+    /* ------------------------------------------------------------------
+     * 1b. Dependent academic levels
+     *
+     *   Academic Year → Programme/Course → Semester/Year of study → Section/Batch
+     *
+     * Each list is answered by the SERVER (students.registration.academic-options)
+     * from the same AcademicContextService the write path validates with, so the
+     * browser can never offer a combination the server refuses. Changing an
+     * upstream selection clears whatever no longer belongs to the new context —
+     * a section from another academic year must never stay selected.
+     * ------------------------------------------------------------------ */
+
+    var academicYear = wizard.querySelector('[data-erp-academic-year]');
+    var academicProgram = wizard.querySelector('[data-erp-academic-program]');
+    var termSlot = wizard.querySelector('[data-erp-academic-term-slot]');
+    var termNote = wizard.querySelector('[data-erp-academic-term-note]');
+    var sectionSelect = wizard.querySelector('[data-erp-academic-section]');
+
+    function currentTermValue() {
+        var select = termSlot ? termSlot.querySelector('select[name="academic_term_id"]') : null;
+
+        return select ? select.value : '';
+    }
+
+    function currentFreeText() {
+        var input = termSlot ? termSlot.querySelector('input[name="semester"]') : null;
+
+        return input ? input.value : '';
+    }
+
+    function replaceTerms(terms, selected) {
+        if (!termSlot) {
+            return;
+        }
+
+        termSlot.innerHTML = '';
+
+        if (terms.length > 0) {
+            var select = document.createElement('select');
+            select.className = 'erp-input';
+            select.id = 'academic_term_id';
+            select.name = 'academic_term_id';
+            select.setAttribute('data-erp-academic-term', '');
+
+            var empty = document.createElement('option');
+            empty.value = '';
+            empty.textContent = '— Select —';
+            select.appendChild(empty);
+
+            terms.forEach(function (term) {
+                var option = document.createElement('option');
+                option.value = String(term.id);
+                option.textContent = term.label;
+                select.appendChild(option);
+            });
+
+            select.value = terms.some(function (term) { return String(term.id) === String(selected); })
+                ? String(selected)
+                : '';
+            termSlot.appendChild(select);
+
+            if (termNote) {
+                termNote.textContent = 'Configured levels of the selected academic year.';
+            }
+
+            return;
+        }
+
+        // No configured level for this year: the free-text fallback, exactly the
+        // control the server rendered for that case.
+        var input = document.createElement('input');
+        input.className = 'erp-input';
+        input.id = 'semester';
+        input.name = 'semester';
+        input.maxLength = 30;
+        input.placeholder = 'e.g. 1 or Semester 3';
+        input.value = selected || '';
+        termSlot.appendChild(input);
+
+        if (termNote) {
+            termNote.textContent = 'This academic year has no configured semester / year of study, so it is entered as text.';
+        }
+    }
+
+    function replaceSections(sections, selected) {
+        if (!sectionSelect) {
+            return;
+        }
+
+        var label = sectionSelect.getAttribute('data-empty-label') || '— No section —';
+
+        while (sectionSelect.options.length > 1) {
+            sectionSelect.remove(1);
+        }
+
+        sections.forEach(function (section) {
+            var option = document.createElement('option');
+            option.value = String(section.id);
+            option.textContent = section.label;
+            sectionSelect.appendChild(option);
+        });
+
+        var available = sections.some(function (section) { return String(section.id) === String(selected); });
+        sectionSelect.value = available ? String(selected) : '';
+
+        sectionSelect.options[0].textContent = sections.length === 0 && (academicYear && academicYear.value)
+            ? '— No section configured for this year —'
+            : label;
+    }
+
+    function loadAcademicContext(options) {
+        if (!academicUrl) {
+            return;
+        }
+
+        var params = [];
+        var yearId = academicYear ? academicYear.value : '';
+        var programId = academicProgram ? academicProgram.value : '';
+
+        if (yearId) {
+            params.push('academic_year_id=' + encodeURIComponent(yearId));
+        }
+
+        if (programId) {
+            params.push('program_id=' + encodeURIComponent(programId));
+        }
+
+        var previousTerm = options && options.keepTerm ? currentTermValue() : '';
+        var previousFreeText = options && options.keepTerm ? currentFreeText() : '';
+        var previousSection = options && options.keepSection ? (sectionSelect ? sectionSelect.value : '') : '';
+
+        [termSlot, sectionSelect].forEach(function (node) {
+            if (node) {
+                node.setAttribute('aria-busy', 'true');
+            }
+        });
+
+        fetch(academicUrl + (params.length ? '?' + params.join('&') : ''), {
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('academic ' + response.status);
+                }
+
+                return response.json();
+            })
+            .then(function (payload) {
+                var data = payload.data || {};
+
+                replaceTerms(data.terms || [], previousTerm || previousFreeText);
+                replaceSections(data.sections || [], previousSection);
+            })
+            .catch(function () {
+                // A failed request must not leave a stale list looking valid:
+                // clear both dependent selects and say so.
+                replaceTerms([], '');
+                replaceSections([], '');
+
+                if (termNote) {
+                    termNote.textContent = 'Could not load the academic levels — try again.';
+                }
+            })
+            .then(function () {
+                [termSlot, sectionSelect].forEach(function (node) {
+                    if (node) {
+                        node.removeAttribute('aria-busy');
+                    }
+                });
+            });
+    }
+
+    if (academicYear) {
+        academicYear.addEventListener('change', function () {
+            markDirty();
+            // A different year invalidates both dependent levels.
+            loadAcademicContext();
+        });
+    }
+
+    if (academicProgram) {
+        academicProgram.addEventListener('change', function () {
+            markDirty();
+            // The programme narrows Sections (and keeps the semester as-is when
+            // it still belongs to the selected year).
+            loadAcademicContext({ keepTerm: true });
+        });
+    }
 
     /* ------------------------------------------------------------------
      * 2. Correspondence address — "Same as permanent"

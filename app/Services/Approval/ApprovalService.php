@@ -537,6 +537,11 @@ class ApprovalService
                 $this->students->createEnrollment([
                     'student_id' => $student->id,
                     'academic_year_id' => $yearId,
+                    // The configured semester / year of study captured at
+                    // registration. StudentService re-validates that it belongs
+                    // to this year and college and derives the stored label from
+                    // it, so the enrollment and the request can never disagree.
+                    'academic_term_id' => $payload['academic_term_id'] ?? null,
                     'program_id' => $programId,
                     'section_id' => $sectionId,
                     'semester' => $payload['semester'] ?? null,

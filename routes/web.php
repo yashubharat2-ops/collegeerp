@@ -305,6 +305,10 @@ Route::middleware('auth')->group(function () {
         // Dependent address selectors: read-only reference data (ids + names).
         Route::get('students/registration/geo/children', [StudentRegistrationWizardController::class, 'geoChildren'])
             ->name('students.registration.geo.children');
+        // Dependent academic levels (semester/year + section) for the Current
+        // Course block: read-only reference data, ids and labels only.
+        Route::get('students/registration/academic-options', [StudentRegistrationWizardController::class, 'academicOptions'])
+            ->name('students.registration.academic-options');
         Route::post('students/registration/documents', [StudentRegistrationWizardController::class, 'uploadDocument'])
             ->name('students.registration.documents.upload');
         Route::post('students/registration/documents/{document}', [StudentRegistrationWizardController::class, 'replaceDocument'])
@@ -341,6 +345,9 @@ Route::middleware('auth')->group(function () {
 
         // Students — Documents (private disk, tenant-safe, authorized streaming).
         Route::get('student-documents/{student_document}/download', [StudentDocumentController::class, 'download'])->name('student-documents.download');
+        // Inline preview for image documents (profile gallery): same policy as
+        // download(), attachment never, storage path never exposed.
+        Route::get('student-documents/{student_document}/preview', [StudentDocumentController::class, 'preview'])->name('student-documents.preview');
         Route::post('student-documents/{student_document}/verify', [StudentDocumentController::class, 'verify'])->name('student-documents.verify');
         // Consolidated printable document pack for a selection of students (the
         // listing's bulk "Bulk documents" action). Static segment first, so

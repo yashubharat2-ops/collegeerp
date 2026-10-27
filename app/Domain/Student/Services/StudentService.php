@@ -60,7 +60,7 @@ class StudentService
         'blood_group', 'nationality', 'mother_tongue', 'remarks',
     ];
 
-    public const AUDITED_ENROLLMENT = ['id', 'enrollment_number', 'student_id', 'academic_year_id', 'program_id', 'section_id', 'semester', 'roll_number', 'enrollment_date', 'status', 'remarks'];
+    public const AUDITED_ENROLLMENT = ['id', 'enrollment_number', 'student_id', 'academic_year_id', 'academic_term_id', 'program_id', 'section_id', 'semester', 'roll_number', 'enrollment_date', 'status', 'remarks'];
 
     /**
      * Shared rejection message for a Section attached to a program-less
@@ -84,6 +84,7 @@ class StudentService
         private readonly GenerateRollNumber $rollNumbers,
         private readonly StudentPhotoService $photos,
         private readonly AuditLogService $audit,
+        private readonly AcademicContextService $academic,
     ) {}
 
     /**
@@ -395,6 +396,19 @@ class StudentService
                 ]);
             }
 
+            // Configured semester / year of study. When an id is supplied it must
+            // belong to THIS enrollment's academic year inside this college; the
+            // human label is then taken from the term so `semester` and the
+            // reference can never disagree. A caller that only sends the legacy
+            // free-text `semester` is still accepted (older records, imports and
+            // the single-POST registration endpoint), but a supplied term always
+            // wins.
+            $term = $this->academic->resolveTerm(
+                isset($data['academic_term_id']) && $data['academic_term_id'] !== '' ? (int) $data['academic_term_id'] : null,
+                (int) $yearId,
+                $collegeId,
+            );
+
             // Roll number: the caller may supply one (office assignment), which
             // must be free inside THIS class/section scope; otherwise one is
             // allocated now — the enrollment is the first point at which the
@@ -408,9 +422,10 @@ class StudentService
                 'college_id' => $collegeId,
                 'student_id' => $studentId,
                 'academic_year_id' => $yearId,
+                'academic_term_id' => $term?->id,
                 'program_id' => $programId,
                 'section_id' => $sectionId,
-                'semester' => $data['semester'] ?? null,
+                'semester' => $this->academic->semesterLabel($term, $data['semester'] ?? null),
                 'roll_number' => $rollNumber,
                 'enrollment_number' => $this->enrollmentNumbers->executeWithCollegeLock($collegeId, $academicYearCode ?? $year->code),
                 'enrollment_date' => $data['enrollment_date'] ?? now()->toDateString(),
@@ -618,6 +633,32 @@ class StudentService
                 }
 
                 $data['roll_number'] = filled($requestedRoll) ? (string) $requestedRoll : null;
+            }
+
+            // Semester / year of study may be corrected within the enrollment's
+            // own academic year. The configured term is re-resolved tenant- and
+            // year-scoped, and the stored label follows it, so a correction made
+            // on the Edit screen cannot leave a reference and a label that
+            // describe different levels.
+            if (array_key_exists('academic_term_id', $data)) {
+                $term = $this->academic->resolveTerm(
+                    $data['academic_term_id'] !== null && $data['academic_term_id'] !== ''
+                        ? (int) $data['academic_term_id']
+                        : null,
+                    (int) $enrollment->academic_year_id,
+                    $collegeId,
+                );
+
+                $data['academic_term_id'] = $term?->id;
+
+                // A cleared term keeps whatever free-text label the record had
+                // only when the caller also sent one; otherwise the label is
+                // cleared with the reference.
+                if ($term !== null) {
+                    $data['semester'] = $this->academic->semesterLabel($term, null);
+                } elseif (! array_key_exists('semester', $data)) {
+                    $data['semester'] = null;
+                }
             }
 
             $newStatus = $data['status'] ?? $enrollment->status;

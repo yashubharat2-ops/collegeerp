@@ -72,6 +72,7 @@
                     <th class="py-3">Enrollment no.</th>
                     <th>Student ID — name</th>
                     <th>Academic year</th>
+                    <th>Semester / year</th>
                     <th>Program</th>
                     <th>Section</th>
                     <th>Date</th>
@@ -86,6 +87,7 @@
                         <td class="font-medium">{{ $enrollment->enrollment_number }}</td>
                         <td>{{ $enrollment->student?->student_number }} — {{ $enrollment->student?->first_name }} {{ $enrollment->student?->last_name }}</td>
                         <td>{{ $enrollment->academicYear?->name ?? '—' }}</td>
+                        <td>{{ $enrollment->semesterLabel() ?? 'Not set' }}</td>
                         <td>{{ $enrollment->program?->name ?? '—' }}</td>
                         <td>{{ $enrollment->section?->name ?? '—' }}</td>
                         <td>{{ $enrollment->enrollment_date?->format('d M Y') ?? '—' }}</td>
@@ -123,7 +125,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td class="py-6 text-slate-500" colspan="9">No enrollments found.</td></tr>
+                    <tr><td class="py-6 text-slate-500" colspan="10">No enrollments found.</td></tr>
                 @endforelse
             </tbody>
         </table>

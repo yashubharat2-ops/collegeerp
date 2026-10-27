@@ -43,7 +43,15 @@ class UpdateStudentEnrollmentRequest extends FormRequest
             $sectionRule->where('program_id', (int) $enrollment->program_id);
         }
 
+        // The configured semester / year of study may be corrected, but only
+        // within this enrollment's own academic year (which is immutable).
+        $termRule = Rule::exists('academic_terms', 'id')
+            ->where('college_id', $collegeId)
+            ->where('academic_year_id', (int) $enrollment?->academic_year_id)
+            ->whereNull('deleted_at');
+
         return [
+            'academic_term_id' => ['nullable', 'integer', $termRule],
             'section_id' => ['nullable', 'integer', $sectionRule],
             'enrollment_date' => ['nullable', 'date'],
             // Manual statuses only — plus whatever this record already holds, so

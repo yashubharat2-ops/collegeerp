@@ -6,6 +6,7 @@ use App\Domain\Student\Actions\ConvertAdmissionToStudent;
 use App\Domain\Student\Actions\ConvertApplicationToStudent;
 use App\Domain\Student\Services\StudentHistoryService;
 use App\Domain\Student\Services\StudentListService;
+use App\Domain\Student\Services\StudentProfileService;
 use App\Domain\Student\Services\StudentRegistrationService;
 use App\Domain\Student\Services\StudentService;
 use App\Http\Requests\Student\StoreStudentFromAdmissionRequest;
@@ -420,7 +421,7 @@ class StudentController extends Controller
      * Profile" master: every tab is the same data the module pages show,
      * filtered to this student, so there is exactly one entry point.
      */
-    public function show(Request $request, string $student, StudentHistoryService $history): View
+    public function show(Request $request, string $student, StudentHistoryService $history, StudentProfileService $profile): View
     {
         $model = $this->findScoped($student);
         $this->authorize('view', $model);
@@ -428,7 +429,9 @@ class StudentController extends Controller
         $model->load([
             'admissionApplication.applicant',
             'admissionApplication.admission',
+            'qualifications',
             'enrollments.academicYear',
+            'enrollments.academicTerm',
             'enrollments.program',
             'enrollments.section',
             'academicRecords.academicYear',
@@ -448,6 +451,11 @@ class StudentController extends Controller
             'tab' => $request->input('tab', 'profile'),
             // Derived, chronological lifecycle timeline (see StudentHistoryService).
             'historyEvents' => $history->forStudent($model),
+            // Everything the profile renders, resolved ONCE (current vs
+            // historical enrollment, the academic context, qualification rows
+            // with their legitimate percentages, the document gallery and the
+            // admission number) so no two sections can disagree.
+            'profile' => $profile->present($model),
         ]);
     }
 

@@ -146,7 +146,7 @@ final class StudentRegistrationService
             }
 
             $studentData = Arr::except($data, [
-                'academic_year_id', 'program_id', 'section_id', 'semester', 'enrollment_date',
+                'academic_year_id', 'academic_term_id', 'program_id', 'section_id', 'semester', 'enrollment_date',
                 'registration_document_type_id', 'registration_documents', 'qualifications',
             ]);
             // Only real, fillable student columns are written: wizard-only keys
@@ -221,6 +221,10 @@ final class StudentRegistrationService
                 'registration_fingerprint' => $fingerprint,
                 'student_id' => $student->id,
                 'academic_year_id' => $data['academic_year_id'] ?? null,
+                // The configured semester / year of study travels with the
+                // request so the approver sees the real academic placement and
+                // the initial enrollment is created with the same reference.
+                'academic_term_id' => $data['academic_term_id'] ?? null,
                 'program_id' => $data['program_id'] ?? null,
                 'section_id' => $data['section_id'] ?? null,
                 'semester' => $data['semester'] ?? null,

@@ -492,20 +492,72 @@ class Student extends Model
     }
 
     /**
-     * The student's current (active) enrollment, if any.
+     * The student's current enrollment, if any.
      *
-     * Deterministic: the oldest-created active enrollment wins, with the id as
-     * a tiebreak, so the "current enrollment" never flips between requests.
+     * The rule follows the ACADEMIC CALENDAR, not the newest row:
+     *
+     *  1. only an ACTIVE enrollment can be current — pending approval, completed,
+     *     cancelled, withdrawn and rejected rows are history (or not yet real);
+     *  2. an active enrollment whose academic year contains today wins. If more
+     *     than one does (a data-entry overlap), the later-starting year wins,
+     *     because that is the session the student is actually attending;
+     *  3. with no year overlapping today (outside every session, or years not
+     *     dated), the most recently STARTING academic year wins, and the newest
+     *     row is the tiebreak.
+     *
+     * Deterministic in every branch (id is the final tiebreak), so the "current
+     * enrollment" never flips between two requests.
      */
     public function currentEnrollment(): ?StudentEnrollment
     {
-        return $this->enrollments
-            ->filter(fn (StudentEnrollment $enrollment) => $enrollment->status === 'active')
-            ->sortBy(fn (StudentEnrollment $enrollment) => sprintf(
-                '%011d%011d',
+        $active = $this->enrollments
+            ->filter(fn (StudentEnrollment $enrollment) => $enrollment->status === StudentEnrollment::STATUS_ACTIVE);
+
+        if ($active->isEmpty()) {
+            return null;
+        }
+
+        $today = now()->startOfDay();
+
+        $inSession = $active->filter(function (StudentEnrollment $enrollment) use ($today): bool {
+            $year = $enrollment->academicYear;
+
+            if (! $year?->starts_on || ! $year?->ends_on) {
+                return false;
+            }
+
+            return $year->starts_on->startOfDay()->lte($today) && $year->ends_on->endOfDay()->gte($today);
+        });
+
+        $pool = $inSession->isNotEmpty() ? $inSession : $active;
+
+        return $pool
+            ->sortByDesc(fn (StudentEnrollment $enrollment) => sprintf(
+                '%s-%011d-%011d',
+                $enrollment->academicYear?->starts_on?->format('Ymd') ?? '00000000',
                 $enrollment->created_at?->timestamp ?? 0,
                 $enrollment->id
             ))
             ->first();
+    }
+
+    /**
+     * Every enrollment of this student that is not the current one, newest
+     * academic year first — the history a profile shows beside the current row.
+     *
+     * @return \Illuminate\Support\Collection<int, StudentEnrollment>
+     */
+    public function previousEnrollments(): \Illuminate\Support\Collection
+    {
+        $current = $this->currentEnrollment();
+
+        return $this->enrollments
+            ->reject(fn (StudentEnrollment $enrollment) => $current !== null && (int) $enrollment->id === (int) $current->id)
+            ->sortByDesc(fn (StudentEnrollment $enrollment) => sprintf(
+                '%s-%011d',
+                $enrollment->academicYear?->starts_on?->format('Ymd') ?? '00000000',
+                $enrollment->id
+            ))
+            ->values();
     }
 }

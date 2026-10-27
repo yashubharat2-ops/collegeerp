@@ -140,6 +140,12 @@ class StudentEnrollment extends Model
         'college_id',
         'student_id',
         'academic_year_id',
+        // The CONFIGURED academic level (semester / term / trimester) of this
+        // enrollment, when the college maintains its academic structure. The
+        // `semester` string below keeps the human label so existing reports,
+        // exports and ID cards keep working; this id is what a filter or a join
+        // can rely on.
+        'academic_term_id',
         'program_id',
         'section_id',
         // Year-of-study / semester of this enrollment (e.g. "1", "Semester 3").
@@ -181,6 +187,36 @@ class StudentEnrollment extends Model
     public function program(): BelongsTo
     {
         return $this->belongsTo(Program::class, 'program_id');
+    }
+
+    /**
+     * The configured semester / year of study, when one was chosen.
+     *
+     * Nullable on purpose: an older enrollment may only carry the free-text
+     * `semester` label, and a college that has not configured academic terms yet
+     * can still enroll students.
+     */
+    public function academicTerm(): BelongsTo
+    {
+        return $this->belongsTo(AcademicTerm::class, 'academic_term_id');
+    }
+
+    /**
+     * What every screen should print for the study level of this enrollment:
+     * the configured term's name when there is one, else the stored label, else
+     * null (the caller renders its own "not set" text — never a bare "").
+     */
+    public function semesterLabel(): ?string
+    {
+        $termName = $this->academicTerm?->name;
+
+        if (is_string($termName) && trim($termName) !== '') {
+            return trim($termName);
+        }
+
+        $stored = is_string($this->semester) ? trim($this->semester) : null;
+
+        return $stored === '' ? null : $stored;
     }
 
     /**

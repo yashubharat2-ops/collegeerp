@@ -41,9 +41,19 @@ class StoreStudentEnrollmentRequest extends FormRequest
             $sectionRule->where('program_id', (int) $programId);
         }
 
+        // Optional configured semester / year of study. It must belong to the
+        // SELECTED academic year in this college — the same dependency the
+        // registration wizard enforces — so two enrollments of one student can
+        // never disagree about which level a year's enrollment is.
+        $termRule = Rule::exists('academic_terms', 'id')
+            ->where('college_id', $collegeId)
+            ->where('academic_year_id', $academicYearId)
+            ->whereNull('deleted_at');
+
         return [
             'student_id' => ['required', 'integer', Rule::exists('students', 'id')->where('college_id', $collegeId)],
             'academic_year_id' => ['required', 'integer', Rule::exists('academic_years', 'id')->where('college_id', $collegeId)],
+            'academic_term_id' => ['nullable', 'integer', $termRule],
             'program_id' => ['nullable', 'integer', Rule::exists('programs', 'id')->where('college_id', $collegeId)],
             'section_id' => ['nullable', 'integer', $sectionRule],
             'enrollment_date' => ['nullable', 'date'],

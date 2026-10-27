@@ -738,6 +738,203 @@ class RegistrationWizardTest extends TestCase
     }
 
     // -----------------------------------------------------------------
+    // Unified academic workflow: order, dropdowns, dependence
+    // -----------------------------------------------------------------
+
+    public function test_the_current_course_fields_follow_the_canonical_academic_order(): void
+    {
+        $college = $this->makeCollege('WIZA1');
+        $user = $this->staff($college);
+
+        $this->asCollege($college, $user)->get(route('students.registration.create'))->assertRedirect();
+        $html = $this->asCollege($college, $user)
+            ->get(route('students.registration.step', ['step' => 2]))
+            ->assertOk()
+            ->getContent();
+
+        // Academic Year → Programme → Semester/Year of study → Section/Batch →
+        // Admission date → Enrollment date → Admission category. Asserting the
+        // POSITIONS (not just presence) is the point: the same four levels must
+        // appear in the same order here, on the enrollment form and on the profile.
+        $order = [
+            'id="academic_year_id"',
+            'id="program_id"',
+            'data-erp-academic-term-slot',
+            'id="section_id"',
+            'id="admission_date"',
+            'id="enrollment_date"',
+            'Admission category',
+        ];
+
+        $previous = -1;
+
+        foreach ($order as $needle) {
+            $position = strpos($html, $needle);
+            $this->assertNotFalse($position, "\"{$needle}\" must render in the Current Course block.");
+            $this->assertGreaterThan($previous, $position, "\"{$needle}\" is out of the canonical academic order.");
+            $previous = $position;
+        }
+
+        // Section always comes AFTER the semester/year of study field.
+        $this->assertGreaterThan(
+            strpos($html, 'Semester / Year of study'),
+            strpos($html, 'Section / Batch'),
+            'Section / Batch must be offered after Semester / Year of study.',
+        );
+    }
+
+    public function test_the_semester_field_is_a_configured_dropdown_for_the_chosen_academic_year(): void
+    {
+        $college = $this->makeCollege('WIZA2');
+        $user = $this->staff($college);
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+        $term = $this->makeAcademicTerm($college, $year, 'SEM3', 'Semester 3', 3);
+
+        // Save the academic context as a draft, then reopen the step: the field
+        // must now be a list of the CONFIGURED levels of that year.
+        $this->saveStep($college, $user, 2, [
+            'academic_year_id' => $year->id,
+            'program_id' => $program->id,
+            'semester' => 'Semester 3',
+        ], draft: true)->assertRedirect();
+
+        $html = $this->asCollege($college, $user)
+            ->get(route('students.registration.step', ['step' => 2]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertMatchesRegularExpression('/<select[^>]*id="academic_term_id"/', $html, 'Semester / year of study must be a configured dropdown.');
+        $this->assertStringNotContainsString('id="semester"', $html, 'The free-text semester input must be replaced once levels are configured.');
+        $this->assertStringContainsString('Semester 3', $html);
+
+        // The dropdown is scoped to that year: another year's term is not offered.
+        $otherYear = $this->makeYear($college, '2027', '2027-28', '2027-06-01', '2028-05-31');
+        $otherTerm = $this->makeAcademicTerm($college, $otherYear, 'SEMX', 'Semester 9', 9);
+
+        $this->assertSame($term->id, (int) $this->draftFor($college, $user)->stepData(2)['academic_term_id']);
+        $this->assertStringNotContainsString('Semester 9', $html);
+        $this->assertNotSame($term->id, $otherTerm->id);
+    }
+
+    public function test_the_academic_options_endpoint_returns_only_the_selected_context(): void
+    {
+        $college = $this->makeCollege('WIZA3');
+        $otherCollege = $this->makeCollege('WIZA3B');
+        $user = $this->staff($college);
+
+        $year = $this->makeYear($college);
+        $nextYear = $this->makeYear($college, '2027', '2027-28', '2027-06-01', '2028-05-31');
+        $program = $this->makeProgram($college);
+        $otherProgram = $this->makeProgram($college, 'BCOM');
+
+        $term = $this->makeAcademicTerm($college, $year, 'SEM1', 'Semester 1', 1);
+        $nextTerm = $this->makeAcademicTerm($college, $nextYear, 'SEM1', 'Semester 1', 1);
+        $section = $this->makeSection($college, $year, $program, 'A');
+        $otherSection = $this->makeSection($college, $year, $otherProgram, 'B');
+
+        $foreignYear = $this->makeYear($otherCollege, 'FOREIGN', 'Foreign year');
+        $this->makeAcademicTerm($otherCollege, $foreignYear, 'FSEM', 'Foreign semester', 1);
+
+        $response = $this->asCollege($college, $user)->getJson(route('students.registration.academic-options', [
+            'academic_year_id' => $year->id,
+            'program_id' => $program->id,
+        ]))->assertOk();
+
+        $this->assertTrue($response->json('terms_configured'));
+
+        $termIds = array_column($response->json('data.terms'), 'id');
+        $this->assertContains($term->id, $termIds);
+        $this->assertNotContains($nextTerm->id, $termIds, 'Terms of another academic year must not be offered.');
+        $this->assertStringContainsString('Semester 1', $response->json('data.terms.0.label'));
+
+        $sectionIds = array_column($response->json('data.sections'), 'id');
+        $this->assertContains($section->id, $sectionIds);
+        $this->assertNotContains($otherSection->id, $sectionIds, 'Sections of another programme must not be offered.');
+
+        // Another tenant's structure is never readable through the endpoint.
+        $foreign = $this->asCollege($otherCollege, $this->staff($otherCollege))
+            ->getJson(route('students.registration.academic-options', ['academic_year_id' => $year->id]))
+            ->assertOk();
+
+        $this->assertSame([], $foreign->json('data.terms'));
+        $this->assertSame([], $foreign->json('data.sections'));
+    }
+
+    public function test_a_term_from_another_academic_year_is_rejected_on_save(): void
+    {
+        $college = $this->makeCollege('WIZA4');
+        $user = $this->staff($college);
+        $year = $this->makeYear($college);
+        $nextYear = $this->makeYear($college, '2027', '2027-28', '2027-06-01', '2028-05-31');
+        $program = $this->makeProgram($college);
+        $nextTerm = $this->makeAcademicTerm($college, $nextYear, 'SEM1', 'Semester 1', 1);
+
+        $this->saveStep($college, $user, 2, [
+            'academic_year_id' => $year->id,
+            'program_id' => $program->id,
+            'academic_term_id' => $nextTerm->id,
+        ])->assertSessionHasErrors(['academic_term_id']);
+    }
+
+    public function test_a_term_from_another_college_is_rejected_on_save(): void
+    {
+        $college = $this->makeCollege('WIZA5');
+        $other = $this->makeCollege('WIZA5B');
+        $user = $this->staff($college);
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+        $otherYear = $this->makeYear($other, '2026', '2026-27');
+        $foreignTerm = $this->makeAcademicTerm($other, $otherYear, 'SEM1', 'Semester 1', 1);
+
+        $this->saveStep($college, $user, 2, [
+            'academic_year_id' => $year->id,
+            'program_id' => $program->id,
+            'academic_term_id' => $foreignTerm->id,
+        ])->assertSessionHasErrors(['academic_term_id']);
+    }
+
+    public function test_the_approved_registration_creates_the_enrollment_with_the_configured_term(): void
+    {
+        $college = $this->makeCollege('WIZA6');
+        $submitter = $this->staff($college);
+        $approver = $this->makeUserWithPermissions($college, ['students.view', 'students.create', 'approvals.view', 'approvals.approve']);
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+        $section = $this->makeSection($college, $year, $program, 'A');
+        $term = $this->makeAcademicTerm($college, $year, 'SEM3', 'Semester 3', 3);
+
+        $draft = $this->completeDraft($college, $submitter, [], [
+            'academic_year_id' => $year->id,
+            'program_id' => $program->id,
+            'academic_term_id' => $term->id,
+            'section_id' => $section->id,
+        ]);
+
+        // The term reference and the human label are agreed at save time.
+        $stored = $this->draftFor($college, $submitter)->stepData(2);
+        $this->assertSame($term->id, (int) $stored['academic_term_id']);
+        $this->assertSame('Semester 3', $stored['semester']);
+
+        $this->asCollege($college, $submitter)->post(route('students.registration.submit'), [
+            'draft_id' => $draft->id,
+            'confirm_declaration' => '1',
+        ])->assertRedirect(route('students.index'));
+
+        $student = Student::withoutGlobalScopes()->where('college_id', $college->id)->sole();
+        $request = ApprovalRequest::withoutGlobalScopes()->where('target_id', $student->id)->sole();
+
+        $this->asCollege($college, $approver)->post(route('approvals.approve', $request), [])->assertRedirect();
+
+        $enrollment = StudentEnrollment::withoutGlobalScopes()->where('student_id', $student->id)->sole();
+
+        $this->assertSame($term->id, (int) $enrollment->academic_term_id, 'Approval must carry the configured semester into the enrollment.');
+        $this->assertSame($section->id, (int) $enrollment->section_id);
+        $this->assertSame('Semester 3', $enrollment->semester);
+        $this->assertSame('Semester 3', $enrollment->semesterLabel());
+    }
+
+    // -----------------------------------------------------------------
     // Tenancy + authorization
     // -----------------------------------------------------------------
 

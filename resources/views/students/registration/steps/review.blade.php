@@ -145,10 +145,13 @@
         <dl class="erp-review-list">
             <div><dt>Academic year</dt><dd>{{ $academicYear?->name }}</dd></div>
             <div><dt>Programme</dt><dd>{{ $program?->name }}</dd></div>
+            {{-- The configured level is shown as the college configured it; the
+                 stored label is the fallback for a year that has no levels yet. --}}
+            <div><dt>Semester / year</dt><dd>{{ $academicTerm?->name ?? $show('semester') }}</dd></div>
             <div><dt>Section</dt><dd>{{ $section?->name }}</dd></div>
-            <div><dt>Semester / year</dt><dd>{{ $show('semester') }}</dd></div>
             <div><dt>Admission date</dt><dd>{{ $show('admission_date') }}</dd></div>
             <div><dt>Enrollment date</dt><dd>{{ $show('enrollment_date') }}</dd></div>
+            <div><dt>Admission category</dt><dd>{{ \App\Models\Student::categoryLabel($merged['category'] ?? null) }}</dd></div>
         </dl>
 
         <h4 class="erp-subhead">Previous qualifications</h4>
