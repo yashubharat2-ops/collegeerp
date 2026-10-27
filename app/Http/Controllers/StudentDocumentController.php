@@ -224,6 +224,52 @@ class StudentDocumentController extends Controller
         return $files->download($path, StudentDocumentService::safeDownloadName($model->original_filename, 'student-document'));
     }
 
+    /**
+     * Stream an IMAGE document INLINE for the profile's document gallery.
+     *
+     * Same authorization and path checks as download(); the only difference is
+     * the disposition, because a browser refuses to render an `attachment` in an
+     * <img>. Restricted to image types on purpose: this endpoint exists to draw
+     * a thumbnail, not to open arbitrary uploaded content in the page, and it
+     * never reveals the storage path (the file stays outside the web root).
+     *
+     * A document that is missing from disk, or is not an image, answers 404 —
+     * the gallery then shows its file-type badge instead of a broken image.
+     */
+    public function preview(string $student_document, SecureFileService $files, AuditLogService $audit): StreamedResponse
+    {
+        $model = $this->findScoped($student_document);
+        $this->authorize('download', $model);
+
+        $extension = strtolower((string) pathinfo((string) $model->original_filename, PATHINFO_EXTENSION));
+        $mime = strtolower((string) $model->mime_type);
+
+        $isImage = str_starts_with($mime, 'image/') || in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true);
+
+        if (! $isImage) {
+            abort(404, 'This document has no inline preview.');
+        }
+
+        $path = StudentDocumentService::assertSafePath($model->file_path);
+
+        if (! Storage::disk('private')->exists($path)) {
+            abort(404, 'The stored file is no longer available.');
+        }
+
+        // A preview is a read of a private document: audited like a download, and
+        // marked private so no shared cache may keep a copy.
+        $audit->record('student_document.previewed', $model, [], [
+            'id' => $model->id,
+            'title' => $model->title,
+        ]);
+
+        return Storage::disk('private')->response($path, null, [
+            'Cache-Control' => 'private, no-store',
+            'Content-Disposition' => 'inline',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
     private function findScoped(string $id): StudentDocument
     {
         return StudentDocument::query()->findOrFail($id);

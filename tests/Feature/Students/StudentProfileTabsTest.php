@@ -2,34 +2,43 @@
 
 namespace Tests\Feature\Students;
 
-use App\Models\StudentAcademicRecord;
 use App\Models\StudentDocument;
 use App\Models\StudentPromotion;
 use Tests\TestCase;
 
 /**
- * The 360° profile: tabs on the EXISTING students.show page.
+ * The student profile: the mandated six sections on the EXISTING students.show
+ * page, plus the lifecycle modules that already own their own screens.
  *
- * Guards two things the brief cares about: every lifecycle module is reachable
- * as a tab of one student page (no second "Student Profile" master), and each
- * tab shows only that student's data from the module that owns it.
+ * Guards three things the brief cares about: the profile is one integrated page
+ * (no second "Student Profile" master), every section body is rendered only for
+ * its own tab, and the five lifecycle modules stay reachable after the
+ * reorganisation — nothing was removed, only regrouped.
  */
 class StudentProfileTabsTest extends TestCase
 {
     use StudentTestHelpers;
 
+    /** The six sections the brief mandates, in order. */
     private const TABS = [
-        'profile' => 'Profile',
-        'enrollments' => 'Enrollments',
-        'academic-records' => 'Academic Records',
+        'profile' => 'Overview',
+        'personal' => 'Personal Information',
+        'academic' => 'Academic Information',
+        'qualifications' => 'Qualifications',
         'documents' => 'Documents',
+        'enrollments' => 'Enrollment History',
+    ];
+
+    /** The lifecycle modules that already own a screen, still linked from here. */
+    private const RELATED_TABS = [
+        'academic-records' => 'Academic Records',
         'id-card' => 'ID Card',
         'promotion' => 'Promotion',
         'transfer' => 'Transfer / TC',
-        'history' => 'History',
+        'history' => 'Lifecycle Log',
     ];
 
-    public function test_all_eight_tabs_are_rendered_on_the_student_detail_page(): void
+    public function test_the_six_profile_sections_are_rendered_on_the_student_detail_page(): void
     {
         [$college, $student] = $this->makeScenario();
         $viewer = $this->makeUserWithPermissions($college, ['students.view']);
@@ -37,6 +46,19 @@ class StudentProfileTabsTest extends TestCase
         $response = $this->asCollege($college, $viewer)->get(route('students.show', $student))->assertOk();
 
         foreach (self::TABS as $key => $label) {
+            $response->assertSee(route('students.show', ['student' => $student, 'tab' => $key]), false)
+                ->assertSee($label, false);
+        }
+    }
+
+    public function test_the_lifecycle_modules_remain_reachable_from_the_profile(): void
+    {
+        [$college, $student] = $this->makeScenario();
+        $viewer = $this->makeUserWithPermissions($college, ['students.view']);
+
+        $response = $this->asCollege($college, $viewer)->get(route('students.show', $student))->assertOk();
+
+        foreach (self::RELATED_TABS as $key => $label) {
             $response->assertSee(route('students.show', ['student' => $student, 'tab' => $key]), false)
                 ->assertSee($label, false);
         }
@@ -63,7 +85,7 @@ class StudentProfileTabsTest extends TestCase
 
     public function test_each_tab_renders_only_its_own_section(): void
     {
-        [$college, $student, $data] = $this->makeScenario();
+        [$college, $student] = $this->makeScenario();
         $viewer = $this->makeUserWithPermissions($college, [
             'students.view',
             'student_enrollments.view', 'student_enrollments.create',
@@ -75,18 +97,21 @@ class StudentProfileTabsTest extends TestCase
             'student_history.view',
         ]);
 
-        // Each marker is unique to its tab body: nothing in the always-visible
-        // 360° header or the sidebar contains these strings, so asserting that
-        // the other markers are absent proves only one tab body is rendered.
+        // Each marker is unique to its tab body: none of them appears in the
+        // always-visible header, summary cards or navigation, so asserting the
+        // other markers are absent proves only one tab body rendered.
         $markers = [
-            'profile' => 'Alternate phone:',
+            'profile' => 'Records at a glance',
+            'personal' => 'Parent &amp; guardian',
+            'academic' => 'Current academic details',
+            'qualifications' => 'Previous qualifications',
+            'documents' => '+ Upload document',
             'enrollments' => '+ New enrollment',
             'academic-records' => '+ New record',
-            'documents' => '+ Upload document',
             'id-card' => 'Generate / print ID card',
             'promotion' => '+ New promotion',
             'transfer' => '+ New transfer request',
-            'history' => 'Lifecycle history',
+            'history' => 'Lifecycle log',
         ];
 
         // Sanity check that the tab bodies really do carry this student's rows.
@@ -119,7 +144,7 @@ class StudentProfileTabsTest extends TestCase
         }
     }
 
-    public function test_unknown_tab_falls_back_to_the_profile_tab(): void
+    public function test_unknown_tab_falls_back_to_the_overview_section(): void
     {
         [$college, $student] = $this->makeScenario();
         $viewer = $this->makeUserWithPermissions($college, ['students.view']);
@@ -127,11 +152,11 @@ class StudentProfileTabsTest extends TestCase
         $this->asCollege($college, $viewer)
             ->get(route('students.show', ['student' => $student, 'tab' => 'does-not-exist']))
             ->assertOk()
-            ->assertSee('Alternate phone:', false)
-            ->assertDontSee('Lifecycle history', false);
+            ->assertSee('Records at a glance', false)
+            ->assertDontSee('Lifecycle log', false);
     }
 
-    public function test_empty_states_are_shown_for_tabs_without_data(): void
+    public function test_empty_states_are_shown_for_sections_without_data(): void
     {
         $college = $this->makeCollege('TABEMPTY');
         $student = $this->makeStudent($college);
@@ -140,6 +165,14 @@ class StudentProfileTabsTest extends TestCase
         $this->asCollege($college, $viewer)
             ->get(route('students.show', ['student' => $student, 'tab' => 'enrollments']))
             ->assertOk()->assertSee('No enrollments yet.', false);
+
+        $this->asCollege($college, $viewer)
+            ->get(route('students.show', ['student' => $student, 'tab' => 'academic']))
+            ->assertOk()->assertSee('No active enrollment for the current academic year.', false);
+
+        $this->asCollege($college, $viewer)
+            ->get(route('students.show', ['student' => $student, 'tab' => 'qualifications']))
+            ->assertOk()->assertSee('No qualifications recorded for this student.', false);
 
         $this->asCollege($college, $viewer)
             ->get(route('students.show', ['student' => $student, 'tab' => 'academic-records']))
@@ -169,7 +202,7 @@ class StudentProfileTabsTest extends TestCase
         $studentB = $this->makeStudent($collegeB);
         $adminA = $this->makeUserWithPermissions($collegeA, ['students.view', 'student_history.view']);
 
-        foreach (array_keys(self::TABS) as $tab) {
+        foreach (array_merge(array_keys(self::TABS), array_keys(self::RELATED_TABS)) as $tab) {
             $this->asCollege($collegeA, $adminA)
                 ->get(route('students.show', ['student' => $studentB, 'tab' => $tab]))
                 ->assertNotFound();
@@ -203,12 +236,14 @@ class StudentProfileTabsTest extends TestCase
         $nextYear = $this->makeNextYear($college, '2027');
         $program = $this->makeProgram($college);
         $section = $this->makeSection($college, $year, $program, 'A');
+        $term = $this->makeAcademicTerm($college, $year);
         $documentType = $this->makeDocumentType($college);
 
         $student = $this->makeStudent($college, ['student_number' => 'STU-TAB-1', 'phone' => '9876543210']);
         $enrollment = $this->makeEnrollment($college, $student, $year, $program, [
             'enrollment_number' => 'ENR-TAB-1',
             'section_id' => $section->id,
+            'academic_term_id' => $term->id,
         ]);
 
         $record = $this->makeAcademicRecord($college, $student, $year, ['program_id' => $program->id]);
@@ -219,6 +254,7 @@ class StudentProfileTabsTest extends TestCase
             'title' => 'Class 12 marksheet',
             'file_path' => sprintf('students/%d/%d/tabc123.pdf', $college->id, $student->id),
             'original_filename' => 'marksheet-tab.pdf',
+            'mime_type' => 'application/pdf',
             'file_size' => 10240,
             'verification_status' => 'pending',
         ]);
@@ -234,7 +270,7 @@ class StudentProfileTabsTest extends TestCase
             'destination_institution' => 'Model Science College, Indore',
         ]);
 
-        return [$college, $student, compact('enrollment', 'record', 'document', 'promotion', 'transfer')];
+        return [$college, $student, compact('enrollment', 'record', 'document', 'promotion', 'transfer', 'term', 'section', 'year', 'program')];
     }
 
     /**

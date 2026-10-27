@@ -28,9 +28,14 @@ class ApprovalController extends Controller
             ->orderByDesc('created_at');
 
         // Filter to only those the user can approve (has required permission)
+        // A trusted authority may decide their own requests, so their own pending
+        // rows belong in this list too; for everyone else a self-request stays in
+        // My Requests only (they are not allowed to decide it).
+        $decidesOwnRequests = $user->isTrustedAuthority($collegeId);
+
         $allPending = $query->get();
-        $visible = $allPending->filter(function (ApprovalRequest $req) use ($user, $collegeId) {
-            if ((int) $req->requested_by === (int) $user->getKey()) {
+        $visible = $allPending->filter(function (ApprovalRequest $req) use ($user, $collegeId, $decidesOwnRequests) {
+            if ((int) $req->requested_by === (int) $user->getKey() && ! $decidesOwnRequests) {
                 return false; // can't approve own, so don't show in pending (show in myRequests)
             }
             $perm = ApprovalRegistry::permissionFor($req->module, $req->action);

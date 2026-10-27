@@ -1,0 +1,79 @@
+/* =============================================================================
+ * College ERP — theme tokens (Deep Blue & Navy Blue)
+ * =============================================================================
+ *
+ * The single source of truth for the ERP's brand colours. Every other static
+ * stylesheet (erp-sidebar.css, erp-user-menu.css, erp-dropdown.css,
+ * erp-list.css, erp-ui.css, erp-student-form.css, erp-dashboard.css) reads the
+ * tokens declared here through `var(--erp-color-*, <fallback>)`, and
+ * resources/css/app.css mirrors the same values into Tailwind's `@theme` block
+ * so utilities compiled from the bundle paint the same palette.
+ *
+ * Why a static sheet (same reason as the rest of the shell): the colours must be
+ * correct even when no Vite build exists (`public/build/manifest.json` missing)
+ * or the dev server is down. It is linked FIRST by resources/views/layouts/
+ * app.blade.php and layouts/guest.blade.php, so every later sheet — and the
+ * bundle — sees the tokens already defined.
+ *
+ * Rules of the house:
+ *   - this file declares CUSTOM PROPERTIES ONLY: no element selectors, no
+ *     layout, nothing that could leak into a module page;
+ *   - every consumer writes a literal fallback (`var(--erp-color-primary,
+ *     #1d4ed8)`), so a stale-cached copy of this file can never leave a rule
+ *     with an invalid value;
+ *   - status colours (success / warning / information / danger) are deliberately
+ *     NOT brand-tinted: a red row must not be able to look like a blue link.
+ *
+ * Palette (2026-10-27 Deep Blue & Navy Blue pass):
+ *   primary        #1D4ED8   the one accent: buttons, links, active menu, focus
+ *   primary-hover  #1E40AF   pressed / hover of the accent
+ *   primary-deep   #172554   accent used as a text tone on a soft surface
+ *   primary-soft   #EFF6FF   soft accent surface (also the hover background)
+ *   primary-ring   #BFDBFE   accent ring / border on a soft surface
+ *   navy           #0F172A   sidebar and auth shell
+ *   bg             #F8FAFC   page background
+ *   surface        #FFFFFF   cards, forms, panels, tables
+ *   text           #1E293B   primary text
+ *   muted          #64748B   secondary text
+ *   border         #E2E8F0   every hairline
+ * ------------------------------------------------------------------------- */
+:root {
+    /* Brand — Deep Blue */
+    --erp-color-primary: #1d4ed8;
+    --erp-color-primary-hover: #1e40af;
+    --erp-color-primary-deep: #172554;
+    --erp-color-primary-soft: #eff6ff;
+    --erp-color-primary-ring: #bfdbfe;
+    --erp-color-primary-tint: #dbeafe;
+
+    /* Brand — Navy Blue (navigation / dark chrome) */
+    --erp-color-navy: #0f172a;
+    --erp-color-navy-raise: #17233b;
+    --erp-color-navy-hover: #1e293b;
+    --erp-color-navy-line: rgba(226, 232, 240, 0.14);
+    --erp-color-navy-text: #f8fafc;
+    --erp-color-navy-muted: #cbd5e1;
+    --erp-color-navy-faint: #94a3b8;
+
+    /* Surfaces and type */
+    --erp-color-bg: #f8fafc;
+    --erp-color-surface: #ffffff;
+    --erp-color-surface-muted: #f1f5f9;
+    --erp-color-text: #1e293b;
+    --erp-color-text-strong: #0f172a;
+    --erp-color-muted: #64748b;
+    --erp-color-faint: #94a3b8;
+    --erp-color-border: #e2e8f0;
+    --erp-color-border-strong: #cbd5e1;
+    --erp-color-hover: #eff6ff;
+
+    /* Status — semantically distinct from the brand on purpose */
+    --erp-color-success: #047857;
+    --erp-color-success-soft: #ecfdf5;
+    --erp-color-warning: #b45309;
+    --erp-color-warning-soft: #fffbeb;
+    --erp-color-info: #0369a1;
+    --erp-color-info-soft: #f0f9ff;
+    --erp-color-danger: #be123c;
+    --erp-color-danger-soft: #fff1f2;
+}

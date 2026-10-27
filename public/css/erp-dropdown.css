@@ -23,7 +23,7 @@
  *     than Tailwind utilities, so no rule here depends on a fresh build;
  *   - the surface is white with a slate hairline and the same shadow/radius/row
  *     anatomy as the signed-in user panel, so the two menus read as one system;
- *   - the trigger keeps the shared `.button` (indigo) — no second button colour.
+ *   - the trigger keeps the shared `.button` (Deep Blue) — no second button colour.
  */
 
 .erp-list-dropdown {
@@ -31,10 +31,10 @@
     --erp-list-dropdown-line: #e2e8f0;
     --erp-list-dropdown-surface: #ffffff;
     --erp-list-dropdown-text: #0f172a;
-    --erp-list-dropdown-hover: #f1f5f9;
-    --erp-list-dropdown-accent: #4f46e5;
-    --erp-list-dropdown-accent-ink: #4338ca;
-    --erp-list-dropdown-accent-soft: #eef2ff;
+    --erp-list-dropdown-hover: var(--erp-color-hover, #eff6ff);
+    --erp-list-dropdown-accent: var(--erp-color-primary, #1d4ed8);
+    --erp-list-dropdown-accent-ink: var(--erp-color-primary-hover, #1e40af);
+    --erp-list-dropdown-accent-soft: var(--erp-color-primary-soft, #eff6ff);
     --erp-list-dropdown-radius: 12px;
     --erp-list-dropdown-row-h: 32px;
     --erp-list-dropdown-z: 40;
@@ -45,7 +45,7 @@
 }
 
 /* -----------------------------------------------------------------------------
- * 1 · Trigger — the shared indigo `.button`, plus the caret it always needs
+ * 1 · Trigger — the shared Deep Blue `.button`, plus the caret it always needs
  * -------------------------------------------------------------------------- */
 .erp-list-dropdown [data-dropdown-trigger] {
     display: inline-flex;
@@ -143,17 +143,17 @@
 
 .dropdown-item:hover {
     background-color: var(--erp-list-dropdown-hover, #f1f5f9);
-    color: var(--erp-list-dropdown-accent-ink, #4338ca);
+    color: var(--erp-list-dropdown-accent-ink, var(--erp-color-primary-hover, #1e40af));
 }
 
 .dropdown-item:focus-visible {
-    outline: 2px solid var(--erp-list-dropdown-accent, #4f46e5);
+    outline: 2px solid var(--erp-list-dropdown-accent, var(--erp-color-primary, #1d4ed8));
     outline-offset: -2px;
 }
 
 /* Keyboard/pointer activation feedback without a second colour language. */
 .dropdown-item:active {
-    background-color: var(--erp-list-dropdown-accent-soft, #eef2ff);
+    background-color: var(--erp-list-dropdown-accent-soft, var(--erp-color-primary-soft, #eff6ff));
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -190,7 +190,9 @@ class HostelFeeController extends Controller
 
         $payment = $this->collections->collectHostelFee($feeAssignment, $request->validated(), $request->user());
 
-        return back()->with('success', 'Payment '.$payment->payment_number.' recorded.');
+        return back()->with('success', $payment->isPendingApproval()
+            ? 'Payment '.$payment->payment_number.' submitted and is pending approval. It will count as collected only after an authorized approver finalizes it.'
+            : 'Payment '.$payment->payment_number.' recorded.');
     }
 
     private function findScoped(string $id): HostelFeeAssignment

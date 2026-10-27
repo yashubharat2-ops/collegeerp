@@ -37,6 +37,8 @@ class StudentModuleSeederTest extends TestCase
         'students.view', 'students.create', 'students.update', 'students.delete', 'students.export',
         'student_enrollments.view', 'student_enrollments.create',
         'student_enrollments.update', 'student_enrollments.delete',
+        // Deciding a pending enrollment is its own control, separate from update.
+        'student_enrollments.approve',
     ];
 
     public function test_every_student_module_permission_is_seeded_once(): void

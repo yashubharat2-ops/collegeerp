@@ -1,0 +1,762 @@
+/*
+ * Student registration wizard — four-step layout.
+ *
+ * Reuses the Deep Blue / Navy tokens and the compact ERP controls already
+ * defined in erp-theme.css and erp-student-form.css (.erp-card, .erp-grid,
+ * .erp-input, .erp-field, .erp-error, .erp-btn …). Only what the wizard adds is
+ * defined here: the progress indicator, the wizard footer, the summary groups,
+ * the document checklist and the repeating qualification table.
+ *
+ * No Tailwind utility is used, so the wizard renders correctly even when no
+ * Vite build exists (the layout only links the bundle when a build is present).
+ */
+
+.erp-wizard {
+    /* Deep Blue & Navy tokens (public/css/erp-theme.css):
+       primary #1D4ED8 · hover #1E40AF · navy #0F172A · page #F8FAFC · surface #fff. */
+    --wz-primary: #1d4ed8;
+    --wz-primary-hover: #1e40af;
+    --wz-navy: #0f172a;
+    --wz-navy-soft: #1e3a8a;
+    --wz-line: #e2e8f0;
+    --wz-muted: #64748b;
+    --wz-ok: #12684a;
+    --wz-warn: #8a5a00;
+    --wz-err: #a3242b;
+    --wz-bg: #f8fafc;
+}
+
+/* ---------- Progress indicator ---------- */
+
+.erp-steps {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    list-style: none;
+    margin: 0 0 18px;
+    padding: 0;
+}
+
+.erp-steps__item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 10px 10px 12px;
+    border: 1px solid var(--wz-line);
+    border-radius: 8px;
+    background: #fff;
+    min-width: 0;
+}
+
+.erp-steps__item::after {
+    content: "";
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    width: 6px;
+    height: 1px;
+    background: var(--wz-line);
+}
+
+.erp-steps__item:last-child::after { display: none; }
+
+.erp-steps__num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 24px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #eef2f7;
+    color: var(--wz-navy);
+    font-size: 12px;
+    font-weight: 700;
+    border: 1px solid var(--wz-line);
+}
+
+.erp-steps__label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--wz-muted);
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.erp-steps__item--done .erp-steps__num {
+    background: var(--wz-ok);
+    border-color: var(--wz-ok);
+    color: #fff;
+}
+
+.erp-steps__item--done .erp-steps__label { color: var(--wz-navy); }
+
+.erp-steps__item--current {
+    border-color: var(--wz-navy);
+    box-shadow: inset 0 0 0 1px var(--wz-navy);
+}
+
+.erp-steps__item--current .erp-steps__num {
+    background: var(--wz-navy);
+    border-color: var(--wz-navy);
+    color: #fff;
+}
+
+.erp-steps__item--current .erp-steps__label { color: var(--wz-navy); }
+
+.erp-steps__item a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+}
+
+.erp-steps__item a:focus-visible {
+    outline: 2px solid var(--wz-navy-soft);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+/* ---------- Card + footer ---------- */
+
+.erp-wizard__card {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+/* The wizard's own card chrome: compact header, no section numbering. */
+.erp-wizard__card .erp-card__head {
+    align-items: center;
+    padding: 6px 10px;
+    gap: 6px;
+}
+
+.erp-wizard__card .erp-card__body { padding: 8px 10px 10px; }
+
+.erp-wizard__card .erp-card__title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--wz-navy);
+}
+
+.erp-wizard__card .erp-card__desc { font-size: 11.5px; margin-top: 1px; }
+
+/* A header-row control ("Same as permanent address") sits at the end of the
+   card's header strip instead of consuming a row of its own. */
+.erp-wizard__card-toggle { margin-left: auto; align-self: center; }
+
+@media (max-width: 767px) {
+    .erp-wizard__card-toggle { margin-left: 0; margin-top: 6px; }
+}
+
+.erp-wizard__card .erp-grid { gap: 8px 10px; margin-top: 2px; }
+
+.erp-wizard__card .erp-label { font-size: 11.5px; }
+
+.erp-wizard__card .erp-input,
+.erp-wizard__card select.erp-input { height: 32px; font-size: 13px; }
+
+.erp-wizard__card textarea.erp-input { height: auto; }
+
+/* A section that is not a .erp-card (address blocks): same compact rhythm. */
+.erp-wizard .erp-address { padding: 8px 10px; margin-bottom: 10px; }
+.erp-wizard .erp-address__title { font-size: 13px; margin-bottom: 2px; }
+.erp-wizard .erp-address__note { font-size: 11.5px; margin-bottom: 4px; }
+
+/* Section sub-heading inside a card ("Parent & guardian photographs"). */
+.erp-subhead {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 10px 0 6px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--wz-line);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--wz-navy);
+}
+
+.erp-subhead:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+
+.erp-subhead__hint { font-weight: 400; font-size: 11.5px; color: var(--wz-muted); }
+
+.erp-wizard__footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 4;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    margin: 10px 0 0;
+    padding: 8px 10px;
+    border: 1px solid var(--wz-line);
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 -1px 0 rgba(15, 23, 42, .04), 0 -6px 16px rgba(15, 23, 42, .05);
+}
+
+.erp-wizard__footer-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.erp-wizard__hint {
+    font-size: 11.5px;
+    color: var(--wz-muted);
+    margin: 0;
+}
+
+/* Save draft is a real, visible outlined action — not a link that reads like
+   plain text — so step 1 offers the same explicit save the other steps do. */
+.erp-btn--outline {
+    background: #fff;
+    color: var(--wz-primary);
+    border: 1px solid var(--wz-primary);
+    text-decoration: none;
+}
+
+.erp-btn--outline:hover,
+.erp-btn--outline:focus-visible {
+    background: #eff6ff;
+    border-color: var(--wz-primary-hover);
+    color: var(--wz-primary-hover);
+}
+
+.erp-wizard form { margin: 0; }
+
+/* ---------- Media (five images) ---------- */
+
+.erp-media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 8px;
+}
+
+.erp-media-grid--wide { grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); }
+
+.erp-media {
+    border: 1px solid var(--wz-line);
+    border-radius: 8px;
+    padding: 8px;
+    background: #fff;
+    text-align: center;
+}
+
+.erp-media__preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 76px;
+    margin-bottom: 6px;
+    border: 1px dashed var(--wz-line);
+    border-radius: 6px;
+    background: #f7f9fc;
+    overflow: hidden;
+}
+
+.erp-media__preview img {
+    max-width: 100%;
+    max-height: 76px;
+    object-fit: contain;
+}
+
+.erp-media__empty {
+    font-size: 11.5px;
+    color: var(--wz-muted);
+}
+
+.erp-media__label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--wz-navy);
+    margin-bottom: 6px;
+    text-align: left;
+}
+
+.erp-media input[type="file"] {
+    width: 100%;
+    font-size: 11.5px;
+}
+
+.erp-media__remove {
+    display: block;
+    margin-top: 6px;
+    font-size: 11.5px;
+    color: var(--wz-err);
+    text-align: left;
+}
+
+/* ---------- Address blocks ---------- */
+
+.erp-address {
+    border: 1px solid var(--wz-line);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+    background: #fff;
+}
+
+.erp-address__title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--wz-navy);
+    margin: 0 0 4px;
+}
+
+.erp-address__note {
+    font-size: 12px;
+    color: var(--wz-muted);
+    margin: 0 0 10px;
+}
+
+.erp-address[hidden] { display: none; }
+
+.erp-checkline {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    color: var(--wz-navy);
+    font-weight: 600;
+}
+
+/* ---------- Guardian auto-fill ---------- */
+
+.erp-autofill-note {
+    font-size: 12px;
+    color: var(--wz-muted);
+    background: #eef4fb;
+    border: 1px solid #cfdeee;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin: 0 0 10px;
+}
+
+.erp-field[data-autofilled="true"] .erp-input {
+    background: #f4f7fb;
+}
+
+/* ---------- Qualifications ---------- */
+
+.erp-quals { width: 100%; border-collapse: collapse; }
+
+.erp-quals th,
+.erp-quals td {
+    border-bottom: 1px solid var(--wz-line);
+    padding: 6px 6px;
+    font-size: 12px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.erp-quals th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--wz-muted);
+    background: #f7f9fc;
+}
+
+.erp-quals .erp-input { min-width: 0; width: 100%; }
+
+.erp-qual-card {
+    border: 1px solid var(--wz-line);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: #fff;
+}
+
+.erp-qual-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.erp-qual-card__title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--wz-navy);
+    margin: 0;
+}
+
+.erp-qual-card__meta {
+    font-size: 11.5px;
+    color: var(--wz-muted);
+    margin: 0;
+}
+
+/* ---------- Documents ---------- */
+
+/* Part A — the compact checkbox grid of configured document types. */
+.erp-doc-picker {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.erp-doc-picker li { margin: 0; padding: 0; min-width: 0; list-style: none; }
+
+.erp-doc-option {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 6px 8px;
+    min-width: 0;
+    height: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--wz-line);
+    border-radius: 6px;
+    background: #fff;
+    font-size: 12.5px;
+    color: var(--wz-navy);
+    cursor: pointer;
+}
+
+.erp-doc-option:hover { border-color: #c7d5ea; background: #f8fbff; }
+
+.erp-doc-option input[type="checkbox"] { flex: 0 0 auto; margin: 0; }
+
+/* The label is never truncated: an applicant must be able to read the whole
+   document name, including on a narrow screen. */
+.erp-doc-option__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+    font-weight: 600;
+}
+
+.erp-doc-option__state {
+    flex: 1 0 100%;
+    padding-left: 22px;
+    font-size: 11px;
+    line-height: 1.35;
+    color: var(--wz-muted);
+}
+
+/* A document the course requires cannot be unticked: it reads as locked, not
+   as broken. */
+.erp-doc-option--required { background: #f5f8ff; border-color: #c7d5ea; }
+.erp-doc-option--required .erp-doc-option__label { color: var(--wz-primary); }
+
+/* Part B — one compact upload card per selected type. */
+.erp-doc-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 8px;
+}
+
+.erp-doc-card {
+    border: 1px solid var(--wz-line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: #fff;
+    min-width: 0;
+}
+
+.erp-doc-card[hidden] { display: none; }
+
+.erp-doc-card--attached { border-color: #bfe3d0; background: #f7fdf9; }
+
+.erp-doc-card__head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+
+.erp-doc-card__title {
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--wz-navy);
+}
+
+.erp-doc-card__file {
+    margin: 6px 0 0;
+    font-size: 11.5px;
+    color: var(--wz-muted);
+    overflow-wrap: anywhere;
+}
+
+.erp-doc-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-top: 6px;
+}
+
+.erp-doc-card__actions form { display: inline; }
+
+.erp-doc-card input[type="file"] { width: 100%; font-size: 11.5px; }
+
+.erp-doc-other {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--wz-line);
+}
+
+.erp-doc-other > summary {
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--wz-primary);
+}
+
+.erp-doc-other[open] > summary { margin-bottom: 8px; }
+
+.erp-doc-other .erp-upload-row { align-items: end; }
+
+/* ---------- Documents (legacy shared blocks) ---------- */
+
+.erp-req-list { list-style: none; margin: 0 0 14px; padding: 0; }
+
+.erp-req-list li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: baseline;
+    padding: 7px 0;
+    border-bottom: 1px dashed var(--wz-line);
+    font-size: 12.5px;
+}
+
+.erp-req-list li:last-child { border-bottom: 0; }
+
+.erp-req-list__name { font-weight: 600; color: var(--wz-navy); }
+
+.erp-chip {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+.erp-chip--required { background: #fdecec; color: var(--wz-err); border-color: #f3c9cb; }
+.erp-chip--optional { background: #eef2f7; color: var(--wz-muted); border-color: var(--wz-line); }
+.erp-chip--deferred { background: #fff5e0; color: var(--wz-warn); border-color: #f0dfb5; }
+.erp-chip--uploaded { background: #eaf2ff; color: var(--wz-navy-soft); border-color: #cbdcef; }
+.erp-chip--verified { background: #e7f4ee; color: var(--wz-ok); border-color: #bfe0d1; }
+.erp-chip--missing { background: #fdecec; color: var(--wz-err); border-color: #f3c9cb; }
+.erp-chip--not-uploaded { background: #f1f5f9; color: var(--wz-muted); border-color: var(--wz-line); }
+/* "Selected" is a DECLARATION, not a file: it is deliberately not green. */
+.erp-chip--declared { background: #eaf2ff; color: var(--wz-navy); border-color: #cbdcef; font-weight: 600; }
+.erp-chip[hidden] { display: none; }
+.erp-chip--pending { background: #fff5e0; color: var(--wz-warn); border-color: #f0dfb5; }
+
+/* ---------- Section A: the three identifiers ---------- */
+
+.erp-id-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.erp-id {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border: 1px solid var(--wz-line);
+    border-radius: 8px;
+    background: #fff;
+}
+
+.erp-id--assigned { border-left: 3px solid var(--wz-primary); }
+.erp-id--pending { border-left: 3px solid var(--wz-warn); background: #fffdf7; }
+
+.erp-id__label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    color: var(--wz-muted);
+}
+
+.erp-id__value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--wz-navy);
+}
+
+.erp-id--pending .erp-id__value { color: var(--wz-warn); }
+
+.erp-id__note { font-size: 11.5px; line-height: 1.45; color: var(--wz-muted); }
+
+/* ---------- Parent details: two stacked sub-cards ---------- */
+
+.erp-subcard { padding: 10px 0; border-top: 1px dashed var(--wz-line); }
+.erp-subcard:first-child { padding-top: 0; border-top: 0; }
+.erp-subcard:last-child { padding-bottom: 0; }
+
+.erp-doc-table { width: 100%; border-collapse: collapse; }
+
+.erp-doc-table th,
+.erp-doc-table td {
+    border-bottom: 1px solid var(--wz-line);
+    padding: 7px 6px;
+    font-size: 12px;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.erp-doc-table th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--wz-muted);
+    background: #f7f9fc;
+}
+
+.erp-doc-table__actions { white-space: nowrap; }
+
+.erp-doc-table__actions form { display: inline; }
+
+.erp-upload-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.2fr) auto;
+    gap: 8px;
+    align-items: end;
+}
+
+/* ---------- Review ---------- */
+
+.erp-review-group {
+    border: 1px solid var(--wz-line);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    background: #fff;
+}
+
+.erp-review-group__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--wz-line);
+    background: #f7f9fc;
+    border-radius: 8px 8px 0 0;
+}
+
+.erp-review-group__subtitle {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--wz-muted);
+}
+
+.erp-doc-files { margin-top: 12px; }
+
+.erp-doc-files caption {
+    text-align: left;
+    padding: 0 0 6px;
+}
+
+.erp-review-group__title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--wz-navy);
+    margin: 0;
+}
+
+.erp-review-group__body { padding: 10px 12px; }
+
+.erp-review-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 6px 18px;
+    margin: 0;
+    font-size: 12.5px;
+}
+
+.erp-review-list div { display: flex; gap: 6px; min-width: 0; }
+
+.erp-review-list dt {
+    flex: 0 0 auto;
+    color: var(--wz-muted);
+    font-weight: 600;
+}
+
+.erp-review-list dd {
+    margin: 0;
+    color: var(--wz-navy);
+    overflow-wrap: anywhere;
+}
+
+.erp-review-list dd:empty::after { content: "—"; color: var(--wz-muted); }
+
+.erp-alert {
+    border-radius: 6px;
+    padding: 9px 11px;
+    font-size: 12.5px;
+    margin: 0 0 12px;
+    border: 1px solid;
+}
+
+.erp-alert--error { background: #fdecec; border-color: #f3c9cb; color: var(--wz-err); }
+.erp-alert--info { background: #eef4fb; border-color: #cfdeee; color: var(--wz-navy-soft); }
+.erp-alert--ok { background: #e7f4ee; border-color: #bfe0d1; color: var(--wz-ok); }
+
+.erp-alert ul { margin: 6px 0 0; padding-left: 18px; }
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1023px) {
+    .erp-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .erp-upload-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1023px) {
+    .erp-doc-cards { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 767px) {
+    .erp-steps { grid-template-columns: 1fr; }
+    .erp-doc-picker { grid-template-columns: 1fr; }
+    .erp-id-grid { grid-template-columns: 1fr; }
+    .erp-steps__item::after { display: none; }
+    .erp-wizard__footer { flex-direction: column-reverse; align-items: stretch; }
+    .erp-wizard__footer-group { justify-content: space-between; }
+    .erp-upload-row { grid-template-columns: 1fr; }
+    .erp-doc-table,
+    .erp-quals { display: block; overflow-x: auto; white-space: nowrap; }
+}
+
+/* Screen-reader-only text (no visual footprint, still announced). */
+.erp-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

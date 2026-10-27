@@ -99,8 +99,17 @@
                         <x-nav.link label="Approval Settings" route="approvals.settings.index" perm="approvals.settings.manage" />
                     </x-nav.group>
                     <x-nav.group id="students" label="Students" icon="graduation-cap">
-                        <x-nav.link label="Registration" route="students.registration.create" perm="students.create" />
-                        <x-nav.link label="Student List" route="students.index" />
+                        {{-- The two rows are siblings with DISJOINT patterns, so
+                             exactly one of them is ever the current page: the
+                             wizard (all `students.registration.*` routes) is
+                             Registration, while the list/profile/export routes
+                             are Student List. Without the explicit patterns the
+                             generic resource widening of `students.index`
+                             (`students.*`) also matched the wizard screens and
+                             highlighted Student List while the applicant was in
+                             the wizard. --}}
+                        <x-nav.link label="Registration" route="students.registration.create" perm="students.create" pattern="students.registration.*" />
+                        <x-nav.link label="Student List" route="students.index" pattern="students.index|students.show|students.create|students.edit|students.convert|students.photo|students.export|students.export.pdf|students.export.print" />
                         <x-nav.link label="Bulk Registration & Import" route="students.import.index" perm="students.create" />
                         <x-nav.link label="Enrollments" route="student-enrollments.index" />
                         <x-nav.link label="Academic Records" route="student-academic-records.index" />

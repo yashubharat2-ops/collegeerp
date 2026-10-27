@@ -11,6 +11,9 @@ namespace App\Services\Approval;
  */
 final class ApprovalRegistry
 {
+    /** The Fee Collection action slug, shared by the fee service and the registry. */
+    public const ACTION_FEE_COLLECTION = 'fee_collection';
+
     /**
      * module => [action => [label, permission_approve, modelClass, description]]
      */
@@ -48,6 +51,24 @@ final class ApprovalRegistry
                 'model' => \App\Models\Student::class,
                 'description' => 'A new student registration requires approval before the student becomes operational.',
             ],
+            // Enrollment approval. A NEW enrollment created on the Enrollments
+            // screen can be gated: when this action is enabled for the college,
+            // the row is created as `pending_approval` (with its generated
+            // Enrollment Number and Roll Number) and only this decision turns it
+            // into an operational `active` enrollment. The decision reuses the
+            // framework's own authorization (permission + no self-approval),
+            // locking, idempotency and audit.
+            //
+            // AN ENROLLMENT CREATED BY A REGISTRATION APPROVAL IS NOT GATED
+            // AGAIN: the registration decision already approved that academic
+            // placement, and asking for a second approval of the same act would
+            // strand the student between two queues.
+            'enrollment_approval' => [
+                'label' => 'Student Enrollment',
+                'permission_approve' => 'student_enrollments.approve',
+                'model' => \App\Models\StudentEnrollment::class,
+                'description' => 'A new enrollment requires approval before it becomes an active enrollment.',
+            ],
             'student_data_change' => [
                 'label' => 'Sensitive Student Data Change',
                 'permission_approve' => 'students.update',
@@ -62,6 +83,17 @@ final class ApprovalRegistry
             ],
         ],
         'fees' => [
+            // Fee Collection: when enabled, a collection recorded through the
+            // Fee Collection screen (or the Transport / Hostel fee collection
+            // paths, which share the same payment row) is created as
+            // `pending_approval` and stays out of every balance, receipt and
+            // report until an authorized approver finalizes it.
+            'fee_collection' => [
+                'label' => 'Fee Collection',
+                'permission_approve' => 'fee_collections.approve',
+                'model' => \App\Models\FeePayment::class,
+                'description' => 'Fee collections require approval before the payment is finalized and counted as collected.',
+            ],
             'fee_concession' => [
                 'label' => 'Fee Concession',
                 'permission_approve' => 'fee_concessions.approve',

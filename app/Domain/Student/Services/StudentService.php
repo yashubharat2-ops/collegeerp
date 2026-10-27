@@ -4,6 +4,7 @@ namespace App\Domain\Student\Services;
 
 use App\Domain\Student\Actions\GenerateStudentNumber;
 use App\Domain\Student\Actions\GenerateEnrollmentNumber;
+use App\Domain\Student\Actions\GenerateRollNumber;
 use App\Domain\Student\Support\Aadhaar;
 use App\Models\College;
 use App\Models\Student;
@@ -59,7 +60,7 @@ class StudentService
         'blood_group', 'nationality', 'mother_tongue', 'remarks',
     ];
 
-    public const AUDITED_ENROLLMENT = ['id', 'enrollment_number', 'student_id', 'academic_year_id', 'program_id', 'section_id', 'enrollment_date', 'status', 'remarks'];
+    public const AUDITED_ENROLLMENT = ['id', 'enrollment_number', 'student_id', 'academic_year_id', 'academic_term_id', 'program_id', 'section_id', 'semester', 'roll_number', 'enrollment_date', 'status', 'remarks'];
 
     /**
      * Shared rejection message for a Section attached to a program-less
@@ -80,8 +81,10 @@ class StudentService
     public function __construct(
         private readonly GenerateStudentNumber $studentNumbers,
         private readonly GenerateEnrollmentNumber $enrollmentNumbers,
+        private readonly GenerateRollNumber $rollNumbers,
         private readonly StudentPhotoService $photos,
         private readonly AuditLogService $audit,
+        private readonly AcademicContextService $academic,
     ) {}
 
     /**
@@ -228,7 +231,7 @@ class StudentService
     {
         $enrollment = [];
 
-        foreach (['academic_year_id', 'program_id', 'section_id', 'enrollment_date'] as $key) {
+        foreach (['academic_year_id', 'program_id', 'section_id', 'semester', 'enrollment_date'] as $key) {
             if (! empty($data[$key])) {
                 $enrollment[$key] = $data[$key];
             }
@@ -327,6 +330,22 @@ class StudentService
                 abort(404, 'Student not found in this college context.');
             }
 
+            // Eligibility: an enrollment gives a student an operational academic
+            // record, so only an APPROVED registration (or a legacy student that
+            // predates the registration workflow) may have one. A pending or a
+            // rejected registration is refused here as well as in the UI, so a
+            // hand-crafted POST cannot put an undecided registration into a
+            // class list. The registration approval itself writes the approval
+            // first and creates the enrollment second, in one transaction, so
+            // that path still passes through this same gate.
+            if (! $student->isRegistrationApproved()) {
+                throw ValidationException::withMessages([
+                    ($duplicateErrorField ?? 'student_id') => $student->isRegistrationRejected()
+                        ? 'This student\'s registration was rejected. A rejected registration cannot be enrolled.'
+                        : 'This student\'s registration is still awaiting approval. Approve it before enrolling the student.',
+                ]);
+            }
+
             $year = \App\Models\AcademicYear::query()->find($yearId);
             if (! $year) {
                 abort(404, 'Academic year not found in this college context.');
@@ -377,15 +396,43 @@ class StudentService
                 ]);
             }
 
+            // Configured semester / year of study. When an id is supplied it must
+            // belong to THIS enrollment's academic year inside this college; the
+            // human label is then taken from the term so `semester` and the
+            // reference can never disagree. A caller that only sends the legacy
+            // free-text `semester` is still accepted (older records, imports and
+            // the single-POST registration endpoint), but a supplied term always
+            // wins.
+            $term = $this->academic->resolveTerm(
+                isset($data['academic_term_id']) && $data['academic_term_id'] !== '' ? (int) $data['academic_term_id'] : null,
+                (int) $yearId,
+                $collegeId,
+            );
+
+            // Roll number: the caller may supply one (office assignment), which
+            // must be free inside THIS class/section scope; otherwise one is
+            // allocated now — the enrollment is the first point at which the
+            // academic year, programme and section are all known, so it is the
+            // earliest stage at which a roll number can exist at all. Without a
+            // section there is no class list to number, so it stays null and the
+            // wizard keeps showing "Pending".
+            $rollNumber = $this->resolveRollNumber($data['roll_number'] ?? null, $collegeId, $yearId, $programId, $sectionId);
+
             $enrollment = StudentEnrollment::create([
                 'college_id' => $collegeId,
                 'student_id' => $studentId,
                 'academic_year_id' => $yearId,
+                'academic_term_id' => $term?->id,
                 'program_id' => $programId,
                 'section_id' => $sectionId,
+                'semester' => $this->academic->semesterLabel($term, $data['semester'] ?? null),
+                'roll_number' => $rollNumber,
                 'enrollment_number' => $this->enrollmentNumbers->executeWithCollegeLock($collegeId, $academicYearCode ?? $year->code),
                 'enrollment_date' => $data['enrollment_date'] ?? now()->toDateString(),
-                'status' => $data['status'] ?? 'active',
+                // `pending_approval` is only ever set by the approval gate that
+                // creates the request alongside the row; anything else the caller
+                // asks for must be a status an operator may choose.
+                'status' => $this->resolveInitialStatus($data['status'] ?? null),
                 'remarks' => $data['remarks'] ?? null,
             ]);
 
@@ -395,6 +442,65 @@ class StudentService
 
             return $enrollment;
         });
+    }
+
+    /**
+     * The status a newly created enrollment starts in.
+     *
+     * Manual statuses are accepted as given (recording an existing/historical
+     * enrollment is legitimate clerical work); `pending_approval` is accepted
+     * because the approval gate sets it deliberately; anything else is refused
+     * rather than silently normalised.
+     */
+    private function resolveInitialStatus(?string $requested): string
+    {
+        if ($requested === null || $requested === '') {
+            return StudentEnrollment::STATUS_ACTIVE;
+        }
+
+        if (! in_array($requested, StudentEnrollment::STATUSES, true)) {
+            throw ValidationException::withMessages([
+                'status' => 'Choose a valid enrollment status.',
+            ]);
+        }
+
+        return $requested;
+    }
+
+    /**
+     * An explicit roll number, or one allocated inside the class/section scope.
+     *
+     * An explicit value is never silently overwritten: a clash is reported as a
+     * field error, so the office can pick another number instead of finding out
+     * later that two lists disagree.
+     *
+     * @throws ValidationException
+     */
+    private function resolveRollNumber(
+        mixed $requested,
+        int $collegeId,
+        int $academicYearId,
+        ?int $programId,
+        ?int $sectionId,
+    ): ?string {
+        $requested = is_string($requested) ? trim($requested) : $requested;
+
+        if ($sectionId === null) {
+            // No section, no class list: a roll number cannot be meaningful yet.
+            return $requested !== null && $requested !== '' ? (string) $requested : null;
+        }
+
+        if ($requested !== null && $requested !== '') {
+            if ($this->rollNumbers->isTaken($collegeId, $academicYearId, $programId, $sectionId, (string) $requested)) {
+                throw ValidationException::withMessages([
+                    'roll_number' => 'This roll number is already used by another student in this academic year, programme and section.',
+                ]);
+            }
+
+            return (string) $requested;
+        }
+
+        return $this->rollNumbers->execute($collegeId, $academicYearId, $programId, $sectionId, collegeLockHeld: true);
     }
 
     /**
@@ -506,14 +612,75 @@ class StudentService
                 }
             }
 
+            // A roll number is per class/section and may be corrected, but it
+            // can never be moved onto a number another student already holds in
+            // the same academic year + programme + section.
+            if (array_key_exists('roll_number', $data)) {
+                $requestedRoll = is_string($data['roll_number']) ? trim($data['roll_number']) : $data['roll_number'];
+                $sectionId = array_key_exists('section_id', $data) ? $data['section_id'] : $enrollment->section_id;
+
+                if (filled($requestedRoll) && $this->rollNumbers->isTaken(
+                    $collegeId,
+                    (int) $enrollment->academic_year_id,
+                    $enrollment->program_id === null ? null : (int) $enrollment->program_id,
+                    $sectionId === null ? null : (int) $sectionId,
+                    (string) $requestedRoll,
+                    (int) $enrollment->id,
+                )) {
+                    throw ValidationException::withMessages([
+                        'roll_number' => 'This roll number is already used by another student in this academic year, programme and section.',
+                    ]);
+                }
+
+                $data['roll_number'] = filled($requestedRoll) ? (string) $requestedRoll : null;
+            }
+
+            // Semester / year of study may be corrected within the enrollment's
+            // own academic year. The configured term is re-resolved tenant- and
+            // year-scoped, and the stored label follows it, so a correction made
+            // on the Edit screen cannot leave a reference and a label that
+            // describe different levels.
+            if (array_key_exists('academic_term_id', $data)) {
+                $term = $this->academic->resolveTerm(
+                    $data['academic_term_id'] !== null && $data['academic_term_id'] !== ''
+                        ? (int) $data['academic_term_id']
+                        : null,
+                    (int) $enrollment->academic_year_id,
+                    $collegeId,
+                );
+
+                $data['academic_term_id'] = $term?->id;
+
+                // A cleared term keeps whatever free-text label the record had
+                // only when the caller also sent one; otherwise the label is
+                // cleared with the reference.
+                if ($term !== null) {
+                    $data['semester'] = $this->academic->semesterLabel($term, null);
+                } elseif (! array_key_exists('semester', $data)) {
+                    $data['semester'] = null;
+                }
+            }
+
             $newStatus = $data['status'] ?? $enrollment->status;
 
             // Ordinary status actions cannot reverse terminal lifecycle states.
             // Promotion completion and TC withdrawal use this same service but
             // move in the allowed internal direction (to completed/withdrawn).
-            if ($newStatus === 'active' && in_array($enrollment->status, ['completed', 'cancelled', 'withdrawn'], true)) {
+            if ($newStatus === 'active' && $enrollment->isTerminal()) {
                 throw ValidationException::withMessages([
-                    'status' => 'A completed, cancelled or withdrawn enrollment cannot be changed back to active.',
+                    'status' => 'A '.$enrollment->statusLabel().' enrollment cannot be changed back to active.',
+                ]);
+            }
+
+            // An enrollment awaiting approval is decided in ONE place: the
+            // approval decision, which is permission-checked separately
+            // (student_enrollments.approve). Letting the ordinary status form move
+            // it at all would make that gate cosmetic — and marking an undecided
+            // enrollment completed/cancelled would silently close the request.
+            // Non-status edits (section, roll number, remarks) stay allowed.
+            if ($enrollment->isPendingApproval() && $newStatus !== StudentEnrollment::STATUS_PENDING_APPROVAL) {
+                throw ValidationException::withMessages([
+                    'status' => 'This enrollment is awaiting approval. Decide it in Approval Management; its status cannot be changed here.',
                 ]);
             }
 

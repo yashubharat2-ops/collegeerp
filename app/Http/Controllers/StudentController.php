@@ -6,6 +6,7 @@ use App\Domain\Student\Actions\ConvertAdmissionToStudent;
 use App\Domain\Student\Actions\ConvertApplicationToStudent;
 use App\Domain\Student\Services\StudentHistoryService;
 use App\Domain\Student\Services\StudentListService;
+use App\Domain\Student\Services\StudentProfileService;
 use App\Domain\Student\Services\StudentRegistrationService;
 use App\Domain\Student\Services\StudentService;
 use App\Http\Requests\Student\StoreStudentFromAdmissionRequest;
@@ -52,11 +53,66 @@ class StudentController extends Controller
         $builder = $list->builder($request, $filters)->tiebreaker('students.id');
 
         $students = $builder->paginate(StudentListService::PER_PAGE);
+        $filterData = $list->filterViewData($filters);
 
         return view('students.index', array_merge([
             'students' => $students,
             'listContext' => ListContext::make($builder->getAppliedFilters(), $students, $request, 'students.index'),
-        ], $list->filterViewData($filters)));
+        ], $filterData, [
+            'studentFilterApplied' => $this->appliedFilterChips(
+                $filterData['studentFilterApplied'],
+                $builder->getAppliedFilters(),
+            ),
+        ]));
+    }
+
+    /**
+     * The compact filter panel draws eleven canonical controls, but the list
+     * still answers the older, non-canonical parameters (gender, category,
+     * mother tongue, blood group, nationality, date of birth) when an existing
+     * bookmark or module link supplies them. Those filters must stay visible:
+     * a narrowed list with no explanation reads like lost data.
+     *
+     * @param  array<int, array{label: string, value: string}>  $chips
+     * @param  array<string, mixed>  $applied
+     * @return array<int, array{label: string, value: string}>
+     */
+    private function appliedFilterChips(array $chips, array $applied): array
+    {
+        $labels = [
+            'search' => 'Search',
+            'gender' => 'Gender',
+            'category' => 'Category',
+            'mother_tongue' => 'Mother tongue',
+            'blood_group' => 'Blood group',
+            'nationality' => 'Nationality',
+            'date_of_birth_from' => 'Date of birth from',
+            'date_of_birth_to' => 'Date of birth to',
+        ];
+
+        $seen = [];
+        foreach ($chips as $chip) {
+            $seen[$chip['label'].'|'.$chip['value']] = true;
+        }
+
+        foreach ($labels as $key => $label) {
+            if (! array_key_exists($key, $applied)) {
+                continue;
+            }
+
+            $value = $applied[$key];
+            if (is_array($value)) {
+                $value = implode(', ', array_map(static fn ($item) => is_scalar($item) ? (string) $item : '', $value));
+            }
+            $value = is_scalar($value) ? trim((string) $value) : '';
+            if ($value === '' || isset($seen[$label.'|'.$value])) {
+                continue;
+            }
+
+            $chips[] = ['label' => $label, 'value' => $value];
+        }
+
+        return $chips;
     }
 
     /**
@@ -267,20 +323,6 @@ class StudentController extends Controller
         ));
     }
 
-    /**
-     * The single primary registration entry point. It reuses the rich Student
-     * Create form; only the submit target and server-side workflow differ.
-     */
-    public function registration(Request $request): View
-    {
-        $this->authorize('create', Student::class);
-
-        return view('students.create', array_merge(
-            $this->profileFormOptions($request, true),
-            ['registrationMode' => true],
-        ));
-    }
-
     public function registrationStore(
         StoreStudentRegistrationRequest $request,
         StudentRegistrationService $registration,
@@ -379,7 +421,7 @@ class StudentController extends Controller
      * Profile" master: every tab is the same data the module pages show,
      * filtered to this student, so there is exactly one entry point.
      */
-    public function show(Request $request, string $student, StudentHistoryService $history): View
+    public function show(Request $request, string $student, StudentHistoryService $history, StudentProfileService $profile): View
     {
         $model = $this->findScoped($student);
         $this->authorize('view', $model);
@@ -387,7 +429,9 @@ class StudentController extends Controller
         $model->load([
             'admissionApplication.applicant',
             'admissionApplication.admission',
+            'qualifications',
             'enrollments.academicYear',
+            'enrollments.academicTerm',
             'enrollments.program',
             'enrollments.section',
             'academicRecords.academicYear',
@@ -407,6 +451,11 @@ class StudentController extends Controller
             'tab' => $request->input('tab', 'profile'),
             // Derived, chronological lifecycle timeline (see StudentHistoryService).
             'historyEvents' => $history->forStudent($model),
+            // Everything the profile renders, resolved ONCE (current vs
+            // historical enrollment, the academic context, qualification rows
+            // with their legitimate percentages, the document gallery and the
+            // admission number) so no two sections can disagree.
+            'profile' => $profile->present($model),
         ]);
     }
 

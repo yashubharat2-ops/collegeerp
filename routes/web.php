@@ -116,12 +116,14 @@ use App\Http\Controllers\SectionController;
 use App\Http\Controllers\StaffAttendanceController;
 use App\Http\Controllers\StudentAcademicRecordController;
 use App\Http\Controllers\StudentController;
+use App\Http\Controllers\Student\StudentRegistrationWizardController;
 use App\Http\Controllers\StudentImportController;
 use App\Http\Controllers\StudentDocumentController;
 use App\Http\Controllers\StudentEnrollmentController;
 use App\Http\Controllers\StudentFeeAssignmentController;
 use App\Http\Controllers\StudentHistoryController;
 use App\Http\Controllers\StudentIdCardController;
+use App\Http\Controllers\StudentIdentityFilterController;
 use App\Http\Controllers\StudentPromotionController;
 use App\Http\Controllers\StudentReportController;
 use App\Http\Controllers\StudentResultHistoryController;
@@ -275,11 +277,46 @@ Route::middleware('auth')->group(function () {
         Route::post('admissions/{admission}/cancel', [AdmissionController::class, 'cancel'])->name('admissions.cancel');
         Route::resource('admissions', AdmissionController::class)->except('show');
         Route::post('students/convert/{admission_application}', [StudentController::class, 'convert'])->name('students.convert');
-        // Unified registration: same rich Student form, server-enforced pending
-        // status and one central ApprovalRequest. Declared before the resource
-        // route so "students/registration" cannot be captured as a student id.
-        Route::get('students/registration', [StudentController::class, 'registration'])->name('students.registration.create');
+        // Unified registration wizard: Basic Information → Parent/Guardian →
+        // Academic Record → Attach Documents → Final Review → Submit for
+        // approval. The applicant's work lives in a per-user DRAFT until the
+        // final submit, so no partial registration can ever appear in the
+        // student list. Declared before the resource route so
+        // "students/registration" cannot be captured as a student id.
+        Route::get('students/registration', [StudentRegistrationWizardController::class, 'start'])->name('students.registration.create');
+        // The single-POST registration endpoint is kept working for existing
+        // callers/integrations; it runs the same service and approval flow.
         Route::post('students/registration', [StudentController::class, 'registrationStore'])->name('students.registration.store');
+        Route::get('students/registration/step/{step}', [StudentRegistrationWizardController::class, 'show'])
+            ->whereNumber('step')->name('students.registration.step');
+        Route::post('students/registration/step/{step}', [StudentRegistrationWizardController::class, 'saveStep'])
+            ->whereNumber('step')->name('students.registration.step.save');
+        Route::post('students/registration/step/{step}/draft', [StudentRegistrationWizardController::class, 'saveDraft'])
+            ->whereNumber('step')->name('students.registration.step.draft');
+        Route::post('students/registration/submit', [StudentRegistrationWizardController::class, 'submit'])
+            ->name('students.registration.submit');
+        // Draft images (student / signature / father / mother / guardian) are
+        // streamed from the private disk; no photo is ever publicly reachable.
+        Route::get('students/registration/image/{field}', [StudentRegistrationWizardController::class, 'image'])
+            ->whereIn('field', ['photo', 'signature', 'father_photo', 'mother_photo', 'guardian_photo'])
+            ->name('students.registration.image');
+        Route::post('students/registration/cancel', [StudentRegistrationWizardController::class, 'cancel'])
+            ->name('students.registration.cancel');
+        // Dependent address selectors: read-only reference data (ids + names).
+        Route::get('students/registration/geo/children', [StudentRegistrationWizardController::class, 'geoChildren'])
+            ->name('students.registration.geo.children');
+        // Dependent academic levels (semester/year + section) for the Current
+        // Course block: read-only reference data, ids and labels only.
+        Route::get('students/registration/academic-options', [StudentRegistrationWizardController::class, 'academicOptions'])
+            ->name('students.registration.academic-options');
+        Route::post('students/registration/documents', [StudentRegistrationWizardController::class, 'uploadDocument'])
+            ->name('students.registration.documents.upload');
+        Route::post('students/registration/documents/{document}', [StudentRegistrationWizardController::class, 'replaceDocument'])
+            ->whereNumber('document')->name('students.registration.documents.replace');
+        Route::get('students/registration/documents/{document}/download', [StudentRegistrationWizardController::class, 'downloadDocument'])
+            ->whereNumber('document')->name('students.registration.documents.download');
+        Route::post('students/registration/documents/{document}/delete', [StudentRegistrationWizardController::class, 'destroyDocument'])
+            ->whereNumber('document')->name('students.registration.documents.destroy');
         // CSV export of the filtered list (or of an authorized selection of it).
         // Declared BEFORE the resource route: `students/{student}` would otherwise
         // capture "students/export" and 404 on a student named "export".
@@ -287,6 +324,10 @@ Route::middleware('auth')->group(function () {
         Route::get('students/import/template', [StudentImportController::class, 'template'])->name('students.import.template');
         Route::post('students/import/validate', [StudentImportController::class, 'validateUpload'])->name('students.import.validate');
         Route::post('students/import', [StudentImportController::class, 'store'])->name('students.import.store');
+        // Secure identity search (Aadhaar / ABC ID). POST on purpose: the submitted
+        // values are stored server-side under an opaque token so no Aadhaar or ABC
+        // ID can ever appear in a URL. Declared before the resource route.
+        Route::post('students/filter/identity', StudentIdentityFilterController::class)->name('students.filter.identity');
         Route::get('students/export', [StudentController::class, 'export'])->name('students.export');
         // The same filtered/selected list as a printable A4 report: "PDF" is the
         // review-then-save-as-PDF page, "print" opens it with the native print
@@ -304,6 +345,9 @@ Route::middleware('auth')->group(function () {
 
         // Students — Documents (private disk, tenant-safe, authorized streaming).
         Route::get('student-documents/{student_document}/download', [StudentDocumentController::class, 'download'])->name('student-documents.download');
+        // Inline preview for image documents (profile gallery): same policy as
+        // download(), attachment never, storage path never exposed.
+        Route::get('student-documents/{student_document}/preview', [StudentDocumentController::class, 'preview'])->name('student-documents.preview');
         Route::post('student-documents/{student_document}/verify', [StudentDocumentController::class, 'verify'])->name('student-documents.verify');
         // Consolidated printable document pack for a selection of students (the
         // listing's bulk "Bulk documents" action). Static segment first, so
@@ -405,6 +449,10 @@ Route::middleware('auth')->group(function () {
         Route::get('academics/timetables', [AcademicsController::class, 'timetables'])->name('academic-timetables.index');
         Route::get('academics/timetables/create', [AcademicsController::class, 'createTimetable'])->name('academic-timetables.create');
         Route::post('academics/timetables', [AcademicsController::class, 'storeTimetable'])->name('academic-timetables.store');
+        // Edit form for one entry. Declared before nothing in particular: the
+        // update/destroy routes below are PUT/DELETE, so a GET ".../{item}/edit"
+        // can never be swallowed by the ".../{item}" write routes.
+        Route::get('academics/timetables/{item}/edit', [AcademicsController::class, 'editTimetable'])->name('academic-timetables.edit');
         Route::put('academics/timetables/{item}', [AcademicsController::class, 'updateTimetable'])->name('academic-timetables.update');
         Route::delete('academics/timetables/{item}', [AcademicsController::class, 'destroyTimetable'])->name('academic-timetables.destroy');
         Route::get('academics/attendance', [AcademicsController::class, 'attendance'])->name('academic-attendance.index');
@@ -413,6 +461,7 @@ Route::middleware('auth')->group(function () {
         Route::get('academics/calendar', [AcademicsController::class, 'calendar'])->name('academic-calendar.index');
         Route::get('academics/calendar/create', [AcademicsController::class, 'createCalendar'])->name('academic-calendar.create');
         Route::post('academics/calendar', [AcademicsController::class, 'storeCalendar'])->name('academic-calendar.store');
+        Route::get('academics/calendar/{item}/edit', [AcademicsController::class, 'editCalendar'])->name('academic-calendar.edit');
         Route::put('academics/calendar/{item}', [AcademicsController::class, 'updateCalendar'])->name('academic-calendar.update');
         Route::delete('academics/calendar/{item}', [AcademicsController::class, 'destroyCalendar'])->name('academic-calendar.destroy');
         Route::get('academics/workload', [AcademicsController::class, 'workload'])->name('academic-workload.index');

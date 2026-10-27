@@ -75,7 +75,20 @@ class Student extends Model
      * never a schema enum, so an institution that needs another relationship
      * changes this list rather than the database.
      */
-    public const GUARDIAN_RELATIONS = ['father', 'mother', 'guardian', 'other'];
+    public const GUARDIAN_RELATIONS = ['father', 'mother', 'self', 'guardian', 'other'];
+
+    /**
+     * Relations whose guardian details are DERIVED from a person already on the
+     * form (the father, the mother, or the student themself), as opposed to
+     * `guardian`/`other`, where the guardian block is independently maintained.
+     *
+     * The registration wizard uses this list on the server: for a derived
+     * relation the guardian name/phone/email/occupation are rebuilt from the
+     * source record rather than trusted from the browser, so an auto-filled
+     * value can never drift from the person it was copied from. Switching to
+     * `other` turns them into ordinary, independently editable fields.
+     */
+    public const DERIVED_GUARDIAN_RELATIONS = ['father', 'mother', 'self'];
 
     /**
      * Government ID types accepted alongside Aadhaar.
@@ -117,6 +130,7 @@ class Student extends Model
             : match ($relation) {
                 'father' => 'Father',
                 'mother' => 'Mother',
+                'self' => 'Self (student is the guardian)',
                 'guardian' => 'Guardian',
                 default => 'Other / legal guardian',
             };
@@ -197,6 +211,50 @@ class Student extends Model
         return $this->hasMany(Certificate::class, 'student_id');
     }
 
+    /**
+     * Previous qualifications (Class 10 / 12 / Graduation / PG / Other).
+     *
+     * Deliberately separate from `academicRecords()` (this college's own
+     * progression ledger) and from `enrollments()` (the current course): a
+     * board result taken elsewhere is a different kind of fact and mixing the
+     * two is how a student ends up looking enrolled in a school they left.
+     */
+    public function qualifications(): HasMany
+    {
+        return $this->hasMany(StudentQualification::class)->orderBy('examination_year')->orderBy('id');
+    }
+
+    /**
+     * The address used for correspondence: the permanent address when the
+     * student ticked "Same as permanent", otherwise the stored temporary one.
+     *
+     * @return array<string, string|null>
+     */
+    public function correspondenceAddress(): array
+    {
+        if ($this->correspondence_same_as_permanent !== false) {
+            return [
+                'address_line_1' => $this->address_line_1,
+                'address_line_2' => $this->address_line_2,
+                'city' => $this->city,
+                'district' => $this->district,
+                'state' => $this->state,
+                'postal_code' => $this->postal_code,
+                'country' => $this->country,
+            ];
+        }
+
+        return [
+            'address_line_1' => $this->correspondence_address_line_1,
+            'address_line_2' => $this->correspondence_address_line_2,
+            'city' => $this->correspondence_city,
+            'district' => $this->correspondence_district,
+            'state' => $this->correspondence_state,
+            'postal_code' => $this->correspondence_postal_code,
+            'country' => $this->correspondence_country,
+        ];
+    }
+
     protected $fillable = [
         'college_id',
         'admission_application_id',
@@ -217,7 +275,27 @@ class Student extends Model
         'state',
         'postal_code',
         'country',
+        'district',
+        'block_tehsil',
+        'gram_panchayat_ward',
+        'country_id',
+        'state_id',
+        'district_id',
+        'block_id',
+        'village_id',
+        'correspondence_same_as_permanent',
+        'correspondence_address_line_1',
+        'correspondence_address_line_2',
+        'correspondence_city',
+        'correspondence_district',
+        'correspondence_state',
+        'correspondence_postal_code',
+        'correspondence_country',
         'photo_path',
+        'signature_path',
+        'father_photo_path',
+        'mother_photo_path',
+        'guardian_photo_path',
         'status',
         'registration_status',
         'registration_submitted_at',
@@ -225,7 +303,13 @@ class Student extends Model
         'updated_by',
         // Parent / Guardian
         'father_name',
+        'father_phone',
+        'father_email',
+        'father_occupation',
         'mother_name',
+        'mother_phone',
+        'mother_email',
+        'mother_occupation',
         'guardian_name',
         'guardian_relation',
         'guardian_phone',
@@ -273,6 +357,7 @@ class Student extends Model
             'date_of_birth' => 'date',
             'admission_date' => 'date',
             'registration_submitted_at' => 'datetime',
+            'correspondence_same_as_permanent' => 'boolean',
             'previous_exam_year' => 'integer',
             'previous_percentage' => 'decimal:2',
         ];
@@ -407,20 +492,72 @@ class Student extends Model
     }
 
     /**
-     * The student's current (active) enrollment, if any.
+     * The student's current enrollment, if any.
      *
-     * Deterministic: the oldest-created active enrollment wins, with the id as
-     * a tiebreak, so the "current enrollment" never flips between requests.
+     * The rule follows the ACADEMIC CALENDAR, not the newest row:
+     *
+     *  1. only an ACTIVE enrollment can be current — pending approval, completed,
+     *     cancelled, withdrawn and rejected rows are history (or not yet real);
+     *  2. an active enrollment whose academic year contains today wins. If more
+     *     than one does (a data-entry overlap), the later-starting year wins,
+     *     because that is the session the student is actually attending;
+     *  3. with no year overlapping today (outside every session, or years not
+     *     dated), the most recently STARTING academic year wins, and the newest
+     *     row is the tiebreak.
+     *
+     * Deterministic in every branch (id is the final tiebreak), so the "current
+     * enrollment" never flips between two requests.
      */
     public function currentEnrollment(): ?StudentEnrollment
     {
-        return $this->enrollments
-            ->filter(fn (StudentEnrollment $enrollment) => $enrollment->status === 'active')
-            ->sortBy(fn (StudentEnrollment $enrollment) => sprintf(
-                '%011d%011d',
+        $active = $this->enrollments
+            ->filter(fn (StudentEnrollment $enrollment) => $enrollment->status === StudentEnrollment::STATUS_ACTIVE);
+
+        if ($active->isEmpty()) {
+            return null;
+        }
+
+        $today = now()->startOfDay();
+
+        $inSession = $active->filter(function (StudentEnrollment $enrollment) use ($today): bool {
+            $year = $enrollment->academicYear;
+
+            if (! $year?->starts_on || ! $year?->ends_on) {
+                return false;
+            }
+
+            return $year->starts_on->startOfDay()->lte($today) && $year->ends_on->endOfDay()->gte($today);
+        });
+
+        $pool = $inSession->isNotEmpty() ? $inSession : $active;
+
+        return $pool
+            ->sortByDesc(fn (StudentEnrollment $enrollment) => sprintf(
+                '%s-%011d-%011d',
+                $enrollment->academicYear?->starts_on?->format('Ymd') ?? '00000000',
                 $enrollment->created_at?->timestamp ?? 0,
                 $enrollment->id
             ))
             ->first();
+    }
+
+    /**
+     * Every enrollment of this student that is not the current one, newest
+     * academic year first — the history a profile shows beside the current row.
+     *
+     * @return \Illuminate\Support\Collection<int, StudentEnrollment>
+     */
+    public function previousEnrollments(): \Illuminate\Support\Collection
+    {
+        $current = $this->currentEnrollment();
+
+        return $this->enrollments
+            ->reject(fn (StudentEnrollment $enrollment) => $current !== null && (int) $enrollment->id === (int) $current->id)
+            ->sortByDesc(fn (StudentEnrollment $enrollment) => sprintf(
+                '%s-%011d',
+                $enrollment->academicYear?->starts_on?->format('Ymd') ?? '00000000',
+                $enrollment->id
+            ))
+            ->values();
     }
 }

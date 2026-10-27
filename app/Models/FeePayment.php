@@ -27,8 +27,41 @@ class FeePayment extends Model
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_CANCELLED = 'cancelled';
 
+    /**
+     * Awaiting a central Approval Management decision (module `fees`, action
+     * `fee_collection`). The row exists so the accountant's submission is
+     * recorded and auditable, but it is NOT money yet: every balance, receipt,
+     * collection report and financial summary reads only STATUS_COMPLETED, so a
+     * pending collection is invisible to all of them until an authorized
+     * approver finalizes it.
+     *
+     * Only an untrusted user's collection is ever born pending. A trusted
+     * authority (platform Super Admin, or the College Admin of the active
+     * college) finalizes their own collection immediately — see
+     * User::isTrustedAuthority().
+     */
+    public const STATUS_PENDING_APPROVAL = 'pending_approval';
+
+    /**
+     * Decided against by an approver. Terminal: the row is kept for the audit
+     * trail, can never be approved later, and never counts as paid.
+     */
+    public const STATUS_REJECTED = 'rejected';
+
     public const STATUSES = [
         self::STATUS_COMPLETED,
+        self::STATUS_PENDING_APPROVAL,
+        self::STATUS_REJECTED,
+        self::STATUS_CANCELLED,
+    ];
+
+    /**
+     * Statuses that will never count towards a paid amount, whatever happens
+     * next. Used by the approval side effects to decide whether a collection may
+     * still be finalized.
+     */
+    public const NON_FINALIZED_STATUSES = [
+        self::STATUS_REJECTED,
         self::STATUS_CANCELLED,
     ];
 
@@ -96,6 +129,29 @@ class FeePayment extends Model
     public function isCancelled(): bool
     {
         return $this->status === self::STATUS_CANCELLED;
+    }
+
+    /** Awaiting an Approval Management decision; not money yet. */
+    public function isPendingApproval(): bool
+    {
+        return $this->status === self::STATUS_PENDING_APPROVAL;
+    }
+
+    /** An approver decided against it; terminal, never counted as paid. */
+    public function isRejected(): bool
+    {
+        return $this->status === self::STATUS_REJECTED;
+    }
+
+    /**
+     * Whether this collection can still be finalized by an approval.
+     *
+     * A rejected or cancelled row must never be resurrected by approving a
+     * request that raced with the decision.
+     */
+    public function isFinalizable(): bool
+    {
+        return $this->status === self::STATUS_PENDING_APPROVAL && $this->deleted_at === null;
     }
 
     /** Only a completed collection counts towards the paid amount. */
@@ -171,7 +227,9 @@ class FeePayment extends Model
     /** Server-side helper: how much of this payment may still be refunded. */
     public function refundableAmount(): float
     {
-        if ($this->isCancelled()) {
+        // Only money that was actually collected can be refunded: a pending,
+        // rejected or cancelled collection has no refundable balance.
+        if (! $this->countsTowardsPaid()) {
             return 0.0;
         }
 

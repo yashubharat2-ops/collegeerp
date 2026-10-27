@@ -5,7 +5,7 @@
     "scripts": {
         "build": "vite build",
         "dev": "vite",
-        "test:js": "node --test tests/JavaScript/sidebar.test.js"
+        "test:js": "node --test tests/JavaScript/sidebar.test.js tests/JavaScript/registration-wizard.test.js"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",

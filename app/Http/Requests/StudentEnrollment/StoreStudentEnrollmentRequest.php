@@ -19,7 +19,7 @@ class StoreStudentEnrollmentRequest extends FormRequest
      * tenant is the server-side context and the number is generated
      * transactionally.
      *
-     * student_id, academic_year_id and program_id are validates as tenant-aware
+     * student_id, academic_year_id and program_id are validated as tenant-aware
      * foreign keys (Rule::exists(...)->where('college_id', ...)) so another
      * college's records can never be attached.
      */
@@ -41,14 +41,32 @@ class StoreStudentEnrollmentRequest extends FormRequest
             $sectionRule->where('program_id', (int) $programId);
         }
 
+        // Optional configured semester / year of study. It must belong to the
+        // SELECTED academic year in this college — the same dependency the
+        // registration wizard enforces — so two enrollments of one student can
+        // never disagree about which level a year's enrollment is.
+        $termRule = Rule::exists('academic_terms', 'id')
+            ->where('college_id', $collegeId)
+            ->where('academic_year_id', $academicYearId)
+            ->whereNull('deleted_at');
+
         return [
             'student_id' => ['required', 'integer', Rule::exists('students', 'id')->where('college_id', $collegeId)],
             'academic_year_id' => ['required', 'integer', Rule::exists('academic_years', 'id')->where('college_id', $collegeId)],
+            'academic_term_id' => ['nullable', 'integer', $termRule],
             'program_id' => ['nullable', 'integer', Rule::exists('programs', 'id')->where('college_id', $collegeId)],
             'section_id' => ['nullable', 'integer', $sectionRule],
             'enrollment_date' => ['nullable', 'date'],
-            'status' => ['required', Rule::in(StudentEnrollment::STATUSES)],
+            // Only statuses an operator may choose. `pending_approval` and
+            // `rejected` are workflow states reached through Approval Management:
+            // accepting them here would let a client create a pending row with no
+            // request behind it (undecidable forever) or fake a rejection.
+            'status' => ['required', Rule::in(StudentEnrollment::MANUAL_STATUSES)],
             'remarks' => ['nullable', 'string', 'max:2000'],
+            // Class/section roll number. Blank lets the server allocate one when
+            // a section is attached (GenerateRollNumber); an explicit value is
+            // checked against the same academic year + programme + section.
+            'roll_number' => ['nullable', 'string', 'max:30'],
         ];
     }
 

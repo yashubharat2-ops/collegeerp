@@ -119,6 +119,13 @@ class FeePaymentController extends Controller
         return view('fee_collections.create', array_merge(FeeFormOptions::all(), [
             'assignment' => $assignment,
             'selectedAssignmentId' => $assignmentId,
+            // Tell the accountant up front that this collection will wait for an
+            // approver instead of being finalized immediately. A trusted
+            // authority (Super Admin / this college's College Admin) finalizes
+            // their own collection, so the warning would be wrong for them.
+            'requiresApproval' => ! $request->user()->isTrustedAuthority((int) app(TenantContext::class)->id())
+                && app(\App\Services\Approval\ApprovalService::class)
+                    ->isApprovalRequired((int) app(TenantContext::class)->id(), 'fees', \App\Services\Approval\ApprovalRegistry::ACTION_FEE_COLLECTION),
         ]));
     }
 
@@ -132,13 +139,22 @@ class FeePaymentController extends Controller
 
         return redirect()
             ->route('fee-collections.index')
-            ->with('success', "Payment {$payment->payment_number} recorded.");
+            // The message states the workflow truth: a queued collection is not
+            // money yet, so the accountant is told to expect an approval.
+            ->with('success', $payment->isPendingApproval()
+                ? "Payment {$payment->payment_number} submitted and is pending approval. It will count as collected only after an authorized approver finalizes it."
+                : "Payment {$payment->payment_number} recorded.");
     }
 
     public function edit(string $fee_collection): View
     {
         $payment = $this->findScoped($fee_collection);
         $this->authorize('update', $payment);
+
+        // A collection that is still awaiting an approval decision is not money
+        // and is immutable: an approver decides it, or the submitter withdraws
+        // the request (which reverses it through the audited cancel path).
+        abort_if($payment->isPendingApproval(), 403, 'This collection is awaiting approval and cannot be edited.');
 
         $payment->load(['studentEnrollment.student', 'studentEnrollment.program', 'feeStructure', 'collector', 'refunds']);
 
@@ -211,7 +227,7 @@ class FeePaymentController extends Controller
     /** @return array<string, scalar|null> */
     private function studentFilterInput(Request $request): array
     {
-        $keys = ['student_number', 'admission_date_from', 'admission_date_to', 'academic_year_id', 'department_id', 'program_id', 'academic_context', 'enrollment_status', 'student_status', 'student_name', 'unique_student_id', 'email', 'apaar_id', 'enrollment_number', 'mobile_number', 'aadhaar_last4', 'father_name', 'mother_name'];
+        $keys = ['student_number', 'admission_date_from', 'admission_date_to', 'academic_year_id', 'department_id', 'program_id', 'academic_context', 'academic_status', 'enrollment_status', 'student_status', 'student_name', 'email', 'enrollment_number', 'mobile_number', 'father_name', 'mother_name', 'identity'];
         $input = [];
         foreach ($keys as $key) {
             $value = $request->query($key);

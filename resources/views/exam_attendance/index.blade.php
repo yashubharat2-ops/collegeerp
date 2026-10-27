@@ -19,6 +19,11 @@
         :options="$studentFilterOptions"
         :values="$studentFilterValues"
         :applied="$studentFilterApplied"
+        :identity-fields="$studentFilterIdentityFields"
+        :identity-action="$studentFilterIdentityAction"
+        :identity-return-to="$studentFilterIdentityReturnTo"
+        :identity-active="$studentFilterIdentityActive"
+        :identity-token="$studentFilterIdentityToken"
         :action="route('exam-attendance.index')"
         title="Filter Exam Attendance Students"
     >

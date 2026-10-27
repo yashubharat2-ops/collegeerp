@@ -82,6 +82,9 @@ class FeeReceiptController extends Controller
 
         $receipts = FeePayment::query()
             ->with(['studentEnrollment.student', 'studentEnrollment.academicYear', 'studentEnrollment.program', 'feeStructure', 'collector'])
+            // A receipt is money: only completed collections may be exported,
+            // even if a pending/rejected id is submitted by hand.
+            ->where('fee_payments.status', FeePayment::STATUS_COMPLETED)
             ->whereIn('fee_payments.id', $ids)
             ->orderBy('fee_payments.id')
             ->get();

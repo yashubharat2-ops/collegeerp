@@ -2,6 +2,7 @@
     'module',
     'endpoint' => null,
     'exportRoute' => null,
+    'selectionHint' => 'Only the rows you tick are acted on. "Select all" covers this page — it never means every matching record, and every id is re-checked on the server.',
 ])
 
 @php
@@ -33,4 +34,7 @@
             {{ $slot }}
         </div>
     </div>
+    @if($selectionHint)
+        <p class="mt-2 text-xs text-indigo-800/80">{{ $selectionHint }}</p>
+    @endif
 </div>

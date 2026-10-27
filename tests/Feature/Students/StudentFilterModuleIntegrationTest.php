@@ -21,11 +21,11 @@ class StudentFilterModuleIntegrationTest extends TestCase
         $other = $this->makeStudent($college, ['student_number' => 'REG-SFM02', 'first_name' => 'Beta', 'status' => 'active']);
         $targetEnrollment = $this->makeEnrollment($college, $target, $year, null, ['enrollment_number' => 'ENR-SFM01', 'status' => 'completed']);
         $otherEnrollment = $this->makeEnrollment($college, $other, $year, null, ['enrollment_number' => 'ENR-SFM02', 'status' => 'active']);
-        $query = ['student_name' => 'Alpha', 'enrollment_status' => 'completed'];
+        $query = ['student_name' => 'Alpha', 'enrollment_status' => 'completed', 'academic_status' => 'continue'];
 
         $this->asCollege($college, $viewer)->get(route('student-enrollments.index', $query))
             ->assertOk()->assertSee($targetEnrollment->enrollment_number)->assertDontSee($otherEnrollment->enrollment_number)
-            ->assertSee('ACADEMIC STATUS')->assertSee('STATUS');
+            ->assertSee('ACADEMIC STATUS')->assertSee('STUDENT STATUS');
 
         $csv = $this->asCollege($college, $viewer)->get(route('student-enrollments.export', $query + [
             'ids' => [$targetEnrollment->id, $otherEnrollment->id],

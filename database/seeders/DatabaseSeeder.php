@@ -67,6 +67,10 @@ class DatabaseSeeder extends Seeder
             // Sensitive identity filtering is separate from ordinary read/export access.
             'students.view_sensitive_identity',
             'student_enrollments.view', 'student_enrollments.create', 'student_enrollments.update', 'student_enrollments.delete',
+            // Deciding a pending enrollment (Approval Management → Students →
+            // Student Enrollment). Separate from update: recording an enrollment
+            // must never be enough to make it operational.
+            'student_enrollments.approve',
             'student_academic_records.view', 'student_academic_records.create', 'student_academic_records.update', 'student_academic_records.delete',
             'student_documents.view', 'student_documents.create', 'student_documents.update', 'student_documents.delete',
             'student_id_cards.view', 'student_id_cards.generate',
@@ -111,6 +115,10 @@ class DatabaseSeeder extends Seeder
             'student_fee_assignments.view', 'student_fee_assignments.create', 'student_fee_assignments.update', 'student_fee_assignments.delete',
             // Finance / Fees — Fee Collection.
             'fee_collections.view', 'fee_collections.create', 'fee_collections.update', 'fee_collections.delete',
+            // Finance / Fees — Fee Collection approval (Approval Management →
+            // Fees → Fee Collection). Only this permission may finalize a
+            // pending collection.
+            ...FeeCollectionApprovalPermissionSeeder::PERMISSIONS,
             // Finance / Fees — Receipts (derived printable documents; read-only).
             'receipts.view', 'receipts.print',
             // Finance / Fees — Due / Outstanding Fees (derived ledger; read-only).

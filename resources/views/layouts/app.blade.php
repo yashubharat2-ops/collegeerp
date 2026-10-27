@@ -33,11 +33,13 @@
             $m = @filemtime($p);
             return $m ? (string) $m : null;
         };
+        $erpThemeCssVersion = $erpCssVer('css/erp-theme.css');
         $erpSidebarCssVersion = $erpCssVer('css/erp-sidebar.css');
         $erpUserMenuCssVersion = $erpCssVer('css/erp-user-menu.css');
         $erpDropdownCssVersion = $erpCssVer('css/erp-dropdown.css');
         $erpListCssVersion = $erpCssVer('css/erp-list.css');
         $erpStudentFormCssVersion = $erpCssVer('css/erp-student-form.css');
+        $erpStudentProfileCssVersion = $erpCssVer('css/erp-student-profile.css');
         $erpUiCssVersion = $erpCssVer('css/erp-ui.css');
         unset($erpCssVer);
 
@@ -54,6 +56,10 @@
             && \Illuminate\Support\Facades\Route::has('notifications.index');
         unset($erpNotifyUser);
     @endphp
+    {{-- Theme tokens FIRST: the Deep Blue / Navy Blue palette every sheet below
+         (and the Vite bundle) reads through var(--erp-color-*). Custom properties
+         only — no layout, so it cannot compete with any rule. --}}
+    <link rel="stylesheet" href="{{ asset('css/erp-theme.css') }}@if ($erpThemeCssVersion)?v={{ $erpThemeCssVersion }}@endif">
     <link rel="stylesheet" href="{{ asset('css/erp-sidebar.css') }}@if ($erpSidebarCssVersion)?v={{ $erpSidebarCssVersion }}@endif">
     {{-- The signed-in user panel in the header is its own component with its own
          stylesheet, so the sidebar file stays authoritative for the sidebar only. --}}
@@ -101,9 +107,16 @@
          ERP screen even when no bundle exists, and linking it after the Vite block
          means the form's own rules always win over a stale one. --}}
     <link rel="stylesheet" href="{{ asset('css/erp-student-form.css') }}@if ($erpStudentFormCssVersion)?v={{ $erpStudentFormCssVersion }}@endif">
+
+    {{-- Student Profile (one student's page): the dashboard shell, the portrait
+         slot and the gallery. Static and content-hash versioned like the sheets
+         above, so a profile always renders as a dashboard even without a bundle.
+         Its selectors are all `sp-`-prefixed, so loading it on every page cannot
+         leak into another module. --}}
+    <link rel="stylesheet" href="{{ asset('css/erp-student-profile.css') }}@if ($erpStudentProfileCssVersion)?v={{ $erpStudentProfileCssVersion }}@endif">
     @stack('styles')
 </head>
-<body class="bg-slate-100 text-slate-900">
+<body class="bg-slate-50 text-slate-800">
     {{-- Skip link: the shell renders ~130 navigation rows before the page content, so
          without this a keyboard user tabs through the whole sidebar to reach the first
          field of a form. It is the first focusable element in the document, off-screen
@@ -179,6 +192,9 @@
          code, and a src that ends in `.js` (see ProgramNameEscapeTest). --}}
     <script type="module" src="{{ asset('js/erp-user-menu.js') }}"></script>
     <script type="module" src="{{ asset('js/erp-list.js') }}"></script>
+    {{-- Student Filter dependent dropdowns (progressive enhancement; the server
+         validates the same combinations). --}}
+    <script type="module" src="{{ asset('js/erp-student-filter.js') }}"></script>
     {{-- List toolbars: the Export dropdowns (page-level and bulk bar). Same
          loading rules: external module script, no inline code. --}}
     <script type="module" src="{{ asset('js/erp-dropdown.js') }}"></script>

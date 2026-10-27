@@ -260,7 +260,7 @@ is affected.
   full width. `minmax(0, 1fr)` tracks plus `min-width: 0` on `.erp-field` mean a
   long `<select>` option can never widen a row into horizontal overflow.
 - **Compact chrome.** Labels are 12px semibold with a 4px gap; inputs are 36px
-  tall with a 1px `#cbd5e1` border, white background, 6px radius and an indigo
+  tall with a 1px `#cbd5e1` border, white background, 6px radius and a Deep Blue
   focus ring; `.erp-error:empty` collapses so a valid field reserves no error
   height, and `:has()` tints the offending control (a graceful no-op where
   `:has()` is unsupported).
@@ -286,3 +286,16 @@ the validation rule.
 > an `<img src>` cannot render a `Content-Disposition: attachment` response, so
 > the pre-existing portrait on the profile and the ID card now actually displays.
 > Document downloads keep the attachment behaviour.
+
+---
+
+## Registration wizard (five steps)
+
+`GET /students/registration` no longer renders this single long form. Unified
+registration now runs through a five-step wizard (Basic Information →
+Parent/Guardian → Academic Record → Attach Documents → Final Review → Submit for
+Approval) that persists a per-user draft and only creates the pending Student on
+the final submit. See `docs/student_registration_wizard.md`.
+
+This page is unchanged for every other flow: New Student, Edit Student and
+New Student from Admission still use the six-section form described above.

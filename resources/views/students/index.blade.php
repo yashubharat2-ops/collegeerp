@@ -64,9 +64,15 @@
         :options="$studentFilterOptions"
         :values="$studentFilterValues"
         :applied="$studentFilterApplied"
+        :identity-fields="$studentFilterIdentityFields"
+        :identity-action="$studentFilterIdentityAction"
+        :identity-return-to="$studentFilterIdentityReturnTo"
+        :identity-active="$studentFilterIdentityActive"
+        :identity-token="$studentFilterIdentityToken"
         :action="route('students.index')"
         :reset-url="$clearUrl"
         :preserve="['sort' => $activeSort, 'direction' => $activeDirection]"
+        title="Filter Students"
     >
         <div class="erp-list-filter-span-2">
             <x-list.search-input
@@ -77,45 +83,13 @@
             />
         </div>
 
-        <x-list.filter-select name="gender" label="Gender" placeholder="All genders">
-            @foreach(\App\Models\Student::GENDERS as $gender)
-                <option value="{{ $gender }}" @selected(in_array($gender, (array) $listContext->filter('gender', []), true))>{{ ucfirst(str_replace('_', ' ', $gender)) }}</option>
-            @endforeach
-        </x-list.filter-select>
-
-        <x-list.filter-select name="category" label="Category" placeholder="All categories">
-            @foreach(\App\Models\Student::CATEGORIES as $category)
-                <option value="{{ $category }}" @selected(in_array($category, (array) $listContext->filter('category', []), true))>{{ \App\Models\Student::categoryLabel($category) }}</option>
-            @endforeach
-        </x-list.filter-select>
-
-        <x-list.filter-select name="blood_group" label="Blood group" placeholder="All blood groups">
-            @foreach(\App\Models\Student::BLOOD_GROUPS as $bloodGroup)
-                <option value="{{ $bloodGroup }}" @selected(in_array($bloodGroup, (array) $listContext->filter('blood_group', []), true))>{{ $bloodGroup }}</option>
-            @endforeach
-        </x-list.filter-select>
-
-        <x-list.filter-text
-            name="nationality"
-            label="Nationality"
-            placeholder="Contains…"
-            :value="$listContext->filter('nationality')"
-        />
-        <x-list.filter-text
-            name="mother_tongue"
-            label="Mother tongue"
-            placeholder="Contains…"
-            :value="$listContext->filter('mother_tongue')"
-        />
-
-        <x-list.filter-date-range
-            class="erp-list-filter-span-2"
-            from-name="date_of_birth_from"
-            to-name="date_of_birth_to"
-            label="Date of birth"
-            :from-value="$listContext->filter('date_of_birth_from')"
-            :to-value="$listContext->filter('date_of_birth_to')"
-        />
+        {{-- The panel carries the eleven canonical filters only. Gender,
+             Category, Mother tongue, Father's / Mother's name, E-mail, Mobile,
+             Enrollment number, Blood group, Date of birth, Nationality and the
+             duplicate "unique student id" are deliberately NOT rendered. The
+             profile keeps storing them and the existing query parameters keep
+             working (bookmarks, exports, module links); only this interface
+             omits the controls. --}}
     </x-student-filter>
 
     {{-- Selection bar: rendered inside the panel so the shared script

@@ -45,7 +45,7 @@ class AdmissionApplicationController extends Controller
             'applications' => $query->paginate(15)->withQueryString(),
             'search' => trim((string) $request->input('search')),
             'status' => $request->input('status'),
-        ], $studentFilter->viewData($studentFilters, StudentFilter::ADMISSION_APPLICATION_FIELDS, $request->user())));
+        ], $studentFilter->viewData($studentFilters, StudentFilter::ADMISSION_APPLICATION_PANEL_FIELDS, $request->user())));
     }
 
     /**

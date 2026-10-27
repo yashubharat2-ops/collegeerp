@@ -39,7 +39,7 @@ class AdmissionController extends Controller
             'admissions' => $query->paginate(15)->withQueryString(),
             'search' => trim((string) $request->input('search')),
             'status' => $request->input('status'),
-        ], $studentFilter->viewData($studentFilters, StudentFilter::ADMISSION_FIELDS, $request->user())));
+        ], $studentFilter->viewData($studentFilters, StudentFilter::ADMISSION_PANEL_FIELDS, $request->user())));
     }
 
     /**

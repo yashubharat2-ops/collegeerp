@@ -15,6 +15,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *
  * Tenant scoped, configurable per college, optionally per program via pivot.
  * No hard-coded college rules.
+ *
+ * The pivot (`admission_document_type_program`) is the course-wise requirement
+ * configuration the registration wizard resolves against:
+ *   is_required       — the document must be attached before submitting
+ *   can_submit_later  — the college accepts it after admission ("deferred")
+ * A type with no pivot row for the selected programme is still offered, but it
+ * is not required for it.
  */
 class AdmissionDocumentType extends Model
 {
@@ -50,7 +57,7 @@ class AdmissionDocumentType extends Model
     public function programs(): BelongsToMany
     {
         return $this->belongsToMany(Program::class, 'admission_document_type_program', 'document_type_id', 'program_id')
-            ->withPivot(['college_id', 'is_required'])
+            ->withPivot(['college_id', 'is_required', 'can_submit_later'])
             ->withTimestamps();
     }
 

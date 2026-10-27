@@ -25,7 +25,111 @@ class StudentEnrollment extends Model
 {
     use HasFactory, SoftDeletes, BelongsToCollege;
 
-    public const STATUSES = ['active', 'completed', 'cancelled', 'withdrawn'];
+    /**
+     * Lifecycle of one enrollment.
+     *
+     *     pending_approval --approve--> active --promotion/TC--> completed
+     *                      --reject---> rejected
+     *     active -----------cancel----> cancelled / withdrawn
+     *
+     * `pending_approval` and `rejected` are WORKFLOW states: they are reached
+     * only through Approval Management (`student.enrollment_approval`), never by
+     * picking them in the form or through a bulk status change. A pending row
+     * already carries its generated Enrollment Number and Roll Number — the
+     * numbers belong to the record, and approval only decides whether it becomes
+     * operational.
+     */
+    public const STATUS_PENDING_APPROVAL = 'pending_approval';
+    public const STATUS_ACTIVE = 'active';
+    public const STATUS_COMPLETED = 'completed';
+    public const STATUS_CANCELLED = 'cancelled';
+    public const STATUS_WITHDRAWN = 'withdrawn';
+    public const STATUS_REJECTED = 'rejected';
+
+    /** Every stored status (validation, filtering, badges). */
+    public const STATUSES = [
+        self::STATUS_PENDING_APPROVAL,
+        self::STATUS_ACTIVE,
+        self::STATUS_COMPLETED,
+        self::STATUS_CANCELLED,
+        self::STATUS_WITHDRAWN,
+        self::STATUS_REJECTED,
+    ];
+
+    /**
+     * Statuses an operator may pick directly (create/edit/bulk).
+     *
+     * `pending_approval` is requested through the approval gate and `rejected`
+     * is the outcome of a rejection decision, so neither is an ordinary choice:
+     * offering them would let a user bypass — or fake — the approval transition.
+     */
+    public const MANUAL_STATUSES = [
+        self::STATUS_ACTIVE,
+        self::STATUS_COMPLETED,
+        self::STATUS_CANCELLED,
+        self::STATUS_WITHDRAWN,
+    ];
+
+    /** Terminal states: an enrollment in one of these never becomes active again. */
+    public const TERMINAL_STATUSES = [
+        self::STATUS_COMPLETED,
+        self::STATUS_CANCELLED,
+        self::STATUS_WITHDRAWN,
+        self::STATUS_REJECTED,
+    ];
+
+    /**
+     * The statuses the create/edit form may offer: the manual ones plus whatever
+     * the record already holds, so an edit never silently rewrites a workflow
+     * state it did not choose.
+     *
+     * @return array<int, string>
+     */
+    public static function formStatuses(?string $current = null): array
+    {
+        $statuses = self::MANUAL_STATUSES;
+
+        if ($current !== null && in_array($current, self::STATUSES, true) && ! in_array($current, $statuses, true)) {
+            array_unshift($statuses, $current);
+        }
+
+        return $statuses;
+    }
+
+    public function isPendingApproval(): bool
+    {
+        return $this->status === self::STATUS_PENDING_APPROVAL;
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === self::STATUS_ACTIVE;
+    }
+
+    public function isTerminal(): bool
+    {
+        return in_array($this->status, self::TERMINAL_STATUSES, true);
+    }
+
+    /** Human label for the list badge. */
+    public function statusLabel(): string
+    {
+        return self::statusLabelFor((string) $this->status);
+    }
+
+    /** Label for any status value (used by forms that render the choices). */
+    public static function statusLabelFor(string $status): string
+    {
+        return match ($status) {
+            self::STATUS_PENDING_APPROVAL => 'Pending approval',
+            self::STATUS_ACTIVE => 'Active',
+            self::STATUS_COMPLETED => 'Completed',
+            self::STATUS_CANCELLED => 'Cancelled',
+            self::STATUS_WITHDRAWN => 'Withdrawn',
+            self::STATUS_REJECTED => 'Rejected',
+            default => ucfirst($status),
+        };
+    }
 
     public function certificates(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
@@ -36,8 +140,20 @@ class StudentEnrollment extends Model
         'college_id',
         'student_id',
         'academic_year_id',
+        // The CONFIGURED academic level (semester / term / trimester) of this
+        // enrollment, when the college maintains its academic structure. The
+        // `semester` string below keeps the human label so existing reports,
+        // exports and ID cards keep working; this id is what a filter or a join
+        // can rely on.
+        'academic_term_id',
         'program_id',
         'section_id',
+        // Year-of-study / semester of this enrollment (e.g. "1", "Semester 3").
+        'semester',
+        // Class/section roll number for THIS enrollment. Unique per
+        // (college, academic year, programme, section); a student's roll number
+        // changes with the class, their Student ID never does.
+        'roll_number',
         'enrollment_number',
         'enrollment_date',
         'status',
@@ -71,6 +187,36 @@ class StudentEnrollment extends Model
     public function program(): BelongsTo
     {
         return $this->belongsTo(Program::class, 'program_id');
+    }
+
+    /**
+     * The configured semester / year of study, when one was chosen.
+     *
+     * Nullable on purpose: an older enrollment may only carry the free-text
+     * `semester` label, and a college that has not configured academic terms yet
+     * can still enroll students.
+     */
+    public function academicTerm(): BelongsTo
+    {
+        return $this->belongsTo(AcademicTerm::class, 'academic_term_id');
+    }
+
+    /**
+     * What every screen should print for the study level of this enrollment:
+     * the configured term's name when there is one, else the stored label, else
+     * null (the caller renders its own "not set" text — never a bare "").
+     */
+    public function semesterLabel(): ?string
+    {
+        $termName = $this->academicTerm?->name;
+
+        if (is_string($termName) && trim($termName) !== '') {
+            return trim($termName);
+        }
+
+        $stored = is_string($this->semester) ? trim($this->semester) : null;
+
+        return $stored === '' ? null : $stored;
     }
 
     /**

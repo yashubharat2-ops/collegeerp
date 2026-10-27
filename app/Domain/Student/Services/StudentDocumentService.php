@@ -48,11 +48,23 @@ class StudentDocumentService
      * Defence in depth: files live on a non-served private disk, but a stored
      * script is a latent risk if the disk is ever copied or mis-served.
      */
-    private const BLOCKED_EXTENSIONS = [
+    public const BLOCKED_EXTENSIONS = [
         'php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'phar', 'phps',
         'asp', 'aspx', 'ashx', 'jsp', 'jspx', 'cgi', 'pl', 'py', 'rb', 'sh',
         'bash', 'bat', 'cmd', 'com', 'exe', 'dll', 'so', 'msi', 'scr', 'vbs',
         'js', 'jar', 'htm', 'html', 'shtml', 'svg', 'xhtml',
+    ];
+
+    /**
+     * Content types that indicate script/executable payloads. Shared with the
+     * registration wizard's staging service so a file refused there would also
+     * be refused here — one list, not two drifting ones.
+     */
+    public const DANGEROUS_MIMES = [
+        'text/x-php', 'application/x-php', 'application/x-httpd-php', 'application/php',
+        'text/html', 'application/xhtml+xml', 'image/svg+xml',
+        'application/x-executable', 'application/x-sh', 'application/x-shellscript',
+        'application/x-msdownload', 'application/x-elf', 'application/x-sharedlib',
     ];
 
     public function __construct(
@@ -148,6 +160,78 @@ class StudentDocumentService
 
             return $document;
         });
+    }
+
+    /**
+     * Create a document row for a file that is ALREADY on the private disk.
+     *
+     * Used by the registration wizard: the applicant's upload was staged while
+     * the draft had no student, so on submission the same blob is adopted into
+     * the Documents module instead of being re-uploaded or copied. The path is
+     * still validated (plain relative key, inside this college's directory), so
+     * adoption is not a way to attach an arbitrary file.
+     *
+     * Verification always starts at `pending`: being uploaded — or adopted — is
+     * not verification.
+     *
+     * @param  array{student_id: int, document_type_id?: mixed, title: string, remarks?: string|null, issue_date?: string|null, expiry_date?: string|null}  $data
+     * @param  array{original_filename?: string|null, mime_type?: string|null, file_size?: int|null}  $file
+     */
+    public function adoptStoredFile(array $data, string $storedPath, array $file, int $collegeId, ?int $userId = null): StudentDocument
+    {
+        $path = self::assertSafePath($storedPath);
+
+        if (! str_starts_with($path, 'students/'.$collegeId.'/')) {
+            abort(403, 'Invalid document path.');
+        }
+
+        $student = Student::withoutGlobalScopes()
+            ->where('college_id', $collegeId)
+            ->whereKey((int) $data['student_id'])
+            ->first();
+
+        if (! $student) {
+            abort(404, 'Student not found in this college context.');
+        }
+
+        $type = null;
+        if (! empty($data['document_type_id'])) {
+            $type = AdmissionDocumentType::query()->find((int) $data['document_type_id']);
+
+            if (! $type) {
+                abort(404, 'Document type not found in this college context.');
+            }
+        }
+
+        $extension = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
+
+        if ($extension === '' || in_array($extension, self::BLOCKED_EXTENSIONS, true)) {
+            throw ValidationException::withMessages([
+                'file' => 'This file type is not allowed for student documents.',
+            ]);
+        }
+
+        $document = StudentDocument::create([
+            'college_id' => $collegeId,
+            'student_id' => $student->id,
+            'document_type_id' => $type?->id,
+            'title' => $data['title'],
+            'file_path' => $path,
+            'original_filename' => $file['original_filename'] ?? basename($path),
+            'mime_type' => $file['mime_type'] ?? null,
+            'file_size' => $file['file_size'] ?? 0,
+            'issue_date' => $data['issue_date'] ?? null,
+            'expiry_date' => $data['expiry_date'] ?? null,
+            'verification_status' => 'pending',
+            'uploaded_by' => $userId,
+            'remarks' => $data['remarks'] ?? null,
+            'created_by' => $userId,
+            'updated_by' => $userId,
+        ]);
+
+        $this->audit->record('student_document.uploaded', $document, [], $document->only(self::AUDITED));
+
+        return $document;
     }
 
     public function updateMetadata(StudentDocument $document, array $data, ?int $userId = null): StudentDocument
@@ -290,14 +374,8 @@ class StudentDocumentService
         // Reject content types that indicate script/executable content even
         // when the extension looked harmless.
         $mime = strtolower((string) $file->getMimeType());
-        $dangerousMimes = [
-            'text/x-php', 'application/x-php', 'application/x-httpd-php', 'application/php',
-            'text/html', 'application/xhtml+xml', 'image/svg+xml',
-            'application/x-executable', 'application/x-sh', 'application/x-shellscript',
-            'application/x-msdownload', 'application/x-elf', 'application/x-sharedlib',
-        ];
 
-        if (in_array($mime, $dangerousMimes, true)) {
+        if (in_array($mime, self::DANGEROUS_MIMES, true)) {
             throw ValidationException::withMessages([
                 'file' => 'This file type is not allowed for student documents.',
             ]);

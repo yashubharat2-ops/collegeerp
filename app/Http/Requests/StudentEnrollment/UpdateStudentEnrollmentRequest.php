@@ -43,11 +43,27 @@ class UpdateStudentEnrollmentRequest extends FormRequest
             $sectionRule->where('program_id', (int) $enrollment->program_id);
         }
 
+        // The configured semester / year of study may be corrected, but only
+        // within this enrollment's own academic year (which is immutable).
+        $termRule = Rule::exists('academic_terms', 'id')
+            ->where('college_id', $collegeId)
+            ->where('academic_year_id', (int) $enrollment?->academic_year_id)
+            ->whereNull('deleted_at');
+
         return [
+            'academic_term_id' => ['nullable', 'integer', $termRule],
             'section_id' => ['nullable', 'integer', $sectionRule],
             'enrollment_date' => ['nullable', 'date'],
-            'status' => ['required', Rule::in(StudentEnrollment::STATUSES)],
+            // Manual statuses only — plus whatever this record already holds, so
+            // editing an unrelated field never has to rewrite a workflow state.
+            // `pending_approval` -> `active` is refused by StudentService as well:
+            // that transition belongs to the approval decision.
+            'status' => ['required', Rule::in(StudentEnrollment::formStatuses($enrollment?->status))],
             'remarks' => ['nullable', 'string', 'max:2000'],
+            // Class/section roll number. Blank lets the server allocate one when
+            // a section is attached (GenerateRollNumber); an explicit value is
+            // checked against the same academic year + programme + section.
+            'roll_number' => ['nullable', 'string', 'max:30'],
         ];
     }
 
