@@ -30,6 +30,15 @@ profile form (`students.create`) is unchanged for every other flow.
 > the wizard entry point or by the first *successful* step save, and is reused —
 > never duplicated — on every later save. A rejected save neither creates a new
 > row nor overwrites the payload already stored.
+>
+> **Only the entry point creates a draft.** `GET students/registration` starts or
+> resumes the authenticated user's own draft; opening `students/registration/step/{n}`
+> without one redirects to the entry point instead of creating it as a side effect
+> of a read. A rejected save that had no draft behind it therefore returns to the
+> step it failed on, which forwards to the entry point with the failure (errors,
+> old input and the step number) kept alive, so the same form reopens with the
+> message still on screen. A `draft_id` belonging to another user — or another
+> college — is a 404 on every route, and never leaves a replacement draft behind.
 
 ## 2. Steps and fields
 

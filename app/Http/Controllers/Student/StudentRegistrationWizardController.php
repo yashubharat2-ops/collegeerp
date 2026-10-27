@@ -54,6 +54,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class StudentRegistrationWizardController extends Controller
 {
+    /** Flash key: the step a rejected no-draft save belonged to. */
+    private const FAILED_STEP_KEY = 'registration_failed_step';
+
     public function __construct(
         private readonly RegistrationDraftService $drafts,
         private readonly RegistrationSubmissionService $submission,
@@ -77,6 +80,21 @@ class StudentRegistrationWizardController extends Controller
         // the step being edited, "Save & continue" advances it. Never a fixed 1.
         $step = max(1, min((int) $draft->current_step, StudentRegistrationDraft::LAST_STEP));
 
+        // A rejected save with no draft behind it is answered with a redirect to
+        // the step that failed; that step has nothing to render yet, so it
+        // forwards the applicant here and the draft is created now. Keeping the
+        // flash across this one hop is what makes the failure still visible, and
+        // the recorded step reopens the form that actually failed.
+        if (session()->has('errors')) {
+            session()->keep(['errors', '_old_input', self::FAILED_STEP_KEY]);
+
+            $failedStep = (int) session()->get(self::FAILED_STEP_KEY, $step);
+
+            if ($failedStep >= 1 && $failedStep <= StudentRegistrationDraft::LAST_STEP) {
+                $step = $failedStep;
+            }
+        }
+
         return redirect()->route('students.registration.step', ['step' => $step]);
     }
 
@@ -90,14 +108,28 @@ class StudentRegistrationWizardController extends Controller
         }
 
         $collegeId = (int) app(TenantContext::class)->id();
+        $draft = $this->resolveDraft($request);
 
-        // Opening a step of a wizard that has no draft yet starts the draft, just
-        // like the entry point does. This also keeps a REJECTED save's feedback
-        // on screen: the step the request failed on is rendered directly (with
-        // the flashed errors and old input) instead of bouncing through
-        // create → step, a chain long enough to consume the flash.
-        $draft = $this->resolveDraft($request)
-            ?? $this->drafts->startOrResume($collegeId, (int) $request->user()->getKey());
+        if ($draft === null) {
+            // A read never creates a draft. Only the entry point starts one, for
+            // the authenticated user, in their own college — so a bare step URL
+            // (a stale page, a bookmark, another applicant's link) cannot open a
+            // wizard as a side effect of a GET. A supplied draft_id that is not
+            // this user's own never reaches this point: resolveDraft() already
+            // answered 404, so no foreign draft is read and no replacement draft
+            // appears in its place.
+            //
+            // The forwarded request is the one a rejected save lands on, so the
+            // flashed failure travels with it (see start()). Landing here with a
+            // flashed failure also identifies THIS as the step that failed.
+            if (session()->has('errors')) {
+                session()->flash(self::FAILED_STEP_KEY, $step);
+            }
+
+            session()->keep(['errors', '_old_input', self::FAILED_STEP_KEY]);
+
+            return redirect()->route('students.registration.create');
+        }
 
         if ($draft->isSubmitted()) {
             return redirect()
@@ -415,7 +447,7 @@ class StudentRegistrationWizardController extends Controller
             try {
                 RegistrationIdentityGuard::assertAvailable($data + $merged, $collegeId);
             } catch (ValidationException $exception) {
-                return $this->stepError($step, $exception);
+                return $this->stepError($step, $exception, $draft);
             }
         }
 
@@ -434,7 +466,7 @@ class StudentRegistrationWizardController extends Controller
                 $this->photos->delete($path);
             }
 
-            return $this->stepError($step, $exception);
+            return $this->stepError($step, $exception, $draft);
         }
 
         // Server-owned paths are re-attached after normalisation, because the
@@ -707,12 +739,25 @@ class StudentRegistrationWizardController extends Controller
      * `url()->previous()` would send the applicant to whatever page the browser
      * came from (a bare "/" on a first visit) and lose the wizard's context.
      */
-    private function stepError(int $step, ValidationException $exception): RedirectResponse
-    {
-        return redirect()
+    private function stepError(
+        int $step,
+        ValidationException $exception,
+        ?StudentRegistrationDraft $draft = null,
+    ): RedirectResponse {
+        $response = redirect()
             ->route('students.registration.step', ['step' => $step])
             ->withInput()
             ->withErrors($exception->errors());
+
+        if ($draft === null) {
+            // Nothing was written, so this step cannot render itself: it will
+            // forward to the entry point, which starts the draft. This marker
+            // tells the entry point which step to reopen, so the applicant is
+            // not dropped on step 1 with an error belonging to step 3.
+            $response->with(self::FAILED_STEP_KEY, $step);
+        }
+
+        return $response;
     }
 
     private function assertDraftEditable(StudentRegistrationDraft $draft): void

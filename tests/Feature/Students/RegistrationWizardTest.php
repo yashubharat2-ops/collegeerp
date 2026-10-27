@@ -736,6 +736,77 @@ class RegistrationWizardTest extends TestCase
             ->assertNotFound();
 
         $this->assertNull($draft->fresh()->stepData(2)['father_name'] ?? null);
+
+        // Refusing the intruder must not start a draft of their own either.
+        $this->assertSame(0, StudentRegistrationDraft::withoutGlobalScopes()
+            ->where('college_id', $other->id)
+            ->where('user_id', $intruder->id)
+            ->count());
+    }
+
+    /**
+     * Naming somebody else's draft id is a 404 on every registration route —
+     * across colleges AND across two users of the same college — and the attempt
+     * never leaves a replacement draft behind.
+     */
+    public function test_a_foreign_draft_id_is_refused_on_every_registration_route(): void
+    {
+        Storage::fake('private');
+
+        $college = $this->makeCollege('WIZ19C');
+        $other = $this->makeCollege('WIZ19D');
+
+        $owner = $this->staff($college);
+        $peer = $this->staff($college);
+        $outsider = $this->staff($other);
+
+        $this->saveStep($college, $owner, 1, ['first_name' => 'Riya'])->assertRedirect();
+        $draft = $this->draftFor($college, $owner);
+
+        $attempts = [
+            'another user in the same college' => [$college, $peer],
+            'a user in another college' => [$other, $outsider],
+        ];
+
+        foreach ($attempts as $label => [$tenant, $intruder]) {
+            // GET a step while naming the draft in the query string.
+            $this->asCollege($tenant, $intruder)
+                ->get(route('students.registration.step', ['step' => 1]).'?draft_id='.$draft->id)
+                ->assertNotFound();
+
+            // POST a step naming it.
+            $this->asCollege($tenant, $intruder)
+                ->post(route('students.registration.step.save', ['step' => 2]), [
+                    'draft_id' => $draft->id,
+                    'father_name' => 'Intruder',
+                ])
+                ->assertNotFound();
+
+            // The private-image stream and the discard endpoint are scoped the
+            // same way, so neither can be used to read or destroy the draft.
+            $this->asCollege($tenant, $intruder)
+                ->get(route('students.registration.image', ['field' => 'photo']).'?draft_id='.$draft->id)
+                ->assertNotFound();
+
+            $this->asCollege($tenant, $intruder)
+                ->post(route('students.registration.cancel'), ['draft_id' => $draft->id])
+                ->assertNotFound();
+
+            // Nothing was started for the intruder by any of the attempts.
+            $this->assertSame(0, StudentRegistrationDraft::withoutGlobalScopes()
+                ->where('college_id', $tenant->id)
+                ->where('user_id', $intruder->id)
+                ->count(), "A refused attempt ({$label}) must not start a draft.");
+        }
+
+        // The owner's draft is untouched and is still the only one in the college.
+        $fresh = $draft->fresh();
+        $this->assertSame('Riya', $fresh->stepData(1)['first_name']);
+        $this->assertNull($fresh->stepData(2)['father_name'] ?? null);
+        $this->assertSame(StudentRegistrationDraft::STATUS_DRAFT, $fresh->status);
+        $this->assertSame(1, StudentRegistrationDraft::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->count());
     }
 
     public function test_a_user_without_students_create_permission_cannot_open_the_wizard(): void
@@ -1014,36 +1085,49 @@ class RegistrationWizardTest extends TestCase
         $this->assertSame('Verma', $this->draftFor($college, $user)->stepData(1)['last_name']);
     }
 
-    public function test_a_rejected_first_save_shows_its_error_on_step_one_without_leaving_a_draft(): void
+    /**
+     * A rejected save with no draft behind it writes nothing, and a GET of a step
+     * never starts a draft as a side effect. The entry point is the only place
+     * that begins one, and it reopens the step that failed with the error intact.
+     */
+    public function test_a_rejected_first_save_leaves_no_draft_and_the_entry_point_reopens_the_failed_step(): void
     {
-        Storage::fake('private');
         $college = $this->makeCollege('WIZ32B');
         $user = $this->staff($college);
 
-        $this->makeStudent($college, ['student_number' => 'STU-DUP', 'phone' => '9444444444']);
-
-        $this->saveStep($college, $user, 1, ['first_name' => 'Riya', 'phone' => '9444444444'])
-            ->assertRedirect(route('students.registration.step', ['step' => 1]))
-            ->assertSessionHasErrors(['phone']);
-
-        // The rejected request itself left nothing behind.
-        $this->assertSame(0, StudentRegistrationDraft::withoutGlobalScopes()
+        $drafts = fn (): int => StudentRegistrationDraft::withoutGlobalScopes()
             ->where('college_id', $college->id)
             ->where('user_id', $user->id)
-            ->count());
+            ->count();
 
-        // Opening the step it failed on shows the error (one hop, so the flash is
-        // still alive) and starts the draft there and then.
+        // Step 3 (academic year + program are required) with no draft at all.
+        $this->saveStep($college, $user, 3, [])
+            ->assertRedirect(route('students.registration.step', ['step' => 3]))
+            ->assertSessionHasErrors(['academic_year_id']);
+
+        $this->assertSame(0, $drafts(), 'A rejected first save leaves no working copy.');
+
+        // Reading a step is not a way to create one either.
         $this->asCollege($college, $user)
-            ->get(route('students.registration.step', ['step' => 1]))
-            ->assertOk()
-            ->assertSee('already been taken')
-            ->assertSee('Step 1 of 5');
+            ->get(route('students.registration.step', ['step' => 3]))
+            ->assertRedirect(route('students.registration.create'));
 
-        $this->assertSame(1, StudentRegistrationDraft::withoutGlobalScopes()
-            ->where('college_id', $college->id)
-            ->where('user_id', $user->id)
-            ->count());
+        $this->assertSame(0, $drafts(), 'A GET must never start a draft.');
+
+        // The entry point starts it — for this user only — and reopens step 3,
+        // which is where the rejected save was, so the message is still shown.
+        $this->asCollege($college, $user)
+            ->get(route('students.registration.create'))
+            ->assertRedirect(route('students.registration.step', ['step' => 3]))
+            ->assertSessionHasErrors(['academic_year_id']);
+
+        $this->assertSame(1, $drafts(), 'Exactly one working copy is created.');
+
+        // The draft is genuinely empty: the failed attempt stored nothing.
+        $draft = $this->draftFor($college, $user);
+        $this->assertSame([], $draft->stepData(3));
+        $this->assertSame(0, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame(0, ApprovalRequest::withoutGlobalScopes()->where('college_id', $college->id)->count());
     }
 
     public function test_save_draft_keeps_a_previously_uploaded_photograph(): void
