@@ -322,20 +322,6 @@ class StudentController extends Controller
         ));
     }
 
-    /**
-     * The single primary registration entry point. It reuses the rich Student
-     * Create form; only the submit target and server-side workflow differ.
-     */
-    public function registration(Request $request): View
-    {
-        $this->authorize('create', Student::class);
-
-        return view('students.create', array_merge(
-            $this->profileFormOptions($request, true),
-            ['registrationMode' => true],
-        ));
-    }
-
     public function registrationStore(
         StoreStudentRegistrationRequest $request,
         StudentRegistrationService $registration,

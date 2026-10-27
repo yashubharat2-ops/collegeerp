@@ -498,6 +498,7 @@ class ApprovalService
                     'academic_year_id' => $yearId,
                     'program_id' => $programId,
                     'section_id' => $sectionId,
+                    'semester' => $payload['semester'] ?? null,
                     'enrollment_date' => $payload['enrollment_date'] ?? now()->toDateString(),
                     'status' => 'active',
                 ], (int) $request->college_id, $year->code, audit: true);

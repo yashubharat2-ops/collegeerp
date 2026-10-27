@@ -228,7 +228,7 @@ class StudentService
     {
         $enrollment = [];
 
-        foreach (['academic_year_id', 'program_id', 'section_id', 'enrollment_date'] as $key) {
+        foreach (['academic_year_id', 'program_id', 'section_id', 'semester', 'enrollment_date'] as $key) {
             if (! empty($data[$key])) {
                 $enrollment[$key] = $data[$key];
             }
@@ -383,6 +383,7 @@ class StudentService
                 'academic_year_id' => $yearId,
                 'program_id' => $programId,
                 'section_id' => $sectionId,
+                'semester' => $data['semester'] ?? null,
                 'enrollment_number' => $this->enrollmentNumbers->executeWithCollegeLock($collegeId, $academicYearCode ?? $year->code),
                 'enrollment_date' => $data['enrollment_date'] ?? now()->toDateString(),
                 'status' => $data['status'] ?? 'active',

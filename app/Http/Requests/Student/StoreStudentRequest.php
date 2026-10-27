@@ -111,6 +111,7 @@ class StoreStudentRequest extends FormRequest
             'academic_year_id' => ['nullable', 'integer', Rule::exists('academic_years', 'id')->where('college_id', $collegeId)->whereNull('deleted_at'), 'required_with:program_id,section_id,enrollment_date'],
             'program_id' => ['nullable', 'integer', Rule::exists('programs', 'id')->where('college_id', $collegeId)->whereNull('deleted_at')],
             'section_id' => ['nullable', 'integer', Rule::exists('sections', 'id')->where('college_id', $collegeId)->whereNull('deleted_at')],
+            'semester' => ['nullable', 'string', 'max:30'],
             'enrollment_date' => ['nullable', 'date'],
 
             // --- Additional information ------------------------------------

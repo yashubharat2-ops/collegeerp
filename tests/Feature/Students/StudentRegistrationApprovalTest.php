@@ -51,18 +51,24 @@ class StudentRegistrationApprovalTest extends TestCase
             ->firstOrFail();
     }
 
-    public function test_registration_form_reuses_student_form_and_cannot_accept_client_status(): void
+    public function test_registration_entry_point_opens_the_wizard_and_client_status_is_ignored(): void
     {
         $college = $this->makeCollege('REGF');
         $year = $this->makeYear($college);
         $program = $this->makeProgram($college);
         $user = $this->makeUserWithPermissions($college, ['students.view', 'students.create']);
 
+        // Since the five-step wizard, the registration entry point starts the
+        // wizard instead of rendering the single long Student form. The form
+        // itself is unchanged for the non-registration Create/Edit pages.
         $this->asCollege($college, $user)
             ->get(route('students.registration.create'))
+            ->assertRedirect(route('students.registration.step', ['step' => 1]));
+
+        $this->asCollege($college, $user)
+            ->get(route('students.registration.step', ['step' => 1]))
             ->assertOk()
-            ->assertSee('Submit Registration for Approval')
-            ->assertSee('Registration academic context')
+            ->assertSee('Basic Information')
             ->assertDontSee('name="status"', false);
 
         $this->submitRegistration($college, $user, $this->payload($college, $year, $program))

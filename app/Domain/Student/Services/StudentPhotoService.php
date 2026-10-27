@@ -45,13 +45,13 @@ class StudentPhotoService
     /**
      * Store a portrait and return the server-generated path to persist.
      */
-    public function store(UploadedFile $file, int $collegeId): string
+    public function store(UploadedFile $file, int $collegeId, string $field = 'photo', string $label = 'photograph'): string
     {
-        $extension = $this->extensionFor($file);
+        $extension = $this->extensionFor($file, $field, $label);
 
         if ($file->getSize() > self::MAX_KB * 1024) {
             throw ValidationException::withMessages([
-                'photo' => 'The photograph may not be larger than '.self::MAX_KB.' KB.',
+                $field => 'The '.$label.' may not be larger than '.self::MAX_KB.' KB.',
             ]);
         }
 
@@ -80,7 +80,7 @@ class StudentPhotoService
      * renamed file (a .jpg that is really a script or an SVG) must never be
      * persisted — even on a private disk.
      */
-    private function extensionFor(UploadedFile $file): string
+    private function extensionFor(UploadedFile $file, string $field = 'photo', string $label = 'photograph'): string
     {
         $extension = strtolower($file->getClientOriginalExtension() ?: (string) $file->extension());
 
@@ -92,7 +92,7 @@ class StudentPhotoService
 
         if (! in_array($extension, self::ALLOWED_EXTENSIONS, true) || ! in_array($mime, self::ALLOWED_MIMES, true)) {
             throw ValidationException::withMessages([
-                'photo' => 'The photograph must be a JPG, PNG or WebP image.',
+                $field => 'The '.$label.' must be a JPG, PNG or WebP image.',
             ]);
         }
 

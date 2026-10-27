@@ -38,6 +38,8 @@ class StudentEnrollment extends Model
         'academic_year_id',
         'program_id',
         'section_id',
+        // Year-of-study / semester of this enrollment (e.g. "1", "Semester 3").
+        'semester',
         'enrollment_number',
         'enrollment_date',
         'status',

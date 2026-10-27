@@ -116,6 +116,7 @@ use App\Http\Controllers\SectionController;
 use App\Http\Controllers\StaffAttendanceController;
 use App\Http\Controllers\StudentAcademicRecordController;
 use App\Http\Controllers\StudentController;
+use App\Http\Controllers\Student\StudentRegistrationWizardController;
 use App\Http\Controllers\StudentImportController;
 use App\Http\Controllers\StudentDocumentController;
 use App\Http\Controllers\StudentEnrollmentController;
@@ -276,11 +277,42 @@ Route::middleware('auth')->group(function () {
         Route::post('admissions/{admission}/cancel', [AdmissionController::class, 'cancel'])->name('admissions.cancel');
         Route::resource('admissions', AdmissionController::class)->except('show');
         Route::post('students/convert/{admission_application}', [StudentController::class, 'convert'])->name('students.convert');
-        // Unified registration: same rich Student form, server-enforced pending
-        // status and one central ApprovalRequest. Declared before the resource
-        // route so "students/registration" cannot be captured as a student id.
-        Route::get('students/registration', [StudentController::class, 'registration'])->name('students.registration.create');
+        // Unified registration wizard: Basic Information → Parent/Guardian →
+        // Academic Record → Attach Documents → Final Review → Submit for
+        // approval. The applicant's work lives in a per-user DRAFT until the
+        // final submit, so no partial registration can ever appear in the
+        // student list. Declared before the resource route so
+        // "students/registration" cannot be captured as a student id.
+        Route::get('students/registration', [StudentRegistrationWizardController::class, 'start'])->name('students.registration.create');
+        // The single-POST registration endpoint is kept working for existing
+        // callers/integrations; it runs the same service and approval flow.
         Route::post('students/registration', [StudentController::class, 'registrationStore'])->name('students.registration.store');
+        Route::get('students/registration/step/{step}', [StudentRegistrationWizardController::class, 'show'])
+            ->whereNumber('step')->name('students.registration.step');
+        Route::post('students/registration/step/{step}', [StudentRegistrationWizardController::class, 'saveStep'])
+            ->whereNumber('step')->name('students.registration.step.save');
+        Route::post('students/registration/step/{step}/draft', [StudentRegistrationWizardController::class, 'saveDraft'])
+            ->whereNumber('step')->name('students.registration.step.draft');
+        Route::post('students/registration/submit', [StudentRegistrationWizardController::class, 'submit'])
+            ->name('students.registration.submit');
+        // Draft images (student / signature / father / mother / guardian) are
+        // streamed from the private disk; no photo is ever publicly reachable.
+        Route::get('students/registration/image/{field}', [StudentRegistrationWizardController::class, 'image'])
+            ->whereIn('field', ['photo', 'signature', 'father_photo', 'mother_photo', 'guardian_photo'])
+            ->name('students.registration.image');
+        Route::post('students/registration/cancel', [StudentRegistrationWizardController::class, 'cancel'])
+            ->name('students.registration.cancel');
+        // Dependent address selectors: read-only reference data (ids + names).
+        Route::get('students/registration/geo/children', [StudentRegistrationWizardController::class, 'geoChildren'])
+            ->name('students.registration.geo.children');
+        Route::post('students/registration/documents', [StudentRegistrationWizardController::class, 'uploadDocument'])
+            ->name('students.registration.documents.upload');
+        Route::post('students/registration/documents/{document}', [StudentRegistrationWizardController::class, 'replaceDocument'])
+            ->whereNumber('document')->name('students.registration.documents.replace');
+        Route::get('students/registration/documents/{document}/download', [StudentRegistrationWizardController::class, 'downloadDocument'])
+            ->whereNumber('document')->name('students.registration.documents.download');
+        Route::post('students/registration/documents/{document}/delete', [StudentRegistrationWizardController::class, 'destroyDocument'])
+            ->whereNumber('document')->name('students.registration.documents.destroy');
         // CSV export of the filtered list (or of an authorized selection of it).
         // Declared BEFORE the resource route: `students/{student}` would otherwise
         // capture "students/export" and 404 on a student named "export".

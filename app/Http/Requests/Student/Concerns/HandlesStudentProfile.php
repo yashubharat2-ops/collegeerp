@@ -52,7 +52,7 @@ trait HandlesStudentProfile
         }
 
         if (! $this->user()?->can('create', StudentEnrollment::class)) {
-            foreach (['academic_year_id', 'program_id', 'section_id', 'enrollment_date'] as $key) {
+            foreach (['academic_year_id', 'program_id', 'section_id', 'semester', 'enrollment_date'] as $key) {
                 $this->request->remove($key);
             }
         }
