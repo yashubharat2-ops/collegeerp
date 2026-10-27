@@ -329,6 +329,22 @@ class StudentService
                 abort(404, 'Student not found in this college context.');
             }
 
+            // Eligibility: an enrollment gives a student an operational academic
+            // record, so only an APPROVED registration (or a legacy student that
+            // predates the registration workflow) may have one. A pending or a
+            // rejected registration is refused here as well as in the UI, so a
+            // hand-crafted POST cannot put an undecided registration into a
+            // class list. The registration approval itself writes the approval
+            // first and creates the enrollment second, in one transaction, so
+            // that path still passes through this same gate.
+            if (! $student->isRegistrationApproved()) {
+                throw ValidationException::withMessages([
+                    ($duplicateErrorField ?? 'student_id') => $student->isRegistrationRejected()
+                        ? 'This student\'s registration was rejected. A rejected registration cannot be enrolled.'
+                        : 'This student\'s registration is still awaiting approval. Approve it before enrolling the student.',
+                ]);
+            }
+
             $year = \App\Models\AcademicYear::query()->find($yearId);
             if (! $year) {
                 abort(404, 'Academic year not found in this college context.');
@@ -398,7 +414,10 @@ class StudentService
                 'roll_number' => $rollNumber,
                 'enrollment_number' => $this->enrollmentNumbers->executeWithCollegeLock($collegeId, $academicYearCode ?? $year->code),
                 'enrollment_date' => $data['enrollment_date'] ?? now()->toDateString(),
-                'status' => $data['status'] ?? 'active',
+                // `pending_approval` is only ever set by the approval gate that
+                // creates the request alongside the row; anything else the caller
+                // asks for must be a status an operator may choose.
+                'status' => $this->resolveInitialStatus($data['status'] ?? null),
                 'remarks' => $data['remarks'] ?? null,
             ]);
 
@@ -408,6 +427,29 @@ class StudentService
 
             return $enrollment;
         });
+    }
+
+    /**
+     * The status a newly created enrollment starts in.
+     *
+     * Manual statuses are accepted as given (recording an existing/historical
+     * enrollment is legitimate clerical work); `pending_approval` is accepted
+     * because the approval gate sets it deliberately; anything else is refused
+     * rather than silently normalised.
+     */
+    private function resolveInitialStatus(?string $requested): string
+    {
+        if ($requested === null || $requested === '') {
+            return StudentEnrollment::STATUS_ACTIVE;
+        }
+
+        if (! in_array($requested, StudentEnrollment::STATUSES, true)) {
+            throw ValidationException::withMessages([
+                'status' => 'Choose a valid enrollment status.',
+            ]);
+        }
+
+        return $requested;
     }
 
     /**
@@ -583,9 +625,21 @@ class StudentService
             // Ordinary status actions cannot reverse terminal lifecycle states.
             // Promotion completion and TC withdrawal use this same service but
             // move in the allowed internal direction (to completed/withdrawn).
-            if ($newStatus === 'active' && in_array($enrollment->status, ['completed', 'cancelled', 'withdrawn'], true)) {
+            if ($newStatus === 'active' && $enrollment->isTerminal()) {
                 throw ValidationException::withMessages([
-                    'status' => 'A completed, cancelled or withdrawn enrollment cannot be changed back to active.',
+                    'status' => 'A '.$enrollment->statusLabel().' enrollment cannot be changed back to active.',
+                ]);
+            }
+
+            // An enrollment awaiting approval is decided in ONE place: the
+            // approval decision, which is permission-checked separately
+            // (student_enrollments.approve). Letting the ordinary status form move
+            // it at all would make that gate cosmetic — and marking an undecided
+            // enrollment completed/cancelled would silently close the request.
+            // Non-status edits (section, roll number, remarks) stay allowed.
+            if ($enrollment->isPendingApproval() && $newStatus !== StudentEnrollment::STATUS_PENDING_APPROVAL) {
+                throw ValidationException::withMessages([
+                    'status' => 'This enrollment is awaiting approval. Decide it in Approval Management; its status cannot be changed here.',
                 ]);
             }
 

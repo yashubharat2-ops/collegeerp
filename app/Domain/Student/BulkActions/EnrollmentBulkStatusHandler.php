@@ -46,7 +46,10 @@ class EnrollmentBulkStatusHandler extends BulkActionHandler
     {
         $status = $parameters['status'] ?? null;
 
-        if (! is_string($status) || ! in_array($status, StudentEnrollment::STATUSES, true)) {
+        // Only statuses an operator may choose. `pending_approval` and `rejected`
+        // belong to the approval workflow (Approval Management decides them), so a
+        // bulk action cannot create or fake that transition.
+        if (! is_string($status) || ! in_array($status, StudentEnrollment::MANUAL_STATUSES, true)) {
             return BulkActionResult::failed('Choose a valid enrollment status.');
         }
 

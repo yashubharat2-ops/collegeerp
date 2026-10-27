@@ -25,7 +25,111 @@ class StudentEnrollment extends Model
 {
     use HasFactory, SoftDeletes, BelongsToCollege;
 
-    public const STATUSES = ['active', 'completed', 'cancelled', 'withdrawn'];
+    /**
+     * Lifecycle of one enrollment.
+     *
+     *     pending_approval --approve--> active --promotion/TC--> completed
+     *                      --reject---> rejected
+     *     active -----------cancel----> cancelled / withdrawn
+     *
+     * `pending_approval` and `rejected` are WORKFLOW states: they are reached
+     * only through Approval Management (`student.enrollment_approval`), never by
+     * picking them in the form or through a bulk status change. A pending row
+     * already carries its generated Enrollment Number and Roll Number — the
+     * numbers belong to the record, and approval only decides whether it becomes
+     * operational.
+     */
+    public const STATUS_PENDING_APPROVAL = 'pending_approval';
+    public const STATUS_ACTIVE = 'active';
+    public const STATUS_COMPLETED = 'completed';
+    public const STATUS_CANCELLED = 'cancelled';
+    public const STATUS_WITHDRAWN = 'withdrawn';
+    public const STATUS_REJECTED = 'rejected';
+
+    /** Every stored status (validation, filtering, badges). */
+    public const STATUSES = [
+        self::STATUS_PENDING_APPROVAL,
+        self::STATUS_ACTIVE,
+        self::STATUS_COMPLETED,
+        self::STATUS_CANCELLED,
+        self::STATUS_WITHDRAWN,
+        self::STATUS_REJECTED,
+    ];
+
+    /**
+     * Statuses an operator may pick directly (create/edit/bulk).
+     *
+     * `pending_approval` is requested through the approval gate and `rejected`
+     * is the outcome of a rejection decision, so neither is an ordinary choice:
+     * offering them would let a user bypass — or fake — the approval transition.
+     */
+    public const MANUAL_STATUSES = [
+        self::STATUS_ACTIVE,
+        self::STATUS_COMPLETED,
+        self::STATUS_CANCELLED,
+        self::STATUS_WITHDRAWN,
+    ];
+
+    /** Terminal states: an enrollment in one of these never becomes active again. */
+    public const TERMINAL_STATUSES = [
+        self::STATUS_COMPLETED,
+        self::STATUS_CANCELLED,
+        self::STATUS_WITHDRAWN,
+        self::STATUS_REJECTED,
+    ];
+
+    /**
+     * The statuses the create/edit form may offer: the manual ones plus whatever
+     * the record already holds, so an edit never silently rewrites a workflow
+     * state it did not choose.
+     *
+     * @return array<int, string>
+     */
+    public static function formStatuses(?string $current = null): array
+    {
+        $statuses = self::MANUAL_STATUSES;
+
+        if ($current !== null && in_array($current, self::STATUSES, true) && ! in_array($current, $statuses, true)) {
+            array_unshift($statuses, $current);
+        }
+
+        return $statuses;
+    }
+
+    public function isPendingApproval(): bool
+    {
+        return $this->status === self::STATUS_PENDING_APPROVAL;
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === self::STATUS_ACTIVE;
+    }
+
+    public function isTerminal(): bool
+    {
+        return in_array($this->status, self::TERMINAL_STATUSES, true);
+    }
+
+    /** Human label for the list badge. */
+    public function statusLabel(): string
+    {
+        return self::statusLabelFor((string) $this->status);
+    }
+
+    /** Label for any status value (used by forms that render the choices). */
+    public static function statusLabelFor(string $status): string
+    {
+        return match ($status) {
+            self::STATUS_PENDING_APPROVAL => 'Pending approval',
+            self::STATUS_ACTIVE => 'Active',
+            self::STATUS_COMPLETED => 'Completed',
+            self::STATUS_CANCELLED => 'Cancelled',
+            self::STATUS_WITHDRAWN => 'Withdrawn',
+            self::STATUS_REJECTED => 'Rejected',
+            default => ucfirst($status),
+        };
+    }
 
     public function certificates(): \Illuminate\Database\Eloquent\Relations\HasMany
     {

@@ -280,3 +280,54 @@ only originate from a legitimately approved/admitted application.
    keeps the provenance invariant airtight.
 5. **No speculative modules.** No Attendance/Fees/Examination/Hostel/Transport/
    Alumni/portal tables or routes were created.
+
+---
+
+## 11. Lifecycle rules as implemented (registration → enrollment)
+
+The stages, and the single place each one is decided. Nothing here is a second
+mechanism: every step reuses the module it belongs to (the registration wizard,
+Approval Management, `StudentService`, the Admission module).
+
+| Stage | Who / where | Writes | Identifiers |
+| --- | --- | --- | --- |
+| Registration draft | `StudentRegistrationWizardController` | `student_registration_drafts` only | none |
+| Submission | `StudentRegistrationService::register()` | one `students` row (`registration_status = pending_approval`, `status = inactive`) + one `approvals` request | `student_number` via `GenerateStudentNumber`, year code from the draft's academic year |
+| Registration approval | `ApprovalService::approveStudentRegistration()` | student → `approved` / `active`; the **one** initial enrollment | reuses the already-issued `student_number`; the enrollment gets `enrollment_number` (+ roll number when a section is attached) |
+| Admission (applicant route) | `AdmissionService::createFromApplication()` | `admissions` row | `admission_number` at confirmation only, for students converted from an application |
+| Enrollment (Enrollments screen) | `EnrollmentApprovalService::create()` → `StudentService::createEnrollment()` | `student_enrollments` row (+ `approvals` request when gated) | `enrollment_number` server-side; roll number from `GenerateRollNumber` |
+| Enrollment approval | `ApprovalService::approveStudentEnrollment()` | enrollment → `active` (or `rejected`) | none — approval never re-numbers a record |
+
+1. **Registration approval is the confirmed admission** for a direct
+   registration. The separate Admission workflow remains the route for
+   applicant-originated admissions (`AdmissionService::ADMITTABLE_STATUSES`);
+   registration approval does not create an `admissions` row and therefore no
+   Admission Number. `admission_number` is minted only when an admission is
+   confirmed, and is displayed next to a student when they were converted from
+   an application.
+2. **A saved enrollment is not automatically an approved one.** When a college
+   enables *Approval Management → Students → Student Enrollment*, a new
+   enrollment is stored as `pending_approval` with its numbers already issued,
+   and becomes `active` only through a decision by a user holding
+   `student_enrollments.approve`. The gate defaults to **off**, like every
+   module except admissions and student registration, so a college that never
+   switches it on keeps the historical single-step behaviour.
+3. **Workflow statuses are not form choices.** `pending_approval` and
+   `rejected` are absent from the create/edit/bulk status pickers and are
+   rejected by the Form Requests and the bulk handler; the status of a pending
+   enrollment cannot be changed by the ordinary update form at all.
+4. **Enrollment eligibility.** Only an approved registration (or a legacy
+   student with `registration_status = NULL`) may hold an enrollment; the
+   picker and `StudentService::createEnrollment()` enforce the same rule.
+5. **Student List visibility** is about the *person*, not their enrollments:
+   approved registrations and legacy students are listed, pending/rejected ones
+   are reachable through the explicit `registration_status` filter. An approved
+   student with no enrollment is therefore still visible.
+6. **Sections.** No programme declares a section requirement (there is no such
+   column), so a section is optional at enrollment; when one is attached, the
+   roll number is allocated within that academic year + programme + section.
+   Making a section mandatory per programme would be a new, additive column and
+   an explicit business decision.
+7. **Numbers are never re-issued or rewritten.** The Student ID is stable
+   across approval, re-enrollment, promotion and transfers; each enrollment has
+   its own number; a rejected enrollment keeps its numbers as history.

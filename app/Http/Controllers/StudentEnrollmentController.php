@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Student\Filters\StudentFilter;
+use App\Domain\Student\Services\EnrollmentApprovalService;
 use App\Domain\Student\Services\StudentService;
 use App\Http\Requests\StudentEnrollment\StoreStudentEnrollmentRequest;
 use App\Http\Requests\StudentEnrollment\UpdateStudentEnrollmentRequest;
@@ -116,12 +117,34 @@ class StudentEnrollmentController extends Controller
             ->get(['id', 'name', 'code', 'academic_year_id', 'program_id']);
     }
 
+    /**
+     * The New Enrollment form.
+     *
+     * Only ELIGIBLE students are offered — `approvedForOperations()` = an approved
+     * registration or a legacy student — which is the same rule StudentService
+     * enforces on the write path, so the picker cannot show a student the server
+     * would then refuse.
+     *
+     * Each option is identified by Student ID, name and (when the student came
+     * through an admission) the Admission Number. Staff select an existing student
+     * here; they never re-enter the registration form. The Admission Number is
+     * resolved through the student's own admission application, and is shown as
+     * "no admission" when the student never went through that workflow rather than
+     * inventing a number.
+     */
     public function create(Request $request): View
     {
         $this->authorize('create', StudentEnrollment::class);
 
+        $collegeId = (int) app(TenantContext::class)->id();
+
         return view('student_enrollments.create', [
-            'students' => Student::query()->approvedForOperations()->orderBy('first_name')->orderBy('last_name')->get(['id', 'student_number', 'first_name', 'last_name']),
+            'students' => Student::query()
+                ->approvedForOperations()
+                ->orderBy('first_name')->orderBy('last_name')
+                ->get(['id', 'student_number', 'first_name', 'middle_name', 'last_name', 'admission_application_id']),
+            'admissionNumbers' => $this->admissionNumbers(),
+            'approvalRequired' => app(EnrollmentApprovalService::class)->isRequired($collegeId),
             'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(['id', 'name', 'code']),
             'programs' => Program::query()->orderBy('name')->get(['id', 'name', 'code']),
             'sections' => $this->sectionOptions(),
@@ -129,13 +152,61 @@ class StudentEnrollmentController extends Controller
         ]);
     }
 
-    public function store(StoreStudentEnrollmentRequest $request, StudentService $service): RedirectResponse
+    /**
+     * Admission Number per student, for the picker and the edit screen.
+     *
+     * A student records the admission APPLICATION they were converted from; the
+     * Admission Number lives on the admission of that application. Students who
+     * never went through an admission (direct registration, import, transfer) have
+     * none — the map simply has no entry, and the UI says so instead of printing a
+     * placeholder that looks like an identifier.
+     *
+     * @return array<int, string>
+     */
+    private function admissionNumbers(): array
     {
-        $collegeId = app(TenantContext::class)->id();
+        $collegeId = (int) app(TenantContext::class)->id();
 
-        $enrollment = $service->createEnrollment($request->validated(), $collegeId, audit: true);
+        return \App\Models\Admission::withoutGlobalScopes()
+            ->join('admission_applications', 'admission_applications.id', '=', 'admissions.application_id')
+            ->join('students', 'students.admission_application_id', '=', 'admission_applications.id')
+            ->where('admissions.college_id', $collegeId)
+            ->where('students.college_id', $collegeId)
+            ->whereNull('students.deleted_at')
+            ->pluck('admissions.admission_number', 'students.id')
+            ->all();
+    }
 
-        return redirect()->route('student-enrollments.index')->with('success', 'Enrollment '.$enrollment->enrollment_number.' created.');
+    /**
+     * Create an enrollment for an ELIGIBLE student.
+     *
+     * The write goes through EnrollmentApprovalService, which applies the
+     * college's enrollment-approval setting: when it is on, the row is created as
+     * `pending_approval` and an `student.enrollment_approval` request is raised in
+     * the same transaction, so the enrollment only becomes active by decision in
+     * Approval Management. When it is off (the default, like every module except
+     * admission and student registration) the enrollment is active immediately.
+     */
+    public function store(
+        StoreStudentEnrollmentRequest $request,
+        EnrollmentApprovalService $enrollments,
+    ): RedirectResponse {
+        $collegeId = (int) app(TenantContext::class)->id();
+
+        $result = $enrollments->create(
+            $request->validated(),
+            $collegeId,
+            (int) $request->user()->getKey(),
+        );
+
+        $enrollment = $result['enrollment'];
+
+        return redirect()->route('student-enrollments.index')->with(
+            'success',
+            $result['pending']
+                ? 'Enrollment '.$enrollment->enrollment_number.' created and submitted for approval. It is not active until it is approved.'
+                : 'Enrollment '.$enrollment->enrollment_number.' created.',
+        );
     }
 
     public function edit(string $student_enrollment): View
@@ -145,6 +216,7 @@ class StudentEnrollmentController extends Controller
 
         return view('student_enrollments.edit', [
             'enrollment' => $model->load(['student', 'academicYear', 'program', 'section']),
+            'admissionNumbers' => $this->admissionNumbers(),
             'sections' => $this->sectionOptions(),
         ]);
     }

@@ -11,6 +11,7 @@ use App\Models\FeePayment;
 use App\Models\Program;
 use App\Models\Section;
 use App\Models\Student;
+use App\Models\StudentEnrollment;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -319,6 +320,8 @@ class ApprovalService
             $this->approveAdmissionApplicationStatusChange($request, $deciderId);
         } elseif ($request->module === 'student' && $request->action === 'registration_approval') {
             $this->approveStudentRegistration($request, $deciderId);
+        } elseif ($request->module === 'student' && $request->action === 'enrollment_approval') {
+            $this->approveStudentEnrollment($request, $deciderId);
         } elseif ($request->module === 'fees' && $request->action === 'fee_collection') {
             $this->approveFeeCollection($request, $deciderId);
         }
@@ -339,6 +342,11 @@ class ApprovalService
     {
         if ($request->module === 'student' && $request->action === 'registration_approval') {
             $this->rejectStudentRegistration($request, $reason);
+            return;
+        }
+
+        if ($request->module === 'student' && $request->action === 'enrollment_approval') {
+            $this->rejectStudentEnrollment($request, $reason);
             return;
         }
 
@@ -486,6 +494,20 @@ class ApprovalService
         $enrollmentCreated = false;
         $enrollmentNote = null;
 
+        // Approve the student FIRST, then create the enrollment. The enrollment
+        // write path refuses a student whose registration is not approved (that
+        // gate is what keeps pending/rejected registrations out of the academic
+        // record), and the approval decision is exactly what makes this student
+        // eligible. Both writes stay in this one transaction, so a failure while
+        // creating the enrollment rolls the approval back as well.
+        $old = $student->only(['status', 'registration_status', 'registration_submitted_at']);
+
+        $student->update([
+            'registration_status' => Student::REGISTRATION_APPROVED,
+            'status' => 'active',
+            'updated_by' => $deciderId,
+        ]);
+
         if ($yearId) {
             $year = AcademicYear::query()->find($yearId);
             if (! $year) {
@@ -528,18 +550,107 @@ class ApprovalService
             $enrollmentNote = 'Approved without an enrollment: no academic year was captured at registration. Use Students → Enrollments to add one before operational use.';
         }
 
-        $old = $student->only(['status', 'registration_status', 'registration_submitted_at']);
-        $student->update([
-            'registration_status' => Student::REGISTRATION_APPROVED,
-            'status' => 'active',
-            'updated_by' => $deciderId,
-        ]);
-
         $this->audit->record('student.registration_approved', $student, $old, [
             'status' => $student->status,
             'registration_status' => $student->registration_status,
             'enrollment_created' => $enrollmentCreated,
             'note' => $enrollmentNote,
+            'approval_request_id' => $request->id,
+        ]);
+    }
+
+    /**
+     * Approve a pending enrollment: `pending_approval` -> `active`.
+     *
+     * The ApprovalService::approve() transaction has already checked the
+     * permission (`student_enrollments.approve`), refused a self-decision unless
+     * the decider is a trusted authority, and locked the request row. This method
+     * locks the enrollment itself, so two concurrent approvals cannot both apply
+     * and an approval can never resurrect a rejected/completed/withdrawn row.
+     *
+     * Idempotent: an already active enrollment is left alone (the request status
+     * guard refuses the second decision earlier), and a terminal row is not
+     * reactivated — the approval fails with a field error instead, leaving the
+     * request pending for a human to handle.
+     */
+    private function approveStudentEnrollment(ApprovalRequest $request, int $deciderId): void
+    {
+        if (! $request->target_id) {
+            throw ValidationException::withMessages([
+                'target' => 'This approval request has no enrollment attached.',
+            ]);
+        }
+
+        $enrollment = StudentEnrollment::withoutGlobalScopes()
+            ->where('college_id', $request->college_id)
+            ->whereKey($request->target_id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $enrollment) {
+            throw ValidationException::withMessages([
+                'target' => 'The enrollment attached to this request no longer exists.',
+            ]);
+        }
+
+        if ($enrollment->isActive()) {
+            return;
+        }
+
+        if (! $enrollment->isPendingApproval()) {
+            throw ValidationException::withMessages([
+                'status' => 'Only an enrollment awaiting approval can be approved. This one is '.$enrollment->statusLabel().'.',
+            ]);
+        }
+
+        $old = $enrollment->only(['status']);
+
+        $enrollment->update([
+            'status' => StudentEnrollment::STATUS_ACTIVE,
+            'updated_by' => $deciderId,
+        ]);
+
+        $this->audit->record('student_enrollment.approved', $enrollment, $old, [
+            'status' => $enrollment->status,
+            'approval_request_id' => $request->id,
+            'decided_by' => $deciderId,
+        ]);
+    }
+
+    /**
+     * Reject a pending enrollment: `pending_approval` -> `rejected`.
+     *
+     * A rejection is terminal: the row and its numbers are preserved as history
+     * (the Enrollment Number is never reissued), and re-applying is a fresh
+     * enrollment rather than a resurrection of this one.
+     */
+    private function rejectStudentEnrollment(ApprovalRequest $request, string $reason): void
+    {
+        if (! $request->target_id) {
+            return;
+        }
+
+        $enrollment = StudentEnrollment::withoutGlobalScopes()
+            ->where('college_id', $request->college_id)
+            ->whereKey($request->target_id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $enrollment || ! $enrollment->isPendingApproval()) {
+            // Already decided (active) or never pending: nothing to roll back.
+            return;
+        }
+
+        $old = $enrollment->only(['status']);
+
+        $enrollment->update([
+            'status' => StudentEnrollment::STATUS_REJECTED,
+            'remarks' => trim((string) $enrollment->remarks."\nRejection: ".$reason),
+        ]);
+
+        $this->audit->record('student_enrollment.rejected', $enrollment, $old, [
+            'status' => $enrollment->status,
+            'reason' => $reason,
             'approval_request_id' => $request->id,
         ]);
     }

@@ -46,7 +46,11 @@ class UpdateStudentEnrollmentRequest extends FormRequest
         return [
             'section_id' => ['nullable', 'integer', $sectionRule],
             'enrollment_date' => ['nullable', 'date'],
-            'status' => ['required', Rule::in(StudentEnrollment::STATUSES)],
+            // Manual statuses only — plus whatever this record already holds, so
+            // editing an unrelated field never has to rewrite a workflow state.
+            // `pending_approval` -> `active` is refused by StudentService as well:
+            // that transition belongs to the approval decision.
+            'status' => ['required', Rule::in(StudentEnrollment::formStatuses($enrollment?->status))],
             'remarks' => ['nullable', 'string', 'max:2000'],
             // Class/section roll number. Blank lets the server allocate one when
             // a section is attached (GenerateRollNumber); an explicit value is

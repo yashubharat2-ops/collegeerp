@@ -51,6 +51,24 @@ final class ApprovalRegistry
                 'model' => \App\Models\Student::class,
                 'description' => 'A new student registration requires approval before the student becomes operational.',
             ],
+            // Enrollment approval. A NEW enrollment created on the Enrollments
+            // screen can be gated: when this action is enabled for the college,
+            // the row is created as `pending_approval` (with its generated
+            // Enrollment Number and Roll Number) and only this decision turns it
+            // into an operational `active` enrollment. The decision reuses the
+            // framework's own authorization (permission + no self-approval),
+            // locking, idempotency and audit.
+            //
+            // AN ENROLLMENT CREATED BY A REGISTRATION APPROVAL IS NOT GATED
+            // AGAIN: the registration decision already approved that academic
+            // placement, and asking for a second approval of the same act would
+            // strand the student between two queues.
+            'enrollment_approval' => [
+                'label' => 'Student Enrollment',
+                'permission_approve' => 'student_enrollments.approve',
+                'model' => \App\Models\StudentEnrollment::class,
+                'description' => 'A new enrollment requires approval before it becomes an active enrollment.',
+            ],
             'student_data_change' => [
                 'label' => 'Sensitive Student Data Change',
                 'permission_approve' => 'students.update',

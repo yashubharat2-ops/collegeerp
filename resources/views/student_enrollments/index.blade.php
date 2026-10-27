@@ -5,7 +5,11 @@
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Enrollments</h2>
-            <p class="panel-subtitle">Periodic academic-year enrollments. Past enrollments are preserved as history when a student moves to a new academic year.</p>
+            <p class="panel-subtitle">
+                Periodic academic-year enrollments. A new enrollment is
+                <strong>Pending approval</strong> when the college requires it, and only an approved one is
+                <strong>Active</strong>. Past enrollments are preserved as history when a student moves to a new academic year.
+            </p>
         </div>
         @can('create', App\Models\StudentEnrollment::class)
             <a class="button" href="{{ route('student-enrollments.create') }}">+ New enrollment</a>
@@ -36,7 +40,7 @@
         @endcan
         @if(auth()->user()?->hasPermission('student_enrollments.update'))
             <x-list.dropdown label="Change status" size="sm">
-                @foreach(\App\Models\StudentEnrollment::STATUSES as $enrollmentStatus)
+                @foreach(\App\Models\StudentEnrollment::MANUAL_STATUSES as $enrollmentStatus)
                     <x-list.dropdown-item
                         data-bulk-action="change_status"
                         data-bulk-param-status="{{ $enrollmentStatus }}"
@@ -65,8 +69,8 @@
             <thead>
                 <tr class="border-b text-slate-500">
                     <th class="w-10 py-3"><x-list.select-all /></th>
-                    <th class="py-3">Number</th>
-                    <th>Student</th>
+                    <th class="py-3">Enrollment no.</th>
+                    <th>Student ID — name</th>
                     <th>Academic year</th>
                     <th>Program</th>
                     <th>Section</th>
@@ -86,9 +90,22 @@
                         <td>{{ $enrollment->section?->name ?? '—' }}</td>
                         <td>{{ $enrollment->enrollment_date?->format('d M Y') ?? '—' }}</td>
                         <td>
-                            <span class="rounded-full px-2 py-0.5 text-xs font-semibold {{ $enrollment->status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600' }}">
-                                {{ ucfirst($enrollment->status) }}
+                            @php
+                                $statusClasses = match ($enrollment->status) {
+                                    \App\Models\StudentEnrollment::STATUS_ACTIVE => 'bg-emerald-100 text-emerald-700',
+                                    \App\Models\StudentEnrollment::STATUS_PENDING_APPROVAL => 'bg-amber-100 text-amber-800',
+                                    \App\Models\StudentEnrollment::STATUS_REJECTED => 'bg-rose-100 text-rose-700',
+                                    default => 'bg-slate-200 text-slate-600',
+                                };
+                            @endphp
+                            <span class="rounded-full px-2 py-0.5 text-xs font-semibold {{ $statusClasses }}">
+                                {{ $enrollment->statusLabel() }}
                             </span>
+                            @if($enrollment->isPendingApproval())
+                                @can('approve', $enrollment)
+                                    <a class="ml-1 text-xs font-semibold text-indigo-600 hover:underline" href="{{ route('approvals.pending') }}">Review</a>
+                                @endcan
+                            @endif
                         </td>
                         <td class="text-right">
                             <div class="flex flex-wrap items-center justify-end gap-2">

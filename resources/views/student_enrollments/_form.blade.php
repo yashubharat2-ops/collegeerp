@@ -6,9 +6,17 @@
             <select class="input mt-1" id="student_id" name="student_id" required>
                 <option value="">— Select student —</option>
                 @foreach($students as $s)
-                    <option value="{{ $s->id }}" @selected((int) old('student_id', $selectedStudentId ?? 0) === $s->id)>{{ $s->student_number }} — {{ $s->first_name }} {{ $s->last_name }}</option>
+                    {{-- Student ID + name + Admission Number: enough to identify the
+                         person without re-entering the registration form. A student
+                         with no admission says so instead of showing a placeholder
+                         that looks like a number. --}}
+                    <option value="{{ $s->id }}" @selected((int) old('student_id', $selectedStudentId ?? 0) === $s->id)>{{ $s->student_number }} — {{ trim($s->first_name.' '.($s->middle_name ? $s->middle_name.' ' : '').$s->last_name) }} — {{ isset($admissionNumbers[$s->id]) ? 'Adm. '.$admissionNumbers[$s->id] : 'No admission number' }}</option>
                 @endforeach
             </select>
+            <p class="mt-1 text-xs text-slate-500">
+                Only students with an approved registration are listed. A pending or rejected registration must be
+                decided in Approval Management first.
+            </p>
             <p class="mt-1 text-xs text-rose-600">@error('student_id'){{ $message }}@enderror</p>
         </div>
         <div>
@@ -32,11 +40,24 @@
             <p class="mt-1 text-xs text-rose-600">@error('program_id'){{ $message }}@enderror</p>
         </div>
     @else
-        <div class="md:col-span-2">
+        <div class="md:col-span-2 grid gap-1">
             <p class="text-sm"><span class="font-semibold">Enrollment Number:</span> {{ $enrollment->enrollment_number }}</p>
-            <p class="text-sm"><span class="font-semibold">Student:</span> {{ $enrollment->student->first_name }} {{ $enrollment->student->last_name }} ({{ $enrollment->student->student_number }})</p>
-            <p class="text-sm"><span class="font-semibold">Academic Year:</span> {{ $enrollment->academicYear->name }}</p>
+            <p class="text-sm"><span class="font-semibold">Student ID:</span> {{ $enrollment->student->student_number }}</p>
+            <p class="text-sm"><span class="font-semibold">Student:</span> {{ trim($enrollment->student->first_name.' '.($enrollment->student->middle_name ? $enrollment->student->middle_name.' ' : '').$enrollment->student->last_name) }}</p>
+            <p class="text-sm">
+                <span class="font-semibold">Admission Number:</span>
+                {{ $admissionNumbers[$enrollment->student_id] ?? 'Not applicable — no admission record' }}
+            </p>
+            <p class="text-sm"><span class="font-semibold">Roll Number:</span> {{ $enrollment->roll_number ?? 'Pending — assigned with a section' }}</p>
+            <p class="text-sm"><span class="font-semibold">Academic Year:</span> {{ $enrollment->academicYear->name }} ({{ $enrollment->academicYear->code }})</p>
             <p class="text-sm"><span class="font-semibold">Program:</span> {{ $enrollment->program?->name ?? '—' }}</p>
+            <p class="text-sm"><span class="font-semibold">Status:</span> {{ $enrollment->statusLabel() }}</p>
+            @if($enrollment->isPendingApproval())
+                <p class="text-xs text-amber-700">
+                    This enrollment is awaiting approval. It becomes active when an approver decides it in Approval Management;
+                    it cannot be set to Active from this form.
+                </p>
+            @endif
         </div>
     @endif
     <div>
@@ -73,8 +94,8 @@
     <div>
         <label class="text-sm font-semibold" for="status">Status *</label>
         <select class="input mt-1" id="status" name="status" required>
-            @foreach(\App\Models\StudentEnrollment::STATUSES as $s)
-                <option value="{{ $s }}" @selected(old('status', $enrollment->status ?? 'active') === $s)>{{ ucfirst($s) }}</option>
+            @foreach(\App\Models\StudentEnrollment::formStatuses($enrollment->status ?? null) as $s)
+                <option value="{{ $s }}" @selected(old('status', $enrollment->status ?? 'active') === $s)>{{ \App\Models\StudentEnrollment::statusLabelFor($s) }}</option>
             @endforeach
         </select>
         <p class="mt-1 text-xs text-rose-600">@error('status'){{ $message }}@enderror</p>
