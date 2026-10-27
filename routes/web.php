@@ -410,6 +410,10 @@ Route::middleware('auth')->group(function () {
         Route::get('academics/timetables', [AcademicsController::class, 'timetables'])->name('academic-timetables.index');
         Route::get('academics/timetables/create', [AcademicsController::class, 'createTimetable'])->name('academic-timetables.create');
         Route::post('academics/timetables', [AcademicsController::class, 'storeTimetable'])->name('academic-timetables.store');
+        // Edit form for one entry. Declared before nothing in particular: the
+        // update/destroy routes below are PUT/DELETE, so a GET ".../{item}/edit"
+        // can never be swallowed by the ".../{item}" write routes.
+        Route::get('academics/timetables/{item}/edit', [AcademicsController::class, 'editTimetable'])->name('academic-timetables.edit');
         Route::put('academics/timetables/{item}', [AcademicsController::class, 'updateTimetable'])->name('academic-timetables.update');
         Route::delete('academics/timetables/{item}', [AcademicsController::class, 'destroyTimetable'])->name('academic-timetables.destroy');
         Route::get('academics/attendance', [AcademicsController::class, 'attendance'])->name('academic-attendance.index');
@@ -418,6 +422,7 @@ Route::middleware('auth')->group(function () {
         Route::get('academics/calendar', [AcademicsController::class, 'calendar'])->name('academic-calendar.index');
         Route::get('academics/calendar/create', [AcademicsController::class, 'createCalendar'])->name('academic-calendar.create');
         Route::post('academics/calendar', [AcademicsController::class, 'storeCalendar'])->name('academic-calendar.store');
+        Route::get('academics/calendar/{item}/edit', [AcademicsController::class, 'editCalendar'])->name('academic-calendar.edit');
         Route::put('academics/calendar/{item}', [AcademicsController::class, 'updateCalendar'])->name('academic-calendar.update');
         Route::delete('academics/calendar/{item}', [AcademicsController::class, 'destroyCalendar'])->name('academic-calendar.destroy');
         Route::get('academics/workload', [AcademicsController::class, 'workload'])->name('academic-workload.index');
