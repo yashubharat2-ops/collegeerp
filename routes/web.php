@@ -116,6 +116,7 @@ use App\Http\Controllers\SectionController;
 use App\Http\Controllers\StaffAttendanceController;
 use App\Http\Controllers\StudentAcademicRecordController;
 use App\Http\Controllers\StudentController;
+use App\Http\Controllers\StudentRegistrationDraftController;
 use App\Http\Controllers\StudentImportController;
 use App\Http\Controllers\StudentDocumentController;
 use App\Http\Controllers\StudentEnrollmentController;
@@ -280,6 +281,10 @@ Route::middleware('auth')->group(function () {
         // route so "students/registration" cannot be captured as a student id.
         Route::get('students/registration', [StudentController::class, 'registration'])->name('students.registration.create');
         Route::post('students/registration', [StudentController::class, 'registrationStore'])->name('students.registration.store');
+        Route::post('students/registration/drafts/{draft}', [StudentRegistrationDraftController::class, 'save'])->name('students.registration.drafts.save');
+        Route::post('students/registration/drafts/{draft}/review', [StudentRegistrationDraftController::class, 'review'])->name('students.registration.drafts.review');
+        Route::post('students/registration/drafts/{draft}/attachments', [StudentRegistrationDraftController::class, 'attach'])->name('students.registration.drafts.attach');
+        Route::post('students/registration/drafts/{draft}/attachments/{attachment}/remove', [StudentRegistrationDraftController::class, 'remove'])->name('students.registration.drafts.remove');
         // CSV export of the filtered list (or of an authorized selection of it).
         // Declared BEFORE the resource route: `students/{student}` would otherwise
         // capture "students/export" and 404 on a student named "export".

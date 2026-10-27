@@ -81,10 +81,27 @@
 <div class="erp-student-form">
 @csrf
 
+@if($isRegistration)
+    <input type="hidden" name="registration_draft_id" data-registration-draft-id value="{{ $registrationDraftExists ? $registrationDraftId : '' }}">
+    <nav class="erp-reg-steps" aria-label="Registration steps">
+        <ol>
+            <li data-registration-indicator="1"><span>1</span> Academic &amp; basic information</li>
+            <li data-registration-indicator="2"><span>2</span> Guardian &amp; contact</li>
+            <li data-registration-indicator="3"><span>3</span> Attach documents</li>
+            <li data-registration-indicator="4"><span>4</span> Final review</li>
+        </ol>
+    </nav>
+    <p class="erp-reg-note erp-reg-js-only" data-registration-step-counter></p>
+    <p class="erp-reg-feedback" data-registration-feedback role="status" aria-live="polite"></p>
+    @if($registrationDraftHasSensitive ?? false)
+        <p class="erp-reg-note">Identity numbers saved in this draft remain encrypted. Leave their fields blank to keep them, or enter replacements.</p>
+    @endif
+@endif
+
 {{-- ===================================================================== --}}
 {{-- 01 Academic / admission                                                --}}
 {{-- ===================================================================== --}}
-<section class="erp-card">
+<section class="erp-card" @if($isRegistration) data-registration-step="1" @endif>
     <header class="erp-card__head">
         <span class="erp-card__num">01</span>
         <div>
@@ -250,7 +267,7 @@
 {{-- ===================================================================== --}}
 {{-- 02 Basic information (+ Government / identity sub-block)               --}}
 {{-- ===================================================================== --}}
-<section class="erp-card">
+<section class="erp-card" @if($isRegistration) data-registration-step="1" @endif>
     <header class="erp-card__head">
         <span class="erp-card__num">02</span>
         <div>
@@ -334,6 +351,7 @@
                 <input class="erp-file-input" id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp">
                 <label class="erp-photo-btn" for="photo">Browse…</label>
                 <p class="erp-photo-help">JPG / PNG / WebP · 2 MB</p>
+                @if($isRegistration)<p class="erp-photo-help">Reselect the portrait after resuming a draft.</p>@endif
                 @if($isEdit && $student->photo_path)
                     <label class="erp-check erp-photo-remove"><input type="checkbox" name="remove_photo" value="1" @checked(old('remove_photo'))> Remove photo</label>
                 @endif
@@ -358,6 +376,9 @@
                             <span>Recorded: <strong>{{ $student->maskedAadhaar() }}</strong></span>
                             <label class="erp-check"><input type="checkbox" name="remove_aadhaar" value="1" @checked(old('remove_aadhaar'))> Remove</label>
                         </div>
+                    @endif
+                    @if($isRegistration)
+                        <label class="erp-check"><input type="checkbox" name="registration_clear_aadhaar" value="1"> Clear any Aadhaar saved in this draft</label>
                     @endif
                     <p class="erp-error">@error('aadhaar_number'){{ $message }}@enderror</p>
                     <p class="erp-help">Checksum-verified, the number stays encrypted, and it is never re-filled after a validation error.</p>
@@ -392,6 +413,9 @@
                             <label class="erp-check"><input type="checkbox" name="remove_govt_id" value="1" @checked(old('remove_govt_id'))> Remove</label>
                         </div>
                     @endif
+                    @if($isRegistration)
+                        <label class="erp-check"><input type="checkbox" name="registration_clear_govt_id" value="1"> Clear any government ID saved in this draft</label>
+                    @endif
                     <p class="erp-error">@error('govt_id_number'){{ $message }}@enderror</p>
                 </div>
             </div>
@@ -402,7 +426,7 @@
 {{-- ===================================================================== --}}
 {{-- 03 Parent / guardian                                                   --}}
 {{-- ===================================================================== --}}
-<section class="erp-card">
+<section class="erp-card" @if($isRegistration) data-registration-step="2" @endif>
     <header class="erp-card__head">
         <span class="erp-card__num">03</span>
         <div>
@@ -468,7 +492,7 @@
 {{-- ===================================================================== --}}
 {{-- 04 Contact                                                             --}}
 {{-- ===================================================================== --}}
-<section class="erp-card">
+<section class="erp-card" @if($isRegistration) data-registration-step="2" @endif>
     <header class="erp-card__head">
         <span class="erp-card__num">04</span>
         <div>
@@ -545,7 +569,7 @@
 {{-- ===================================================================== --}}
 {{-- 05 Additional information                                              --}}
 {{-- ===================================================================== --}}
-<section class="erp-card">
+<section class="erp-card" @if($isRegistration) data-registration-step="2" @endif>
     <header class="erp-card__head">
         <span class="erp-card__num">05</span>
         <div>
@@ -573,12 +597,12 @@
 {{-- ===================================================================== --}}
 {{-- 06 Documents (link to the module, never a second upload system)        --}}
 {{-- ===================================================================== --}}
-<section class="erp-card">
+<section class="erp-card" @if($isRegistration) data-registration-step="3" @endif>
     <header class="erp-card__head">
         <span class="erp-card__num">06</span>
         <div>
             <h3 class="erp-card__title">Documents</h3>
-            <p class="erp-card__desc">Held by the Document module on the private disk — linked from here, never attached to this form.</p>
+            <p class="erp-card__desc">{{ $isRegistration ? 'Declare the documents and optionally attach files for later verification.' : 'Held by the Document module on the private disk — linked from here, never attached to this form.' }}</p>
         </div>
     </header>
 
@@ -593,28 +617,7 @@
                     <a class="erp-btn erp-btn--sm" href="{{ route('student-documents.create', ['student_id' => $student->id]) }}">+ Upload a document</a>
                 @endcan
             @elseif($isRegistration)
-                <div class="erp-field erp-col-12">
-                    <p class="erp-subhead">Registration documents (optional)</p>
-                    <p class="erp-help">Uploaded files are stored through the existing Student Document register while the registration is pending. Choose one shared document type for the batch, or leave it unclassified.</p>
-                </div>
-                <div class="erp-field erp-col-6">
-                    <label class="erp-label" for="registration_document_type_id">Document Type</label>
-                    <select class="erp-input" id="registration_document_type_id" name="registration_document_type_id">
-                        <option value="">— Unclassified —</option>
-                        @foreach(($documentTypes ?? collect()) as $type)
-                            <option value="{{ $type->id }}" @selected((int) old('registration_document_type_id') === $type->id)>
-                                {{ $type->name }} ({{ $type->code }}){{ $type->is_required ? ' · required' : '' }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <p class="erp-error">@error('registration_document_type_id'){{ $message }}@enderror</p>
-                </div>
-                <div class="erp-field erp-col-6">
-                    <label class="erp-label" for="registration_documents">Files</label>
-                    <input class="erp-file-input" id="registration_documents" name="registration_documents[]" type="file" multiple accept=".pdf,.jpg,.jpeg,.png">
-                    <p class="erp-help">PDF, JPG or PNG, up to 5 MB each. Maximum 10 files.</p>
-                    <p class="erp-error">@error('registration_documents'){{ $message }}@enderror @error('registration_documents.*'){{ $message }}@enderror</p>
-                </div>
+                @include('students._registration_documents')
             @else
                 <span>Uploads are possible once the student exists — create the student first, then upload from its Documents tab or the register.</span>
                 @can('viewAny', App\Models\StudentDocument::class)
@@ -625,10 +628,39 @@
     </div>
 </section>
 
-<div class="erp-actions">
-    <button class="erp-btn" type="submit">{{ $submitLabel }}</button>
-    <a class="erp-btn erp-btn--ghost" href="{{ $isEdit ? route('students.show', $student) : route('students.index') }}">Cancel</a>
-</div>
+@if($isRegistration)
+    <section class="erp-card" data-registration-step="4">
+        <header class="erp-card__head">
+            <span class="erp-card__num">04</span>
+            <div><h3 class="erp-card__title">Final review</h3><p class="erp-card__desc">Review your declarations and optional attachments separately before submitting for approval.</p></div>
+        </header>
+        <div class="erp-card__body erp-reg-review">
+            <dl class="erp-reg-review__summary">
+                <div><dt>Student</dt><dd data-review-student>—</dd></div>
+                <div><dt>Academic year</dt><dd data-review-year>—</dd></div>
+                <div><dt>Program / course</dt><dd data-review-program>—</dd></div>
+            </dl>
+            <h4>Selected document declarations</h4>
+            <p class="erp-help">A selection is a declaration only; it does not mean a document was received or verified.</p>
+            <ul data-review-declarations></ul>
+            <h4>Uploaded files</h4>
+            <p class="erp-help">These optional files will be submitted to the Student Document register for verification.</p>
+            <ul data-review-attachments></ul>
+        </div>
+    </section>
+    <div class="erp-actions">
+        <button class="erp-btn erp-btn--ghost erp-reg-js-only" type="button" data-registration-back>Back</button>
+        <button class="erp-btn erp-btn--ghost erp-reg-js-only" type="button" data-registration-save>Save draft</button>
+        <button class="erp-btn erp-reg-js-only" type="button" data-registration-next>Continue</button>
+        <button class="erp-btn" type="submit" data-registration-submit>{{ $submitLabel }}</button>
+        <a class="erp-btn erp-btn--ghost" href="{{ route('students.index') }}">Cancel</a>
+    </div>
+@else
+    <div class="erp-actions">
+        <button class="erp-btn" type="submit">{{ $submitLabel }}</button>
+        <a class="erp-btn erp-btn--ghost" href="{{ $isEdit ? route('students.show', $student) : route('students.index') }}">Cancel</a>
+    </div>
+@endif
 </div>
 
 @push('scripts')

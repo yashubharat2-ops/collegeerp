@@ -3,11 +3,14 @@
 namespace App\Http\Requests\Student;
 
 use App\Domain\Student\Rules\ValidAadhaar;
+use App\Domain\Student\Services\RegistrationDocumentRequirements;
 use App\Domain\Student\Support\Aadhaar;
 use App\Http\Requests\Student\Concerns\HandlesStudentProfile;
 use App\Models\Student;
+use App\Models\StudentRegistrationDraft;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -110,8 +113,21 @@ class StoreStudentRegistrationRequest extends FormRequest
         ];
         $rules['enrollment_date'] = ['nullable', 'date'];
 
-        // Optional registration documents go straight into the existing
-        // student_documents store, using the shared admission document types.
+        // Declarations are independent of files and must belong to the active
+        // college. Nothing here marks a document received or verified.
+        $rules['registration_document_type_ids'] = ['nullable', 'array'];
+        $rules['registration_document_type_ids.*'] = [
+            'required', 'integer', 'distinct',
+            Rule::exists('admission_document_types', 'id')
+                ->where('college_id', $collegeId)->where('status', 'active')->whereNull('deleted_at'),
+        ];
+        $rules['registration_draft_id'] = [
+            'nullable', 'uuid',
+            Rule::exists('student_registration_drafts', 'id')
+                ->where('college_id', $collegeId)->where('created_by', $this->user()?->getKey()),
+        ];
+
+        // Preserve the existing direct/batch upload API and its hard limits.
         $rules['registration_document_type_id'] = [
             'nullable', 'integer',
             Rule::exists('admission_document_types', 'id')->where('college_id', $collegeId)->whereNull('deleted_at'),
@@ -122,11 +138,67 @@ class StoreStudentRegistrationRequest extends FormRequest
         return $rules;
     }
 
+    /** Merge only the encrypted draft's sensitive values into validation data;
+     * they are never echoed into the form or flashed as new request input.
+     */
+    public function validationData(): array
+    {
+        $data = parent::validationData();
+        $id = $this->input('registration_draft_id');
+        if (is_string($id) && Str::isUuid($id) && $this->user()) {
+            $draft = StudentRegistrationDraft::query()
+                ->where('college_id', app(TenantContext::class)->id())
+                ->where('created_by', $this->user()->getKey())
+                ->whereKey($id)->first();
+            if ($draft) {
+                $saved = $draft->data ?? [];
+                if (! $this->boolean('registration_clear_aadhaar') && blank($data['aadhaar_number'] ?? null) && filled($saved['aadhaar_number'] ?? null)) {
+                    $data['aadhaar_number'] = $saved['aadhaar_number'];
+                }
+                if (! $this->boolean('registration_clear_govt_id') && filled($data['govt_id_type'] ?? null)
+                    && blank($data['govt_id_number'] ?? null) && filled($saved['govt_id_number'] ?? null)) {
+                    $data['govt_id_number'] = $saved['govt_id_number'];
+                }
+                if (! $this->has('registration_declarations_present') && ! array_key_exists('registration_document_type_ids', $data)) {
+                    $data['registration_document_type_ids'] = $saved['registration_document_type_ids'] ?? [];
+                }
+            }
+        }
+        if ($this->boolean('registration_clear_aadhaar')) {
+            $data['aadhaar_number'] = null;
+        }
+        if ($this->boolean('registration_clear_govt_id')) {
+            $data['govt_id_type'] = null;
+            $data['govt_id_number'] = null;
+        }
+        if ($this->has('registration_declarations_present') && ! array_key_exists('registration_document_type_ids', $data)) {
+            $data['registration_document_type_ids'] = [];
+        }
+
+        return $data;
+    }
+
     public function withValidator(Validator $validator): void
     {
-        // Aadhaar uniqueness is enforced by the custom rule above so a repeated
-        // pending submission can be returned idempotently by the service.
-        $this->requireGovtIdNumberForChosenType($validator);
+        $validator->after(function (Validator $validator): void {
+            $data = $validator->getData();
+            if (filled($data['govt_id_type'] ?? null) && blank($data['govt_id_number'] ?? null)) {
+                $validator->errors()->add('govt_id_number', 'Enter the government ID number for the selected type.');
+            }
+
+            $selected = $data['registration_document_type_ids'] ?? [];
+            if (! is_array($selected)) {
+                return; // The array rule reports malformed input.
+            }
+            $programId = is_numeric($data['program_id'] ?? null) ? (int) $data['program_id'] : null;
+            $missing = app(RegistrationDocumentRequirements::class)->missing(
+                (int) app(TenantContext::class)->id(), $programId, $selected,
+            );
+            if ($missing->isNotEmpty()) {
+                $validator->errors()->add('registration_document_type_ids',
+                    'Select the required documents: '.$missing->pluck('name')->implode(', ').'.');
+            }
+        });
     }
 
     protected function prepareForValidation(): void

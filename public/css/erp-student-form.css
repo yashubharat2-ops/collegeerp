@@ -651,3 +651,50 @@ textarea.erp-input {
         display: none;
     }
 }
+
+/* Registration-only wizard and document declarations. */
+.erp-reg-js-only { display: none; }
+.erp-reg-js .erp-reg-js-only { display: inline-flex; }
+.erp-reg-js details.erp-reg-js-only { display: block; }
+.erp-student-page [hidden] { display: none !important; }
+.erp-reg-steps { margin-top: 1rem; padding: .75rem; background: #fff; border: 1px solid #dfe6ef; border-radius: .5rem; }
+.erp-reg-steps ol { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.erp-reg-steps li { display: flex; align-items: center; gap: .45rem; min-width: 0; color: #64748b; font-weight: 600; }
+.erp-reg-steps li span { display: grid; flex: 0 0 1.6rem; height: 1.6rem; place-items: center; background: #e2e8f0; border-radius: 50%; }
+.erp-reg-steps li.is-active { color: #4338ca; }
+.erp-reg-steps li.is-active span { color: #fff; background: #4f46e5; }
+.erp-reg-feedback, .erp-reg-note, .erp-reg-resume { margin: .55rem .1rem 0; color: #475569; }
+.erp-reg-feedback:empty { display: none; }
+.erp-reg-feedback.is-error { color: #b91c1c; }
+.erp-reg-resume a { color: #4338ca; font-weight: 600; text-decoration: underline; }
+.erp-registration-documents { width: 100%; min-width: 0; color: #334155; }
+.erp-reg-fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.erp-reg-check-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 235px), 1fr)); gap: .65rem; margin-top: .75rem; }
+.erp-reg-check-card { display: flex; align-items: flex-start; gap: .65rem; min-width: 0; padding: .75rem; background: #fff; border: 1px solid #dbe3ed; border-radius: .5rem; cursor: pointer; }
+.erp-reg-check-card:focus-within { outline: 2px solid #818cf8; outline-offset: 2px; }
+.erp-reg-check-card input { flex: 0 0 auto; margin-top: .15rem; accent-color: #4f46e5; }
+.erp-reg-check-card__text { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+.erp-reg-check-card__text strong { white-space: normal; overflow-wrap: anywhere; font-size: 13px; line-height: 1.4; }
+.erp-reg-check-card__text small { color: #64748b; font-size: 11px; }
+.erp-reg-uploaded { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; }
+.erp-reg-uploaded h4, .erp-reg-review h4 { margin: 0 0 .3rem; font-size: 13px; }
+.erp-reg-uploaded h4 span { color: #64748b; font-size: 11px; font-weight: 400; }
+.erp-reg-file { display: flex; justify-content: space-between; align-items: center; gap: .75rem; margin-top: .5rem; padding: .65rem .75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .4rem; }
+.erp-reg-file > div { display: grid; min-width: 0; gap: .15rem; }
+.erp-reg-file span, .erp-reg-file strong { overflow-wrap: anywhere; }
+.erp-reg-file small { color: #64748b; }
+.erp-reg-remove { flex: 0 0 auto; padding: .35rem; color: #b91c1c; background: transparent; border: 0; cursor: pointer; font: inherit; font-weight: 600; }
+.erp-reg-attachment { margin-top: .9rem; }
+.erp-reg-attachment summary { display: inline-block; color: #4338ca; font-weight: 700; cursor: pointer; list-style: none; }
+.erp-reg-attachment summary::-webkit-details-marker { display: none; }
+.erp-reg-attachment__body { margin-top: .65rem; padding: .75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .5rem; }
+.erp-reg-upload-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+.erp-reg-attachment__actions { display: flex; gap: .5rem; margin-top: .6rem; }
+.erp-reg-review__summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; margin: .25rem 0 1rem; }
+.erp-reg-review__summary dt { color: #64748b; }
+.erp-reg-review__summary dd { margin: .2rem 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.erp-reg-review ul { margin: .4rem 0 1rem; padding-left: 1.25rem; }
+@media (max-width: 699px) {
+    .erp-reg-steps ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .erp-reg-upload-grid, .erp-reg-review__summary { grid-template-columns: minmax(0, 1fr); }
+}

@@ -5,6 +5,7 @@ namespace App\Domain\Student\Services;
 use App\Domain\Student\Support\Aadhaar;
 use App\Models\AcademicYear;
 use App\Models\ApprovalRequest;
+use App\Models\College;
 use App\Models\Student;
 use App\Services\Approval\ApprovalService;
 use App\Services\Audit\AuditLogService;
@@ -27,6 +28,7 @@ final class StudentRegistrationService
     public function __construct(
         private readonly StudentService $students,
         private readonly StudentDocumentService $documents,
+        private readonly RegistrationDocumentRequirements $requirements,
         private readonly ApprovalService $approvals,
         private readonly AuditLogService $audit,
     ) {}
@@ -34,7 +36,7 @@ final class StudentRegistrationService
     /**
      * @param  array<string, mixed>  $data  validated Student profile payload
      * @param  array<int, UploadedFile>  $files  optional registration documents
-     * @return array{student: Student, approval_request: ApprovalRequest, created: bool}
+     * @return array{student: Student, approval_request: ApprovalRequest, created: bool, resubmitted: bool}
      */
     public function register(array $data, array $files, int $collegeId, int $actorId): array
     {
@@ -45,6 +47,9 @@ final class StudentRegistrationService
         }
 
         return DB::transaction(function () use ($data, $files, $collegeId, $actorId): array {
+            // Serialize fingerprint checks just like student-number generation,
+            // including concurrent submissions from different drafts.
+            College::query()->whereKey($collegeId)->lockForUpdate()->firstOrFail();
             $fingerprint = $this->fingerprint($data);
 
             // A repeated POST is matched by the server-side identity fingerprint
@@ -77,6 +82,7 @@ final class StudentRegistrationService
                         'student' => $candidate,
                         'approval_request' => $prior,
                         'created' => false,
+                        'resubmitted' => false,
                     ];
                 }
 
@@ -89,6 +95,7 @@ final class StudentRegistrationService
                     'status' => 'inactive',
                     'registration_status' => Student::REGISTRATION_PENDING,
                 ]);
+                $this->storeRegistrationFiles($reusableStudent, $data, $files, $collegeId, $actorId);
                 $approvalRequest = $this->submitApprovalRequest(
                     $reusableStudent,
                     $fingerprint,
@@ -106,6 +113,7 @@ final class StudentRegistrationService
                     'student' => $reusableStudent,
                     'approval_request' => $approvalRequest,
                     'created' => false,
+                    'resubmitted' => true,
                 ];
             }
 
@@ -120,6 +128,7 @@ final class StudentRegistrationService
             $studentData = Arr::except($data, [
                 'academic_year_id', 'program_id', 'section_id', 'enrollment_date',
                 'registration_document_type_id', 'registration_documents',
+                'registration_document_type_ids', 'registration_draft_id',
             ]);
             $studentData['status'] = 'inactive';
             $studentData['registration_status'] = Student::REGISTRATION_PENDING;
@@ -133,18 +142,7 @@ final class StudentRegistrationService
                 audit: false,
             );
 
-            foreach ($files as $file) {
-                if (! $file instanceof UploadedFile || ! $file->isValid()) {
-                    continue;
-                }
-
-                $this->documents->store([
-                    'student_id' => $student->id,
-                    'document_type_id' => $data['registration_document_type_id'] ?? null,
-                    'title' => $file->getClientOriginalName(),
-                    'remarks' => 'Uploaded with registration submission.',
-                ], $file, $collegeId, $actorId);
-            }
+            $this->storeRegistrationFiles($student, $data, $files, $collegeId, $actorId);
 
             $approvalRequest = $this->submitApprovalRequest(
                 $student,
@@ -163,8 +161,24 @@ final class StudentRegistrationService
                 'submitted_by' => $actorId,
             ]);
 
-            return ['student' => $student, 'approval_request' => $approvalRequest, 'created' => true];
+            return ['student' => $student, 'approval_request' => $approvalRequest, 'created' => true, 'resubmitted' => false];
         });
+    }
+
+    private function storeRegistrationFiles(Student $student, array $data, array $files, int $collegeId, int $actorId): void
+    {
+        foreach ($files as $file) {
+            if (! $file instanceof UploadedFile || ! $file->isValid()) {
+                continue;
+            }
+
+            $this->documents->store([
+                'student_id' => $student->id,
+                'document_type_id' => $data['registration_document_type_id'] ?? null,
+                'title' => $file->getClientOriginalName(),
+                'remarks' => 'Uploaded with registration submission.',
+            ], $file, $collegeId, $actorId);
+        }
     }
 
     private function submitApprovalRequest(
@@ -189,6 +203,9 @@ final class StudentRegistrationService
                 'section_id' => $data['section_id'] ?? null,
                 'enrollment_date' => $data['enrollment_date'] ?? null,
                 'admission_date' => $data['admission_date'] ?? now()->toDateString(),
+                // A declaration is not an upload or a verification. Preserve a
+                // named snapshot in the approval record independently of files.
+                'declared_documents' => $this->requirements->snapshot($collegeId, $data['registration_document_type_ids'] ?? []),
             ],
             'previous_data' => [
                 'status' => 'inactive',

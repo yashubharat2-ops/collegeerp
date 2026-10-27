@@ -232,20 +232,7 @@ class StudentDocumentService
      */
     private function storeFile(UploadedFile $file, ?AdmissionDocumentType $type, int $collegeId, int $studentId): string
     {
-        $this->assertAcceptableFile($file, $type);
-
-        $extension = strtolower((string) $file->getClientOriginalExtension());
-        if ($extension === '') {
-            $extension = strtolower((string) $file->extension());
-        }
-        // Alphanumeric only: strips path separators, dots and null bytes.
-        $extension = (string) preg_replace('/[^a-z0-9]/', '', $extension);
-
-        if ($extension === '' || in_array($extension, self::BLOCKED_EXTENSIONS, true)) {
-            throw ValidationException::withMessages([
-                'file' => 'This file type is not allowed for student documents.',
-            ]);
-        }
+        $extension = $this->validateUpload($file, $type);
 
         $directory = sprintf('students/%d/%d', $collegeId, $studentId);
 
@@ -258,6 +245,25 @@ class StudentDocumentService
         }
 
         return $storedPath;
+    }
+
+    /**
+     * Apply the same checks before staging a registration upload and again when
+     * it is transferred to the student document register. Returns a safe suffix.
+     */
+    public function validateUpload(UploadedFile $file, ?AdmissionDocumentType $type): string
+    {
+        $this->assertAcceptableFile($file, $type);
+
+        $extension = strtolower((string) ($file->getClientOriginalExtension() ?: $file->extension()));
+        $extension = (string) preg_replace('/[^a-z0-9]/', '', $extension);
+        if ($extension === '' || in_array($extension, self::BLOCKED_EXTENSIONS, true)) {
+            throw ValidationException::withMessages([
+                'file' => 'This file type is not allowed for student documents.',
+            ]);
+        }
+
+        return $extension;
     }
 
     /**

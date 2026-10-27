@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Domain\Student\Actions\ConvertAdmissionToStudent;
 use App\Domain\Student\Actions\ConvertApplicationToStudent;
+use App\Domain\Student\Services\RegistrationDocumentRequirements;
 use App\Domain\Student\Services\StudentHistoryService;
 use App\Domain\Student\Services\StudentListService;
+use App\Domain\Student\Services\StudentRegistrationDraftService;
 use App\Domain\Student\Services\StudentRegistrationService;
 use App\Domain\Student\Services\StudentService;
 use App\Http\Requests\Student\StoreStudentFromAdmissionRequest;
@@ -15,10 +17,12 @@ use App\Http\Requests\Student\UpdateStudentRequest;
 use App\Models\AcademicYear;
 use App\Models\Admission;
 use App\Models\AdmissionDocumentType;
+use App\Models\ApprovalRequest;
 use App\Models\Program;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
+use App\Models\StudentRegistrationDraft;
 use App\Services\Audit\AuditLogService;
 use App\Services\Files\SecureFileService;
 use App\Support\Export\CsvStreamExport;
@@ -27,9 +31,14 @@ use App\Support\Listing\ListSelection;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class StudentController extends Controller
 {
@@ -267,36 +276,107 @@ class StudentController extends Controller
         ));
     }
 
-    /**
-     * The single primary registration entry point. It reuses the rich Student
-     * Create form; only the submit target and server-side workflow differ.
-     */
-    public function registration(Request $request): View
+    /** Registration reuses the profile form and its existing approval path. */
+    public function registration(Request $request, StudentRegistrationDraftService $drafts, RegistrationDocumentRequirements $requirements): View
     {
         $this->authorize('create', Student::class);
+        $collegeId = (int) app(TenantContext::class)->id();
+        $actorId = (int) $request->user()->getKey();
+        $draft = null;
+        $draftId = $request->query('draft');
+        if ($draftId !== null) {
+            abort_unless(is_string($draftId) && Str::isUuid($draftId), 404);
+            $draft = $drafts->findOwned($draftId, $collegeId, $actorId);
+            abort_unless($draft->status === 'draft', 404);
+            if (! $request->session()->hasOldInput()) {
+                // Identity numbers are never rendered in the form, even when a
+                // draft contains them. They remain encrypted on the server.
+                $request->session()->now('_old_input', Arr::except($draft->data ?? [], ['aadhaar_number', 'govt_id_number']));
+            }
+        }
 
-        return view('students.create', array_merge(
-            $this->profileFormOptions($request, true),
-            ['registrationMode' => true],
-        ));
+        $latestDraft = StudentRegistrationDraft::query()->where('college_id', $collegeId)
+            ->where('created_by', $actorId)->where('status', 'draft')
+            ->latest('updated_at')->first();
+
+        return view('students.create', array_merge($this->profileFormOptions($request, true), [
+            'registrationMode' => true,
+            'registrationDraftId' => $draft?->id ?? (string) Str::uuid(),
+            'registrationDraftExists' => $draft !== null,
+            'registrationDraftHasSensitive' => $draft !== null && (filled($draft->data['aadhaar_number'] ?? null) || filled($draft->data['govt_id_number'] ?? null)),
+            'latestRegistrationDraft' => $latestDraft,
+            'registrationDocumentTypes' => $requirements->types($collegeId),
+            'registrationAttachments' => $drafts->visibleAttachments($draft?->attachments ?? []),
+        ]));
     }
 
     public function registrationStore(
         StoreStudentRegistrationRequest $request,
         StudentRegistrationService $registration,
+        StudentRegistrationDraftService $drafts,
     ): RedirectResponse {
-        $collegeId = app(TenantContext::class)->id();
+        $collegeId = (int) app(TenantContext::class)->id();
+        $actorId = (int) $request->user()->getKey();
+        $data = $request->validated();
         $files = $request->file('registration_documents', []);
         $files = is_array($files) ? $files : [$files];
+        $draftId = $data['registration_draft_id'] ?? null;
 
-        $result = $registration->register(
-            $request->validated(),
-            $files,
-            (int) $collegeId,
-            (int) $request->user()->getKey(),
-        );
+        if ($draftId === null) {
+            // Backward-compatible direct submission (including existing batch
+            // uploads) remains available without creating a draft first.
+            $result = $registration->register($data, $files, $collegeId, $actorId);
+        } else {
+            $newPaths = [];
+            try {
+                $result = DB::transaction(function () use ($drafts, $registration, $draftId, $collegeId, $actorId, $data, $files, &$newPaths): array {
+                    $draft = $drafts->lockOwned($draftId, $collegeId, $actorId);
+                    if ($draft->status === 'submitted') {
+                        return [
+                            'student' => Student::query()->findOrFail($draft->student_id),
+                            'approval_request' => ApprovalRequest::query()->findOrFail($draft->approval_request_id),
+                            'created' => false,
+                            'resubmitted' => false,
+                        ];
+                    }
+                    if (count($draft->attachments ?? []) + count($files) > 10) {
+                        throw ValidationException::withMessages([
+                            'registration_documents' => 'A registration may contain at most 10 files in total.',
+                        ]);
+                    }
+                    $result = $registration->register($data, $files, $collegeId, $actorId);
+                    if (! $result['created'] && ! $result['resubmitted']) {
+                        // Keep this draft and its files intact instead of silently
+                        // discarding them against a different pending request.
+                        throw ValidationException::withMessages([
+                            'draft' => 'A pending registration already exists for this student. This draft and its attachments were not submitted.',
+                        ]);
+                    }
+                    if ($result['created'] && $result['student']->photo_path) {
+                        $newPaths[] = $result['student']->photo_path;
+                    }
+                    $attachments = $drafts->transfer($draft, $result['student'], $actorId, $newPaths);
+                    $draft->update([
+                        'data' => array_merge($draft->data ?? [], Arr::except($data, ['photo', 'registration_documents'])),
+                        'attachments' => $attachments,
+                        'status' => 'submitted',
+                        'student_id' => $result['student']->id,
+                        'approval_request_id' => $result['approval_request']->id,
+                    ]);
 
-        $message = $result['created']
+                    return $result;
+                });
+            } catch (Throwable $e) {
+                // The database rolled back; discard any final copies made before
+                // the failure while retaining the original staged draft files.
+                if ($newPaths !== []) {
+                    Storage::disk('private')->delete($newPaths);
+                }
+                throw $e;
+            }
+        }
+
+        $message = $result['created'] || $result['resubmitted']
             ? 'Registration '.$result['student']->student_number.' submitted for approval.'
             : 'A pending registration already exists for this student; no duplicate was created.';
 

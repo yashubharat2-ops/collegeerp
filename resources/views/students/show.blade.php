@@ -146,7 +146,8 @@
         </p>
 
     {{-- ================= 2. Enrollments ================= --}}
-    @elseif($tab === 'enrollments')
+    @endif
+    @if($tab === 'enrollments')
         <div class="mt-6 flex items-center justify-between">
             <h3 class="font-semibold">Enrollments</h3>
             @can('create', \App\Models\StudentEnrollment::class)
@@ -179,7 +180,8 @@
         </div>
 
     {{-- ================= 3. Academic Records ================= --}}
-    @elseif($tab === 'academic-records')
+    @endif
+    @if($tab === 'academic-records')
         <div class="mt-6 flex items-center justify-between">
             <h3 class="font-semibold">Academic records</h3>
             @can('create', \App\Models\StudentAcademicRecord::class)
@@ -212,7 +214,8 @@
         </div>
 
     {{-- ================= 4. Documents ================= --}}
-    @elseif($tab === 'documents')
+    @endif
+    @if($tab === 'documents')
         <div class="mt-6 flex items-center justify-between">
             <h3 class="font-semibold">Documents</h3>
             @can('create', \App\Models\StudentDocument::class)
@@ -234,10 +237,7 @@
                             @if($document->isExpired())<span class="text-rose-600"> · expired</span>@endif
                         </td>
                         <td>
-                            <span class="rounded-full px-2 py-0.5 text-xs font-semibold
-                                @if($document->isPending()) bg-amber-100 text-amber-700
-                                @elseif($document->isVerified()) bg-emerald-100 text-emerald-700
-                                @else bg-rose-100 text-rose-700 @endif">{{ ucfirst($document->verification_status) }}</span>
+                            <span class="rounded-full px-2 py-0.5 text-xs font-semibold {{ $document->isPending() ? 'bg-amber-100 text-amber-700' : ($document->isVerified() ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700') }}">{{ ucfirst($document->verification_status) }}</span>
                         </td>
                         <td class="text-right">
                             <div class="flex flex-wrap items-center justify-end gap-2">
@@ -258,7 +258,8 @@
         </div>
 
     {{-- ================= 5. ID Card ================= --}}
-    @elseif($tab === 'id-card')
+    @endif
+    @if($tab === 'id-card')
         <div class="mt-6">
             @if(auth()->user()?->hasPermission('student_id_cards.generate'))
                 <p class="text-sm text-slate-600">The ID card is generated on demand from this student's record and current enrollment — it is not a separate identity record.</p>
@@ -269,7 +270,8 @@
         </div>
 
     {{-- ================= 6. Promotion ================= --}}
-    @elseif($tab === 'promotion')
+    @endif
+    @if($tab === 'promotion')
         <div class="mt-6 flex items-center justify-between">
             <h3 class="font-semibold">Promotions</h3>
             @can('create', \App\Models\StudentPromotion::class)
@@ -307,7 +309,8 @@
         </div>
 
     {{-- ================= 7. Transfer / TC ================= --}}
-    @elseif($tab === 'transfer')
+    @endif
+    @if($tab === 'transfer')
         <div class="mt-6 flex items-center justify-between">
             <h3 class="font-semibold">Transfer / TC</h3>
             @can('create', \App\Models\StudentTransfer::class)
@@ -342,7 +345,8 @@
         <p class="mt-4 text-xs text-slate-500">A transfer never deletes the student: statuses change and the record, enrollments and documents are preserved.</p>
 
     {{-- ================= 8. History ================= --}}
-    @elseif($tab === 'history')
+    @endif
+    @if($tab === 'history')
         <div class="mt-6 flex items-center justify-between">
             <h3 class="font-semibold">Lifecycle history</h3>
             <a class="text-xs font-semibold text-indigo-600 hover:underline" href="{{ route('student-history.show', $student) }}">Open full history</a>
