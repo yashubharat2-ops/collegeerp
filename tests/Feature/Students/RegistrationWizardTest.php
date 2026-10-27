@@ -2105,6 +2105,47 @@ class RegistrationWizardTest extends TestCase
     }
 
     /**
+     * The wizard advances `current_step` on a SAVE, never on a read: opening a
+     * step is a GET and must leave the draft exactly where it was. This is the
+     * invariant that makes "resume where the applicant actually is" meaningful.
+     */
+    public function test_reading_a_step_never_moves_the_resume_point(): void
+    {
+        $college = $this->makeCollege('WIZ61');
+        $user = $this->staff($college);
+
+        $this->asCollege($college, $user)->get(route('students.registration.create'))->assertRedirect();
+
+        $draft = $this->draftFor($college, $user);
+
+        $this->assertSame(1, (int) $draft->current_step);
+        $this->assertSame(1, $draft->currentStep());
+
+        // Every step can be opened without writing anything.
+        foreach ([1, 2, 3, 4] as $step) {
+            $this->asCollege($college, $user)
+                ->get(route('students.registration.step', ['step' => $step]))
+                ->assertOk();
+        }
+
+        $draft->refresh();
+
+        $this->assertSame(1, (int) $draft->current_step, 'A step read must not advance the draft.');
+        $this->assertSame(1, $draft->currentStep());
+        $this->assertSame([], $draft->mergedData(), 'A step read must not store a payload.');
+
+        // Saving the review step is a write, and THAT parks the draft on step 4.
+        $this->saveStep($college, $user, 4, ['remarks' => 'Reviewed with the office.'], draft: true)
+            ->assertRedirect(route('students.registration.step', ['step' => 4]));
+
+        $this->assertSame(4, $this->draftFor($college, $user)->currentStep());
+
+        $this->asCollege($college, $user)
+            ->get(route('students.registration.create'))
+            ->assertRedirect(route('students.registration.step', ['step' => 4]));
+    }
+
+    /**
      * The step mapping is the single source of truth for draft resumption, so it
      * is pinned directly: a CURRENT payload keeps its own step number, and only
      * a genuinely legacy payload is translated (old 1+2 → 1, 3 → 2, 4 → 3,

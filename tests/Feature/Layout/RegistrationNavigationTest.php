@@ -203,13 +203,26 @@ class RegistrationNavigationTest extends TestCase
             ->get(route('students.registration.step', ['step' => 5]))
             ->assertNotFound();
 
-        // Saving the last (review) step keeps the applicant on step 4 and the
-        // entry point reopens that same step.
+        // A READ is not a write: opening the review screen renders it, but it
+        // must not move the draft's resume point. The draft was started by the
+        // entry point and is still on step 1, so that is where it resumes.
         $this->asCollege($college, $user)
             ->get(route('students.registration.step', ['step' => 4]))
             ->assertOk()
             ->assertSee('Final Review')
             ->assertSee('Step 4 of 4');
+
+        $this->asCollege($college, $user)
+            ->get(route('students.registration.create'))
+            ->assertRedirect(route('students.registration.step', ['step' => 1]));
+
+        // SAVING the last (review) step is what parks the draft on step 4, and
+        // the entry point then reopens exactly that step.
+        $this->asCollege($college, $user)
+            ->post(route('students.registration.step.draft', ['step' => 4]), [
+                'remarks' => 'Checked with the office.',
+            ])
+            ->assertRedirect(route('students.registration.step', ['step' => 4]));
 
         $this->asCollege($college, $user)
             ->get(route('students.registration.create'))
