@@ -93,9 +93,23 @@ class RegistrationDraftService
      * the other steps are untouched. This is why the wizard can move back and
      * forth without losing anything.
      *
+     * `$advance` is the difference between the two buttons:
+     *  - "Save draft" (false) keeps `current_step` where the applicant actually
+     *    is, so resuming reopens THAT step — saving step 1 as a draft must not
+     *    pretend the applicant already reached step 2;
+     *  - "Save & continue" (true) moves the marker to the next step.
+     *
+     * Either way the marker never moves backwards: a user who goes back from
+     * step 5 to fix step 2 and saves a draft still resumes at step 5.
+     *
      * @param  array<string, mixed>  $data
      */
-    public function saveStep(StudentRegistrationDraft $draft, int $step, array $data): StudentRegistrationDraft
+    public function saveStep(
+        StudentRegistrationDraft $draft,
+        int $step,
+        array $data,
+        bool $advance = true,
+    ): StudentRegistrationDraft
     {
         if ($draft->isSubmitted()) {
             throw ValidationException::withMessages([
@@ -110,9 +124,13 @@ class RegistrationDraftService
         $payload = is_array($draft->payload) ? $draft->payload : [];
         $payload[$step] = $this->withoutNullBytes($data);
 
-        // Never move the marker backwards: a user reviewing step 5 and saving
-        // an earlier step still resumes where they left off.
-        $currentStep = max((int) $draft->current_step, min($step + 1, StudentRegistrationDraft::LAST_STEP));
+        // The step the draft is genuinely on: the next one after a "continue",
+        // otherwise the one being saved. Never backwards.
+        $targetStep = $advance
+            ? min($step + 1, StudentRegistrationDraft::LAST_STEP)
+            : $step;
+
+        $currentStep = max((int) $draft->current_step, $targetStep);
 
         $draft->update([
             'payload' => $payload,

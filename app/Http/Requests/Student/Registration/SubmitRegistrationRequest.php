@@ -26,9 +26,14 @@ class SubmitRegistrationRequest extends FormRequest
         return RegistrationStepRules::rules(RegistrationStepRules::STEP_REVIEW, true, 0);
     }
 
-    protected function redirectTo(): string
+    /**
+     * A rejected submission returns to the review step with its errors.
+     *
+     * @return string
+     */
+    protected function getRedirectUrl()
     {
-        return route('students.registration.step', ['step' => 5]);
+        return route('students.registration.step', ['step' => RegistrationStepRules::STEP_REVIEW]);
     }
 
     public function messages(): array

@@ -48,8 +48,15 @@ class SaveRegistrationStepRequest extends FormRequest
     /**
      * A validation failure always returns to the step that owns the field —
      * never to whatever page the browser came from.
+     *
+     * This is the method FormRequest::failedValidation() actually consults (a
+     * `redirectTo()` override would be dead code and the request would fall back
+     * to `url()->previous()`, i.e. whatever page / a bare "/" in tests). The
+     * signature is deliberately untyped to stay compatible with the framework.
+     *
+     * @return string
      */
-    protected function redirectTo(): string
+    protected function getRedirectUrl()
     {
         $step = $this->step();
 

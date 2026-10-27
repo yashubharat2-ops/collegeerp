@@ -9,6 +9,7 @@ use App\Domain\Student\Support\SensitiveIdentity;
 use App\Models\Section;
 use App\Models\StudentRegistrationDraft;
 use App\Models\StudentRegistrationDraftDocument;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -27,9 +28,18 @@ use Illuminate\Validation\ValidationException;
  *  3. hands one assembled payload to StudentRegistrationService, which creates
  *     the pending student, one approval request and adopts the staged files.
  *
- * Because everything runs inside StudentRegistrationService's transaction, a
- * failure at any point leaves no orphaned student, document, qualification or
- * approval record behind.
+ * The whole submission — the identity/duplicate checks, the student write, the
+ * qualification rows, the adopted documents, the single approval request and the
+ * draft's own state change — runs inside ONE database transaction, with the
+ * draft row locked. So:
+ *
+ *  - a duplicate phone/Aadhaar discovered at submit time fails before any row is
+ *    written (the guard runs first, inside the transaction);
+ *  - if anything fails later, every write is rolled back together: no partial
+ *    student, no orphaned qualification, no second approval request;
+ *  - two concurrent submissions of the same draft cannot both pass the
+ *    "not yet submitted" check, because the second one waits on the lock and
+ *    then sees the committed status.
  */
 final class RegistrationSubmissionService
 {
@@ -45,12 +55,42 @@ final class RegistrationSubmissionService
      */
     public function submit(StudentRegistrationDraft $draft, array $reviewData, int $collegeId, int $actorId): array
     {
-        if ($draft->isSubmitted()) {
-            throw ValidationException::withMessages([
-                'registration' => 'This registration has already been submitted for approval.',
-            ]);
-        }
+        return DB::transaction(function () use ($draft, $reviewData, $collegeId, $actorId): array {
+            // Re-read the draft under a row lock: the tenant + owner scope is
+            // kept, so the lock can never be taken on someone else's draft.
+            $locked = StudentRegistrationDraft::query()
+                ->where('college_id', $collegeId)
+                ->where('user_id', $actorId)
+                ->whereKey($draft->id)
+                ->lockForUpdate()
+                ->first();
 
+            if ($locked === null) {
+                abort(404, 'Registration draft not found.');
+            }
+
+            if ($locked->isSubmitted()) {
+                throw ValidationException::withMessages([
+                    'registration' => 'This registration has already been submitted for approval.',
+                ]);
+            }
+
+            return $this->submitWithinTransaction($locked, $reviewData, $collegeId, $actorId);
+        });
+    }
+
+    /**
+     * The body of the submission, always called inside the transaction above.
+     *
+     * @param  array<string, mixed>  $reviewData
+     * @return array{student: \App\Models\Student, approval_request: \App\Models\ApprovalRequest, created: bool, draft: StudentRegistrationDraft}
+     */
+    private function submitWithinTransaction(
+        StudentRegistrationDraft $draft,
+        array $reviewData,
+        int $collegeId,
+        int $actorId,
+    ): array {
         $merged = array_merge($draft->mergedData(), array_filter([
             'remarks' => $reviewData['remarks'] ?? null,
         ], fn ($value) => $value !== null));

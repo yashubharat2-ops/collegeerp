@@ -31,6 +31,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -72,7 +73,11 @@ class StudentRegistrationWizardController extends Controller
 
         $draft = $this->drafts->startOrResume($collegeId, $userId);
 
-        return redirect()->route('students.registration.step', ['step' => max(1, (int) $draft->current_step)]);
+        // Resume where the draft actually is — a "Save draft" keeps the marker on
+        // the step being edited, "Save & continue" advances it. Never a fixed 1.
+        $step = max(1, min((int) $draft->current_step, StudentRegistrationDraft::LAST_STEP));
+
+        return redirect()->route('students.registration.step', ['step' => $step]);
     }
 
     /** GET students/registration/step/{step} */
@@ -393,17 +398,36 @@ class StudentRegistrationWizardController extends Controller
         $data = $request->validated();
         $merged = $draft->mergedData();
 
+        // Identity uniqueness is checked BEFORE anything is written — not just
+        // before the row is saved, but before a single image is stored — so a
+        // blocked registration cannot leave an orphaned file or payload behind.
+        // A strict save of step 1 reports the duplicate while the applicant is
+        // on the field.
+        if ($step === RegistrationStepRules::STEP_BASIC && $request->isStrict()) {
+            try {
+                RegistrationIdentityGuard::assertAvailable($data + $merged, $collegeId);
+            } catch (ValidationException $exception) {
+                return $this->stepError($step, $exception);
+            }
+        }
+
         // Media are stored (or retained/removed) before the payload is saved.
         $pendingDeletes = [];
         $data = $this->stageImages($request, $data, $draft, $step, $collegeId, $pendingDeletes);
 
-        // A strict save of step 1 checks the identity uniqueness up front, so a
-        // duplicate is reported while the applicant is on the field.
-        if ($step === RegistrationStepRules::STEP_BASIC && $request->isStrict()) {
-            RegistrationIdentityGuard::assertAvailable($data + $merged, $collegeId);
-        }
+        try {
+            $normalised = RegistrationStepRules::normalise($step, $data, $merged, $collegeId, $this->geo);
+        } catch (ValidationException $exception) {
+            // The dependent address chain is verified during normalisation; a
+            // mismatch must come back as a field error on THIS step, and the
+            // images stored a moment ago are removed again so the failed save
+            // leaves nothing behind.
+            foreach ($pendingDeletes as $path) {
+                $this->photos->delete($path);
+            }
 
-        $normalised = RegistrationStepRules::normalise($step, $data, $merged, $collegeId, $this->geo);
+            return $this->stepError($step, $exception);
+        }
 
         // Server-owned paths are re-attached after normalisation, because the
         // normalised payload is built from fields only.
@@ -423,7 +447,7 @@ class StudentRegistrationWizardController extends Controller
             );
         }
 
-        $this->drafts->saveStep($draft, $step, $normalised);
+        $this->drafts->saveStep($draft, $step, $normalised, advance: $advance);
 
         // Old blobs are removed only after the draft has been saved.
         foreach ($pendingDeletes as $path) {
@@ -655,6 +679,21 @@ class StudentRegistrationWizardController extends Controller
         }
 
         return $draft;
+    }
+
+    /**
+     * Send a field-level failure back to the step that owns it.
+     *
+     * Always an explicit redirect to the step's own URL: relying on
+     * `url()->previous()` would send the applicant to whatever page the browser
+     * came from (a bare "/" on a first visit) and lose the wizard's context.
+     */
+    private function stepError(int $step, ValidationException $exception): RedirectResponse
+    {
+        return redirect()
+            ->route('students.registration.step', ['step' => $step])
+            ->withInput()
+            ->withErrors($exception->errors());
     }
 
     private function assertDraftEditable(StudentRegistrationDraft $draft): void

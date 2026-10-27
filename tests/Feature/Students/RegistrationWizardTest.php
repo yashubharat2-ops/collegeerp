@@ -45,6 +45,14 @@ class RegistrationWizardTest extends TestCase
         return $this->asCollege($college, $user)->post($route, $data);
     }
 
+    /** Smallest valid PNG, used to prove a blocked upload never reaches disk. */
+    private function onePixelPng(): string
+    {
+        return (string) base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+        );
+    }
+
     private function draftFor(College $college, User $user): StudentRegistrationDraft
     {
         return StudentRegistrationDraft::withoutGlobalScopes()
@@ -132,7 +140,11 @@ class RegistrationWizardTest extends TestCase
         $college = $this->makeCollege('WIZ3');
         $user = $this->staff($college);
 
-        $this->saveStep($college, $user, 1, ['first_name' => 'Aarav', 'last_name' => 'Shah'], draft: true)->assertRedirect();
+        // "Save draft" on step 1 keeps the draft ON step 1.
+        $this->saveStep($college, $user, 1, ['first_name' => 'Aarav', 'last_name' => 'Shah'], draft: true)
+            ->assertRedirect(route('students.registration.step', ['step' => 1]));
+
+        $this->assertSame(1, $this->draftFor($college, $user)->current_step);
 
         // A new request (a later session) resumes the same draft on the same step.
         $this->asCollege($college, $user)->get(route('students.registration.step', ['step' => 1]))
@@ -144,6 +156,42 @@ class RegistrationWizardTest extends TestCase
             ->assertRedirect(route('students.registration.step', ['step' => 1]));
     }
 
+    /**
+     * Regression: the resume point must follow the draft's stored step, not a
+     * hardcoded step 1. A "Save draft" leaves the marker where the applicant is;
+     * "Save & continue" advances it.
+     */
+    public function test_resume_opens_the_step_the_draft_is_actually_on(): void
+    {
+        $college = $this->makeCollege('WIZ3B');
+        $user = $this->staff($college);
+
+        // Continue from step 1 → the draft is on step 2.
+        $this->saveStep($college, $user, 1, ['first_name' => 'Aarav'])
+            ->assertRedirect(route('students.registration.step', ['step' => 2]));
+
+        $this->assertSame(2, $this->draftFor($college, $user)->current_step);
+
+        $this->asCollege($college, $user)->get(route('students.registration.create'))
+            ->assertRedirect(route('students.registration.step', ['step' => 2]));
+
+        // Saving a draft ON step 2 must not move the marker back to step 1.
+        $this->saveStep($college, $user, 2, ['father_name' => 'Suresh Verma'], draft: true)
+            ->assertRedirect(route('students.registration.step', ['step' => 2]));
+
+        $this->assertSame(2, $this->draftFor($college, $user)->current_step);
+
+        $this->asCollege($college, $user)->get(route('students.registration.create'))
+            ->assertRedirect(route('students.registration.step', ['step' => 2]));
+
+        // Going on to step 3 moves the resume point with it.
+        $this->saveStep($college, $user, 2, ['father_name' => 'Suresh Verma'])
+            ->assertRedirect(route('students.registration.step', ['step' => 3]));
+
+        $this->asCollege($college, $user)->get(route('students.registration.create'))
+            ->assertRedirect(route('students.registration.step', ['step' => 3]));
+    }
+
     public function test_a_failed_step_returns_to_that_step_with_field_errors(): void
     {
         $college = $this->makeCollege('WIZ4');
@@ -153,11 +201,21 @@ class RegistrationWizardTest extends TestCase
 
         $this->saveStep($college, $user, 1, ['first_name' => 'Riya'])->assertRedirect(route('students.registration.step', ['step' => 2]));
 
-        // Step 3 without the required academic context.
+        // Step 3 without the required academic context — back to STEP 3 (never
+        // to "/" or to whatever page the browser came from), with the errors.
         $this->saveStep($college, $user, 3, ['semester' => '1'])
             ->assertRedirect(route('students.registration.step', ['step' => 3]))
             ->assertSessionHasErrors(['academic_year_id', 'program_id']);
 
+        // The failed attempt wrote nothing.
+        $this->assertSame([], $this->draftFor($college, $user)->stepData(3));
+
+        // A failing DRAFT save on the same step also returns to step 3.
+        $this->saveStep($college, $user, 3, ['academic_year_id' => 'not-an-id'], draft: true)
+            ->assertRedirect(route('students.registration.step', ['step' => 3]))
+            ->assertSessionHasErrors(['academic_year_id']);
+
+        // The wizard is still where it was: the applicant can fix and continue.
         $this->saveStep($college, $user, 3, [
             'academic_year_id' => $year->id,
             'program_id' => $program->id,
@@ -708,18 +766,112 @@ class RegistrationWizardTest extends TestCase
 
     public function test_an_approved_students_phone_blocks_a_new_registration(): void
     {
+        Storage::fake('private');
         $college = $this->makeCollege('WIZ22');
         $user = $this->staff($college);
-        $this->makeStudent($college, ['phone' => '9555555555']);
+
+        // An approved (legacy) student already owns this phone number.
+        $blocker = $this->makeStudent($college, ['student_number' => 'STU-BLOCKER', 'phone' => '9555555555']);
 
         $this->saveStep($college, $user, 1, [
             'first_name' => 'Riya',
             'phone' => '9555555555',
-        ])->assertSessionHasErrors(['phone']);
+            // A real (1×1) PNG so the `image` rule is genuinely exercised; the
+            // point is that it must never reach the private disk.
+            'photo' => UploadedFile::fake()->createWithContent('portrait.png', $this->onePixelPng()),
+        ])->assertRedirect(route('students.registration.step', ['step' => 1]))
+            ->assertSessionHasErrors(['phone']);
 
-        // No student, qualification or approval was created. The empty draft row
-        // that the failed attempt opened is reused on the next try.
-        $this->assertSame(0, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
-        $this->assertSame([], $this->draftFor($college, $user)->stepData(1));
+        // Validation failed BEFORE any write: only the pre-existing student
+        // exists, nothing else was created, no file was stored and the draft
+        // holds no step-1 payload.
+        $this->assertSame(1, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame($blocker->id, (int) Student::withoutGlobalScopes()->where('college_id', $college->id)->sole()->id);
+        $this->assertSame(0, StudentQualification::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame(0, ApprovalRequest::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame(0, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame([], Storage::disk('private')->allFiles());
+
+        // Not even a draft row: the request was rejected before the controller
+        // (and therefore before any draft could be created or resumed).
+        $this->assertSame(0, StudentRegistrationDraft::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->where('user_id', $user->id)
+            ->count());
+
+        // A free number registers normally afterwards.
+        $this->saveStep($college, $user, 1, ['first_name' => 'Riya', 'phone' => '9555555556'])
+            ->assertRedirect(route('students.registration.step', ['step' => 2]));
+        $this->assertSame('Riya', $this->draftFor($college, $user)->stepData(1)['first_name']);
+    }
+
+    /**
+     * Regression: a duplicate discovered at SUBMIT time (the number was taken
+     * while the draft was open) must fail the submission atomically — no student,
+     * no qualification, no approval request — and leave the draft intact so the
+     * applicant can correct it.
+     */
+    public function test_a_phone_taken_after_the_draft_started_blocks_submission_without_partial_writes(): void
+    {
+        $college = $this->makeCollege('WIZ22B');
+        $user = $this->staff($college);
+        $year = $this->makeYear($college);
+        $program = $this->makeProgram($college);
+
+        // A complete draft, including a previous qualification.
+        $draft = $this->completeDraft($college, $user, [], [
+            'academic_year_id' => $year->id,
+            'program_id' => $program->id,
+        ]);
+
+        $this->saveStep($college, $user, 3, [
+            'academic_year_id' => $year->id,
+            'program_id' => $program->id,
+            'qualifications' => [[
+                'level' => 'class_10',
+                'examination_year' => 2022,
+                'marks_obtained' => 430,
+                'max_marks' => 500,
+            ]],
+        ])->assertRedirect(route('students.registration.step', ['step' => 4]));
+
+        // Meanwhile the same mobile number is registered for an approved student.
+        $blocker = $this->makeStudent($college, ['student_number' => 'STU-TAKEN', 'phone' => '9111111111']);
+
+        $this->asCollege($college, $user)->post(route('students.registration.submit'), [
+            'draft_id' => $draft->id,
+            'confirm_declaration' => '1',
+        ])->assertRedirect(route('students.registration.step', ['step' => 1]))
+            ->assertSessionHasErrors(['phone']);
+
+        // Nothing partial was written, and the draft was not consumed.
+        $this->assertSame(1, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame(0, StudentQualification::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame(0, ApprovalRequest::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame(0, StudentEnrollment::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertFalse($draft->refresh()->isSubmitted());
+        $this->assertNull($draft->submitted_at);
+        $this->assertNull($draft->approval_request_id);
+        $this->assertNull($draft->student_id);
+
+        // Once the number is free the same draft submits normally.
+        $blocker->update(['phone' => '9000000009']);
+
+        $this->asCollege($college, $user)->post(route('students.registration.submit'), [
+            'draft_id' => $draft->id,
+            'confirm_declaration' => '1',
+        ])->assertRedirect(route('students.index'));
+
+        $student = Student::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->whereKeyNot($blocker->id)
+            ->sole();
+
+        $this->assertSame(Student::REGISTRATION_PENDING, $student->registration_status);
+        $this->assertSame(1, StudentQualification::withoutGlobalScopes()->where('student_id', $student->id)->count());
+        $this->assertSame(1, ApprovalRequest::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->where('action', 'registration_approval')
+            ->count());
     }
 }

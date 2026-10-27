@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Student\Registration;
 
+use App\Domain\Student\Support\RegistrationStepRules;
 use App\Models\Student;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
@@ -38,9 +39,15 @@ class UploadRegistrationDocumentRequest extends FormRequest
         ];
     }
 
-    protected function redirectTo(): string
+    /**
+     * A rejected upload sends the applicant back to the document step with the
+     * error, not to whatever page the browser came from.
+     *
+     * @return string
+     */
+    protected function getRedirectUrl()
     {
-        return route('students.registration.step', ['step' => 4]);
+        return route('students.registration.step', ['step' => RegistrationStepRules::STEP_DOCUMENTS]);
     }
 
     public function messages(): array
