@@ -13,10 +13,10 @@
     $isFirst = (int) $step === 1;
     $isLast = (int) $step === \App\Models\StudentRegistrationDraft::LAST_STEP;
     $intro = match ((int) $step) {
-        1 => 'Personal details, photographs and address.',
+        1 => 'Personal details, addresses, photograph and signature.',
         2 => 'Father, mother and guardian details.',
         3 => 'Previous qualifications, then the course being joined.',
-        4 => 'Attach the documents your course requires.',
+        4 => 'Pick the documents your course requires, then attach them.',
         default => 'Check everything, then submit for approval.',
     };
 @endphp

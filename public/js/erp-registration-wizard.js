@@ -9,7 +9,8 @@
  *  3. guardian auto-fill from Father / Mother / Self, and normal editable fields
  *     for "Other";
  *  4. the repeating qualification table (add / remove) with a derived
- *     percentage that never overwrites a grade-based result;
+ *     percentage that never overwrites a grade-based result, and the document
+ *     picker that reveals one upload card per ticked document type;
  *  5. image preview before upload;
  *  6. an idle auto-save of the current step as a DRAFT, plus a leave-page guard
  *     so nothing typed is lost silently.
@@ -92,29 +93,49 @@
             url += '&parent_id=' + encodeURIComponent(parentId);
         }
 
+        select.setAttribute('aria-busy', 'true');
+
         fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
-            .then(function (response) { return response.ok ? response.json() : { data: [] }; })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('geo ' + response.status);
+                }
+
+                return response.json();
+            })
             .then(function (payload) {
+                var nodes = payload.data || [];
+
                 while (select.options.length > 1) {
                     select.remove(1);
                 }
 
-                (payload.data || []).forEach(function (node) {
+                nodes.forEach(function (node) {
                     var option = document.createElement('option');
                     option.value = String(node.id);
                     option.textContent = node.name;
                     select.appendChild(option);
                 });
 
-                if ((payload.data || []).length === 0) {
-                    var empty = select.getAttribute('data-empty-label') || '— No entries —';
-                    select.options[0].textContent = empty;
-                }
+                // An empty level is said out loud instead of showing a blank
+                // closed select that looks broken.
+                var label = select.getAttribute('data-empty-label') || '— Select —';
+                select.options[0].textContent = nodes.length === 0
+                    ? label.replace('Select', 'No entries for')
+                    : label;
 
                 select.removeAttribute('disabled');
+                select.removeAttribute('aria-busy');
             })
             .catch(function () {
+                // A failed request must not leave a silently empty dropdown.
+                while (select.options.length > 1) {
+                    select.remove(1);
+                }
+
+                select.options[0].textContent = 'Could not load — try again';
                 select.setAttribute('disabled', 'disabled');
+                select.removeAttribute('aria-busy');
             });
     }
 
@@ -370,6 +391,8 @@
                 } else {
                     row.parentNode.removeChild(row);
                 }
+
+                syncQualEmptyState();
             });
         }
 
@@ -380,6 +403,23 @@
         }
 
         calculatePercentage(row);
+    }
+
+    var qualEmpty = wizard.querySelector('[data-erp-qualifications-empty]');
+
+    function syncQualEmptyState() {
+        if (!qualEmpty || !qualList) {
+            return;
+        }
+
+        // Hidden rows are already flagged for deletion, so they do not count as
+        // "a qualification has been added".
+        var visible = Array.prototype.filter.call(
+            qualList.querySelectorAll('[data-erp-qualification]'),
+            function (row) { return !row.hasAttribute('hidden'); }
+        );
+
+        qualEmpty.hidden = visible.length > 0;
     }
 
     if (qualList) {
@@ -403,6 +443,7 @@
                 row.setAttribute('data-index', String(index));
                 qualList.appendChild(row);
                 wireQualRow(row);
+                syncQualEmptyState();
 
                 var first = row.querySelector('select, input');
                 if (first) {
@@ -411,6 +452,8 @@
             });
         }
     }
+
+    syncQualEmptyState();
 
     // A removed (hidden) qualification must not block submission with its
     // required fields, so hidden rows are excluded by the browser automatically
@@ -424,6 +467,57 @@
             });
         });
     });
+
+    /* ------------------------------------------------------------------
+     * 4b. Document picker — the checkbox grid reveals its upload card
+     *
+     * Selection is a UI filter only: the server decides what is required from
+     * the STORED files and the course configuration, so unticking a box can
+     * never make a mandatory document disappear from the submission check. A
+     * card that already holds a file is never hidden — deselecting must not
+     * look like it discarded the upload.
+     * ------------------------------------------------------------------ */
+
+    var docToggles = Array.prototype.slice.call(wizard.querySelectorAll('[data-erp-doc-toggle]'));
+    var docEmpty = wizard.querySelector('[data-erp-doc-empty]');
+
+    function syncDocCards() {
+        var anySelected = false;
+
+        docToggles.forEach(function (toggle) {
+            var id = toggle.getAttribute('data-erp-doc-toggle');
+            var card = wizard.querySelector('[data-erp-doc-card="' + id + '"]');
+            var selected = toggle.checked || toggle.disabled;
+
+            if (selected) {
+                anySelected = true;
+            }
+
+            if (!card) {
+                return;
+            }
+
+            var attached = card.getAttribute('data-erp-doc-attached') === 'true';
+
+            if (selected || attached) {
+                card.removeAttribute('hidden');
+            } else {
+                card.setAttribute('hidden', 'hidden');
+            }
+        });
+
+        if (docEmpty) {
+            docEmpty.hidden = anySelected || docToggles.length === 0;
+        }
+    }
+
+    docToggles.forEach(function (toggle) {
+        // A selection toggle changes nothing on the server (uploads are their own
+        // form), so it must not raise the "unsaved changes" guard.
+        toggle.addEventListener('change', syncDocCards);
+    });
+
+    syncDocCards();
 
     /* ------------------------------------------------------------------
      * 5. Image preview

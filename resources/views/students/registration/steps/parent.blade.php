@@ -26,14 +26,13 @@
     <input type="hidden" data-erp-self="email" value="{{ $merged['email'] ?? '' }}">
 
     @foreach([
-        'father' => ['label' => 'Father', 'num' => '01', 'photo' => 'father_photo_path'],
-        'mother' => ['label' => 'Mother', 'num' => '02', 'photo' => 'mother_photo_path'],
+        'father' => ['label' => 'Father', 'photo' => 'father_photo_path'],
+        'mother' => ['label' => 'Mother', 'photo' => 'mother_photo_path'],
     ] as $person => $meta)
         <section class="erp-card erp-wizard__card">
             <header class="erp-card__head">
-                <span class="erp-card__num">{{ $meta['num'] }}</span>
                 <div>
-                    <h3 class="erp-card__title">{{ $meta['label'] }}'s details</h3>
+                    <h3 class="erp-card__title">{{ $meta['label'] }}'s Details</h3>
                     <p class="erp-card__desc">Kept separately from the guardian block.</p>
                 </div>
             </header>
@@ -78,7 +77,6 @@
 
     <section class="erp-card erp-wizard__card">
         <header class="erp-card__head">
-            <span class="erp-card__num">03</span>
             <div>
                 <h3 class="erp-card__title">Guardian</h3>
                 <p class="erp-card__desc">Who the college contacts for this student.</p>

@@ -40,7 +40,7 @@
     </div>
 @endif
 
-{{-- --- 01 Basic information ------------------------------------------------ --}}
+{{-- --- Basic information ------------------------------------------------ --}}
 <section class="erp-review-group">
     <header class="erp-review-group__head">
         <h3 class="erp-review-group__title">Basic Information</h3>
@@ -205,7 +205,6 @@
 
     <section class="erp-card erp-wizard__card">
         <header class="erp-card__head">
-            <span class="erp-card__num">05</span>
             <div>
                 <h3 class="erp-card__title">Final remarks &amp; declaration</h3>
                 <p class="erp-card__desc">Optional remarks for the approver, then submit.</p>

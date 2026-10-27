@@ -34,30 +34,63 @@ profile form (`students.create`) is unchanged for every other flow.
 ## 2. Steps and fields
 
 ### Step 1 — Basic Information
-* Personal: first / middle / last name, date of birth, gender, category, mother
-  tongue, blood group, nationality, mobile, alternate mobile, email.
-  **Required: first name only** — the canonical Student rules are unchanged; no
-  optional field was made mandatory for the wizard.
-* Identity: Aadhaar (encrypted at rest, masked on screen), APAAR/ABC ID
-  (12 digits), other government ID (type + number pair).
-* Media: student photograph, student signature, father photograph, mother
-  photograph, guardian photograph — JPG/PNG/WebP, ≤ 2 MB, preview + replace +
-  remove, stored by `StudentPhotoService` on the private disk with a
-  server-generated name.
-* Permanent address: country → state → district → block/tehsil → village/city,
-  gram panchayat/ward, postal code, address lines 1–2.
-* Correspondence address with **Same as permanent address**. When ticked, the
-  correspondence columns are stored as `NULL` and the flag drives the display —
-  the address is never copied twice.
+
+Five sections, in this order, with plain headings (the five-step bar is the only
+numbering in the wizard):
+
+1. **Personal Details** — first / middle / last name, date of birth, gender,
+   category, mother tongue, blood group, nationality, mobile, alternate mobile,
+   email. **Required: first name only** — the canonical Student rules are
+   unchanged; no optional field was made mandatory for the wizard.
+   Identity numbers live here too: Aadhaar (encrypted at rest, masked on screen),
+   APAAR/ABC ID (12 digits), other government ID (type + number pair).
+2. **Permanent Address** — country → state → district → block/tehsil →
+   village/city, gram panchayat/ward, postal code, address lines 1–2.
+3. **Temporary Address** — the correspondence address with **Same as permanent
+   address** in its header. When ticked, the correspondence columns are stored as
+   `NULL` and the flag drives the display — the address is never copied twice.
+4. **Photograph** — student photograph, plus a compact sub-block for the father,
+   mother and guardian photographs.
+5. **Signatures** — the student signature.
+
+All five images are JPG/PNG/WebP, ≤ 2 MB, with preview + replace + remove, stored
+by `StudentPhotoService` on the private disk under a server-generated name.
+
+The card chrome is compact (tighter paddings, 12-column grid, sticky action bar)
+and uses the Deep Blue / Navy tokens: primary `#1D4ED8`, hover `#1E40AF`, navy
+`#0F172A`, page `#F8FAFC`, surface white.
+
+**Save draft vs Save & continue.** Every step — step 1 included — has a visible
+outlined **Save draft** button next to the primary **Save & continue**. Save draft
+posts to `students/registration/step/{step}/draft`: it validates the step
+leniently, stores it, keeps the applicant on the step they are editing
+(`current_step` does not move) and never submits. Save & continue validates
+strictly and advances. Both are the same controller action with a different
+`advance` flag, so the two can never drift.
 
 **Dependent selectors.** The hierarchy is `geo_locations`
 (country → state → district → block → village, self-referencing `parent_id`).
-It ships **empty on purpose**: no state/district/village names are invented by
-this application. While a level has no data the wizard renders a text input
-bound to the existing student column; as soon as an administrator loads the
-official directory (`GeoLocationSeeder`), that level becomes a dependent select
-(children only, parent change clears children, ids verified as a chain
-server-side by `GeoLocationService::resolveChain()`).
+
+* `database/data/geo_locations.json` ships the country (**India**, `IN`) and its
+  **36 states / union territories** — public administrative units with their
+  official names and ISO 3166-2 codes. Load them with
+  `php artisan db:seed --class=GeoLocationSeeder` (idempotent; re-running adds
+  only what is missing).
+* Districts, blocks and villages are **not** shipped: they must come from the
+  college's own administrative source. Point `GEO_LOCATION_SOURCE` at a JSON file
+  or a directory of JSON files and re-run the seeder; the file format is the same
+  tree documented in the seeder's header.
+* **Country defaults to India** when the directory holds it, so the state list is
+  populated instead of showing an empty box. A level becomes selectable as soon
+  as its *parent* has a value.
+* While a level has no data the wizard renders a text input bound to the existing
+  student column, with a visible note, so the form is usable with an empty
+  directory.
+* A parent change clears the child selects, and the ids are verified as a chain
+  server-side by `GeoLocationService::resolveChain()` — a village from another
+  block is a validation error, never a silent correction.
+* A resumed draft re-selects its saved chain; `GeoLocationService::selection()`
+  also fills in an ancestor that is missing from an older payload.
 
 ### Step 2 — Parent/Guardian
 * Father and mother are separate records: name, mobile, email, occupation
@@ -83,8 +116,12 @@ Two blocks that are deliberately **never mixed**:
   qualification, exam year, board/university, institution, roll no,
   registration no, subjects (structured JSON, entered as
   `Name | max | obtained` lines), marks obtained, maximum marks, percentage,
-  grade, grade letter, result status, remarks. Add / edit / remove any number of
-  rows.
+  grade, grade letter, result status, remarks.
+  * **`+ Add Qualification`** (in the card header) appends another row in place,
+    without navigating away. Rows are independently editable and removable; a
+    removed row that is already stored is flagged `remove=1` and deleted on save,
+    so deleting one row never corrupts the others. A new row gets `max + 1` as its
+    index, so indices stay stable for the life of the form.
   * `percentage` is **derived** from a valid marks pair only; a grade-based
     result keeps its grade and no percentage is written (a supplied one is
     discarded).
@@ -98,20 +135,43 @@ Two blocks that are deliberately **never mixed**:
   once, on step 1.
 
 ### Step 4 — Attach Documents
-* Course-wise requirements come from the configuration that already exists:
-  `admission_document_types` (per-college master: allowed extensions/MIMEs, max
-  size, global `is_required`) + the `admission_document_type_program` pivot
-  (`is_required`, and the new `can_submit_later`).
-  * An explicit pivot row wins over the global flag (so a course can make a
-    globally-required document optional, or vice versa).
-  * `can_submit_later = true` marks a document as "may be submitted after
-    admission" — it does not block submission.
-* Each document: type, title, file, remarks, download (authorised stream),
-  replace, remove. Status is always **awaiting verification** until a human
-  verifies it.
+
+Two compact parts, so the screen is a picker plus the cards that were picked:
+
+**A. Select documents** — one checkbox per document type, in a responsive grid
+(`.erp-doc-picker`). The list is built from the configuration that already exists:
+`admission_document_types` (per-college master: allowed extensions/MIMEs, max
+size, global `is_required`) + the `admission_document_type_program` pivot
+(`is_required`, `can_submit_later`).
+
+* An explicit pivot row wins over the global flag (so a course can make a
+  globally-required document optional, or vice versa).
+* `can_submit_later = true` marks a document as "may be submitted after
+  admission" — it does not block submission.
+* A document required by the selected course is rendered **ticked and locked**
+  (`disabled`) with a `Required` chip, so un-ticking can never make the
+  requirement disappear. Optional and deferred types are the applicant's choice.
+  Each row also shows `Uploaded` / `Not uploaded`.
+* Nothing is hard-coded: the picker only ever lists configured types, and an empty
+  master shows a clear "no document types configured" state.
+
+**B. Attach documents** — one compact card per *selected* type, each with its own
+upload form (type, file, remarks, Attach) or, when a file already exists, the
+file link + `Replace` / `Remove`. Ticking a box reveals its card; un-ticking hides
+only an *empty* card. **A card that holds a staged file is never hidden and its
+file is never discarded by a toggle** — removal is the explicit `Remove` action.
+A collapsed "attach another document" section keeps the untyped/other upload
+available without crowding the list.
+
+* The requirement check at submission reads the **stored files**, never the
+  checkbox state, so the browser cannot bypass a mandatory document
+  (`RegistrationSubmissionService::assertDocumentRequirements()`).
+* Status is always **awaiting verification** until a human verifies it in the
+  Documents module.
 * Files are stored privately under
-  `students/{college_id}/registration-drafts/{draft_id}/{uuid}.{ext}` and adopted
-  (same blob) into `student_documents` on submission.
+  `students/{college_id}/registration-drafts/{draft_id}/{uuid}.{ext}`, streamed
+  through authorised routes only, and adopted (same blob) into `student_documents`
+  on submission.
 
 ### Step 5 — Final Review
 * Four groups (Basic Information / Parent-Guardian / Academic Record /
@@ -173,10 +233,11 @@ approval flow.
 
 ## 6. Known limitations / decisions
 
-* **Geography directory is empty.** No country/state/district/block/village rows
-  are seeded by this change (inventing official names is worse than an empty
-  table). Until an administrator loads the directory, the address is free text.
-  `GeoLocationSeeder` is the extension point.
+* **Districts, blocks and villages are not shipped.** The seeder loads India and
+  its 36 states / union territories from `database/data/geo_locations.json`; the
+  deeper levels must be imported from the college's own administrative source
+  (`GEO_LOCATION_SOURCE`, JSON tree — see the seeder header). Until then those
+  levels stay free-text and the page says so. No place name is invented.
 * **No qualification is mandatory.** The canonical Student rules never required
   previous education, so the wizard does not demand a qualification row; rows
   that exist are fully validated. If a college requires at least one, that is a
@@ -197,6 +258,17 @@ multiple qualifications with marks arithmetic and grade preservation,
 course-wise required/deferred documents, upload authorization (foreign college
 type) and privacy, submission through the approval framework, duplicate
 submission prevention, tenancy isolation and permission checks.
+
+`tests/Feature/Layout/RegistrationNavigationTest.php` pins the sidebar: the
+Registration row opens the wizard, the Student List row keeps its own
+destination, exactly one of them is highlighted (including on all five wizard
+steps), and there is only one Registration row.
+
+`tests/JavaScript/registration-wizard.test.js` covers the client-side
+conveniences: the address cascade clearing children and reporting an empty
+directory, guardian auto-fill, marks/percentage arithmetic, adding and removing
+qualification rows, and the document picker showing/hiding upload cards while
+never hiding a card that holds a file.
 
 `tests/Feature/Students/StudentRegistrationApprovalTest.php` was updated for the
 new entry point (the wizard) and continues to cover the single-POST flow,

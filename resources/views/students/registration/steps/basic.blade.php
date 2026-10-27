@@ -2,8 +2,17 @@
     /*
      * STEP 1 — Basic Information.
      *
-     * Personal details, the five images (student photograph, signature, father,
-     * mother and guardian photographs) and the two addresses.
+     * Section order (fixed by the registration requirements):
+     *   1. Personal Details
+     *   2. Permanent Address
+     *   3. Temporary Address (correspondence, with "Same as permanent address")
+     *   4. Photograph
+     *   5. Signatures
+     *
+     * The headings carry no section numbering: the five-step progress bar is the
+     * only numbered navigation in the wizard, so a second "01 / 02" scale inside
+     * one step only adds noise. The cards are deliberately compact (see
+     * public/css/erp-registration-wizard.css) and use the Deep Blue / Navy tokens.
      *
      * Security notes honoured by this view:
      * - the stored Aadhaar / government ID are NEVER echoed into the page, not
@@ -16,15 +25,39 @@
      * control is a dependent <select> (children only, parent change clears the
      * children); when it does not, the control is a plain text input bound to the
      * existing student column, so the form is usable with no directory loaded.
+     * The country defaults to India when that is the directory's default and the
+     * draft has not chosen one yet, so the state list is never an empty box.
      */
     $value = fn (string $key) => old($key, $stepData[$key] ?? $merged[$key] ?? null);
-    $media = [
+
+    // Geography ids actually on screen: old() wins after a failed save, then the
+    // draft, then the directory's default country (India when present).
+    $geoValue = function (string $key) use ($geoSelection) {
+        return old($key, $geoSelection[$key] ?? null);
+    };
+
+    // The five images. Photograph and Signatures are separate SECTIONS, but both
+    // render through this one list so no upload capability can drift apart.
+    $photos = [
         'photo' => ['label' => 'Student photograph', 'column' => 'photo_path'],
-        'signature' => ['label' => 'Student signature', 'column' => 'signature_path'],
         'father_photo' => ['label' => "Father's photograph", 'column' => 'father_photo_path'],
         'mother_photo' => ['label' => "Mother's photograph", 'column' => 'mother_photo_path'],
         'guardian_photo' => ['label' => "Guardian's photograph", 'column' => 'guardian_photo_path'],
     ];
+    $signatures = [
+        'signature' => ['label' => 'Student signature', 'column' => 'signature_path'],
+    ];
+
+    // The address directory: one definition used by BOTH address blocks, so the
+    // two can never drift (permanent uses the ids, temporary mirrors the text).
+    $levels = [
+        ['level' => 'country', 'id' => 'country_id', 'text' => 'country', 'label' => 'Country'],
+        ['level' => 'state', 'id' => 'state_id', 'text' => 'state', 'label' => 'State'],
+        ['level' => 'district', 'id' => 'district_id', 'text' => 'district', 'label' => 'District'],
+        ['level' => 'block', 'id' => 'block_id', 'text' => 'block_tehsil', 'label' => 'Block / Tehsil'],
+        ['level' => 'village', 'id' => 'village_id', 'text' => 'city', 'label' => 'Village / City'],
+    ];
+    $directoryLoaded = in_array(true, $addressLevels, true);
 @endphp
 
 <form id="erp-step-form" data-erp-step-form method="POST" action="{{ route('students.registration.step.save', ['step' => 1]) }}"
@@ -32,12 +65,11 @@
     @csrf
     <input type="hidden" name="draft_id" value="{{ $draftId }}">
 
-    {{-- --- Personal details ------------------------------------------------ --}}
-    <section class="erp-card erp-wizard__card">
+    {{-- --- 1. Personal Details --------------------------------------------- --}}
+    <section class="erp-card erp-wizard__card" aria-labelledby="wz-basic-personal">
         <header class="erp-card__head">
-            <span class="erp-card__num">01</span>
             <div>
-                <h3 class="erp-card__title">Personal details</h3>
+                <h3 class="erp-card__title" id="wz-basic-personal">Personal Details</h3>
                 <p class="erp-card__desc">As printed on the student's certificates.</p>
             </div>
         </header>
@@ -164,165 +196,181 @@
         </div>
     </section>
 
-    {{-- --- Photographs and signature --------------------------------------- --}}
-    <section class="erp-card erp-wizard__card">
+    {{-- --- 2. Permanent Address ------------------------------------------- --}}
+    <section class="erp-card erp-wizard__card" aria-labelledby="wz-basic-permanent">
         <header class="erp-card__head">
-            <span class="erp-card__num">02</span>
             <div>
-                <h3 class="erp-card__title">Photographs &amp; signature</h3>
-                <p class="erp-card__desc">JPG, PNG or WebP · up to 2 MB each. Stored privately.</p>
+                <h3 class="erp-card__title" id="wz-basic-permanent">Permanent Address</h3>
+                <p class="erp-card__desc">
+                    @if($directoryLoaded)
+                        Country → State → District → Block → Village. Changing a level clears the levels below it.
+                    @else
+                        No geography directory is loaded for this college yet, so the address is entered as text.
+                    @endif
+                </p>
             </div>
         </header>
 
         <div class="erp-card__body">
-            <div class="erp-media-grid">
-                @foreach($media as $field => $meta)
-                    @php $stored = $value($meta['column']); @endphp
-                    <div class="erp-media">
-                        <span class="erp-media__label">{{ $meta['label'] }}</span>
-                        <div class="erp-media__preview" id="preview-{{ $field }}">
-                            @if($stored)
-                                <img src="{{ route('students.registration.image', ['field' => $field]) }}" alt="{{ $meta['label'] }}">
-                            @else
-                                <span class="erp-media__empty">No file yet</span>
+            <div class="erp-grid">
+                @foreach($levels as $index => $entry)
+                    @php
+                        // A level is selectable as soon as its PARENT has a value:
+                        // with the country pre-selected (India), the state list is
+                        // immediately usable instead of a disabled empty box.
+                        $parentEntry = $index > 0 ? $levels[$index - 1] : null;
+                        $levelDisabled = $parentEntry !== null && blank($geoValue($parentEntry['id']));
+                    @endphp
+                    <div class="erp-field erp-col-3">
+                        @if($addressLevels[$entry['level']])
+                            <label class="erp-label" for="{{ $entry['id'] }}">{{ $entry['label'] }}</label>
+                            <select class="erp-input" id="{{ $entry['id'] }}" name="{{ $entry['id'] }}"
+                                    data-geo-level="{{ $entry['level'] }}"
+                                    data-empty-label="— Select {{ strtolower($entry['label']) }} —"
+                                    @if($levelDisabled) disabled @endif>
+                                <option value="">{{ $geoOptions[$entry['level']]->isEmpty() ? '— Not configured —' : '— Select '.strtolower($entry['label']).' —' }}</option>
+                                @foreach($geoOptions[$entry['level']] as $option)
+                                    <option value="{{ $option->id }}" @selected((string) $geoValue($entry['id']) === (string) $option->id)>{{ $option->name }}</option>
+                                @endforeach
+                            </select>
+                            @if($entry['level'] === 'country' && $geoOptions['country']->isEmpty())
+                                <p class="erp-help">No country is configured in the geography directory.</p>
                             @endif
-                        </div>
-                        <input type="file" id="{{ $field }}" name="{{ $field }}"
-                               accept="image/jpeg,image/png,image/webp"
-                               aria-label="{{ $meta['label'] }}"
-                               data-erp-image-input="preview-{{ $field }}">
-                        @if($stored)
-                            <label class="erp-check erp-media__remove">
-                                <input type="checkbox" name="remove_{{ $field }}" value="1"> Remove
-                            </label>
+                            <p class="erp-error">@error($entry['id']){{ $message }}@enderror</p>
+                        @else
+                            <label class="erp-label" for="{{ $entry['text'] }}">{{ $entry['label'] }}</label>
+                            <input class="erp-input" id="{{ $entry['text'] }}" name="{{ $entry['text'] }}"
+                                   value="{{ $value($entry['text']) }}" maxlength="100">
+                            <p class="erp-error">@error($entry['text']){{ $message }}@enderror</p>
                         @endif
-                        <p class="erp-error">@error($field){{ $message }}@enderror</p>
                     </div>
                 @endforeach
+
+                <div class="erp-field erp-col-3">
+                    <label class="erp-label" for="gram_panchayat_ward">Gram panchayat / Ward</label>
+                    <input class="erp-input" id="gram_panchayat_ward" name="gram_panchayat_ward" value="{{ $value('gram_panchayat_ward') }}" maxlength="150">
+                    <p class="erp-error">@error('gram_panchayat_ward'){{ $message }}@enderror</p>
+                </div>
+                <div class="erp-field erp-col-3">
+                    <label class="erp-label" for="postal_code">Postal code</label>
+                    <input class="erp-input" id="postal_code" name="postal_code" value="{{ $value('postal_code') }}" maxlength="20" inputmode="numeric" autocomplete="postal-code">
+                    <p class="erp-error">@error('postal_code'){{ $message }}@enderror</p>
+                </div>
+                <div class="erp-field erp-col-6">
+                    <label class="erp-label" for="address_line_1">Address line 1</label>
+                    <input class="erp-input" id="address_line_1" name="address_line_1" value="{{ $value('address_line_1') }}" maxlength="2000" autocomplete="address-line1">
+                    <p class="erp-error">@error('address_line_1'){{ $message }}@enderror</p>
+                </div>
+                <div class="erp-field erp-col-6">
+                    <label class="erp-label" for="address_line_2">Address line 2</label>
+                    <input class="erp-input" id="address_line_2" name="address_line_2" value="{{ $value('address_line_2') }}" maxlength="2000" autocomplete="address-line2">
+                    <p class="erp-error">@error('address_line_2'){{ $message }}@enderror</p>
+                </div>
             </div>
         </div>
     </section>
 
-    {{-- --- Permanent address ---------------------------------------------- --}}
-    <div class="erp-address">
-        <h3 class="erp-address__title">Permanent address</h3>
-        <p class="erp-address__note">
-            @if(in_array(true, $addressLevels, true))
-                Country, state, district, block and village are linked: changing one clears the levels below it.
-            @else
-                No geography directory is loaded for this college yet, so the address is entered as text.
-            @endif
-        </p>
-
-        <div class="erp-grid">
-            @php
-                $levels = [
-                    ['level' => 'country', 'id' => 'country_id', 'text' => 'country', 'label' => 'Country'],
-                    ['level' => 'state', 'id' => 'state_id', 'text' => 'state', 'label' => 'State'],
-                    ['level' => 'district', 'id' => 'district_id', 'text' => 'district', 'label' => 'District'],
-                    ['level' => 'block', 'id' => 'block_id', 'text' => 'block_tehsil', 'label' => 'Block / Tehsil'],
-                    ['level' => 'village', 'id' => 'village_id', 'text' => 'city', 'label' => 'Village / City'],
-                ];
-            @endphp
-
-            @foreach($levels as $entry)
-                <div class="erp-field erp-col-3">
-                    @if($addressLevels[$entry['level']])
-                        <label class="erp-label" for="{{ $entry['id'] }}">{{ $entry['label'] }}</label>
-                        <select class="erp-input" id="{{ $entry['id'] }}" name="{{ $entry['id'] }}"
-                                data-geo-level="{{ $entry['level'] }}"
-                                data-empty-label="— Select {{ strtolower($entry['label']) }} —"
-                                @if($entry['level'] !== 'country' && blank($value($entry['id']))) disabled @endif>
-                            <option value="">— Select {{ strtolower($entry['label']) }} —</option>
-                            @foreach($geoOptions[$entry['level']] as $option)
-                                <option value="{{ $option->id }}" @selected((string) $value($entry['id']) === (string) $option->id)>{{ $option->name }}</option>
-                            @endforeach
-                        </select>
-                        <p class="erp-error">@error($entry['id']){{ $message }}@enderror</p>
-                    @else
-                        <label class="erp-label" for="{{ $entry['text'] }}">{{ $entry['label'] }}</label>
-                        <input class="erp-input" id="{{ $entry['text'] }}" name="{{ $entry['text'] }}"
-                               value="{{ $value($entry['text']) }}" maxlength="{{ $entry['level'] === 'village' ? 100 : 100 }}">
-                        <p class="erp-error">@error($entry['text']){{ $message }}@enderror</p>
-                    @endif
-                </div>
-            @endforeach
-
-            <div class="erp-field erp-col-3">
-                <label class="erp-label" for="gram_panchayat_ward">Gram panchayat / Ward</label>
-                <input class="erp-input" id="gram_panchayat_ward" name="gram_panchayat_ward" value="{{ $value('gram_panchayat_ward') }}" maxlength="150">
-                <p class="erp-error">@error('gram_panchayat_ward'){{ $message }}@enderror</p>
-            </div>
-            <div class="erp-field erp-col-3">
-                <label class="erp-label" for="postal_code">Postal code</label>
-                <input class="erp-input" id="postal_code" name="postal_code" value="{{ $value('postal_code') }}" maxlength="20" inputmode="numeric" autocomplete="postal-code">
-                <p class="erp-error">@error('postal_code'){{ $message }}@enderror</p>
-            </div>
-            <div class="erp-field erp-col-6">
-                <label class="erp-label" for="address_line_1">Address line 1</label>
-                <input class="erp-input" id="address_line_1" name="address_line_1" value="{{ $value('address_line_1') }}" maxlength="2000" autocomplete="address-line1">
-                <p class="erp-error">@error('address_line_1'){{ $message }}@enderror</p>
-            </div>
-            <div class="erp-field erp-col-6">
-                <label class="erp-label" for="address_line_2">Address line 2</label>
-                <input class="erp-input" id="address_line_2" name="address_line_2" value="{{ $value('address_line_2') }}" maxlength="2000" autocomplete="address-line2">
-                <p class="erp-error">@error('address_line_2'){{ $message }}@enderror</p>
-            </div>
-        </div>
-    </div>
-
-    {{-- --- Correspondence address ----------------------------------------- --}}
+    {{-- --- 3. Temporary Address (correspondence) --------------------------- --}}
     @php
         $sameAsPermanent = old('correspondence_same_as_permanent', $stepData['correspondence_same_as_permanent'] ?? true);
         $sameAsPermanent = filter_var($sameAsPermanent, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true;
     @endphp
 
-    <div class="erp-address">
-        <div class="erp-address__head">
-            <h3 class="erp-address__title">Correspondence address</h3>
-        </div>
-        <p class="erp-address__note">
-            <label class="erp-checkline">
+    <section class="erp-card erp-wizard__card" aria-labelledby="wz-basic-temporary">
+        <header class="erp-card__head">
+            <div>
+                <h3 class="erp-card__title" id="wz-basic-temporary">Temporary Address</h3>
+                <p class="erp-card__desc">Where the student can be reached during the course.</p>
+            </div>
+            <label class="erp-checkline erp-wizard__card-toggle">
                 <input type="hidden" name="correspondence_same_as_permanent" value="0">
                 <input type="checkbox" name="correspondence_same_as_permanent" value="1"
                        data-erp-same-address @checked($sameAsPermanent)>
                 Same as permanent address
             </label>
-        </p>
+        </header>
 
-        <div class="erp-grid" data-erp-correspondence @if($sameAsPermanent) hidden @endif>
-            <div class="erp-field erp-col-6">
-                <label class="erp-label" for="correspondence_address_line_1">Address line 1</label>
-                <input class="erp-input" id="correspondence_address_line_1" name="correspondence_address_line_1"
-                       value="{{ $value('correspondence_address_line_1') }}" maxlength="2000">
+        <div class="erp-card__body">
+            <div class="erp-grid" data-erp-correspondence @if($sameAsPermanent) hidden @endif>
+                <div class="erp-field erp-col-6">
+                    <label class="erp-label" for="correspondence_address_line_1">Address line 1</label>
+                    <input class="erp-input" id="correspondence_address_line_1" name="correspondence_address_line_1"
+                           value="{{ $value('correspondence_address_line_1') }}" maxlength="2000">
+                </div>
+                <div class="erp-field erp-col-6">
+                    <label class="erp-label" for="correspondence_address_line_2">Address line 2</label>
+                    <input class="erp-input" id="correspondence_address_line_2" name="correspondence_address_line_2"
+                           value="{{ $value('correspondence_address_line_2') }}" maxlength="2000">
+                </div>
+                <div class="erp-field erp-col-3">
+                    <label class="erp-label" for="correspondence_city">Village / City</label>
+                    <input class="erp-input" id="correspondence_city" name="correspondence_city" value="{{ $value('correspondence_city') }}" maxlength="100">
+                </div>
+                <div class="erp-field erp-col-3">
+                    <label class="erp-label" for="correspondence_district">District</label>
+                    <input class="erp-input" id="correspondence_district" name="correspondence_district" value="{{ $value('correspondence_district') }}" maxlength="100">
+                </div>
+                <div class="erp-field erp-col-3">
+                    <label class="erp-label" for="correspondence_state">State</label>
+                    <input class="erp-input" id="correspondence_state" name="correspondence_state" value="{{ $value('correspondence_state') }}" maxlength="100">
+                </div>
+                <div class="erp-field erp-col-3">
+                    <label class="erp-label" for="correspondence_postal_code">Postal code</label>
+                    <input class="erp-input" id="correspondence_postal_code" name="correspondence_postal_code" value="{{ $value('correspondence_postal_code') }}" maxlength="20">
+                </div>
+                <div class="erp-field erp-col-3">
+                    <label class="erp-label" for="correspondence_country">Country</label>
+                    <input class="erp-input" id="correspondence_country" name="correspondence_country" value="{{ $value('correspondence_country') }}" maxlength="100">
+                </div>
             </div>
-            <div class="erp-field erp-col-6">
-                <label class="erp-label" for="correspondence_address_line_2">Address line 2</label>
-                <input class="erp-input" id="correspondence_address_line_2" name="correspondence_address_line_2"
-                       value="{{ $value('correspondence_address_line_2') }}" maxlength="2000">
-            </div>
-            <div class="erp-field erp-col-3">
-                <label class="erp-label" for="correspondence_city">Village / City</label>
-                <input class="erp-input" id="correspondence_city" name="correspondence_city" value="{{ $value('correspondence_city') }}" maxlength="100">
-            </div>
-            <div class="erp-field erp-col-3">
-                <label class="erp-label" for="correspondence_district">District</label>
-                <input class="erp-input" id="correspondence_district" name="correspondence_district" value="{{ $value('correspondence_district') }}" maxlength="100">
-            </div>
-            <div class="erp-field erp-col-3">
-                <label class="erp-label" for="correspondence_state">State</label>
-                <input class="erp-input" id="correspondence_state" name="correspondence_state" value="{{ $value('correspondence_state') }}" maxlength="100">
-            </div>
-            <div class="erp-field erp-col-3">
-                <label class="erp-label" for="correspondence_postal_code">Postal code</label>
-                <input class="erp-input" id="correspondence_postal_code" name="correspondence_postal_code" value="{{ $value('correspondence_postal_code') }}" maxlength="20">
-            </div>
-            <div class="erp-field erp-col-3">
-                <label class="erp-label" for="correspondence_country">Country</label>
-                <input class="erp-input" id="correspondence_country" name="correspondence_country" value="{{ $value('correspondence_country') }}" maxlength="100">
-            </div>
+
+            <p class="erp-help" data-erp-same-address-note @if(! $sameAsPermanent) hidden @endif>
+                The permanent address above is used as the correspondence address.
+            </p>
         </div>
-    </div>
+    </section>
+
+    {{-- --- 4. Photograph --------------------------------------------------- --}}
+    <section class="erp-card erp-wizard__card" aria-labelledby="wz-basic-photograph">
+        <header class="erp-card__head">
+            <div>
+                <h3 class="erp-card__title" id="wz-basic-photograph">Photograph</h3>
+                <p class="erp-card__desc">JPG, PNG or WebP · up to 2 MB each. Stored privately.</p>
+            </div>
+        </header>
+
+        <div class="erp-card__body">
+            @include('students.registration._media_field', ['fields' => ['photo' => $photos['photo']], 'value' => $value])
+
+            <p class="erp-subhead">
+                Parent &amp; guardian photographs
+                <span class="erp-subhead__hint">Optional — one file per person.</span>
+            </p>
+
+            @include('students.registration._media_field', [
+                'fields' => [
+                    'father_photo' => $photos['father_photo'],
+                    'mother_photo' => $photos['mother_photo'],
+                    'guardian_photo' => $photos['guardian_photo'],
+                ],
+                'value' => $value,
+            ])
+        </div>
+    </section>
+
+    {{-- --- 5. Signatures --------------------------------------------------- --}}
+    <section class="erp-card erp-wizard__card" aria-labelledby="wz-basic-signature">
+        <header class="erp-card__head">
+            <div>
+                <h3 class="erp-card__title" id="wz-basic-signature">Signatures</h3>
+                <p class="erp-card__desc">A clear signature image on plain paper.</p>
+            </div>
+        </header>
+
+        <div class="erp-card__body">
+            @include('students.registration._media_field', ['fields' => $signatures, 'value' => $value])
+        </div>
+    </section>
 
     @include('students.registration._actions', ['step' => 1, 'draftId' => $draftId, 'submitMode' => false])
 </form>

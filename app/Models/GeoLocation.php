@@ -12,9 +12,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Intentionally NOT college-scoped: a state is not a per-college fact, and
  * duplicating the directory per college is how reference data drifts.
  *
- * Ships empty. Nothing in this application invents region names; an
- * administrator loads the official directory (GeoLocationSeeder) and the
- * registration form switches from free-text inputs to dependent selects.
+ * Ships with the country and its states / union territories (public
+ * administrative units, loaded by GeoLocationSeeder from
+ * database/data/geo_locations.json). Districts, blocks and villages come from
+ * the college's own source; nothing here invents a place name. While a level
+ * has no rows, the registration form uses free-text inputs for that level and
+ * switches to a dependent select as soon as the data exists.
  */
 class GeoLocation extends Model
 {

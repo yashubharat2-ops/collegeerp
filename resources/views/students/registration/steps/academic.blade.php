@@ -4,11 +4,11 @@
      *
      * Two clearly separated blocks, because they are different facts:
      *
-     *   01 Previous qualifications — results earned OUTSIDE this college
+     *   Previous qualifications — results earned OUTSIDE this college
      *      (Class 10, Class 12, Graduation, Post Graduation, Other). Many rows;
      *      each has its own board/university, marks or grade.
      *
-     *   02 Current enrollment — the course this student is joining. This is
+     *   Current course / enrollment — the course this student is joining. This is
      *      captured as the ACADEMIC CONTEXT of the registration; no enrollment
      *      row is created here. The approver creates it when the registration is
      *      approved, so a saved draft can never look like an approved admission.
@@ -26,17 +26,24 @@
     @csrf
     <input type="hidden" name="draft_id" value="{{ $draftId }}">
 
-    {{-- --- 01 Previous qualifications ------------------------------------- --}}
-    <section class="erp-card erp-wizard__card">
+    {{-- --- Previous qualifications ----------------------------------------- --}}
+    <section class="erp-card erp-wizard__card" aria-labelledby="wz-qualifications">
         <header class="erp-card__head">
-            <span class="erp-card__num">01</span>
             <div>
-                <h3 class="erp-card__title">Previous qualifications</h3>
+                <h3 class="erp-card__title" id="wz-qualifications">Previous qualifications</h3>
                 <p class="erp-card__desc">Results from other boards or universities. Add one row per qualification.</p>
             </div>
+            <button class="erp-btn erp-btn--outline erp-btn--sm erp-wizard__card-toggle" type="button"
+                    data-erp-qualification-add>
+                + Add Qualification
+            </button>
         </header>
 
         <div class="erp-card__body">
+            <p class="erp-alert erp-alert--info" data-erp-qualifications-empty @if($rows !== []) hidden @endif>
+                No qualification added yet. Use “+ Add Qualification” to record Class 10, Class 12 or a degree.
+            </p>
+
             <div data-erp-qualifications>
                 @foreach($rows as $index => $row)
                     @include('students.registration._qualification', [
@@ -46,28 +53,17 @@
                 @endforeach
             </div>
 
-            @if($rows === [])
-                <p class="erp-alert erp-alert--info">No qualification added yet. Use “Add qualification” to record Class 10, Class 12 or a degree.</p>
-            @endif
-
-            <p>
-                <button class="erp-btn erp-btn--ghost erp-btn--sm" type="button" data-erp-qualification-add>
-                    Add qualification
-                </button>
-            </p>
-
             <template data-erp-qualification-template>
                 @include('students.registration._qualification', ['index' => '__INDEX__', 'row' => []])
             </template>
         </div>
     </section>
 
-    {{-- --- 02 Current enrollment context ---------------------------------- --}}
-    <section class="erp-card erp-wizard__card">
+    {{-- --- Current course / enrollment context ----------------------------- --}}
+    <section class="erp-card erp-wizard__card" aria-labelledby="wz-current-course">
         <header class="erp-card__head">
-            <span class="erp-card__num">02</span>
             <div>
-                <h3 class="erp-card__title">Current course / enrollment</h3>
+                <h3 class="erp-card__title" id="wz-current-course">Current Course</h3>
                 <p class="erp-card__desc">The course being joined. An enrollment is created only when the registration is approved.</p>
             </div>
         </header>

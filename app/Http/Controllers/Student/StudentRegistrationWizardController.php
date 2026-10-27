@@ -90,11 +90,14 @@ class StudentRegistrationWizardController extends Controller
         }
 
         $collegeId = (int) app(TenantContext::class)->id();
-        $draft = $this->resolveDraft($request);
 
-        if ($draft === null) {
-            return redirect()->route('students.registration.create');
-        }
+        // Opening a step of a wizard that has no draft yet starts the draft, just
+        // like the entry point does. This also keeps a REJECTED save's feedback
+        // on screen: the step the request failed on is rendered directly (with
+        // the flashed errors and old input) instead of bouncing through
+        // create → step, a chain long enough to consume the flash.
+        $draft = $this->resolveDraft($request)
+            ?? $this->drafts->startOrResume($collegeId, (int) $request->user()->getKey());
 
         if ($draft->isSubmitted()) {
             return redirect()
@@ -303,6 +306,9 @@ class StudentRegistrationWizardController extends Controller
     public function submit(SubmitRegistrationRequest $request): RedirectResponse
     {
         $collegeId = (int) app(TenantContext::class)->id();
+
+        // Submitting never creates a draft: there is nothing to submit yet, so
+        // the applicant is sent to the wizard entry point instead.
         $draft = $this->resolveDraft($request);
 
         if ($draft === null) {
@@ -594,14 +600,21 @@ class StudentRegistrationWizardController extends Controller
                 $addressLevels[$level] = $this->geo->hasLevel($level);
             }
 
+            // The ids the five selects are rendered with. The service fills in
+            // any missing ancestor from the directory (a resumed draft may hold
+            // a stale/partial chain) and falls back to the default country, so
+            // the state list is populated instead of showing an empty box.
+            $geoSelection = $this->geo->selection($merged);
+
             return [
                 'addressLevels' => $addressLevels,
+                'geoSelection' => $geoSelection,
                 'geoOptions' => [
                     'country' => $this->geo->options(GeoLocation::LEVEL_COUNTRY),
-                    'state' => $this->geo->options(GeoLocation::LEVEL_STATE, $merged['country_id'] ?? null),
-                    'district' => $this->geo->options(GeoLocation::LEVEL_DISTRICT, $merged['state_id'] ?? null),
-                    'block' => $this->geo->options(GeoLocation::LEVEL_BLOCK, $merged['district_id'] ?? null),
-                    'village' => $this->geo->options(GeoLocation::LEVEL_VILLAGE, $merged['block_id'] ?? null),
+                    'state' => $this->geo->options(GeoLocation::LEVEL_STATE, $geoSelection['country_id']),
+                    'district' => $this->geo->options(GeoLocation::LEVEL_DISTRICT, $geoSelection['state_id']),
+                    'block' => $this->geo->options(GeoLocation::LEVEL_BLOCK, $geoSelection['district_id']),
+                    'village' => $this->geo->options(GeoLocation::LEVEL_VILLAGE, $geoSelection['block_id']),
                 ],
                 'aadhaarMasked' => Aadhaar::mask($draft->stepData(1)['aadhaar_last4'] ?? null),
                 'hasGovtId' => filled($draft->stepData(1)['govt_id_number_encrypted'] ?? null),

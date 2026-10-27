@@ -12,13 +12,18 @@
  */
 
 .erp-wizard {
-    --wz-navy: #0f2a4a;
-    --wz-navy-soft: #1d3f68;
-    --wz-line: #d7dee8;
-    --wz-muted: #5c6b80;
+    /* Deep Blue & Navy tokens (public/css/erp-theme.css):
+       primary #1D4ED8 · hover #1E40AF · navy #0F172A · page #F8FAFC · surface #fff. */
+    --wz-primary: #1d4ed8;
+    --wz-primary-hover: #1e40af;
+    --wz-navy: #0f172a;
+    --wz-navy-soft: #1e3a8a;
+    --wz-line: #e2e8f0;
+    --wz-muted: #64748b;
     --wz-ok: #12684a;
     --wz-warn: #8a5a00;
     --wz-err: #a3242b;
+    --wz-bg: #f8fafc;
 }
 
 /* ---------- Progress indicator ---------- */
@@ -119,18 +124,82 @@
 
 /* ---------- Card + footer ---------- */
 
-.erp-wizard__card { margin-bottom: 16px; }
+.erp-wizard__card {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+/* The wizard's own card chrome: compact header, no section numbering. */
+.erp-wizard__card .erp-card__head {
+    align-items: center;
+    padding: 6px 10px;
+    gap: 6px;
+}
+
+.erp-wizard__card .erp-card__body { padding: 8px 10px 10px; }
+
+.erp-wizard__card .erp-card__title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--wz-navy);
+}
+
+.erp-wizard__card .erp-card__desc { font-size: 11.5px; margin-top: 1px; }
+
+/* A header-row control ("Same as permanent address") sits at the end of the
+   card's header strip instead of consuming a row of its own. */
+.erp-wizard__card-toggle { margin-left: auto; align-self: center; }
+
+@media (max-width: 767px) {
+    .erp-wizard__card-toggle { margin-left: 0; margin-top: 6px; }
+}
+
+.erp-wizard__card .erp-grid { gap: 8px 10px; margin-top: 2px; }
+
+.erp-wizard__card .erp-label { font-size: 11.5px; }
+
+.erp-wizard__card .erp-input,
+.erp-wizard__card select.erp-input { height: 32px; font-size: 13px; }
+
+.erp-wizard__card textarea.erp-input { height: auto; }
+
+/* A section that is not a .erp-card (address blocks): same compact rhythm. */
+.erp-wizard .erp-address { padding: 8px 10px; margin-bottom: 10px; }
+.erp-wizard .erp-address__title { font-size: 13px; margin-bottom: 2px; }
+.erp-wizard .erp-address__note { font-size: 11.5px; margin-bottom: 4px; }
+
+/* Section sub-heading inside a card ("Parent & guardian photographs"). */
+.erp-subhead {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 10px 0 6px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--wz-line);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--wz-navy);
+}
+
+.erp-subhead:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+
+.erp-subhead__hint { font-weight: 400; font-size: 11.5px; color: var(--wz-muted); }
 
 .erp-wizard__footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 4;
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 14px;
+    margin: 10px 0 0;
+    padding: 8px 10px;
     border: 1px solid var(--wz-line);
     border-radius: 8px;
-    background: #fbfcfe;
+    background: #ffffff;
+    box-shadow: 0 -1px 0 rgba(15, 23, 42, .04), 0 -6px 16px rgba(15, 23, 42, .05);
 }
 
 .erp-wizard__footer-group {
@@ -141,9 +210,25 @@
 }
 
 .erp-wizard__hint {
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--wz-muted);
     margin: 0;
+}
+
+/* Save draft is a real, visible outlined action — not a link that reads like
+   plain text — so step 1 offers the same explicit save the other steps do. */
+.erp-btn--outline {
+    background: #fff;
+    color: var(--wz-primary);
+    border: 1px solid var(--wz-primary);
+    text-decoration: none;
+}
+
+.erp-btn--outline:hover,
+.erp-btn--outline:focus-visible {
+    background: #eff6ff;
+    border-color: var(--wz-primary-hover);
+    color: var(--wz-primary-hover);
 }
 
 .erp-wizard form { margin: 0; }
@@ -152,14 +237,16 @@
 
 .erp-media-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 8px;
 }
+
+.erp-media-grid--wide { grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); }
 
 .erp-media {
     border: 1px solid var(--wz-line);
     border-radius: 8px;
-    padding: 10px;
+    padding: 8px;
     background: #fff;
     text-align: center;
 }
@@ -169,8 +256,8 @@
     align-items: center;
     justify-content: center;
     width: 100%;
-    height: 92px;
-    margin-bottom: 8px;
+    height: 76px;
+    margin-bottom: 6px;
     border: 1px dashed var(--wz-line);
     border-radius: 6px;
     background: #f7f9fc;
@@ -179,7 +266,7 @@
 
 .erp-media__preview img {
     max-width: 100%;
-    max-height: 92px;
+    max-height: 76px;
     object-fit: contain;
 }
 
@@ -314,6 +401,123 @@
 
 /* ---------- Documents ---------- */
 
+/* Part A — the compact checkbox grid of configured document types. */
+.erp-doc-picker {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.erp-doc-picker li { margin: 0; padding: 0; min-width: 0; list-style: none; }
+
+.erp-doc-option {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid var(--wz-line);
+    border-radius: 6px;
+    background: #fff;
+    font-size: 12.5px;
+    color: var(--wz-navy);
+}
+
+.erp-doc-option:hover { border-color: #c7d5ea; background: #f8fbff; }
+
+.erp-doc-option input[type="checkbox"] { flex: 0 0 auto; margin: 0; }
+
+.erp-doc-option__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.erp-doc-option__state { flex: 0 0 auto; font-size: 11px; color: var(--wz-muted); }
+
+/* A document the course requires cannot be unticked: it reads as locked, not
+   as broken. */
+.erp-doc-option--required { background: #f5f8ff; border-color: #c7d5ea; }
+.erp-doc-option--required .erp-doc-option__label { color: var(--wz-primary); }
+
+/* Part B — one compact upload card per selected type. */
+.erp-doc-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 8px;
+}
+
+.erp-doc-card {
+    border: 1px solid var(--wz-line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: #fff;
+    min-width: 0;
+}
+
+.erp-doc-card[hidden] { display: none; }
+
+.erp-doc-card--attached { border-color: #bfe3d0; background: #f7fdf9; }
+
+.erp-doc-card__head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+
+.erp-doc-card__title {
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--wz-navy);
+}
+
+.erp-doc-card__file {
+    margin: 6px 0 0;
+    font-size: 11.5px;
+    color: var(--wz-muted);
+    overflow-wrap: anywhere;
+}
+
+.erp-doc-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-top: 6px;
+}
+
+.erp-doc-card__actions form { display: inline; }
+
+.erp-doc-card input[type="file"] { width: 100%; font-size: 11.5px; }
+
+.erp-doc-other {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--wz-line);
+}
+
+.erp-doc-other > summary {
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--wz-primary);
+}
+
+.erp-doc-other[open] > summary { margin-bottom: 8px; }
+
+.erp-doc-other .erp-upload-row { align-items: end; }
+
+/* ---------- Documents (legacy shared blocks) ---------- */
+
 .erp-req-list { list-style: none; margin: 0 0 14px; padding: 0; }
 
 .erp-req-list li {
@@ -346,6 +550,7 @@
 .erp-chip--uploaded { background: #eaf2ff; color: var(--wz-navy-soft); border-color: #cbdcef; }
 .erp-chip--verified { background: #e7f4ee; color: var(--wz-ok); border-color: #bfe0d1; }
 .erp-chip--missing { background: #fdecec; color: var(--wz-err); border-color: #f3c9cb; }
+.erp-chip--not-uploaded { background: #f1f5f9; color: var(--wz-muted); border-color: var(--wz-line); }
 
 .erp-doc-table { width: 100%; border-collapse: collapse; }
 
@@ -451,8 +656,13 @@
     .erp-upload-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+@media (max-width: 1023px) {
+    .erp-doc-cards { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 767px) {
     .erp-steps { grid-template-columns: 1fr; }
+    .erp-doc-picker { grid-template-columns: 1fr; }
     .erp-steps__item::after { display: none; }
     .erp-wizard__footer { flex-direction: column-reverse; align-items: stretch; }
     .erp-wizard__footer-group { justify-content: space-between; }

@@ -50,6 +50,86 @@ class GeoLocationService
     }
 
     /**
+     * The country pre-selected for a new address: `IN` when the directory has
+     * it (the application's own country), otherwise the first root country.
+     *
+     * Returning an id rather than writing the text keeps the default honest — a
+     * college whose directory only holds another country gets that country, and
+     * one with an empty directory gets null and the free-text fallback.
+     */
+    public function defaultCountryId(): ?int
+    {
+        $country = GeoLocation::query()
+            ->where('level', GeoLocation::LEVEL_COUNTRY)
+            ->where('is_active', true)
+            ->whereNull('parent_id')
+            ->orderByRaw("CASE WHEN UPPER(COALESCE(code, '')) = 'IN' THEN 0 WHEN name = 'India' THEN 0 ELSE 1 END")
+            ->orderBy('name')
+            ->first(['id']);
+
+        return $country !== null ? (int) $country->id : null;
+    }
+
+    /**
+     * The ids to render in the five address selects.
+     *
+     * The draft is the source of truth, but a draft can hold a stale or partial
+     * chain (a saved state with no country because the level did not exist yet).
+     * The missing ancestors are filled from the directory, and the country falls
+     * back to {@see defaultCountryId()}, which is what makes the state list
+     * populate on a resumed draft instead of showing an empty select.
+     *
+     * @param  array<string, mixed>  $merged
+     * @return array{country_id: int|null, state_id: int|null, district_id: int|null, block_id: int|null, village_id: int|null}
+     */
+    public function selection(array $merged): array
+    {
+        $keys = ['country_id', 'state_id', 'district_id', 'block_id', 'village_id'];
+        $selection = [];
+
+        foreach ($keys as $key) {
+            $value = $merged[$key] ?? null;
+            $selection[$key] = $value === null || $value === '' ? null : (int) $value;
+        }
+
+        // Walk down from the deepest id that is present and fill the ancestors.
+        $deepest = null;
+
+        foreach (['village_id', 'block_id', 'district_id', 'state_id'] as $key) {
+            if ($selection[$key] !== null) {
+                $deepest = $selection[$key];
+                break;
+            }
+        }
+
+        if ($deepest !== null) {
+            $chain = $this->ancestors($deepest);
+
+            $columns = [
+                GeoLocation::LEVEL_COUNTRY => 'country_id',
+                GeoLocation::LEVEL_STATE => 'state_id',
+                GeoLocation::LEVEL_DISTRICT => 'district_id',
+                GeoLocation::LEVEL_BLOCK => 'block_id',
+                GeoLocation::LEVEL_VILLAGE => 'village_id',
+            ];
+
+            foreach ($chain as $node) {
+                $key = $columns[$node['level']] ?? null;
+
+                if ($key !== null) {
+                    $selection[$key] = $node['id'];
+                }
+            }
+        }
+
+        if ($selection['country_id'] === null) {
+            $selection['country_id'] = $this->defaultCountryId();
+        }
+
+        return $selection;
+    }
+
+    /**
      * Does the directory hold data for this level? This is what the view asks
      * before deciding between a dependent <select> and a free-text input.
      */
