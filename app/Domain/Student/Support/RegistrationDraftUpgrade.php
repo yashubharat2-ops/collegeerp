@@ -126,27 +126,42 @@ final class RegistrationDraftUpgrade
         return $upgraded;
     }
 
-    /** Old `current_step` → the step it corresponds to in the new wizard. */
+    /**
+     * Old `current_step` → the step it corresponds to in the new wizard.
+     *
+     * ONLY for a payload {@see isLegacyPayload()} accepts: step 2 of the old
+     * shape was Parent/Guardian, so mapping it is not the identity. Running a
+     * CURRENT step number through this method would move a draft parked on step
+     * 2 back to step 1 (and one on step 4 back to step 3) — see resumeStep().
+     */
     public static function upgradeStep(int $step): int
     {
-        return self::STEP_MAP[$step] ?? min(max($step, 1), RegistrationStepRules::STEP_REVIEW);
+        return self::STEP_MAP[$step] ?? self::clampStep($step);
     }
 
     /**
-     * The step a legacy draft should resume on, based on what it actually
-     * stored. A draft whose old step number says 4 but which only holds
-     * personal data (an edge case after a partial save) resumes on the step its
-     * data belongs to rather than on an empty screen.
+     * The step a stored draft should resume on.
+     *
+     * A CURRENT four-step payload is used as stored (clamped to 1–4). A LEGACY
+     * five-step payload is translated through {@see upgradeStep()} and, for the
+     * academic step, corrected from what the payload actually holds: a draft
+     * whose old step number says 3 but which never stored an academic record
+     * resumes on step 1 rather than on an empty screen.
      *
      * @param  array<int|string, mixed>  $payload
      */
     public static function resumeStep(array $payload, int $currentStep): int
     {
-        $step = self::upgradeStep($currentStep);
-
+        // A payload that is already in the four-step shape speaks the SAME step
+        // vocabulary as the wizard, so its stored step is authoritative and only
+        // needs clamping. Applying the five-step map here would drag a draft on
+        // step 2 back to step 1 (and one on step 4 back to step 3), i.e. resume
+        // the wrong page for every current draft.
         if (! self::isLegacyPayload($payload)) {
-            return $step;
+            return self::clampStep($currentStep);
         }
+
+        $step = self::upgradeStep($currentStep);
 
         $upgraded = self::upgradePayload($payload);
 
@@ -156,6 +171,12 @@ final class RegistrationDraftUpgrade
         }
 
         return $step;
+    }
+
+    /** Keep a step number inside the wizard's own range. */
+    private static function clampStep(int $step): int
+    {
+        return min(max($step, RegistrationStepRules::STEP_BASIC), RegistrationStepRules::STEP_REVIEW);
     }
 
     /** @param  mixed  $value */

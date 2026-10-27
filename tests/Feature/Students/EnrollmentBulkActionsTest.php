@@ -3,6 +3,7 @@
 namespace Tests\Feature\Students;
 
 use App\Domain\Student\Actions\GenerateEnrollmentNumber;
+use App\Domain\Student\Actions\GenerateRollNumber;
 use App\Domain\Student\Actions\GenerateStudentNumber;
 use App\Domain\Student\BulkActions\EnrollmentBulkStatusHandler;
 use App\Domain\Student\Services\StudentPhotoService;
@@ -227,6 +228,7 @@ class EnrollmentBulkActionsTest extends TestCase
         $students = new class(
             app(GenerateStudentNumber::class),
             app(GenerateEnrollmentNumber::class),
+            app(GenerateRollNumber::class),
             app(StudentPhotoService::class),
             app(AuditLogService::class),
         ) extends StudentService {
@@ -270,6 +272,7 @@ class EnrollmentBulkActionsTest extends TestCase
         $students = new class(
             app(GenerateStudentNumber::class),
             app(GenerateEnrollmentNumber::class),
+            app(GenerateRollNumber::class),
             app(StudentPhotoService::class),
             app(AuditLogService::class),
         ) extends StudentService {

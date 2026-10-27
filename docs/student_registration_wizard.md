@@ -300,9 +300,12 @@ hold parent/guardian data and now holds the academic record. Two mechanisms use
 | 4 Documents | 3 Documents |
 | 5 Review | 4 Review |
 
-`current_step` follows the same map, so an applicant parked on the old
-Parent/Guardian page reopens Basic Information — where their parent data now
-lives — instead of landing on the Academic Record by accident.
+`current_step` follows the same map **for a legacy payload only**, so an
+applicant parked on the old Parent/Guardian page reopens Basic Information —
+where their parent data now lives — instead of landing on the Academic Record by
+accident. A draft already in the four-step shape keeps its own step number
+(clamped to 1–4): running a current step through the legacy map would drag step 2
+back to step 1 and step 4 back to step 3, i.e. resume the wrong page.
 
 * **At read time** (`StudentRegistrationDraft::upgradedPayload()`,
   `currentStep()`) a legacy payload is translated in memory, so an old draft opens

@@ -4,6 +4,7 @@ namespace Tests\Feature\Students;
 
 use App\Domain\Student\Services\StudentIdentifierService;
 use App\Domain\Student\Services\StudentService;
+use App\Domain\Student\Support\RegistrationDraftUpgrade;
 use App\Domain\Student\Support\RegistrationStepRules;
 use App\Models\Admission;
 use App\Models\AdmissionDocumentType;
@@ -18,6 +19,7 @@ use App\Models\StudentQualification;
 use App\Models\StudentRegistrationDraft;
 use App\Models\StudentRegistrationDraftDocument;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Database\Seeders\GeoLocationSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -1772,6 +1774,13 @@ class RegistrationWizardTest extends TestCase
     public function test_roll_numbers_are_allocated_per_section_and_never_reused(): void
     {
         $college = $this->makeCollege('WIZ52');
+
+        // This test drives the service directly instead of through HTTP, so it
+        // must set the same tenant context a request would: every lookup inside
+        // StudentService is college-scoped by CollegeScope, and dropping that
+        // scope to make a fixture work would be a tenant-isolation regression.
+        app(TenantContext::class)->set($college);
+
         $year = $this->makeYear($college);
         $program = $this->makeProgram($college);
         $sectionA = $this->makeSection($college, $year, $program, 'A');
@@ -2093,6 +2102,58 @@ class RegistrationWizardTest extends TestCase
         $this->assertSame('Riya', $fresh->stepData(1)['first_name']);
         $this->assertSame($year->id, (int) $fresh->stepData(2)['academic_year_id']);
         $this->assertFalse($fresh->hasLegacyPayload());
+    }
+
+    /**
+     * The step mapping is the single source of truth for draft resumption, so it
+     * is pinned directly: a CURRENT payload keeps its own step number, and only
+     * a genuinely legacy payload is translated (old 1+2 → 1, 3 → 2, 4 → 3,
+     * 5 → 4).
+     */
+    public function test_draft_step_mapping_clamps_current_steps_and_translates_only_legacy_ones(): void
+    {
+        $current = [
+            1 => ['first_name' => 'Riya'],
+            2 => ['academic_year_id' => 1, 'program_id' => 1],
+        ];
+
+        $this->assertFalse(RegistrationDraftUpgrade::isLegacyPayload($current));
+
+        // A current draft resumes exactly where it was parked — including steps
+        // 2 and 4, which the legacy map would drag back to 1 and 3.
+        foreach ([1, 2, 3, 4] as $step) {
+            $this->assertSame(
+                $step,
+                RegistrationDraftUpgrade::resumeStep($current, $step),
+                "A current four-step payload parked on step {$step} must resume there.",
+            );
+        }
+
+        // Out-of-range markers are clamped into the wizard, never mapped.
+        $this->assertSame(1, RegistrationDraftUpgrade::resumeStep($current, 0));
+        $this->assertSame(4, RegistrationDraftUpgrade::resumeStep($current, 9));
+
+        $legacy = [
+            1 => ['first_name' => 'Aarav'],
+            2 => ['father_name' => 'Rajesh Shah'],
+            3 => ['academic_year_id' => 1, 'program_id' => 1],
+        ];
+
+        $this->assertTrue(RegistrationDraftUpgrade::isLegacyPayload($legacy));
+
+        $this->assertSame(1, RegistrationDraftUpgrade::resumeStep($legacy, 1));
+        $this->assertSame(1, RegistrationDraftUpgrade::resumeStep($legacy, 2), 'Old Parent/Guardian → step 1.');
+        $this->assertSame(2, RegistrationDraftUpgrade::resumeStep($legacy, 3), 'Old Academic → step 2.');
+        $this->assertSame(3, RegistrationDraftUpgrade::resumeStep($legacy + [4 => []], 4), 'Old Documents → step 3.');
+        $this->assertSame(
+            4,
+            RegistrationDraftUpgrade::resumeStep($legacy + [5 => ['remarks' => 'old note']], 5),
+            'Old Review → step 4.',
+        );
+
+        // A legacy draft that says "academic" but holds no academic data yet
+        // resumes on step 1 instead of on an empty step 2.
+        $this->assertSame(1, RegistrationDraftUpgrade::resumeStep([2 => ['father_name' => 'Rajesh Shah']], 3));
     }
 
     public function test_an_old_five_step_draft_resumes_in_the_four_step_wizard(): void
