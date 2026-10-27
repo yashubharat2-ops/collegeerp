@@ -67,8 +67,20 @@ class StudentFilterSystemTest extends TestCase
             ->assertOk()
             ->assertViewHas('students', fn ($page) => $page->total() === 1 && $page->first()->is($edge));
 
-        // Partial name.
+        // Partial name, case-insensitive. "sha" is a substring of BOTH "Aarav
+        // Sharma" (last name) and "Isha Verma" (first name), so a correct
+        // partial match returns both — asserting one row here would only pass if
+        // the filter silently degraded to a prefix/exact match.
         $this->asCollege($college, $viewer)->get(route('students.index', ['student_name' => 'sha']))
+            ->assertOk()
+            ->assertViewHas('students', function ($page) use ($inside, $edge): bool {
+                return $page->total() === 2
+                    && $page->pluck('id')->contains($inside->id)
+                    && $page->pluck('id')->contains($edge->id);
+            });
+
+        // A fragment unique to one student still narrows to exactly that row.
+        $this->asCollege($college, $viewer)->get(route('students.index', ['student_name' => 'harma']))
             ->assertOk()
             ->assertViewHas('students', fn ($page) => $page->total() === 1 && $page->first()->is($inside));
 

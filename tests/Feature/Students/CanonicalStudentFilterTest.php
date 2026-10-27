@@ -49,33 +49,59 @@ class CanonicalStudentFilterTest extends TestCase
         $this->assertStringContainsString('<summary', $html);
         $this->assertStringNotContainsString('<details data-student-filter open', $html);
 
+        // The compact panel renders exactly eleven controls, in a fixed order:
+        // single-value filters first, the date range last.
         foreach ([
-            'REG.NO', 'REG. DATE', 'ACADEMIC STATUS', 'STUDENT STATUS', 'PROGRAM / CLASS',
-            'SEMESTER / SECTION', 'NAME OF STUDENT', 'E-MAIL',
-            'ABC ID / APAAR ID', 'ENROLLMENT NO.', 'MOBILE NUMBER', 'AADHAAR NUMBER',
-            "FATHER'S NAME", "MOTHER'S NAME",
+            'REG.NO', 'NAME OF STUDENT', 'STUDENT STATUS', 'ACADEMIC STATUS',
+            'Academic year', 'Department', 'PROGRAM / CLASS', 'SEMESTER / SECTION',
+            'AADHAAR NUMBER', 'ABC ID / APAAR ID', 'REG. DATE',
         ] as $label) {
             $this->assertStringContainsString(e($label), $html, "Missing canonical {$label} label.");
         }
 
+        // One control per canonical field: no duplicate names, no second table.
         foreach ([
-            'student_number', 'admission_date_from', 'admission_date_to', 'academic_status',
-            'student_status', 'program_id', 'academic_context', 'student_name',
-            'email', 'enrollment_number', 'mobile_number',
-            'father_name', 'mother_name',
+            'student_number', 'student_name', 'student_status', 'academic_status',
+            'academic_year_id', 'department_id', 'program_id', 'academic_context',
+            'admission_date_from', 'admission_date_to',
         ] as $field) {
             $this->assertSame(1, substr_count($html, 'name="'.$field.'"'), "{$field} must have exactly one control.");
         }
+
+        // The order the panel is drawn in: every smaller filter precedes the
+        // date range, which is always last.
+        $positions = [];
+        foreach ([
+            'name="student_number"', 'name="student_name"', 'name="student_status"',
+            'name="academic_status"', 'name="academic_year_id"', 'name="department_id"',
+            'name="program_id"', 'name="academic_context"', 'name="aadhaar"',
+            'name="apaar_id"', 'name="admission_date_from"',
+        ] as $marker) {
+            $position = strpos($html, $marker);
+            $this->assertNotFalse($position, "{$marker} must be rendered.");
+            $positions[$marker] = $position;
+        }
+        $ordered = $positions;
+        asort($ordered);
+        $this->assertSame(array_keys($positions), array_keys($ordered), 'The panel must render its filters in canonical order, date range last.');
 
         // The identity fields exist once each, in the POST sub-form only.
         $this->assertSame(1, substr_count($html, 'name="aadhaar"'));
         $this->assertSame(1, substr_count($html, 'name="apaar_id"'));
         $this->assertStringContainsString(route('students.filter.identity'), $html);
+        // …and they are bound to that POST form, not to the GET filter form.
+        $this->assertStringContainsString('form="student-identity-filter"', $html);
+        $this->assertStringContainsString('id="student-identity-filter"', $html);
 
         foreach ([
             'academic_term_id', 'section_id', 'batch_id', 'aadhaar_number', 'aadhaar_hash',
             'aadhaar_last4', 'unique_student_id', 'blood_group', 'nationality',
             'date_of_birth_from', 'date_of_birth_to', 'legacy_id',
+            // Removed from the compact panel: the parameters still work, the
+            // controls must not come back.
+            'gender', 'category', 'mother_tongue', 'email', 'mobile_number',
+            'enrollment_number', 'father_name', 'mother_name', 'registration_status',
+            'enrollment_status',
         ] as $field) {
             $this->assertStringNotContainsString('name="'.$field.'"', $html, "{$field} must not be a control.");
         }

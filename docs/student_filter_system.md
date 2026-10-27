@@ -30,25 +30,59 @@ Reports, Examination Reports, Academic Reports, Academics → Attendance,
 Academics → Subject Enrollments, Admissions and Admission Applications (the
 canonical subset only), HR/other modules keep their own vocabularies.
 
+## Layout
+
+* One `<details>` panel, collapsed by default, native keyboard support.
+* `erp-list-grid`: 1 column on phones, 2 on ≥640px, 3 on ≥1024px, 4 on ≥1280px.
+  Each control is one label + one input; controls fill their cell and can shrink
+  (`min-width: 0`), so nothing overflows.
+* Field `help` text stays in the DOM as `sr-only` (screen readers and
+  `aria-describedby`) instead of a visible paragraph under every control, which
+  is what made the previous panel tall.
+* The date range spans two columns and is always the last control before the
+  action cell; Apply Filters / Reset Filters sit in the final grid cell.
+* Aadhaar / ABC ID are drawn in the same grid but belong to the hidden POST
+  form through the HTML `form` attribute — one ordered layout, no nested forms,
+  no second panel.
+
 ## Fields
 
-| Field | Request key(s) | Match | Source |
-| --- | --- | --- | --- |
-| REG.NO | `student_number` | contains | `students.student_number` (the existing registration number — no duplicate column) |
-| REG. DATE | `admission_date_from`, `admission_date_to` | inclusive range | `students.admission_date` |
-| ACADEMIC STATUS | `academic_status` | derived (below) | `student_academic_records` + `students.status` / `students.registration_submitted_at` / `student_transfers` |
-| STUDENT STATUS | `student_status` | exact | `students.status` (control offers Active / Inactive) |
-| PROGRAM / CLASS | `program_id` | exact | `programs` (college-scoped) |
-| SEMESTER / SECTION | `academic_context` (`term:<id>` / `section:<id>`) | exact, same enrollment | `academic_terms`, `sections` (college-scoped) |
-| NAME OF STUDENT | `student_name` | contains | first / middle / last name |
-| AADHAAR NUMBER | vault only (POST) | exact (12 digits → HMAC, 4 digits → last four) | `students.aadhaar_hash` / `students.aadhaar_last4` |
-| ABC ID / APAAR ID | vault only (POST) | exact | `students.apaar_id` |
-| E-MAIL, MOBILE, ENROLLMENT NO., FATHER / MOTHER NAME | existing keys | contains / exact | existing columns |
+The compact panel renders **eleven controls, in this order** (single-value
+filters first, the date range last):
 
-Removed from the panel (data is untouched): Blood Group, Date of Birth,
-Unique Student ID (it duplicated REG.NO), Nationality, Legacy IDs 1–4 (which
-never existed as columns). `enrollment_status` is still accepted for existing
-links and module tests but is no longer drawn as a control.
+| # | Control | Request key(s) | Match | Source |
+| --- | --- | --- | --- | --- |
+| 1 | REG.NO | `student_number` | contains | `students.student_number` (the existing registration number — no duplicate column) |
+| 2 | NAME OF STUDENT | `student_name` | contains | first / middle / last name |
+| 3 | STUDENT STATUS | `student_status` | exact | `students.status` (control offers Active / Inactive) |
+| 4 | ACADEMIC STATUS | `academic_status` | derived (below) | `student_academic_records` + student/transfer columns |
+| 5 | Academic year | `academic_year_id` | exact | `academic_years` (college-scoped) |
+| 6 | Department | `department_id` | exact | `departments` (college-scoped) |
+| 7 | PROGRAM / CLASS | `program_id` | exact | `programs` (college-scoped) |
+| 8 | SEMESTER / SECTION | `academic_context` (`term:<id>` / `section:<id>`) | exact, same enrollment | `academic_terms`, `sections` (college-scoped, dependent) |
+| 9 | AADHAAR NUMBER | POST only (vault) | exact (12 digits → HMAC, 4 digits → last four) | `students.aadhaar_hash` / `students.aadhaar_last4` |
+| 10 | ABC ID / APAAR ID | POST only (vault) | exact | `students.apaar_id` |
+| 11 | REG. DATE | `admission_date_from`, `admission_date_to` | inclusive range | `students.admission_date` |
+
+Plus the page's own list search (`search`) where the screen has one.
+
+**Not rendered any more** (the data, the query parameters and the exports are
+untouched): E-mail, Mobile number, Enrollment number, Father's name, Mother's
+name, Registration status, Enrollment status, and the profile filters Gender,
+Category, Blood group, Nationality, Mother tongue, Date of birth, Unique Student
+ID. Their definitions are kept in `config/student-filter.php` (flagged
+`legacy`), so an old bookmark, saved export link or module link still filters
+exactly as it did — and because an applied filter must never be invisible, the
+panel's "Applied filters" row still lists them.
+
+Two exceptions, both page-specific rather than student filters: the Student
+Reports page keeps its own **Gender** control (the demographics report groups by
+it) and the Academic/Examination report pages keep their subject / faculty /
+status controls.
+
+Registration status left the panel with the rest: pending registrations are
+reviewed through the Approvals module, and the `registration_status` parameter
+still filters the list and exports when supplied explicitly.
 
 ### Academic Status mapping
 

@@ -93,43 +93,53 @@ return [
         'transfer_in' => 'Only transfer-out records exist (student_transfers). There is no transfer-in register to read.',
     ],
 
+    /*
+     * The compact panel: exactly these eleven controls, in this order. The shared
+     * component always renders a `date_range` field last, so REG. DATE keeps the
+     * final position even though it is listed here beside the other filters.
+     *
+     * `student_list_fields` is the Students-list projection and is deliberately
+     * identical: one canonical panel everywhere. Fields that are no longer
+     * rendered (email, mobile_number, enrollment_number, father_name,
+     * mother_name, registration_status, enrollment_status, and the profile
+     * filters gender / category / blood_group / nationality / mother_tongue /
+     * date_of_birth) are still DEFINED below, so existing bookmarks, exports and
+     * module links keep filtering exactly as before.
+     */
     'default_fields' => [
         'registration_number',
-        'registration_date',
-        'academic_status',
+        'student_name',
         'student_status',
+        'academic_status',
+        'academic_year_id',
+        'department_id',
         'program_id',
         'academic_context',
-        'student_name',
-        'email',
-        'apaar_id',
-        'enrollment_number',
-        'mobile_number',
         'aadhaar',
-        'father_name',
-        'mother_name',
+        'apaar_id',
+        'registration_date',
     ],
 
     'student_list_fields' => [
         'registration_number',
-        'registration_date',
+        'student_name',
+        'student_status',
+        'academic_status',
         'academic_year_id',
         'department_id',
-        'academic_status',
-        'student_status',
-        'registration_status',
         'program_id',
         'academic_context',
-        'student_name',
-        'email',
-        'apaar_id',
-        'enrollment_number',
-        'mobile_number',
         'aadhaar',
-        'father_name',
-        'mother_name',
+        'apaar_id',
+        'registration_date',
     ],
 
+    /*
+     * Canonical definitions. The order below is the panel order: the eleven
+     * rendered controls first (see `default_fields`), then the fields that are
+     * still parsed from the query string for existing links, exports and
+     * module pages but are no longer drawn in the compact panel.
+     */
     'fields' => [
         'registration_number' => [
             'label' => 'REG.NO',
@@ -137,60 +147,8 @@ return [
             'request' => 'student_number',
             'match' => 'contains',
             'max' => 100,
-            'placeholder' => 'College registration number',
-            'help' => 'Partial or full match on the existing student number.',
-        ],
-        'registration_date' => [
-            'label' => 'REG. DATE',
-            'type' => 'date_range',
-            'from_request' => 'admission_date_from',
-            'to_request' => 'admission_date_to',
-            'help' => 'Both boundary dates are included.',
-        ],
-        'academic_status' => [
-            'label' => 'ACADEMIC STATUS',
-            'type' => 'select',
-            'options' => 'academic_statuses',
-            'placeholder' => 'All academic statuses',
-            'help' => 'Derived from the existing progression ledger, student and transfer records — not the Student Status. Not tracked in this schema: Online Registration, Transfer In.',
-        ],
-        'enrollment_status' => [
-            'label' => 'ENROLLMENT STATUS',
-            'type' => 'select',
-            'options' => 'enrollment_statuses',
-            'placeholder' => 'All enrollment statuses',
-            'values' => StudentEnrollment::STATUSES,
-            // Accepted for existing links/modules; not drawn as a control because
-            // ACADEMIC STATUS is the user-facing vocabulary.
-            'legacy' => true,
-        ],
-        'student_status' => [
-            'label' => 'STUDENT STATUS',
-            'type' => 'select',
-            'options' => 'student_statuses',
-            'placeholder' => 'All student statuses',
-            'values' => Student::STATUSES,
-        ],
-        'registration_status' => [
-            'label' => 'REGISTRATION',
-            'type' => 'select',
-            'options' => 'registration_statuses',
-            'placeholder' => 'All registration states',
-            'values' => [...Student::REGISTRATION_STATUSES, 'legacy'],
-        ],
-        'program_id' => [
-            'label' => 'PROGRAM / CLASS',
-            'type' => 'select',
-            'options' => 'programs',
-            'placeholder' => 'All programs / classes',
-        ],
-        'academic_context' => [
-            'label' => 'SEMESTER / SECTION',
-            'type' => 'select',
-            'options' => 'academic_contexts',
-            'placeholder' => 'All semesters / sections',
-            'depends_on' => ['program_id', 'academic_year_id'],
-            'help' => 'Batch: this application has no separate batch master — a Section IS the section / batch cohort (see the Sections screen), so the section options here are the Batch filter.',
+            'placeholder' => 'Registration number',
+            'help' => 'Partial or full match on the student registration number.',
         ],
         'student_name' => [
             'label' => 'NAME OF STUDENT',
@@ -200,27 +158,46 @@ return [
             'placeholder' => 'First, middle or last name',
             'help' => 'Partial match on first, middle or last name.',
         ],
-        'email' => [
-            'label' => 'E-MAIL',
-            'type' => 'text',
-            'match' => 'contains',
-            'max' => 150,
-            'placeholder' => 'Partial e-mail address',
+        'student_status' => [
+            'label' => 'STUDENT STATUS',
+            'type' => 'select',
+            'options' => 'student_statuses',
+            'placeholder' => 'All',
+            'values' => Student::STATUSES,
+            'help' => 'The student account status (Active / Inactive), not the academic progress.',
         ],
-        'enrollment_number' => [
-            'label' => 'ENROLLMENT NO.',
-            'type' => 'text',
-            'match' => 'enrollment_exact',
-            'max' => 100,
-            'placeholder' => 'Exact enrollment number',
+        'academic_status' => [
+            'label' => 'ACADEMIC STATUS',
+            'type' => 'select',
+            'options' => 'academic_statuses',
+            'placeholder' => 'All',
+            'help' => 'Academic progress from the progression ledger and transfer records — not the Student Status. Not tracked: Online Registration, Transfer In.',
         ],
-        'mobile_number' => [
-            'label' => 'MOBILE NUMBER',
-            'type' => 'text',
-            'match' => 'exact',
-            'max' => 30,
-            'inputmode' => 'tel',
-            'placeholder' => 'Exact mobile number',
+        'academic_year_id' => [
+            'label' => 'Academic year',
+            'type' => 'select',
+            'options' => 'academic_years',
+            'placeholder' => 'All',
+        ],
+        'department_id' => [
+            'label' => 'Department',
+            'type' => 'select',
+            'options' => 'departments',
+            'placeholder' => 'All',
+        ],
+        'program_id' => [
+            'label' => 'PROGRAM / CLASS',
+            'type' => 'select',
+            'options' => 'programs',
+            'placeholder' => 'All',
+        ],
+        'academic_context' => [
+            'label' => 'SEMESTER / SECTION',
+            'type' => 'select',
+            'options' => 'academic_contexts',
+            'placeholder' => 'All',
+            'depends_on' => ['program_id', 'academic_year_id'],
+            'help' => 'Dependent on Program and Academic year. A Section is this application\'s batch cohort, so this filter also covers Batch.',
         ],
         'aadhaar' => [
             'label' => 'AADHAAR NUMBER',
@@ -230,8 +207,8 @@ return [
             'max' => 20,
             'inputmode' => 'numeric',
             'maxlength' => 20,
-            'placeholder' => 'Full 12 digits or last 4',
-            'help' => 'Authorized roles only. Exact match: 12 digits match the stored Aadhaar digest, 4 digits match the stored last-four. Submitted by POST and never placed in the URL.',
+            'placeholder' => '12 digits or last 4',
+            'help' => 'Authorized roles only. Exact match: 12 digits match the stored digest, 4 digits match the stored last four. Submitted by POST and never placed in the URL.',
         ],
         'apaar_id' => [
             'label' => 'ABC ID / APAAR ID',
@@ -242,32 +219,71 @@ return [
             'placeholder' => 'Exact ABC / APAAR ID',
             'help' => 'Authorized roles only. Exact match, submitted by POST and never placed in the URL.',
         ],
+        // Rendered last by the shared component, whatever its position here.
+        'registration_date' => [
+            'label' => 'REG. DATE',
+            'type' => 'date_range',
+            'from_request' => 'admission_date_from',
+            'to_request' => 'admission_date_to',
+            'help' => 'Both boundary dates are included.',
+        ],
+
+        /* ------------------------------------------------------------------
+         * Not drawn in the compact panel any more. These definitions stay so
+         * that existing bookmarks, saved exports and module links keep
+         * filtering exactly as they did; removing them would silently widen
+         * those queries.
+         * ---------------------------------------------------------------- */
+        'registration_status' => [
+            'label' => 'REGISTRATION',
+            'type' => 'select',
+            'options' => 'registration_statuses',
+            'placeholder' => 'All',
+            'values' => [...Student::REGISTRATION_STATUSES, 'legacy'],
+            'legacy' => true,
+        ],
+        'enrollment_status' => [
+            'label' => 'ENROLLMENT STATUS',
+            'type' => 'select',
+            'options' => 'enrollment_statuses',
+            'placeholder' => 'All',
+            'values' => StudentEnrollment::STATUSES,
+            'legacy' => true,
+        ],
+        'email' => [
+            'label' => 'E-MAIL',
+            'type' => 'text',
+            'match' => 'contains',
+            'max' => 150,
+            'legacy' => true,
+        ],
+        'enrollment_number' => [
+            'label' => 'ENROLLMENT NO.',
+            'type' => 'text',
+            'match' => 'enrollment_exact',
+            'max' => 100,
+            'legacy' => true,
+        ],
+        'mobile_number' => [
+            'label' => 'MOBILE NUMBER',
+            'type' => 'text',
+            'match' => 'exact',
+            'max' => 30,
+            'legacy' => true,
+        ],
         'father_name' => [
             'label' => "FATHER'S NAME",
             'type' => 'text',
             'match' => 'contains',
             'max' => 150,
+            'legacy' => true,
         ],
         'mother_name' => [
             'label' => "MOTHER'S NAME",
             'type' => 'text',
             'match' => 'contains',
             'max' => 150,
-        ],
-
-        // Existing Student List dimensions. They are extensions, not additional
-        // names for PROGRAM/CLASS or SEMESTER/SECTION.
-        'academic_year_id' => [
-            'label' => 'Academic year',
-            'type' => 'select',
-            'options' => 'academic_years',
-            'placeholder' => 'All academic years',
-        ],
-        'department_id' => [
-            'label' => 'Department',
-            'type' => 'select',
-            'options' => 'departments',
-            'placeholder' => 'All departments',
+            'legacy' => true,
         ],
     ],
 ];

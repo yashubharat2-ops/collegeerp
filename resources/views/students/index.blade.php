@@ -83,29 +83,13 @@
             />
         </div>
 
-        <x-list.filter-select name="gender" label="Gender" placeholder="All genders">
-            @foreach(\App\Models\Student::GENDERS as $gender)
-                <option value="{{ $gender }}" @selected(in_array($gender, (array) $listContext->filter('gender', []), true))>{{ ucfirst(str_replace('_', ' ', $gender)) }}</option>
-            @endforeach
-        </x-list.filter-select>
-
-        <x-list.filter-select name="category" label="Category" placeholder="All categories">
-            @foreach(\App\Models\Student::CATEGORIES as $category)
-                <option value="{{ $category }}" @selected(in_array($category, (array) $listContext->filter('category', []), true))>{{ \App\Models\Student::categoryLabel($category) }}</option>
-            @endforeach
-        </x-list.filter-select>
-
-        <x-list.filter-text
-            name="mother_tongue"
-            label="Mother tongue"
-            placeholder="Contains…"
-            :value="$listContext->filter('mother_tongue')"
-        />
-
-        {{-- Blood group, date of birth, nationality and the duplicate "unique
-             student id" control are deliberately NOT part of this filter panel.
-             The student profile keeps storing them; only the filtering interface
-             omits them, and the legacy query parameters are simply ignored. --}}
+        {{-- The panel carries the eleven canonical filters only. Gender,
+             Category, Mother tongue, Father's / Mother's name, E-mail, Mobile,
+             Enrollment number, Blood group, Date of birth, Nationality and the
+             duplicate "unique student id" are deliberately NOT rendered. The
+             profile keeps storing them and the existing query parameters keep
+             working (bookmarks, exports, module links); only this interface
+             omits the controls. --}}
     </x-student-filter>
 
     {{-- Selection bar: rendered inside the panel so the shared script

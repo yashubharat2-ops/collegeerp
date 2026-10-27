@@ -35,26 +35,56 @@ class StudentFilter
     {
     }
 
+    /**
+     * The panel's field order is the contract the UI renders in.
+     *
+     * The compact Student Filter shows exactly these eleven controls, smallest
+     * single-value filters first and the date range last (the component moves
+     * any `date_range` field to the end regardless of its position here):
+     *
+     *  REG.NO → NAME OF STUDENT → STUDENT STATUS → ACADEMIC STATUS →
+     *  Academic year → Department → PROGRAM / CLASS → SEMESTER / SECTION →
+     *  AADHAAR NUMBER → ABC ID / APAAR ID → REG. DATE (last)
+     *
+     * Everything else the filter service can still parse (email, mobile,
+     * father/mother name, enrollment number, gender, category, blood group,
+     * nationality, mother tongue, date of birth, registration status) has left
+     * the panel but keeps working for existing links, exports and bookmarks —
+     * see config/student-filter.php.
+     */
     public const DEFAULT_FIELDS = [
-        'registration_number', 'registration_date', 'academic_status', 'student_status',
-        'program_id', 'academic_context', 'student_name',
-        'email', 'apaar_id', 'enrollment_number', 'mobile_number', 'aadhaar',
-        'father_name', 'mother_name',
+        'registration_number', 'student_name', 'student_status', 'academic_status',
+        'academic_year_id', 'department_id', 'program_id', 'academic_context',
+        'aadhaar', 'apaar_id', 'registration_date',
     ];
 
-    public const STUDENT_LIST_FIELDS = [
-        'registration_number', 'registration_date', 'academic_year_id', 'department_id',
-        'academic_status', 'student_status', 'registration_status', 'program_id', 'academic_context',
-        'student_name', 'email', 'apaar_id', 'enrollment_number',
-        'mobile_number', 'aadhaar', 'father_name', 'mother_name',
-    ];
+    public const STUDENT_LIST_FIELDS = self::DEFAULT_FIELDS;
 
+    /**
+     * The query subset an admission / application root can answer. `email` and
+     * `mobile_number` stay here so existing admission links keep filtering by
+     * applicant contact details; they are simply not drawn in the compact panel
+     * (see the `*_PANEL_FIELDS` projections below).
+     */
     public const ADMISSION_APPLICATION_FIELDS = [
         'student_name', 'email', 'mobile_number', 'academic_year_id', 'program_id',
     ];
 
     public const ADMISSION_FIELDS = [
         'registration_date', 'student_name', 'email', 'mobile_number', 'academic_year_id', 'program_id',
+    ];
+
+    /**
+     * What the compact panel RENDERS on those two pages: the canonical
+     * dimensions only. A value supplied through an old link still applies to the
+     * query and is still listed in the applied-filter summary.
+     */
+    public const ADMISSION_APPLICATION_PANEL_FIELDS = [
+        'student_name', 'academic_year_id', 'program_id',
+    ];
+
+    public const ADMISSION_PANEL_FIELDS = [
+        'student_name', 'academic_year_id', 'program_id', 'registration_date',
     ];
 
     /**
@@ -741,6 +771,38 @@ class StudentFilter
         return $user?->hasPermission($permission) ?? false;
     }
 
+    /**
+     * Human-readable value for a filter that has no rendered control.
+     *
+     * Returns null when there is nothing meaningful to show, so a malformed or
+     * already-normalised-away value never produces an empty chip.
+     */
+    private function summaryValue(string $key, mixed $value): ?string
+    {
+        if ($key === 'enrollment_status') {
+            $statuses = array_map(
+                static fn (string $status): string => ucfirst($status),
+                $this->statusList((string) $value)
+            );
+
+            return $statuses === [] ? null : implode(', ', $statuses);
+        }
+
+        if ($key === 'academic_context') {
+            [$type, $id] = $this->academicContext(['academic_context' => $value]);
+
+            return $type === null ? null : ucfirst($type).' #'.$id;
+        }
+
+        if (! is_scalar($value)) {
+            return null;
+        }
+
+        $text = trim((string) $value);
+
+        return $text === '' ? null : ucfirst(str_replace('_', ' ', $text));
+    }
+
     /** @return array<string, array<string, mixed>> */
     private function definitions(): array
     {
@@ -1035,6 +1097,7 @@ class StudentFilter
     private function appliedSummary(array $filters, array $fields, array $options): array
     {
         $summary = [];
+        $definitions = $this->definitions();
 
         foreach ($fields as $key => $definition) {
             if ($key === 'registration_date') {
@@ -1074,21 +1137,32 @@ class StudentFilter
             $summary[] = ['label' => $definition['label'], 'value' => (string) $value];
         }
 
-        // `enrollment_status` is still honoured for existing links even though the
-        // panel no longer draws it; an applied filter must never be invisible.
-        if (isset($filters['enrollment_status']) && ! isset($fields['enrollment_status'])) {
-            $statuses = array_map(
-                static fn (string $status): string => ucfirst($status),
-                $this->statusList((string) $filters['enrollment_status'])
-            );
-            if ($statuses !== []) {
-                $summary[] = ['label' => 'ENROLLMENT STATUS', 'value' => implode(', ', $statuses)];
+        // The compact panel draws eleven controls, but every canonical parameter
+        // is still honoured for existing bookmarks, exports and module links. An
+        // applied filter must never be invisible, so anything that applied but is
+        // not drawn is summarised here too — with the same label and the same
+        // human-readable value it would have had as a control.
+        foreach ($filters as $key => $value) {
+            $definition = $definitions[$key] ?? null;
+            if ($definition === null || isset($fields[$key]) || in_array($key, self::SENSITIVE_KEYS, true)) {
+                continue;
             }
+            if (str_starts_with((string) $key, 'registration_date_') || $key === 'academic_context') {
+                // Summarised by their own control when the page draws it; a page
+                // that does not draw it does not apply it either.
+                continue;
+            }
+
+            $display = $this->summaryValue($key, $value);
+            if ($display === null) {
+                continue;
+            }
+
+            $summary[] = ['label' => (string) ($definition['label'] ?? strtoupper($key)), 'value' => $display];
         }
 
         // Identity criteria are summarised by the FACT of the match, never by the
         // value: nothing sensitive is rendered into the page.
-        $definitions = $this->definitions();
         foreach (self::SENSITIVE_KEYS as $key) {
             if (! isset($filters[$key])) {
                 continue;

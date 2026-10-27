@@ -184,9 +184,18 @@ class StudentListFiltersTest extends TestCase
         $this->list($college, $viewer, ['academic_term_id' => $term->id, 'academic_year_id' => $year->id])
             ->assertOk()->assertSee('STU-TERM');
 
+        // A semester that belongs to a DIFFERENT academic year is an impossible
+        // combination, so it is refused with a validation message instead of
+        // rendering an empty list that reads like "no such student".
         $otherYear = $this->makeYear($college, '2027', '2027-28', '2027-06-01', '2028-05-31');
         $this->list($college, $viewer, ['academic_term_id' => $term->id, 'academic_year_id' => $otherYear->id])
-            ->assertOk()->assertDontSee('STU-TERM');
+            ->assertSessionHasErrors('academic_context');
+
+        // A compatible but unused semester returns no rows — a genuine empty
+        // result, not an error.
+        $foreignTerm = $this->makeAcademicTerm($college, $otherYear, 'SEM1-27', 'Semester 1');
+        $this->list($college, $viewer, ['academic_term_id' => $foreignTerm->id, 'academic_year_id' => $otherYear->id])
+            ->assertOk()->assertDontSee('STU-TERM')->assertDontSee('STU-OTERM');
     }
 
     public function test_all_enrollment_dimensions_must_match_the_same_enrollment(): void
@@ -554,39 +563,52 @@ class StudentListFiltersTest extends TestCase
         // module script — the only form the layout allows).
         $this->assertStringContainsString('src="'.asset('js/erp-list.js').'"', $html);
 
-        // Search + every documented filter is rendered in the form.
+        // Search + the compact canonical filter set is rendered in the form.
         $this->assertStringContainsString('name="search"', $html);
         $this->assertStringContainsString('Search name, student no., enrollment no., email or mobile', $html);
         $this->assertStringContainsString('class="erp-list-grid"', $html);
         $this->assertStringContainsString('erp-list-filter-span-2', $html);
         foreach ([
             'academic_year_id', 'department_id', 'program_id', 'academic_context',
-            'gender', 'category', 'academic_status', 'student_status', 'admission_date_from', 'admission_date_to',
-            'student_number', 'student_name', 'enrollment_number',
-            'mobile_number', 'father_name', 'mother_name', 'mother_tongue',
+            'academic_status', 'student_status', 'admission_date_from', 'admission_date_to',
+            'student_number', 'student_name',
         ] as $filter) {
             $this->assertStringContainsString('name="'.$filter.'"', $html, "The {$filter} filter must be rendered.");
         }
         foreach ([
             'Academic year', 'Department', 'PROGRAM / CLASS', 'SEMESTER / SECTION',
-            'Gender', 'Category', 'STUDENT STATUS', 'ACADEMIC STATUS',
-            'REG. DATE', 'REG.NO', 'NAME OF STUDENT',
-            'ENROLLMENT NO.', 'MOBILE NUMBER', "FATHER'S NAME", "MOTHER'S NAME",
-            'Mother tongue', 'From', 'To',
+            'STUDENT STATUS', 'ACADEMIC STATUS',
+            'REG. DATE', 'REG.NO', 'NAME OF STUDENT', 'From', 'To',
         ] as $label) {
             $this->assertStringContainsString(e($label), $html, "The {$label} filter label must be visible.");
         }
 
         // Fields the filtering interface deliberately does not offer. The profile
-        // columns still exist and the legacy query parameters still work (the
-        // blood-group, date-of-birth and nationality tests below prove it); they
-        // are simply not part of the filter panel.
+        // columns still exist and the query parameters still work (the gender,
+        // category, blood-group, date-of-birth, nationality and mother-tongue
+        // tests below prove it); they are simply not controls any more.
         foreach ([
             'name="unique_student_id"', 'name="blood_group"', 'name="nationality"',
             'name="date_of_birth_from"', 'name="date_of_birth_to"',
-            'UNIQUE STUDENT ID', 'Blood group', 'Date of birth',
+            'name="gender"', 'name="category"', 'name="mother_tongue"',
+            'name="email"', 'name="mobile_number"', 'name="enrollment_number"',
+            'name="father_name"', 'name="mother_name"', 'name="registration_status"',
+            'name="enrollment_status"',
         ] as $removed) {
             $this->assertStringNotContainsString($removed, $html, "{$removed} must not be part of the filter panel.");
+        }
+
+        // The labels are checked INSIDE the filter panel: the table below still
+        // prints each row's category and gender as data, which is not a control.
+        $panel = substr($html, strpos($html, 'data-student-filter'));
+        $panel = substr($panel, 0, strpos($panel, '</details>'));
+        foreach ([
+            'UNIQUE STUDENT ID', 'Blood group', 'Date of birth',
+            'Gender', 'Category', 'Mother tongue',
+            'ENROLLMENT NO.', 'MOBILE NUMBER', "FATHER'S NAME", "MOTHER'S NAME",
+            'E-MAIL', 'REGISTRATION',
+        ] as $removed) {
+            $this->assertStringNotContainsString(e($removed), $panel, "{$removed} must not be part of the filter panel.");
         }
 
         // Section is a Section. The old "Section / Batch" wording represented the

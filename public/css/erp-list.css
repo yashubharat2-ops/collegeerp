@@ -423,3 +423,92 @@
 [data-bulk-selection].hidden {
     display: none !important;
 }
+
+/* -----------------------------------------------------------------------------
+ * 6 · Compact Student Filter panel
+ * -----------------------------------------------------------------------------
+ * The shared `x-student-filter` panel is deliberately denser than a generic
+ * list filter: eleven controls in a 4-column grid, one line each, with no
+ * helper rows. Everything here is scoped to `.erp-student-filter`, so no rule
+ * can leak into another module's filters.
+ *
+ * The panel is designed to work with or without the Vite/Tailwind bundle (the
+ * layout loads this stylesheet unconditionally), so the grid, the label
+ * treatment and the action row are all defined here rather than assumed. */
+
+.erp-student-filter .erp-list-grid {
+    gap: 0.5rem 0.75rem;
+}
+
+/* A cell is a single label + control; the control fills it and never forces it
+ * wider than the track. */
+.erp-student-filter .erp-list-field > label,
+.erp-student-filter .erp-list-date-range > span:first-child {
+    margin-bottom: 0.125rem;
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.erp-student-filter .erp-list-field .input,
+.erp-student-filter .erp-list-field select {
+    box-sizing: border-box;
+    min-height: 2rem;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+    font-size: 0.75rem;
+}
+
+/* The date range keeps the full-width row it needs for two pickers, but its
+ * inner controls stay on one compact line. */
+.erp-student-filter .erp-list-date-range .erp-list-date-control > .input {
+    min-height: 2rem;
+    font-size: 0.75rem;
+}
+
+.erp-student-filter .erp-list-date-picker-trigger {
+    width: 2rem;
+    height: 2rem;
+}
+
+/* Apply identity / Apply / Reset share one cell that lines up with the last
+ * control column instead of producing an extra row of its own. */
+.erp-student-filter .erp-list-actions {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.erp-student-filter .erp-list-actions .button {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2rem;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+/* The identity inputs are real form controls bound to the POST form; the form
+ * itself is a hidden shell, not a visible second panel. */
+.erp-student-filter form.hidden {
+    display: none;
+}
+
+/* Field help is documentation, not layout: keep it in the accessible tree (the
+ * control points at it with aria-describedby) but out of the visual grid. The
+ * rule is defined here as well as in the Tailwind bundle so the panel stays
+ * compact even when the built assets are missing. */
+.erp-student-filter .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

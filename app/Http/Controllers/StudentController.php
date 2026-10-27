@@ -52,11 +52,66 @@ class StudentController extends Controller
         $builder = $list->builder($request, $filters)->tiebreaker('students.id');
 
         $students = $builder->paginate(StudentListService::PER_PAGE);
+        $filterData = $list->filterViewData($filters);
 
         return view('students.index', array_merge([
             'students' => $students,
             'listContext' => ListContext::make($builder->getAppliedFilters(), $students, $request, 'students.index'),
-        ], $list->filterViewData($filters)));
+        ], $filterData, [
+            'studentFilterApplied' => $this->appliedFilterChips(
+                $filterData['studentFilterApplied'],
+                $builder->getAppliedFilters(),
+            ),
+        ]));
+    }
+
+    /**
+     * The compact filter panel draws eleven canonical controls, but the list
+     * still answers the older, non-canonical parameters (gender, category,
+     * mother tongue, blood group, nationality, date of birth) when an existing
+     * bookmark or module link supplies them. Those filters must stay visible:
+     * a narrowed list with no explanation reads like lost data.
+     *
+     * @param  array<int, array{label: string, value: string}>  $chips
+     * @param  array<string, mixed>  $applied
+     * @return array<int, array{label: string, value: string}>
+     */
+    private function appliedFilterChips(array $chips, array $applied): array
+    {
+        $labels = [
+            'search' => 'Search',
+            'gender' => 'Gender',
+            'category' => 'Category',
+            'mother_tongue' => 'Mother tongue',
+            'blood_group' => 'Blood group',
+            'nationality' => 'Nationality',
+            'date_of_birth_from' => 'Date of birth from',
+            'date_of_birth_to' => 'Date of birth to',
+        ];
+
+        $seen = [];
+        foreach ($chips as $chip) {
+            $seen[$chip['label'].'|'.$chip['value']] = true;
+        }
+
+        foreach ($labels as $key => $label) {
+            if (! array_key_exists($key, $applied)) {
+                continue;
+            }
+
+            $value = $applied[$key];
+            if (is_array($value)) {
+                $value = implode(', ', array_map(static fn ($item) => is_scalar($item) ? (string) $item : '', $value));
+            }
+            $value = is_scalar($value) ? trim((string) $value) : '';
+            if ($value === '' || isset($seen[$label.'|'.$value])) {
+                continue;
+            }
+
+            $chips[] = ['label' => $label, 'value' => $value];
+        }
+
+        return $chips;
     }
 
     /**
