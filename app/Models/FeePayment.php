@@ -34,6 +34,11 @@ class FeePayment extends Model
      * collection report and financial summary reads only STATUS_COMPLETED, so a
      * pending collection is invisible to all of them until an authorized
      * approver finalizes it.
+     *
+     * Only an untrusted user's collection is ever born pending. A trusted
+     * authority (platform Super Admin, or the College Admin of the active
+     * college) finalizes their own collection immediately — see
+     * User::isTrustedAuthority().
      */
     public const STATUS_PENDING_APPROVAL = 'pending_approval';
 

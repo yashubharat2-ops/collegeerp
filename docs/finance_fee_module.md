@@ -107,8 +107,17 @@ completed the moment it is recorded, exactly as described above.
 
 When an administrator enables it:
 
-* `FeeCollectionService` creates the payment with status `pending_approval` and
-  queues a central `ApprovalRequest` (`module = fees`, `action = fee_collection`,
+* **Trusted authorities are exempt.** The platform **Super Admin** and the
+  **College Admin** of the active college are the two reserved system roles
+  (`User::isTrustedAuthority()`). Their own collections are finalized
+  immediately, and they may decide their own approval requests — a single-admin
+  college must not be able to deadlock itself. Everyone else, *including a user
+  who holds `fee_collections.approve`*, follows the workflow: holding the
+  approval permission lets you decide **other people's** collections, never your
+  own.
+* `FeeCollectionService` creates the payment with status `pending_approval` for
+  every non-exempt user and queues a central `ApprovalRequest`
+  (`module = fees`, `action = fee_collection`,
   `target_type = fees.fee_collection`, `target_id = fee_payments.id`) inside the
   **same transaction**, so a collection and its request can never diverge.
   This applies to all three collection paths (tuition, transport, hostel) because
@@ -118,7 +127,8 @@ When an administrator enables it:
   downstream needed to change: `FeeDuesService`, `TransportFeeService`,
   `HostelFeeService`, `FeeReportService`, `FinanceReportService`,
   `DashboardController` and the Receipts screen all ignore it automatically.
-* `collected_at` stays `NULL` until approval. Approval sets
+* `collected_at` stays `NULL` until approval (a trusted authority's collection
+  is completed — and stamped — at submission). Approval sets
   `status = completed`, stamps `collected_at`, and audit-logs
   `fee_payments.approved`; the payment number minted at submission is the
   receipt number.
@@ -131,9 +141,10 @@ When an administrator enables it:
 * While pending, the collection cannot be edited, cancelled, deleted or refunded
   (`FeeCollectionService`, `FeeRefundService` and the edit screen refuse it);
   the existing self-approval ban, tenant scoping and permission checks all apply.
-* Pending amounts still reserve the balance — `amount + Σ pending ≤ outstanding`
-  — so the same money cannot be queued twice, without ever being counted as
-  collected.
+* Pending amounts still reserve the balance —
+  `amount + Σ everything already awaiting approval ≤ outstanding` — so the same
+  money cannot be queued twice (or three times), without ever being counted as
+  collected. The refusal names the still-available amount.
 * Only `fee_collections.approve` may decide a fee-collection request; the
   College Admin / Super Admin roles receive it from `DatabaseSeeder`
   (`FeeCollectionApprovalPermissionSeeder::PERMISSIONS`).

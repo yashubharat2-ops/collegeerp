@@ -64,6 +64,39 @@ class ApprovalService
     }
 
     /**
+     * Whether a user is a trusted authority (Super Admin, or the College Admin
+     * of the college that owns the record).
+     *
+     * Kept here as well as on the User model so the approval framework states
+     * the rule in one place: the actor's role is evaluated against the RECORD's
+     * college, never the ambient tenant, so a cross-college decision can never
+     * be legitimised by the wrong context.
+     */
+    public function isTrustedAuthority(User $user, int $collegeId): bool
+    {
+        return $user->isTrustedAuthority($collegeId);
+    }
+
+    /**
+     * Refuse self-approval/self-rejection for everyone except a trusted
+     * authority of the request's own college.
+     */
+    private function assertMayDecideOwn(ApprovalRequest $request, User $decider, string $verb): void
+    {
+        if ((int) $request->requested_by !== (int) $decider->getKey()) {
+            return;
+        }
+
+        if ($this->isTrustedAuthority($decider, (int) $request->college_id)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'decided_by' => 'You cannot '.$verb.' your own request.',
+        ]);
+    }
+
+    /**
      * Submit a new approval request. Validates module/action allowlist, prevents arbitrary model injection.
      */
     public function submitRequest(array $data, int $collegeId, int $requestedById): ApprovalRequest
@@ -154,14 +187,18 @@ class ApprovalService
                 throw ValidationException::withMessages(['status' => 'This request has already been decided.']);
             }
 
-            if ((int) $req->requested_by === (int) $deciderId) {
-                throw ValidationException::withMessages(['decided_by' => 'You cannot approve your own request.']);
-            }
-
             $decider = User::findOrFail($deciderId);
             if (! $this->canApprove($decider, $req->module, $req->action, $collegeId)) {
                 abort(403, 'You are not authorized to approve this request.');
             }
+
+            // Self-approval is refused EXCEPT for a trusted authority — the
+            // platform Super Admin or this college's College Admin. Those two
+            // reserved system roles are accountable for the action themselves,
+            // so requiring a second one of them would deadlock a single-admin
+            // college. Every other user must have their own request decided by
+            // someone else, whatever permission they hold.
+            $this->assertMayDecideOwn($req, $decider, 'approve');
 
             // Apply the approved change to target
             $this->applyApproval($req, $deciderId);
@@ -174,7 +211,12 @@ class ApprovalService
                 'decision_reason' => $reason,
             ]);
 
-            $this->audit->record('approval.approved', $req, ['status' => $oldStatus], ['status' => $req->status]);
+            // A trusted authority deciding their own request is recorded
+            // explicitly, so the audit trail never hides a self-decision.
+            $this->audit->record('approval.approved', $req, ['status' => $oldStatus], [
+                'status' => $req->status,
+                'self_decision' => (int) $req->requested_by === (int) $deciderId,
+            ]);
 
             return $req->fresh();
         });
@@ -197,14 +239,12 @@ class ApprovalService
                 throw ValidationException::withMessages(['status' => 'This request has already been decided.']);
             }
 
-            if ((int) $req->requested_by === (int) $deciderId) {
-                throw ValidationException::withMessages(['decided_by' => 'You cannot reject your own request.']);
-            }
-
             $decider = User::findOrFail($deciderId);
             if (! $this->canApprove($decider, $req->module, $req->action, $collegeId)) {
                 abort(403, 'You are not authorized to reject this request.');
             }
+
+            $this->assertMayDecideOwn($req, $decider, 'reject');
 
             // On rejection, preserve approved value unchanged - do not apply payload
             // For admission application, set target status to rejected via service?
@@ -218,7 +258,11 @@ class ApprovalService
                 'decision_reason' => $reason,
             ]);
 
-            $this->audit->record('approval.rejected', $req, ['status' => $oldStatus], ['status' => $req->status, 'reason' => $reason]);
+            $this->audit->record('approval.rejected', $req, ['status' => $oldStatus], [
+                'status' => $req->status,
+                'reason' => $reason,
+                'self_decision' => (int) $req->requested_by === (int) $deciderId,
+            ]);
 
             return $req->fresh();
         });

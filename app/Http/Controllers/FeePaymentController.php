@@ -120,9 +120,12 @@ class FeePaymentController extends Controller
             'assignment' => $assignment,
             'selectedAssignmentId' => $assignmentId,
             // Tell the accountant up front that this collection will wait for an
-            // approver instead of being finalized immediately.
-            'requiresApproval' => app(\App\Services\Approval\ApprovalService::class)
-                ->isApprovalRequired((int) app(TenantContext::class)->id(), 'fees', \App\Services\Approval\ApprovalRegistry::ACTION_FEE_COLLECTION),
+            // approver instead of being finalized immediately. A trusted
+            // authority (Super Admin / this college's College Admin) finalizes
+            // their own collection, so the warning would be wrong for them.
+            'requiresApproval' => ! $request->user()->isTrustedAuthority((int) app(TenantContext::class)->id())
+                && app(\App\Services\Approval\ApprovalService::class)
+                    ->isApprovalRequired((int) app(TenantContext::class)->id(), 'fees', \App\Services\Approval\ApprovalRegistry::ACTION_FEE_COLLECTION),
         ]));
     }
 

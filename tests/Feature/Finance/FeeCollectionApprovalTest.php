@@ -9,6 +9,7 @@ use App\Models\ApprovalSetting;
 use App\Models\College;
 use App\Models\FeePayment;
 use App\Models\Permission;
+use App\Models\Role;
 use App\Models\StudentFeeAssignment;
 use App\Models\StudentTransportAssignment;
 use App\Models\StudentTransportFeeAssignment;
@@ -95,6 +96,82 @@ class FeeCollectionApprovalTest extends TestCase
             'is_required' => $required,
             'label' => 'Fee Collection',
         ]);
+    }
+
+    /**
+     * A real platform Super Admin: the reserved `super-admin` role attached with
+     * a null college pivot, exactly as DatabaseSeeder grants it.
+     */
+    private function makeSuperAdminUser(College $college): User
+    {
+        $user = User::create([
+            'name' => 'Platform Super',
+            'email' => 'super-'.Str::lower(Str::random(8)).'@example.test',
+            'password' => 'password',
+            'is_active' => true,
+        ]);
+        $user->colleges()->attach($college->id, ['is_default' => true]);
+
+        $role = Role::query()->whereNull('college_id')->where('slug', Role::SUPER_ADMIN_SLUG)->firstOrFail();
+        $user->roles()->attach($role->id, ['college_id' => null]);
+
+        return $user;
+    }
+
+    /**
+     * The reserved College Admin role OF THIS COLLEGE, attached the way the
+     * CollegeAdminRestrictionTest and the seeder attach it.
+     */
+    private function makeCollegeAdminUser(College $college): User
+    {
+        $role = Role::query()->firstOrCreate(
+            ['college_id' => $college->id, 'slug' => Role::COLLEGE_ADMIN_SLUG],
+            ['name' => 'College Admin', 'is_system' => true, 'is_active' => true],
+        );
+        $role->permissions()->sync(Permission::query()->pluck('id')->all());
+
+        $user = User::create([
+            'name' => 'College Admin',
+            'email' => 'college-admin-'.Str::lower(Str::random(8)).'@example.test',
+            'password' => 'password',
+            'is_active' => true,
+        ]);
+        $user->colleges()->attach($college->id, ['is_default' => true]);
+        $user->roles()->attach($role->id, ['college_id' => $college->id]);
+
+        return $user;
+    }
+
+    /** Create a pending collection plus its approval request, as the service would. */
+    private function queuePendingCollection(College $college, User $requester, StudentFeeAssignment $assignment, float $amount): FeePayment
+    {
+        $payment = $this->withTenant($college, fn () => FeePayment::create([
+            'college_id' => $college->id,
+            'student_fee_assignment_id' => $assignment->id,
+            'student_enrollment_id' => $assignment->student_enrollment_id,
+            'fee_structure_id' => $assignment->fee_structure_id,
+            // Reference data only: this fixture writes the row directly so the
+            // test controls the workflow state, and the number just has to be
+            // unique inside the college like a real generated one.
+            'payment_number' => 'PAY-TEST-'.Str::upper(Str::random(8)),
+            'payment_date' => '2026-08-15',
+            'payment_mode' => FeePayment::MODE_CASH,
+            'amount' => $amount,
+            'status' => FeePayment::STATUS_PENDING_APPROVAL,
+            'collected_by' => $requester->id,
+            'created_by' => $requester->id,
+        ]));
+
+        $this->withTenant($college, fn () => app(\App\Services\Approval\ApprovalService::class)->submitRequest([
+            'module' => 'fees',
+            'action' => ApprovalRegistry::ACTION_FEE_COLLECTION,
+            'target_type' => 'fees.'.ApprovalRegistry::ACTION_FEE_COLLECTION,
+            'target_id' => $payment->id,
+            'title' => 'Fee collection '.$payment->payment_number,
+            'payload' => ['payment_number' => $payment->payment_number, 'amount' => $amount],
+        ], (int) $college->id, (int) $requester->getKey()));
+
+        return $payment;
     }
 
     /** The POST payload the collection form sends. */
@@ -321,6 +398,227 @@ class FeeCollectionApprovalTest extends TestCase
         );
         $this->assertSame(10000.0, (float) $summary['total']);
         $this->assertSame(1, (int) $summary['payments']);
+    }
+
+    // ------------------------------------------- trusted authorities (no queue)
+
+    /**
+     * Super Admin: finalizes their own collection immediately, with no request
+     * to approve and no "awaiting approval" warning on the form.
+     */
+    public function test_a_super_admin_collection_is_finalized_immediately(): void
+    {
+        ['college' => $college, 'assignment' => $assignment] = $this->fixture('FCSUP', approvalEnabled: true);
+        $superAdmin = $this->makeSuperAdminUser($college);
+
+        $this->assertTrue($superAdmin->isTrustedAuthority($college->id));
+        $this->assertTrue($superAdmin->isSuperAdmin());
+
+        $this->asCollege($college, $superAdmin)
+            ->post(route('fee-collections.store'), $this->collectPayload($assignment, 10000))
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('fee-collections.index'));
+
+        $payment = $this->paymentOf($college);
+        $this->assertSame(FeePayment::STATUS_COMPLETED, $payment->status);
+        $this->assertNotNull($payment->collected_at);
+        $this->assertDatabaseCount('approval_requests', 0);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'fee_payments.collected',
+            'subject_id' => $payment->id,
+        ]);
+
+        // It is money straight away.
+        $this->assertSame(10000.0, (float) $this->ledgerOf($college, $assignment)['paid']);
+        $this->asCollege($college, $superAdmin)->get(route('receipts.show', $payment))->assertOk();
+
+        // …and the form does not claim an approval is needed.
+        $this->asCollege($college, $superAdmin)
+            ->get(route('fee-collections.create'))
+            ->assertOk()
+            ->assertDontSee('Approval required.');
+    }
+
+    /** College Admin: same trust, scoped to their own college. */
+    public function test_a_college_admin_collection_is_finalized_immediately(): void
+    {
+        ['college' => $college, 'assignment' => $assignment] = $this->fixture('FCADM', approvalEnabled: true);
+        $collegeAdmin = $this->makeCollegeAdminUser($college);
+
+        $this->assertTrue($collegeAdmin->isCollegeAdmin($college->id));
+        $this->assertTrue($collegeAdmin->isTrustedAuthority($college->id));
+        $this->assertFalse($collegeAdmin->isSuperAdmin());
+
+        $this->asCollege($college, $collegeAdmin)
+            ->post(route('fee-collections.store'), $this->collectPayload($assignment, 8000))
+            ->assertSessionHasNoErrors();
+
+        $payment = $this->paymentOf($college);
+        $this->assertSame(FeePayment::STATUS_COMPLETED, $payment->status);
+        $this->assertDatabaseCount('approval_requests', 0);
+        $this->assertSame(8000.0, (float) $this->ledgerOf($college, $assignment)['paid']);
+    }
+
+    /**
+     * The trust is per college: an administrator of college A collecting in
+     * college B is an ORDINARY user there and must go through approval.
+     */
+    public function test_a_college_admin_role_from_another_college_is_not_trusted(): void
+    {
+        $homeCollege = $this->makeCollege('FCADMA');
+        $otherCollege = $this->makeCollege('FCADMB');
+        $this->enableApproval($homeCollege);
+        $this->enableApproval($otherCollege);
+
+        // Administrator of the HOME college, ordinary collector in the OTHER one.
+        $adminRole = Role::query()->firstOrCreate(
+            ['college_id' => $homeCollege->id, 'slug' => Role::COLLEGE_ADMIN_SLUG],
+            ['name' => 'College Admin', 'is_system' => true, 'is_active' => true],
+        );
+        $adminRole->permissions()->sync(Permission::query()->pluck('id')->all());
+
+        $user = User::create([
+            'name' => 'Dual College User',
+            'email' => 'dual-'.Str::lower(Str::random(8)).'@example.test',
+            'password' => 'password',
+            'is_active' => true,
+        ]);
+        $user->colleges()->attach($homeCollege->id, ['is_default' => true]);
+        $user->colleges()->attach($otherCollege->id, ['is_default' => false]);
+        $user->roles()->attach($adminRole->id, ['college_id' => $homeCollege->id]);
+
+        $collectorRole = Role::create([
+            'college_id' => $otherCollege->id,
+            'name' => 'Finance Staff',
+            'slug' => 'finance-staff-'.Str::lower(Str::random(6)),
+            'is_active' => true,
+        ]);
+        $collectorRole->permissions()->sync(Permission::query()->whereIn('slug', self::COLLECTOR)->pluck('id')->all());
+        $user->roles()->attach($collectorRole->id, ['college_id' => $otherCollege->id]);
+
+        // The trust is per college.
+        $this->assertTrue($user->isTrustedAuthority($homeCollege->id));
+        $this->assertFalse($user->isCollegeAdmin($otherCollege->id));
+        $this->assertFalse($user->isTrustedAuthority($otherCollege->id));
+
+        // A payable assignment IN the other college.
+        $ctx = $this->makeFinanceContext($otherCollege, 'FCADMB');
+        $structure = $this->makeFeeStructure($otherCollege, $ctx);
+        $fixture = $this->makeFinanceEnrollment($otherCollege, $ctx, 'FCADMB');
+        $assignment = $this->assignFeeStructure($otherCollege, $user, $fixture['enrollment'], $structure);
+
+        $this->asCollege($otherCollege, $user)
+            ->post(route('fee-collections.store'), $this->collectPayload($assignment, 9000))
+            ->assertSessionHasNoErrors();
+
+        // Not trusted there, so the collection waits for that college's approver.
+        $payment = $this->paymentOf($otherCollege);
+        $this->assertSame(FeePayment::STATUS_PENDING_APPROVAL, $payment->status);
+        $this->assertNotNull($this->approvalRequestOf($otherCollege, $payment));
+        $this->assertSame(0.0, (float) $this->ledgerOf($otherCollege, $assignment)['paid']);
+    }
+
+    /**
+     * Holding the approval permission does NOT make a user a trusted authority:
+     * they approve other people's collections, and their own still goes through
+     * the workflow.
+     */
+    public function test_an_approver_who_is_not_an_administrator_still_needs_approval(): void
+    {
+        $college = $this->makeCollege('FCAPPR');
+        $ctx = $this->makeFinanceContext($college, 'FCAPPR');
+        $structure = $this->makeFeeStructure($college, $ctx);
+
+        $accountant = $this->makeUserWithPermissions($college, array_merge(self::COLLECTOR, [
+            'fee_collections.approve',
+            'approvals.view',
+            'approvals.approve',
+        ]));
+        $fixture = $this->makeFinanceEnrollment($college, $ctx, 'FCAPPR');
+        $assignment = $this->assignFeeStructure($college, $accountant, $fixture['enrollment'], $structure);
+        $this->enableApproval($college);
+
+        $this->assertFalse($accountant->isTrustedAuthority($college->id));
+
+        $this->asCollege($college, $accountant)
+            ->post(route('fee-collections.store'), $this->collectPayload($assignment, 6000))
+            ->assertSessionHasNoErrors();
+
+        $payment = $this->paymentOf($college);
+        $this->assertSame(FeePayment::STATUS_PENDING_APPROVAL, $payment->status);
+        $this->assertNotNull($this->approvalRequestOf($college, $payment));
+
+        // …and they still cannot decide it themselves.
+        $this->asCollege($college, $accountant)
+            ->post(route('approvals.approve', $this->approvalRequestOf($college, $payment)))
+            ->assertSessionHasErrors('decided_by');
+        $this->assertSame(FeePayment::STATUS_PENDING_APPROVAL, $payment->fresh()->status);
+    }
+
+    /** A College Admin may decide a request they raised themselves. */
+    public function test_a_college_admin_can_approve_their_own_request(): void
+    {
+        ['college' => $college, 'assignment' => $assignment] = $this->fixture('FCASELF', approvalEnabled: true);
+        $collegeAdmin = $this->makeCollegeAdminUser($college);
+        $payment = $this->queuePendingCollection($college, $collegeAdmin, $assignment, 4000);
+        $request = $this->approvalRequestOf($college, $payment);
+
+        $this->asCollege($college, $collegeAdmin)
+            ->post(route('approvals.approve', $request), ['decision_reason' => 'Verified by admin'])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(ApprovalRequest::STATUS_APPROVED, $request->fresh()->status);
+        $this->assertSame(FeePayment::STATUS_COMPLETED, $payment->fresh()->status);
+        $this->assertSame(4000.0, (float) $this->ledgerOf($college, $assignment)['paid']);
+
+        // The self-decision is visible in the audit trail, not hidden.
+        $log = \App\Models\AuditLog::withoutGlobalScopes()
+            ->where('action', 'approval.approved')
+            ->where('subject_id', $request->id)
+            ->latest('id')
+            ->firstOrFail();
+        $this->assertTrue((bool) ($log->new_values['self_decision'] ?? false));
+    }
+
+    /** …and may reject their own request, keeping the row and never counting it. */
+    public function test_a_college_admin_can_reject_their_own_request(): void
+    {
+        ['college' => $college, 'assignment' => $assignment] = $this->fixture('FCASELF2', approvalEnabled: true);
+        $collegeAdmin = $this->makeCollegeAdminUser($college);
+        $payment = $this->queuePendingCollection($college, $collegeAdmin, $assignment, 3000);
+        $request = $this->approvalRequestOf($college, $payment);
+
+        $this->asCollege($college, $collegeAdmin)
+            ->post(route('approvals.reject', $request), ['decision_reason' => 'Entered twice'])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(ApprovalRequest::STATUS_REJECTED, $request->fresh()->status);
+        $this->assertSame(FeePayment::STATUS_REJECTED, $payment->fresh()->status);
+        $this->assertStringContainsString('Entered twice', (string) $payment->fresh()->remarks);
+        $this->assertSame(0.0, (float) $this->ledgerOf($college, $assignment)['paid']);
+    }
+
+    /** Own pending requests appear in a trusted authority's Pending list. */
+    public function test_own_pending_requests_are_listed_for_a_trusted_authority_only(): void
+    {
+        ['college' => $college, 'assignment' => $assignment] = $this->fixture('FCAPEND', approvalEnabled: true);
+        $collegeAdmin = $this->makeCollegeAdminUser($college);
+        $accountant = $this->makeUserWithPermissions($college, array_merge(self::COLLECTOR, ['approvals.view', 'fee_collections.approve']));
+
+        $adminPayment = $this->queuePendingCollection($college, $collegeAdmin, $assignment, 1000);
+        $accountantPayment = $this->queuePendingCollection($college, $accountant, $assignment, 1000);
+
+        // The admin sees their own request (they may act on it)…
+        $this->asCollege($college, $collegeAdmin)
+            ->get(route('approvals.pending'))
+            ->assertOk()
+            ->assertSee($this->approvalRequestOf($college, $adminPayment)->reference_number);
+
+        // …the accountant does not see theirs (they could not act on it).
+        $response = $this->asCollege($college, $accountant)->get(route('approvals.pending'));
+        $response->assertOk()->assertDontSee($this->approvalRequestOf($college, $accountantPayment)->reference_number);
     }
 
     // ------------------------------------------------------------- approval path
@@ -617,6 +915,14 @@ class FeeCollectionApprovalTest extends TestCase
         $this->assertDatabaseCount('approval_requests', 1);
     }
 
+    /**
+     * The cap is `this amount + everything already awaiting approval <=
+     * outstanding`.
+     *
+     * A pending collection is not counted as paid, so the ledger still reports
+     * the full 26,500 as outstanding — but that money is already committed for
+     * this student, so only the un-reserved part may be submitted again.
+     */
     public function test_pending_collections_cannot_oversubscribe_the_balance(): void
     {
         ['college' => $college, 'collector' => $collector, 'assignment' => $assignment]
@@ -626,8 +932,11 @@ class FeeCollectionApprovalTest extends TestCase
             ->post(route('fee-collections.store'), $this->collectPayload($assignment, 20000))
             ->assertSessionHasNoErrors();
 
-        // 6,500 remains on the ledger, but 20,000 is already awaiting a decision,
-        // so nothing further may be queued against it.
+        // Nothing is counted as collected, yet 20,000 of the 26,500 is reserved.
+        $this->assertSame(0.0, (float) $this->ledgerOf($college, $assignment)['paid']);
+
+        // 7,000 would breach the reserved balance even though the ledger still
+        // shows 26,500 outstanding.
         $this->asCollege($college, $collector)
             ->post(route('fee-collections.store'), $this->collectPayload($assignment, 7000))
             ->assertSessionHasErrors('amount');
@@ -636,6 +945,118 @@ class FeeCollectionApprovalTest extends TestCase
             1,
             $this->withTenant($college, fn () => FeePayment::query()->count()),
         );
+
+        // The un-reserved 6,500 is still allowed…
+        $this->asCollege($college, $collector)
+            ->post(route('fee-collections.store'), $this->collectPayload($assignment, 6500))
+            ->assertSessionHasNoErrors();
+
+        // …and once it is, the assignment is fully committed and nothing else
+        // may be queued against it.
+        $this->asCollege($college, $collector)
+            ->post(route('fee-collections.store'), $this->collectPayload($assignment, 1))
+            ->assertSessionHasErrors('amount');
+
+        $this->assertSame(
+            2,
+            $this->withTenant($college, fn () => FeePayment::query()->count()),
+        );
+    }
+
+    /** The reservation is cumulative across several pending submissions. */
+    public function test_several_pending_collections_cannot_exceed_the_balance_together(): void
+    {
+        ['college' => $college, 'collector' => $collector, 'assignment' => $assignment]
+            = $this->fixture('FCCUM', approvalEnabled: true);
+
+        // 26,500 payable: 10,000 + 10,000 may be queued, the third 10,000 may not.
+        foreach ([1, 2] as $attempt) {
+            $this->asCollege($college, $collector)
+                ->post(route('fee-collections.store'), $this->collectPayload($assignment, 10000))
+                ->assertSessionHasNoErrors();
+        }
+
+        $this->asCollege($college, $collector)
+            ->post(route('fee-collections.store'), $this->collectPayload($assignment, 10000))
+            ->assertSessionHasErrors('amount');
+
+        $this->assertSame(2, $this->withTenant($college, fn () => FeePayment::query()->count()));
+        // Nothing is counted as collected while all of it waits.
+        $this->assertSame(0.0, (float) $this->ledgerOf($college, $assignment)['paid']);
+    }
+
+    /**
+     * A trusted authority's collection is finalized immediately, so it consumes
+     * the balance through the normal ledger — and the reservation still protects
+     * the remaining payable amount for everyone else.
+     */
+    public function test_a_finalized_admin_collection_reduces_what_may_be_queued(): void
+    {
+        ['college' => $college, 'collector' => $collector, 'assignment' => $assignment]
+            = $this->fixture('FCMIX', approvalEnabled: true);
+        $collegeAdmin = $this->makeCollegeAdminUser($college);
+
+        $this->asCollege($college, $collegeAdmin)
+            ->post(route('fee-collections.store'), $this->collectPayload($assignment, 20000))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(20000.0, (float) $this->ledgerOf($college, $assignment)['paid']);
+
+        // Only 6,500 is left: the accountant's 7,000 is refused, 6,500 is fine.
+        $this->asCollege($college, $collector)
+            ->post(route('fee-collections.store'), $this->collectPayload($assignment, 7000))
+            ->assertSessionHasErrors('amount');
+
+        $this->asCollege($college, $collector)
+            ->post(route('fee-collections.store'), $this->collectPayload($assignment, 6500))
+            ->assertSessionHasNoErrors();
+    }
+
+    /**
+     * The trusted-authority rule is the approval framework's, not a fee-only
+     * special case: an ordinary user still cannot decide their own request in
+     * another module, and a College Admin now can.
+     */
+    public function test_the_self_approval_rule_is_unchanged_for_ordinary_users_in_other_modules(): void
+    {
+        $college = $this->makeCollege('FCOTHER');
+        $student = \App\Models\Student::create([
+            'college_id' => $college->id,
+            'student_number' => 'STU-OTHER-1',
+            'first_name' => 'Other',
+            'last_name' => 'Module',
+            'status' => 'inactive',
+            'registration_status' => \App\Models\Student::REGISTRATION_PENDING,
+        ]);
+        $staff = $this->makeUserWithPermissions($college, ['approvals.view', 'approvals.approve', 'students.update']);
+        $collegeAdmin = $this->makeCollegeAdminUser($college);
+
+        $makeRequest = fn (string $reference, User $requester): ApprovalRequest => ApprovalRequest::withoutGlobalScopes()->create([
+            'college_id' => $college->id,
+            'module' => 'student',
+            'action' => 'registration_approval',
+            'target_type' => 'student.registration_approval',
+            'target_id' => $student->id,
+            'reference_number' => $reference,
+            'title' => 'Registration',
+            'status' => ApprovalRequest::STATUS_PENDING,
+            'requested_by' => $requester->id,
+            'payload' => ['academic_year_id' => null],
+        ]);
+
+        // Same request, two requesters, two outcomes.
+        $staffRequest = $makeRequest('APR-FCOTHER-1', $staff);
+        $this->asCollege($college, $staff)
+            ->post(route('approvals.approve', $staffRequest))
+            ->assertSessionHasErrors('decided_by');
+        $this->assertSame(ApprovalRequest::STATUS_PENDING, $staffRequest->fresh()->status);
+
+        $adminRequest = $makeRequest('APR-FCOTHER-2', $collegeAdmin);
+        $this->asCollege($college, $collegeAdmin)
+            ->post(route('approvals.approve', $adminRequest))
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+        $this->assertSame(ApprovalRequest::STATUS_APPROVED, $adminRequest->fresh()->status);
     }
 
     public function test_the_same_gate_applies_to_transport_fee_collections(): void

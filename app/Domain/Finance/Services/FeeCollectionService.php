@@ -131,7 +131,7 @@ class FeeCollectionService
 
             // Decided under the same lock as the amount: with approval enabled a
             // collection is born pending and becomes money only when approved.
-            $status = $this->statusFor((int) $locked->college_id);
+            $status = $this->statusFor((int) $locked->college_id, $actor);
 
             $payment = $this->createPaymentRecord([
                 'college_id' => $locked->college_id,
@@ -209,7 +209,7 @@ class FeeCollectionService
             $this->assertNoDuplicateReference((int) $locked->college_id, 'transport_fee_assignment_id', $locked->getKey(), $data, $amount);
 
             $token = trim((string) ($data['submission_token'] ?? ''));
-            $status = $this->statusFor((int) $locked->college_id);
+            $status = $this->statusFor((int) $locked->college_id, $actor);
 
             $payment = $this->createPaymentRecord([
                 'college_id' => $locked->college_id,
@@ -286,7 +286,7 @@ class FeeCollectionService
             $this->assertNoDuplicateReference((int) $locked->college_id, 'hostel_fee_assignment_id', $locked->getKey(), $data, $amount);
 
             $token = trim((string) ($data['submission_token'] ?? ''));
-            $status = $this->statusFor((int) $locked->college_id);
+            $status = $this->statusFor((int) $locked->college_id, $actor);
 
             $payment = $this->createPaymentRecord([
                 'college_id' => $locked->college_id,
@@ -316,12 +316,24 @@ class FeeCollectionService
     /**
      * The status a brand-new collection is born with.
      *
-     * `pending_approval` when the college enabled Approval Management →
-     * Fees → Fee Collection, `completed` otherwise (the default, so existing
-     * behaviour is untouched when the setting is disabled or absent).
+     * `completed` when either:
+     *   * the college has not enabled Approval Management → Fees → Fee
+     *     Collection (the default, so existing behaviour is untouched), or
+     *   * the actor is a TRUSTED AUTHORITY for this college — the platform Super
+     *     Admin or this college's College Admin. They are the two reserved
+     *     system roles and are allowed to perform their own fee collections
+     *     without a second approver.
+     *
+     * Every other user's collection is born `pending_approval` when the setting
+     * is on, whatever permissions they hold — holding `fee_collections.approve`
+     * makes a user an approver of OTHER people's collections, not of their own.
      */
-    private function statusFor(int $collegeId): string
+    private function statusFor(int $collegeId, User $actor): string
     {
+        if ($actor->isTrustedAuthority($collegeId)) {
+            return FeePayment::STATUS_COMPLETED;
+        }
+
         return $this->approvals->isApprovalRequired($collegeId, 'fees', ApprovalRegistry::ACTION_FEE_COLLECTION)
             ? FeePayment::STATUS_PENDING_APPROVAL
             : FeePayment::STATUS_COMPLETED;
@@ -403,18 +415,34 @@ class FeeCollectionService
 
     /**
      * The monetary cap, stated once for all three collection paths.
+     *
+     * A collection awaiting approval is not counted as paid, so the ledger's
+     * `outstanding` still contains it. It IS however committed money-in-waiting
+     * for a specific student, so it has to be reserved: the cap is
+     *
+     *     this amount + everything already awaiting approval <= outstanding
+     *
+     * Without the pending term, a second submission would be validated against
+     * the full balance and the same money could be queued twice (or three
+     * times). Approving such a queue would then push the ledger past the
+     * assigned amount, or force the later approvals to fail one by one.
      */
     private function assertWithinOutstanding(float $amount, float $outstanding, float $pendingApproval): void
     {
-        if ($amount <= $outstanding + FeeLedger::TOLERANCE) {
+        $committed = FeeLedger::money($amount + $pendingApproval);
+
+        if ($committed <= FeeLedger::money($outstanding) + FeeLedger::TOLERANCE) {
             return;
         }
 
-        $message = 'The amount exceeds the outstanding balance of '.number_format($outstanding, 2).'.';
+        $available = FeeLedger::money(max(0.0, $outstanding - $pendingApproval));
 
-        if ($pendingApproval > 0) {
-            $message .= ' '.number_format($pendingApproval, 2).' is already awaiting approval and still counts against this balance.';
-        }
+        $message = 'The amount exceeds the outstanding balance of '.number_format($outstanding, 2).'.'
+            .' Only '.number_format($available, 2).' is still available';
+
+        $message .= $pendingApproval > 0
+            ? ' after '.number_format($pendingApproval, 2).' already awaiting approval.'
+            : '.';
 
         throw ValidationException::withMessages(['amount' => $message]);
     }

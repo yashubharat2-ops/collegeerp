@@ -9,6 +9,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class Role extends Model
 {
     public const SUPER_ADMIN_SLUG = 'super-admin';
+
+    /**
+     * The per-college administrator role. Together with SUPER_ADMIN_SLUG these
+     * are the two reserved system roles (StoreRoleRequest refuses to create
+     * them through the UI), which is why they are the only roles the approval
+     * framework treats as trusted authorities.
+     */
+    public const COLLEGE_ADMIN_SLUG = 'college-admin';
     use HasFactory;
     protected $fillable = ['college_id', 'name', 'slug', 'description', 'is_system', 'is_active'];
     protected function casts(): array { return ['is_system' => 'boolean', 'is_active' => 'boolean']; }
