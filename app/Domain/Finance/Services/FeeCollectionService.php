@@ -12,6 +12,8 @@ use App\Models\HostelFeeAssignment;
 use App\Models\StudentFeeAssignment;
 use App\Models\StudentTransportFeeAssignment;
 use App\Models\User;
+use App\Services\Approval\ApprovalRegistry;
+use App\Services\Approval\ApprovalService;
 use App\Services\Audit\AuditLogService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -42,6 +44,15 @@ use Illuminate\Validation\ValidationException;
  *
  * Cancelled ("reversed") payments stay in the table for the audit trail but stop
  * counting towards the paid amount — nothing is ever deleted or zeroed.
+ *
+ * APPROVAL GATE: when the college enables Approval Management → Fees → Fee
+ * Collection (`fees.fee_collection`), a collection is created with status
+ * `pending_approval` and a central approval request is queued in the SAME
+ * transaction. A pending collection is not money: every balance, receipt,
+ * report and financial summary reads completed rows only, so nothing downstream
+ * needs to know about the workflow. Approval finalizes the row; rejection keeps
+ * it as `rejected` and it never counts. With the setting disabled (the default)
+ * a collection is completed immediately, exactly as before.
  */
 class FeeCollectionService
 {
@@ -69,6 +80,7 @@ class FeeCollectionService
         private readonly FeeDuesService $dues,
         private readonly GenerateFeePaymentNumber $numbers,
         private readonly AuditLogService $audit,
+        private readonly ApprovalService $approvals,
     ) {
     }
 
@@ -107,15 +119,19 @@ class FeeCollectionService
             // Recomputed here, under the lock: never trusted from the browser.
             $summary = $this->dues->summaryFor($locked);
 
-            if ($amount > $summary['outstanding'] + FeeLedger::TOLERANCE) {
-                throw ValidationException::withMessages([
-                    'amount' => 'The amount exceeds the outstanding balance of '.number_format($summary['outstanding'], 2).'.',
-                ]);
-            }
+            $this->assertWithinOutstanding(
+                $amount,
+                $summary['outstanding'],
+                $this->pendingApprovalSum((int) $locked->college_id, 'student_fee_assignment_id', (int) $locked->getKey()),
+            );
 
             $this->assertNoDuplicateReference($locked->college_id, 'student_fee_assignment_id', $locked->getKey(), $data, $amount);
 
             $token = trim((string) ($data['submission_token'] ?? ''));
+
+            // Decided under the same lock as the amount: with approval enabled a
+            // collection is born pending and becomes money only when approved.
+            $status = $this->statusFor((int) $locked->college_id);
 
             $payment = $this->createPaymentRecord([
                 'college_id' => $locked->college_id,
@@ -130,17 +146,15 @@ class FeeCollectionService
                 'amount' => $amount,
                 'reference_number' => ($data['reference_number'] ?? null) ?: null,
                 'submission_token' => $token !== '' ? $token : null,
-                'status' => FeePayment::STATUS_COMPLETED,
+                'status' => $status,
                 'remarks' => ($data['remarks'] ?? null) ?: null,
                 'collected_by' => $actor->getKey(),
-                'collected_at' => now(),
+                'collected_at' => $status === FeePayment::STATUS_COMPLETED ? now() : null,
                 'created_by' => $actor->getKey(),
                 'updated_by' => $actor->getKey(),
             ], $token);
 
-            $this->audit->record('fee_payments.collected', $payment, [], $payment->only(self::AUDITED));
-
-            return $payment->refresh();
+            return $this->settleOrQueue($payment, $actor);
         });
     }
 
@@ -186,15 +200,16 @@ class FeeCollectionService
             // Recomputed here, under the lock: never trusted from the browser.
             $summary = app(TransportFeeService::class)->summaryFor($locked);
 
-            if ($amount > $summary['outstanding'] + FeeLedger::TOLERANCE) {
-                throw ValidationException::withMessages([
-                    'amount' => 'The amount exceeds the outstanding balance of '.number_format($summary['outstanding'], 2).'.',
-                ]);
-            }
+            $this->assertWithinOutstanding(
+                $amount,
+                $summary['outstanding'],
+                $this->pendingApprovalSum((int) $locked->college_id, 'transport_fee_assignment_id', (int) $locked->getKey()),
+            );
 
             $this->assertNoDuplicateReference((int) $locked->college_id, 'transport_fee_assignment_id', $locked->getKey(), $data, $amount);
 
             $token = trim((string) ($data['submission_token'] ?? ''));
+            $status = $this->statusFor((int) $locked->college_id);
 
             $payment = $this->createPaymentRecord([
                 'college_id' => $locked->college_id,
@@ -209,17 +224,15 @@ class FeeCollectionService
                 'amount' => $amount,
                 'reference_number' => ($data['reference_number'] ?? null) ?: null,
                 'submission_token' => $token !== '' ? $token : null,
-                'status' => FeePayment::STATUS_COMPLETED,
+                'status' => $status,
                 'remarks' => ($data['remarks'] ?? null) ?: null,
                 'collected_by' => $actor->getKey(),
-                'collected_at' => now(),
+                'collected_at' => $status === FeePayment::STATUS_COMPLETED ? now() : null,
                 'created_by' => $actor->getKey(),
                 'updated_by' => $actor->getKey(),
             ], $token);
 
-            $this->audit->record('fee_payments.collected', $payment, [], $payment->only(self::AUDITED));
-
-            return $payment->refresh();
+            return $this->settleOrQueue($payment, $actor);
         });
     }
 
@@ -264,15 +277,16 @@ class FeeCollectionService
 
             $summary = app(HostelFeeService::class)->summaryFor($locked);
 
-            if ($amount > $summary['outstanding'] + FeeLedger::TOLERANCE) {
-                throw ValidationException::withMessages([
-                    'amount' => 'The amount exceeds the outstanding balance of '.number_format($summary['outstanding'], 2).'.',
-                ]);
-            }
+            $this->assertWithinOutstanding(
+                $amount,
+                $summary['outstanding'],
+                $this->pendingApprovalSum((int) $locked->college_id, 'hostel_fee_assignment_id', (int) $locked->getKey()),
+            );
 
             $this->assertNoDuplicateReference((int) $locked->college_id, 'hostel_fee_assignment_id', $locked->getKey(), $data, $amount);
 
             $token = trim((string) ($data['submission_token'] ?? ''));
+            $status = $this->statusFor((int) $locked->college_id);
 
             $payment = $this->createPaymentRecord([
                 'college_id' => $locked->college_id,
@@ -287,18 +301,139 @@ class FeeCollectionService
                 'amount' => $amount,
                 'reference_number' => ($data['reference_number'] ?? null) ?: null,
                 'submission_token' => $token !== '' ? $token : null,
-                'status' => FeePayment::STATUS_COMPLETED,
+                'status' => $status,
                 'remarks' => ($data['remarks'] ?? null) ?: null,
                 'collected_by' => $actor->getKey(),
-                'collected_at' => now(),
+                'collected_at' => $status === FeePayment::STATUS_COMPLETED ? now() : null,
                 'created_by' => $actor->getKey(),
                 'updated_by' => $actor->getKey(),
             ], $token);
 
-            $this->audit->record('fee_payments.collected', $payment, [], $payment->only(self::AUDITED));
+            return $this->settleOrQueue($payment, $actor);
+        });
+    }
+
+    /**
+     * The status a brand-new collection is born with.
+     *
+     * `pending_approval` when the college enabled Approval Management →
+     * Fees → Fee Collection, `completed` otherwise (the default, so existing
+     * behaviour is untouched when the setting is disabled or absent).
+     */
+    private function statusFor(int $collegeId): string
+    {
+        return $this->approvals->isApprovalRequired($collegeId, 'fees', ApprovalRegistry::ACTION_FEE_COLLECTION)
+            ? FeePayment::STATUS_PENDING_APPROVAL
+            : FeePayment::STATUS_COMPLETED;
+    }
+
+    /**
+     * Either record the collection as money (no approval required) or queue the
+     * central approval request, inside the caller's transaction.
+     *
+     * Both branches audit the submission; the approval request itself adds the
+     * `approval.requested` entry through the shared ApprovalService.
+     */
+    private function settleOrQueue(FeePayment $payment, User $actor): FeePayment
+    {
+        if ($payment->isPendingApproval()) {
+            $this->audit->record('fee_payments.submitted_for_approval', $payment, [], $payment->only(self::AUDITED));
+            $this->queueApproval($payment, $actor);
 
             return $payment->refresh();
-        });
+        }
+
+        $this->audit->record('fee_payments.collected', $payment, [], $payment->only(self::AUDITED));
+
+        return $payment->refresh();
+    }
+
+    /**
+     * Submit the pending collection to the existing approval framework.
+     *
+     * The request targets the payment row itself (`fees.fee_collection`), so
+     * approving or rejecting it is decided by ApprovalService against this exact
+     * collection — there is no parallel money workflow.
+     */
+    private function queueApproval(FeePayment $payment, User $actor): void
+    {
+        $payment->loadMissing('studentEnrollment.student');
+        $student = $payment->studentEnrollment?->student;
+
+        $this->approvals->submitRequest([
+            'module' => 'fees',
+            'action' => ApprovalRegistry::ACTION_FEE_COLLECTION,
+            'target_type' => 'fees.'.ApprovalRegistry::ACTION_FEE_COLLECTION,
+            'target_id' => $payment->getKey(),
+            'title' => 'Fee collection '.$payment->payment_number.' — '.number_format((float) $payment->amount, 2),
+            'description' => 'Collection recorded by '.$actor->name
+                .($student ? ' for '.$student->fullName() : '')
+                .'. It is not counted as collected until an authorized approver finalizes it.',
+            'payload' => [
+                'payment_number' => $payment->payment_number,
+                'amount' => (float) $payment->amount,
+                'payment_date' => $payment->payment_date?->format('Y-m-d'),
+                'payment_mode' => $payment->payment_mode,
+                'reference_number' => $payment->reference_number,
+                'student_fee_assignment_id' => $payment->student_fee_assignment_id,
+                'transport_fee_assignment_id' => $payment->transport_fee_assignment_id,
+                'hostel_fee_assignment_id' => $payment->hostel_fee_assignment_id,
+            ],
+            'request_reason' => $payment->remarks,
+        ], (int) $payment->college_id, (int) $actor->getKey());
+    }
+
+    /**
+     * Amount already submitted against one assignment and still awaiting an
+     * approval decision.
+     *
+     * It reduces what may be submitted again (so a double submission cannot
+     * reserve the same balance twice) WITHOUT ever being counted as collected:
+     * balances, receipts and reports read completed rows only.
+     */
+    private function pendingApprovalSum(int $collegeId, string $targetColumn, int $targetId): float
+    {
+        return FeeLedger::money((float) FeePayment::withoutGlobalScopes()
+            ->where('college_id', $collegeId)
+            ->where($targetColumn, $targetId)
+            ->whereNull('deleted_at')
+            ->where('status', FeePayment::STATUS_PENDING_APPROVAL)
+            ->sum('amount'));
+    }
+
+    /**
+     * The monetary cap, stated once for all three collection paths.
+     */
+    private function assertWithinOutstanding(float $amount, float $outstanding, float $pendingApproval): void
+    {
+        if ($amount <= $outstanding + FeeLedger::TOLERANCE) {
+            return;
+        }
+
+        $message = 'The amount exceeds the outstanding balance of '.number_format($outstanding, 2).'.';
+
+        if ($pendingApproval > 0) {
+            $message .= ' '.number_format($pendingApproval, 2).' is already awaiting approval and still counts against this balance.';
+        }
+
+        throw ValidationException::withMessages(['amount' => $message]);
+    }
+
+    /**
+     * A collection that is still awaiting an approval decision is not money and
+     * must not be rewritten or reversed directly: an approver decides it, or the
+     * submitter withdraws the request and it is reversed through the audited
+     * cancellation path (see ApprovalService::withdrawFeeCollection()).
+     */
+    private function assertNotAwaitingApproval(FeePayment $payment, string $field = 'status'): void
+    {
+        if (! $payment->isPendingApproval()) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            $field => 'This collection is awaiting approval. An approver must approve or reject it before it can be changed.',
+        ]);
     }
 
     /**
@@ -340,6 +475,8 @@ class FeeCollectionService
         $this->assertTenant($payment);
 
         return DB::transaction(function () use ($payment, $data, $actor): FeePayment {
+            $this->assertNotAwaitingApproval($payment, 'payment_date');
+
             if ($payment->isCancelled()) {
                 throw ValidationException::withMessages([
                     'payment_date' => 'A cancelled payment can no longer be edited.',
@@ -401,6 +538,8 @@ class FeeCollectionService
                 ]);
             }
 
+            $this->assertNotAwaitingApproval($payment);
+
             $refunded = (float) FeeRefund::withoutGlobalScopes()
                 ->where('fee_payment_id', $payment->getKey())
                 ->where('college_id', $payment->college_id)
@@ -441,6 +580,8 @@ class FeeCollectionService
         $this->assertTenant($payment);
 
         DB::transaction(function () use ($payment): void {
+            $this->assertNotAwaitingApproval($payment);
+
             $refunds = FeeRefund::withoutGlobalScopes()
                 ->where('fee_payment_id', $payment->getKey())
                 ->where('college_id', $payment->college_id)
@@ -490,7 +631,9 @@ class FeeCollectionService
         $duplicate = FeePayment::withoutGlobalScopes()
             ->where('college_id', $collegeId)
             ->where($targetColumn, $targetId)
-            ->where('status', FeePayment::STATUS_COMPLETED)
+            // Completed AND pending rows: the same bank reference cannot be
+            // queued twice, and cannot be queued while it is already money.
+            ->whereIn('status', [FeePayment::STATUS_COMPLETED, FeePayment::STATUS_PENDING_APPROVAL])
             ->whereNull('deleted_at')
             ->where('payment_mode', $data['payment_mode'] ?? null)
             ->where('reference_number', $reference)

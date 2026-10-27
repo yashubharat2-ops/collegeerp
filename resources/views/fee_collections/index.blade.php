@@ -7,8 +7,8 @@
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="panel-title">Fee Collection</h2>
-            <p class="panel-subtitle">Recorded collections. Cancelled payments stay visible for the audit trail but no longer count towards the collected amount.</p>
-            <p class="mt-2 text-sm text-slate-600">Filtered total (all shown statuses): <span class="font-semibold">{{ number_format((float) $total, 2) }}</span></p>
+            <p class="panel-subtitle">Recorded collections. Cancelled payments stay visible for the audit trail but no longer count towards the collected amount. When Approval Management requires approval for Fee Collection, a new collection stays <strong>Pending Approval</strong> — it is not money, and it appears in no balance, receipt or report, until an authorized approver finalizes it.</p>
+            <p class="mt-2 text-sm text-slate-600">Filtered total (every shown status, so pending and reversed rows are included — this is not the collected amount): <span class="font-semibold">{{ number_format((float) $total, 2) }}</span></p>
         </div>
         @can('create', App\Models\FeePayment::class)
             <a class="button" href="{{ route('fee-collections.create') }}">+ Record collection</a>
@@ -57,7 +57,7 @@
             <select class="input" id="status" name="status">
                 <option value="">All statuses</option>
                 @foreach($paymentStatuses as $status)
-                    <option value="{{ $status }}" @selected($selected['status'] === $status)>{{ ucfirst($status) }}</option>
+                    <option value="{{ $status }}" @selected($selected['status'] === $status)>{{ ucfirst(str_replace('_', ' ', $status)) }}</option>
                 @endforeach
             </select>
         </div>
@@ -121,14 +121,32 @@
                         <td>{{ $payment->reference_number ?? '—' }}</td>
                         <td class="text-right">{{ number_format((float) $payment->amount, 2) }}</td>
                         <td>
-                            <span class="rounded-full px-3 py-1 text-xs font-semibold {{ $payment->status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700' }}">{{ ucfirst($payment->status) }}</span>
+                            @php
+                                // Semantic status colours: green = money, amber = undecided,
+                                // rose = never money (rejected / reversed).
+                                $statusClass = match ($payment->status) {
+                                    App\Models\FeePayment::STATUS_COMPLETED => 'bg-emerald-100 text-emerald-700',
+                                    App\Models\FeePayment::STATUS_PENDING_APPROVAL => 'bg-amber-100 text-amber-800',
+                                    default => 'bg-rose-100 text-rose-700',
+                                };
+                            @endphp
+                            <span class="rounded-full px-3 py-1 text-xs font-semibold {{ $statusClass }}">{{ ucfirst(str_replace('_', ' ', $payment->status)) }}</span>
+                            @if($payment->isPendingApproval())
+                                <p class="mt-1 text-xs text-amber-700">Awaiting approval — not counted as collected.</p>
+                            @endif
+                            @if($payment->isRejected())
+                                <p class="mt-1 text-xs text-rose-700">Rejected — not counted as collected.</p>
+                            @endif
                         </td>
                         <td class="py-2">
                             <div class="flex justify-end gap-2">
                                 @can('view', App\Models\FeeReceipt::fromPayment($payment))
                                     <a class="button !bg-slate-200 !text-slate-700" href="{{ route('receipts.show', $payment) }}">Receipt</a>
                                 @endcan
-                                @if(! $payment->isCancelled())
+                                {{-- A collection awaiting approval is not editable or reversible
+                                     from here: an approver decides it, or the submitter withdraws
+                                     the request under Approval Management → My Requests. --}}
+                                @if(! $payment->isCancelled() && ! $payment->isPendingApproval())
                                     @can('update', $payment)
                                         <a class="button !bg-slate-200 !text-slate-700" href="{{ route('fee-collections.edit', $payment) }}">Edit</a>
                                     @endcan
@@ -140,6 +158,7 @@
                                         </form>
                                     @endcan
                                 @endif
+                                @if(! $payment->isPendingApproval())
                                 @can('delete', $payment)
                                     <form method="POST" action="{{ route('fee-collections.destroy', $payment) }}" onsubmit="return confirm(@js('Delete payment '.$payment->payment_number.'? Prefer cancelling it so the audit trail keeps the row.'));">
                                         @csrf
@@ -147,6 +166,7 @@
                                         <button class="button !bg-rose-100 !text-rose-700" type="submit">Delete</button>
                                     </form>
                                 @endcan
+                                @endif
                             </div>
                         </td>
                     </tr>

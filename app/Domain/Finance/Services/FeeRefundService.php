@@ -221,9 +221,14 @@ class FeeRefundService
             ->lockForUpdate()
             ->firstOrFail();
 
-        if ($locked->isCancelled()) {
+        // Only money can be refunded: a cancelled/reversed collection, one still
+        // awaiting approval and one an approver rejected all have nothing to give
+        // back.
+        if (! $locked->countsTowardsPaid()) {
             throw ValidationException::withMessages([
-                'fee_payment_id' => 'A cancelled payment cannot be refunded.',
+                'fee_payment_id' => $locked->isCancelled()
+                    ? 'A cancelled payment cannot be refunded.'
+                    : 'Only a completed collection can be refunded.',
             ]);
         }
 

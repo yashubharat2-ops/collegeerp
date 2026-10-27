@@ -12,6 +12,16 @@
         <a class="button !bg-slate-200 !text-slate-700" href="{{ route('fee-collections.index') }}">Back</a>
     </div>
 
+    @if($requiresApproval ?? false)
+        {{-- Approval Management → Fees → Fee Collection is enabled for this
+             college: the accountant is told BEFORE saving that the collection will
+             wait for an authorized approver and will not count as collected yet. --}}
+        <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" role="status">
+            <strong>Approval required.</strong>
+            This collection will be saved as <em>Pending Approval</em>. It is not counted as collected — it appears in no balance, receipt or report — until an authorized approver finalizes it.
+        </div>
+    @endif
+
     @if($errors->any())
         <div class="alert-error mt-4">
             <ul class="list-inside list-disc space-y-1">

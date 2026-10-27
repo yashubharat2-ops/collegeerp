@@ -6,6 +6,7 @@ use App\Domain\Student\Services\StudentService;
 use App\Models\AcademicYear;
 use App\Models\ApprovalRequest;
 use App\Models\ApprovalSetting;
+use App\Models\FeePayment;
 use App\Models\Program;
 use App\Models\Section;
 use App\Models\Student;
@@ -207,7 +208,7 @@ class ApprovalService
 
             // On rejection, preserve approved value unchanged - do not apply payload
             // For admission application, set target status to rejected via service?
-            $this->handleRejectionSideEffect($req, $reason);
+            $this->handleRejectionSideEffect($req, $reason, $deciderId);
 
             $oldStatus = $req->status;
             $req->update([
@@ -244,6 +245,10 @@ class ApprovalService
                 }
             }
 
+            // A module-specific withdrawal, so the target never stays stranded
+            // in "pending approval" with no request left to decide it.
+            $this->handleCancellationSideEffect($req, $userId);
+
             $oldStatus = $req->status;
             $req->update([
                 'status' => ApprovalRequest::STATUS_CANCELLED,
@@ -269,6 +274,8 @@ class ApprovalService
             $this->approveAdmissionApplicationStatusChange($request, $deciderId);
         } elseif ($request->module === 'student' && $request->action === 'registration_approval') {
             $this->approveStudentRegistration($request, $deciderId);
+        } elseif ($request->module === 'fees' && $request->action === 'fee_collection') {
+            $this->approveFeeCollection($request, $deciderId);
         }
         // For student sensitive updates, payload would be applied here
         if ($request->payload && is_array($request->payload) && $request->target_type && $request->target_id) {
@@ -283,10 +290,15 @@ class ApprovalService
         }
     }
 
-    private function handleRejectionSideEffect(ApprovalRequest $request, string $reason): void
+    private function handleRejectionSideEffect(ApprovalRequest $request, string $reason, int $deciderId): void
     {
         if ($request->module === 'student' && $request->action === 'registration_approval') {
             $this->rejectStudentRegistration($request, $reason);
+            return;
+        }
+
+        if ($request->module === 'fees' && $request->action === 'fee_collection') {
+            $this->rejectFeeCollection($request, $reason, $deciderId);
             return;
         }
 
@@ -495,6 +507,131 @@ class ApprovalService
             'reason' => $reason,
             'approval_request_id' => $request->id,
         ]);
+    }
+
+    /**
+     * Finalize a fee collection that was queued as `pending_approval`.
+     *
+     * Approving is the ONLY transition that turns a pending collection into
+     * money. It runs inside ApprovalService::approve()'s transaction, after the
+     * self-approval and permission checks, so it can never be reached by the
+     * submitter or by a user without `fee_collections.approve`.
+     *
+     * Idempotent by construction: an already completed collection is left alone
+     * (a second approval of the same request is refused earlier, on the request
+     * status, and re-finalizing is a no-op), while a rejected or cancelled one
+     * is refused outright instead of being resurrected.
+     */
+    private function approveFeeCollection(ApprovalRequest $request, int $deciderId): void
+    {
+        $payment = $this->feeCollectionTarget($request);
+
+        if (! $payment || $payment->countsTowardsPaid()) {
+            return;
+        }
+
+        if (! $payment->isFinalizable()) {
+            throw ValidationException::withMessages([
+                'status' => 'This collection is '.str_replace('_', ' ', (string) $payment->status).' and can no longer be approved.',
+            ]);
+        }
+
+        $old = $payment->only(['status', 'collected_at', 'collected_by']);
+
+        $payment->status = FeePayment::STATUS_COMPLETED;
+        $payment->collected_by = $payment->collected_by ?: $request->requested_by;
+        // The collection becomes money at the moment it is approved.
+        $payment->collected_at = now();
+        $payment->updated_by = $deciderId;
+        $payment->save();
+
+        $this->audit->record('fee_payments.approved', $payment, $old, $payment->only([
+            'status', 'collected_at', 'collected_by', 'amount', 'payment_number',
+        ]) + ['approval_request_id' => $request->id]);
+    }
+
+    /**
+     * A rejected collection is kept for the audit trail and never counted as
+     * paid: the row keeps its payment number, amount and submitter, and the
+     * approver's reason is appended to the remarks.
+     */
+    private function rejectFeeCollection(ApprovalRequest $request, string $reason, int $deciderId): void
+    {
+        $payment = $this->feeCollectionTarget($request);
+
+        // Nothing to reject if it already became money (approved elsewhere) or
+        // was withdrawn by its submitter.
+        if (! $payment || ! $payment->isFinalizable()) {
+            return;
+        }
+
+        $old = $payment->only(['status', 'remarks']);
+
+        $payment->status = FeePayment::STATUS_REJECTED;
+        $payment->remarks = trim(((string) $payment->remarks)."\nRejected: ".$reason);
+        $payment->updated_by = $deciderId;
+        $payment->save();
+
+        $this->audit->record('fee_payments.rejected', $payment, $old, [
+            'status' => $payment->status,
+            'reason' => $reason,
+            'approval_request_id' => $request->id,
+        ]);
+    }
+
+    /**
+     * The requester withdrew the request before anyone decided it.
+     *
+     * The collection must not stay in `pending_approval` with no request able to
+     * decide it, so it is reversed through the same cancelled state a manual
+     * reversal uses. It never counted as paid, so balances are unaffected.
+     */
+    private function withdrawFeeCollection(ApprovalRequest $request, int $userId): void
+    {
+        $payment = $this->feeCollectionTarget($request);
+
+        if (! $payment || ! $payment->isFinalizable()) {
+            return;
+        }
+
+        $old = $payment->only(['status', 'cancelled_by', 'cancelled_at', 'cancellation_reason']);
+
+        $payment->status = FeePayment::STATUS_CANCELLED;
+        $payment->cancelled_by = $userId;
+        $payment->cancelled_at = now();
+        $payment->cancellation_reason = 'Approval request withdrawn before a decision';
+        $payment->updated_by = $userId;
+        $payment->save();
+
+        $this->audit->record('fee_payments.approval_withdrawn', $payment, $old, [
+            'status' => $payment->status,
+            'approval_request_id' => $request->id,
+        ]);
+    }
+
+    /**
+     * The payment row a fee-collection approval request points at, inside the
+     * request's own college. Soft-deleted rows are invisible, so a deleted
+     * collection can never be finalized by approving its stale request.
+     */
+    private function feeCollectionTarget(ApprovalRequest $request): ?FeePayment
+    {
+        if (! $request->target_id || $request->target_type !== 'fees.fee_collection') {
+            return null;
+        }
+
+        return FeePayment::withoutGlobalScopes()
+            ->where('college_id', $request->college_id)
+            ->whereNull('deleted_at')
+            ->whereKey($request->target_id)
+            ->first();
+    }
+
+    private function handleCancellationSideEffect(ApprovalRequest $request, int $userId): void
+    {
+        if ($request->module === 'fees' && $request->action === 'fee_collection') {
+            $this->withdrawFeeCollection($request, $userId);
+        }
     }
 
     private function generateReference(int $collegeId): string

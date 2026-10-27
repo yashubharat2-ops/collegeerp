@@ -11,6 +11,9 @@ namespace App\Services\Approval;
  */
 final class ApprovalRegistry
 {
+    /** The Fee Collection action slug, shared by the fee service and the registry. */
+    public const ACTION_FEE_COLLECTION = 'fee_collection';
+
     /**
      * module => [action => [label, permission_approve, modelClass, description]]
      */
@@ -62,6 +65,17 @@ final class ApprovalRegistry
             ],
         ],
         'fees' => [
+            // Fee Collection: when enabled, a collection recorded through the
+            // Fee Collection screen (or the Transport / Hostel fee collection
+            // paths, which share the same payment row) is created as
+            // `pending_approval` and stays out of every balance, receipt and
+            // report until an authorized approver finalizes it.
+            'fee_collection' => [
+                'label' => 'Fee Collection',
+                'permission_approve' => 'fee_collections.approve',
+                'model' => \App\Models\FeePayment::class,
+                'description' => 'Fee collections require approval before the payment is finalized and counted as collected.',
+            ],
             'fee_concession' => [
                 'label' => 'Fee Concession',
                 'permission_approve' => 'fee_concessions.approve',

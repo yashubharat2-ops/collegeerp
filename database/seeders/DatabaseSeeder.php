@@ -111,6 +111,10 @@ class DatabaseSeeder extends Seeder
             'student_fee_assignments.view', 'student_fee_assignments.create', 'student_fee_assignments.update', 'student_fee_assignments.delete',
             // Finance / Fees — Fee Collection.
             'fee_collections.view', 'fee_collections.create', 'fee_collections.update', 'fee_collections.delete',
+            // Finance / Fees — Fee Collection approval (Approval Management →
+            // Fees → Fee Collection). Only this permission may finalize a
+            // pending collection.
+            ...FeeCollectionApprovalPermissionSeeder::PERMISSIONS,
             // Finance / Fees — Receipts (derived printable documents; read-only).
             'receipts.view', 'receipts.print',
             // Finance / Fees — Due / Outstanding Fees (derived ledger; read-only).

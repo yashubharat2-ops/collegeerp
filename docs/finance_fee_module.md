@@ -97,6 +97,47 @@ every text value above every number, which would silently exclude rows from the
 derived-status filter. Aggregates are read through `toBase()` (not `getQuery()`)
 so the college scope and soft-delete scope stay part of the query.
 
+## Fee Collection approval (opt-in)
+
+Approval Management → **Fees → Fee Collection** (`fees.fee_collection`,
+label *Fee Collection*) is a supported action in the existing registry
+(`App\Services\Approval\ApprovalRegistry`). It is **off by default**: with no
+row in `approval_settings` — or with it explicitly disabled — a collection is
+completed the moment it is recorded, exactly as described above.
+
+When an administrator enables it:
+
+* `FeeCollectionService` creates the payment with status `pending_approval` and
+  queues a central `ApprovalRequest` (`module = fees`, `action = fee_collection`,
+  `target_type = fees.fee_collection`, `target_id = fee_payments.id`) inside the
+  **same transaction**, so a collection and its request can never diverge.
+  This applies to all three collection paths (tuition, transport, hostel) because
+  they share the one payment row and one service.
+* A pending collection is **not money**. Every balance, receipt, collection
+  report and financial summary reads `status = completed` only, so nothing
+  downstream needed to change: `FeeDuesService`, `TransportFeeService`,
+  `HostelFeeService`, `FeeReportService`, `FinanceReportService`,
+  `DashboardController` and the Receipts screen all ignore it automatically.
+* `collected_at` stays `NULL` until approval. Approval sets
+  `status = completed`, stamps `collected_at`, and audit-logs
+  `fee_payments.approved`; the payment number minted at submission is the
+  receipt number.
+* Rejection keeps the row, sets `status = rejected`, appends the approver's
+  reason to `remarks` and audit-logs `fee_payments.rejected`. A rejected
+  collection never counts as paid and can never be approved afterwards.
+* Withdrawing the request (Approvals → My Requests → Cancel) reverses the
+  pending collection to `cancelled` so it never stays stranded in
+  "pending approval"; audit action `fee_payments.approval_withdrawn`.
+* While pending, the collection cannot be edited, cancelled, deleted or refunded
+  (`FeeCollectionService`, `FeeRefundService` and the edit screen refuse it);
+  the existing self-approval ban, tenant scoping and permission checks all apply.
+* Pending amounts still reserve the balance — `amount + Σ pending ≤ outstanding`
+  — so the same money cannot be queued twice, without ever being counted as
+  collected.
+* Only `fee_collections.approve` may decide a fee-collection request; the
+  College Admin / Super Admin roles receive it from `DatabaseSeeder`
+  (`FeeCollectionApprovalPermissionSeeder::PERMISSIONS`).
+
 ## Tenancy
 
 All five new tables carry `college_id` + soft deletes and their models use
@@ -148,7 +189,7 @@ seeded `college-admin` role receive them):
 fee_structures.view/create/update/delete
 fee_categories.view/create/update/delete
 student_fee_assignments.view/create/update/delete
-fee_collections.view/create/update/delete
+fee_collections.view/create/update/delete/approve
 receipts.view, receipts.print
 fee_dues.view
 fee_concessions.view/create/update/delete/approve
@@ -163,7 +204,8 @@ these view permissions and each entry is gated on its own slug.
 ## Audit
 
 `AuditLogService` records `fee_categories.*`, `student_fee_assignments.*`,
-`fee_payments.collected|updated|cancelled|deleted`,
+`fee_payments.collected|updated|cancelled|deleted` plus
+`fee_payments.submitted_for_approval|approved|rejected|approval_withdrawn`,
 `fee_concessions.*`, `fee_refunds.*` with the actor, subject, old/new snapshots
 and the request context. Sensitive payment credentials are never stored or
 logged — the register keeps only the payment mode and the reference number.
