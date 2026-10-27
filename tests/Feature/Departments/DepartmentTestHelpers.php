@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Departments;
 
-use App\Models\{College, Permission, Role, User};
+use App\Models\{ApprovalSetting, College, Permission, Role, User};
 use Illuminate\Support\Str;
 
 trait DepartmentTestHelpers
@@ -10,6 +10,30 @@ trait DepartmentTestHelpers
     private function makeCollege(string $code): College
     {
         return College::create(['name' => $code.' College', 'code' => $code, 'slug' => Str::slug($code).'-college', 'status' => 'active']);
+    }
+
+    /**
+     * Configure one test college for the direct (pre-central-approval)
+     * admission-application workflow.
+     *
+     * Admission approval defaults to ON when no setting row exists. The
+     * direct-workflow regression tests below predate that default and assert
+     * behaviour of the base CRUD/workflow paths; ApprovalManagementTest
+     * separately covers the approval-required path. Disabling the setting per
+     * college keeps those assertions exactly as strict as they were, without
+     * granting an extra permission that the test is meant to exclude.
+     */
+    private function disableAdmissionApplicationApproval(College $college): void
+    {
+        foreach (['application_submit', 'application_status_change'] as $action) {
+            ApprovalSetting::withoutGlobalScopes()->create([
+                'college_id' => $college->id,
+                'module' => 'admission',
+                'action' => $action,
+                'is_required' => false,
+                'label' => 'Disabled for direct-workflow regression test',
+            ]);
+        }
     }
 
     private function makeUserWithPermissions(College $college, array $slugs, bool $superAdmin = false): User

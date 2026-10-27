@@ -42,6 +42,12 @@ final class ApprovalRegistry
             // unsupported module/action pairs.
         ],
         'student' => [
+            'registration_approval' => [
+                'label' => 'Student Registration',
+                'permission_approve' => 'approvals.approve',
+                'model' => \App\Models\Student::class,
+                'description' => 'A new student registration requires approval before the student becomes operational.',
+            ],
             'student_data_change' => [
                 'label' => 'Sensitive Student Data Change',
                 'permission_approve' => 'students.update',

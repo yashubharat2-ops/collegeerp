@@ -40,7 +40,7 @@ class StudentEnrollmentController extends Controller
                 'student_id' => $request->input('student_id'),
                 'academic_year_id' => $request->input('academic_year_id'),
                 'status' => $request->input('status'),
-                'students' => Student::query()->orderBy('first_name')->orderBy('last_name')->get(['id', 'student_number', 'first_name', 'last_name']),
+                'students' => Student::query()->approvedForOperations()->orderBy('first_name')->orderBy('last_name')->get(['id', 'student_number', 'first_name', 'last_name']),
                 'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(['id', 'name', 'code']),
                 'sections' => $this->sectionOptions(),
             ],
@@ -121,7 +121,7 @@ class StudentEnrollmentController extends Controller
         $this->authorize('create', StudentEnrollment::class);
 
         return view('student_enrollments.create', [
-            'students' => Student::query()->orderBy('first_name')->orderBy('last_name')->get(['id', 'student_number', 'first_name', 'last_name']),
+            'students' => Student::query()->approvedForOperations()->orderBy('first_name')->orderBy('last_name')->get(['id', 'student_number', 'first_name', 'last_name']),
             'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(['id', 'name', 'code']),
             'programs' => Program::query()->orderBy('name')->get(['id', 'name', 'code']),
             'sections' => $this->sectionOptions(),

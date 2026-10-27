@@ -151,6 +151,11 @@ class ApprovalController extends Controller
             $action = $item['action'];
             $isRequired = (bool) $item['is_required'];
 
+            // Registration must never silently bypass central approval.
+            if ($module === 'student' && $action === 'registration_approval') {
+                $isRequired = true;
+            }
+
             if (! ApprovalRegistry::isSupported($module, $action)) {
                 continue;
             }

@@ -213,7 +213,7 @@ class StudentImportTest extends TestCase
         $this->assertContains('aadhaar_number', $fields);
     }
 
-    public function test_confirm_creates_students_and_enrollments_with_generated_numbers(): void
+    public function test_confirm_submits_pending_registration_then_approval_creates_student_and_enrollment(): void
     {
         Storage::fake('local');
 
@@ -224,6 +224,7 @@ class StudentImportTest extends TestCase
         $admin = $this->makeUserWithPermissions($college, [
             'students.view', 'students.create', 'student_enrollments.create',
         ]);
+        $approver = $this->makeUserWithPermissions($college, ['approvals.view', 'approvals.approve']);
 
         $file = $this->csv([[
             'first_name' => 'Imported',
@@ -259,6 +260,30 @@ class StudentImportTest extends TestCase
         $this->assertStringStartsWith('STU-', $student->student_number);
         $this->assertSame('2008-06-15', $student->date_of_birth?->format('Y-m-d'));
         $this->assertSame('2026-06-01', $student->admission_date?->format('Y-m-d'));
+        $this->assertSame('pending_approval', $student->registration_status);
+        $this->assertSame('inactive', $student->status);
+        $this->assertSame(0, StudentEnrollment::withoutGlobalScopes()->where('student_id', $student->id)->count());
+
+        $request = \App\Models\ApprovalRequest::withoutGlobalScopes()
+            ->where('college_id', $college->id)
+            ->where('module', 'student')
+            ->where('action', 'registration_approval')
+            ->where('target_id', $student->id)
+            ->firstOrFail();
+        $this->assertSame('pending', $request->status);
+
+        $this->asCollege($college, $admin)
+            ->get(route('students.index'))
+            ->assertOk()
+            ->assertDontSee($student->student_number);
+
+        $this->asCollege($college, $approver)
+            ->post(route('approvals.approve', $request), ['decision_reason' => 'Verified'])
+            ->assertRedirect();
+
+        $student->refresh();
+        $this->assertSame('approved', $student->registration_status);
+        $this->assertSame('active', $student->status);
 
         $enrollment = StudentEnrollment::withoutGlobalScopes()->where('student_id', $student->id)->first();
         $this->assertNotNull($enrollment);
@@ -267,6 +292,11 @@ class StudentImportTest extends TestCase
         $this->assertSame($program->id, $enrollment->program_id);
         $this->assertSame($section->id, $enrollment->section_id);
         $this->assertSame('2026-06-02', $enrollment->enrollment_date?->format('Y-m-d'));
+
+        $this->asCollege($college, $admin)
+            ->get(route('students.index'))
+            ->assertOk()
+            ->assertSee($student->student_number);
     }
 
     public function test_failed_import_does_not_leave_partial_students(): void
@@ -313,6 +343,7 @@ class StudentImportTest extends TestCase
         }
 
         $this->assertSame(0, Student::withoutGlobalScopes()->where('college_id', $college->id)->count());
+        $this->assertSame(0, \App\Models\ApprovalRequest::withoutGlobalScopes()->where('college_id', $college->id)->count());
     }
 
     public function test_import_token_is_college_and_user_scoped(): void

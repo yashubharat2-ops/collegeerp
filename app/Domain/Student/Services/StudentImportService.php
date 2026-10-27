@@ -23,9 +23,9 @@ use Throwable;
  *
  * This is a dedicated create-many workflow, not a Student List bulk action.
  * Rows are streamed from disk, the whole file is validated before any write,
- * and every accepted row is created through {@see StudentService::createStudent()}
- * so student numbers, first enrollments, tenant checks and all-status
- * enrollment-tuple protection stay on the existing path.
+ * and every accepted row is submitted through {@see StudentRegistrationService::register()}
+ * so a pending Student and one central ApprovalRequest are created. No approved
+ * Student or Enrollment row is written until an authorized approver decides.
  *
  * Sensitive identity values (Aadhaar, government ID numbers) never appear in
  * validation messages, cache payloads, audit summaries or exceptions.
@@ -100,7 +100,7 @@ class StudentImportService
     private const SENSITIVE_FIELDS = ['aadhaar_number', 'govt_id_number'];
 
     public function __construct(
-        private readonly StudentService $students,
+        private readonly StudentRegistrationService $registrations,
         private readonly AuditLogService $audit,
     ) {}
 
@@ -231,14 +231,22 @@ class StudentImportService
     }
 
     /**
-     * Re-validate then create every row inside one transaction.
+     * Re-validate then submit every row as a pending registration inside one
+     * transaction. No approved Student or Enrollment is created here; the
+     * central Approval Management decision performs that transition.
      *
-     * A single failing row rolls the whole import back — no partial students.
+     * A single failing row rolls the whole import back — no partial students,
+     * approval requests or documents.
      *
-     * @return array{created: int}
+     * @return array{created: int, submitted: int}
      */
-    public function importPath(string $absolutePath, int $collegeId, bool $canCreateEnrollment, ?string $academicYearCode = null): array
-    {
+    public function importPath(
+        string $absolutePath,
+        int $collegeId,
+        bool $canCreateEnrollment,
+        int $actorId,
+        ?string $academicYearCode = null,
+    ): array {
         $preview = $this->validatePath($absolutePath, $collegeId, $canCreateEnrollment);
 
         if (! $preview['ok']) {
@@ -247,52 +255,56 @@ class StudentImportService
             ]);
         }
 
-        $created = 0;
+        $submitted = 0;
 
-        try {
-            DB::transaction(function () use ($absolutePath, $collegeId, $canCreateEnrollment, $academicYearCode, &$created): void {
-                $handle = fopen($absolutePath, 'r');
+        DB::transaction(function () use ($absolutePath, $collegeId, $canCreateEnrollment, $actorId, $academicYearCode, &$submitted): void {
+            $handle = fopen($absolutePath, 'r');
 
-                if ($handle === false) {
-                    throw ValidationException::withMessages(['file' => 'The CSV file could not be read.']);
+            if ($handle === false) {
+                throw ValidationException::withMessages(['file' => 'The CSV file could not be read.']);
+            }
+
+            try {
+                $header = $this->readHeader($handle);
+
+                if ($header['error'] !== null) {
+                    throw ValidationException::withMessages(['file' => $header['error']]);
                 }
 
-                try {
-                    $header = $this->readHeader($handle);
-
-                    if ($header['error'] !== null) {
-                        throw ValidationException::withMessages(['file' => $header['error']]);
+                while (($raw = fgetcsv($handle)) !== false) {
+                    if ($this->isEmptyRow($raw)) {
+                        continue;
                     }
 
-                    while (($raw = fgetcsv($handle)) !== false) {
-                        if ($this->isEmptyRow($raw)) {
-                            continue;
-                        }
+                    $data = $this->rowToData($header['columns'], $raw);
+                    $data = $this->convertDates($data);
 
-                        $data = $this->rowToData($header['columns'], $raw);
-                        $data = $this->convertDates($data);
+                    // The CSV's status column is never trusted: registration
+                    // server-enforces `inactive` / `pending_approval`.
+                    unset($data['status']);
 
-                        if (! $canCreateEnrollment) {
-                            unset($data['academic_year_id'], $data['program_id'], $data['section_id'], $data['enrollment_date']);
-                        }
-
-                        $this->students->createStudent($data, $collegeId, $data['admission_date'] ?? null, $academicYearCode);
-                        $created++;
+                    if (! $canCreateEnrollment) {
+                        unset($data['academic_year_id'], $data['program_id'], $data['section_id'], $data['enrollment_date']);
                     }
-                } finally {
-                    fclose($handle);
+
+                    $result = $this->registrations->register($data, [], $collegeId, $actorId);
+                    if ($result['created']) {
+                        $submitted++;
+                    }
                 }
-            });
-        } catch (Throwable $e) {
-            throw $e;
-        }
+            } finally {
+                fclose($handle);
+            }
+        });
 
         $this->audit->record('students.imported', null, [], [
-            'created' => $created,
+            'created' => $submitted,
+            'submitted' => $submitted,
+            'approval_required' => true,
             'college_id' => $collegeId,
         ]);
 
-        return ['created' => $created];
+        return ['created' => $submitted, 'submitted' => $submitted];
     }
 
     /**

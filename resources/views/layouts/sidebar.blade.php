@@ -87,21 +87,11 @@
         <div class="erp-nav__scroll">
             <p class="erp-nav__empty" data-nav-empty hidden>No menu item matches that search.</p>
             <ul class="erp-nav__list" id="erp-nav-list" aria-labelledby="erp-nav-section-label">
-                    <x-nav.group id="admission" label="Admission" icon="user-plus">
-                        <x-nav.link label="Applications" route="admission-applications.index" />
-                        <x-nav.link label="New Registration" route="admission-applications.create" perm="admission_applications.create" />
-                        <x-nav.link label="Student List" :href="route('students.index', ['admission_filter' => 1])" pattern="students.index" />
-                        <x-nav.nested-group id="admission-transfers" label="Transfers" perm="student_transfers.view">
-                            <x-nav.link label="Transfer In" :href="route('student-transfers.index', ['direction' => 'in'])" pattern="student-transfers.index" :query="['direction' => 'in']" perm="student_transfers.view" />
-                            <x-nav.link label="Transfer Out" :href="route('student-transfers.index', ['direction' => 'out'])" pattern="student-transfers.index" :query="['direction' => 'out']" perm="student_transfers.view" />
-                        </x-nav.nested-group>
-                        <x-nav.link label="Status Types" route="admission.status-types.index" />
-                        <x-nav.link label="ID Cards" :href="route('student-id-cards.index', ['context' => 'admission'])" pattern="student-id-cards.index" perm="student_id_cards.view" />
-                        <x-nav.nested-group id="admission-settings" label="Settings" perm="settings.view|student_id_cards.view">
-                            <x-nav.link label="ID Card Setting" route="settings.index" perm="settings.view" />
-                        </x-nav.nested-group>
-                        <x-nav.link label="Reports" route="admission-reports.index" perm="admission_reports.view" />
-                    </x-nav.group>
+                    {{-- Admission is no longer a standalone sidebar module.
+                         Legacy admission routes, controllers, reports and
+                         in-flight workflows remain registered for compatibility;
+                         primary registration and student management live in
+                         Students. --}}
                     <x-nav.group id="approval-management" label="Approval Management" icon="clipboard-check">
                         <x-nav.link label="Pending Approvals" route="approvals.pending" />
                         <x-nav.link label="Approval History" route="approvals.history" />
@@ -109,11 +99,13 @@
                         <x-nav.link label="Approval Settings" route="approvals.settings.index" perm="approvals.settings.manage" />
                     </x-nav.group>
                     <x-nav.group id="students" label="Students" icon="graduation-cap">
-                        <x-nav.link label="Students" route="students.index" />
+                        <x-nav.link label="Registration" route="students.registration.create" perm="students.create" />
+                        <x-nav.link label="Student List" route="students.index" />
                         <x-nav.link label="Bulk Registration & Import" route="students.import.index" perm="students.create" />
                         <x-nav.link label="Enrollments" route="student-enrollments.index" />
                         <x-nav.link label="Academic Records" route="student-academic-records.index" />
                         <x-nav.link label="Documents" route="student-documents.index" />
+                        <x-nav.link label="Document Types" route="admission-document-types.index" perm="admission_document_types.view" />
                         <x-nav.link label="ID Cards" route="student-id-cards.index" />
                         <x-nav.link label="Promotion" route="student-promotions.index" />
                         <x-nav.link label="Student Transfers" route="student-transfers.index" />

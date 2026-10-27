@@ -45,6 +45,8 @@ trait HandlesStudentProfile
             'photo_path',
             'aadhaar_last4',
             'aadhaar_hash',
+            'registration_status',
+            'registration_submitted_at',
         ] as $key) {
             $this->request->remove($key);
         }

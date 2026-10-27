@@ -91,21 +91,26 @@ class AdmissionToStudentConversionTest extends TestCase
         return $admission;
     }
 
-    public function test_sidebar_lists_enquiries_before_applicants(): void
+    public function test_legacy_admission_routes_remain_available_without_a_standalone_menu(): void
     {
         $college = $this->makeCollege('ADNV');
-        $admin = $this->makeUserWithPermissions($college, ['admissions.view']);
+        $admin = $this->makeUserWithPermissions($college, [
+            'admissions.view', 'admission_applicants.view', 'admission_enquiries.view',
+        ]);
 
-        // The sidebar renders real hrefs (route URIs), never route names, so
-        // the order is asserted on the rendered links — the same convention
-        // the Transport navigation tests use for sidebar order.
-        $this->asCollege($college, $admin)
+        // The Admission sidebar group is gone, but in-flight/historical
+        // workflows still depend on these routes and controllers.
+        $response = $this->asCollege($college, $admin)
             ->get(route('admissions.index'))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'href="'.route('admission-enquiries.index').'"',
-                'href="'.route('admission-applicants.index').'"',
-            ], false);
+            ->assertOk();
+        $response->assertDontSee('data-nav-group="admission"', false);
+
+        $this->asCollege($college, $admin)
+            ->get(route('admission-applicants.index'))
+            ->assertOk();
+        $this->asCollege($college, $admin)
+            ->get(route('admission-enquiries.index'))
+            ->assertOk();
     }
 
     public function test_list_is_titled_final_admissions_and_offers_convert(): void

@@ -9,6 +9,7 @@ use App\Models\AdmissionApplication;
 use App\Models\AdmissionDocument;
 use App\Models\AdmissionMeritEntry;
 use App\Models\Program;
+use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -59,6 +60,23 @@ class AdmissionReportController extends Controller
             'approved_applications' => (clone $baseAppQuery)->where('status','approved')->count(),
             'rejected_applications' => (clone $baseAppQuery)->where('status','rejected')->count(),
             'pending_applications' => (clone $baseAppQuery)->whereIn('status',['submitted','under_review'])->count(),
+            // Unified registrations are reported from the Student table, not by
+            // projecting duplicate applicant/application/admission rows.
+            'pending_registrations' => Student::query()
+                ->where('registration_status', Student::REGISTRATION_PENDING)
+                ->when($dateFrom, fn($q) => $q->whereDate('registration_submitted_at','>=',$dateFrom))
+                ->when($dateTo, fn($q) => $q->whereDate('registration_submitted_at','<=',$dateTo))
+                ->count(),
+            'approved_registrations' => Student::query()
+                ->where('registration_status', Student::REGISTRATION_APPROVED)
+                ->when($dateFrom, fn($q) => $q->whereDate('registration_submitted_at','>=',$dateFrom))
+                ->when($dateTo, fn($q) => $q->whereDate('registration_submitted_at','<=',$dateTo))
+                ->count(),
+            'rejected_registrations' => Student::query()
+                ->where('registration_status', Student::REGISTRATION_REJECTED)
+                ->when($dateFrom, fn($q) => $q->whereDate('registration_submitted_at','>=',$dateFrom))
+                ->when($dateTo, fn($q) => $q->whereDate('registration_submitted_at','<=',$dateTo))
+                ->count(),
         ];
 
         // === 2. Application Report (paginated) ===

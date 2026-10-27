@@ -2,8 +2,13 @@
 
 namespace App\Services\Approval;
 
+use App\Domain\Student\Services\StudentService;
+use App\Models\AcademicYear;
 use App\Models\ApprovalRequest;
 use App\Models\ApprovalSetting;
+use App\Models\Program;
+use App\Models\Section;
+use App\Models\Student;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -13,11 +18,14 @@ class ApprovalService
 {
     public function __construct(
         private readonly AuditLogService $audit,
+        private readonly StudentService $students,
     ) {}
 
     /**
      * Determine if approval is required for this module/action in this college.
-     * Returns false when no setting exists (default: not required) or when disabled.
+     * Admission actions and student registration default to required when no
+     * setting exists, matching the Approval Settings screen; every other module
+     * defaults to not required. An explicit disabled setting always wins.
      */
     public function isApprovalRequired(int $collegeId, string $module, string $action): bool
     {
@@ -31,12 +39,12 @@ class ApprovalService
             ->where('action', $action)
             ->first();
 
-        // Default behavior: admission actions require approval unless explicitly disabled; other modules default to not required
+        // Default behavior: admission actions and the unified student
+        // registration action require approval unless explicitly disabled; other
+        // modules default to not required.
         if (! $setting) {
-            if ($module === 'admission') {
-                return true;
-            }
-            return false;
+            return $module === 'admission'
+                || ($module === 'student' && $action === 'registration_approval');
         }
 
         return (bool) $setting->is_required;
@@ -259,6 +267,8 @@ class ApprovalService
             $this->approveAdmissionApplication($request, $deciderId);
         } elseif ($request->module === 'admission' && $request->action === 'application_status_change') {
             $this->approveAdmissionApplicationStatusChange($request, $deciderId);
+        } elseif ($request->module === 'student' && $request->action === 'registration_approval') {
+            $this->approveStudentRegistration($request, $deciderId);
         }
         // For student sensitive updates, payload would be applied here
         if ($request->payload && is_array($request->payload) && $request->target_type && $request->target_id) {
@@ -275,6 +285,11 @@ class ApprovalService
 
     private function handleRejectionSideEffect(ApprovalRequest $request, string $reason): void
     {
+        if ($request->module === 'student' && $request->action === 'registration_approval') {
+            $this->rejectStudentRegistration($request, $reason);
+            return;
+        }
+
         if ($request->module === 'admission' && $request->action === 'application_submit') {
             $modelClass = ApprovalRegistry::modelClassFor($request->module . '.' . $request->action);
             if ($modelClass && $request->target_id) {
@@ -352,6 +367,134 @@ class ApprovalService
         $old = $app->toArray();
         $app->update(array_merge($request->payload, ['updated_by' => $deciderId]));
         $this->audit->record('admission_application.status_changed', $app, $old, $request->payload);
+    }
+
+    /**
+     * Approve a unified student registration.
+     *
+     * The Student row already exists (created pending by
+     * StudentRegistrationService); approval only changes its workflow state and,
+     * when a valid academic context was captured, creates the first existing
+     * StudentEnrollment through StudentService. No new Enrollment module,
+     * route or screen is introduced.
+     */
+    private function approveStudentRegistration(ApprovalRequest $request, int $deciderId): void
+    {
+        if (! $request->target_id) {
+            return;
+        }
+
+        $student = Student::withoutGlobalScopes()
+            ->where('college_id', $request->college_id)
+            ->whereKey($request->target_id)
+            ->first();
+
+        if (! $student) {
+            return;
+        }
+
+        // Idempotent: an already approved/legacy student needs no second side
+        // effect. A rejected registration must be resubmitted, not approved.
+        if ($student->isRegistrationApproved()) {
+            return;
+        }
+        if ($student->isRegistrationRejected()) {
+            throw ValidationException::withMessages([
+                'registration_status' => 'A rejected registration must be resubmitted before it can be approved.',
+            ]);
+        }
+
+        $payload = is_array($request->payload) ? $request->payload : [];
+        $yearId = $payload['academic_year_id'] ?? null;
+        $programId = $payload['program_id'] ?? null;
+        $sectionId = $payload['section_id'] ?? null;
+        $enrollmentCreated = false;
+        $enrollmentNote = null;
+
+        if ($yearId) {
+            $year = AcademicYear::query()->find($yearId);
+            if (! $year) {
+                throw ValidationException::withMessages([
+                    'academic_year_id' => 'The academic year attached to this registration is no longer available in this college.',
+                ]);
+            }
+
+            if ($programId && ! Program::query()->find($programId)) {
+                throw ValidationException::withMessages([
+                    'program_id' => 'The program attached to this registration is no longer available in this college.',
+                ]);
+            }
+
+            if ($sectionId && ! Section::query()->find($sectionId)) {
+                throw ValidationException::withMessages([
+                    'section_id' => 'The section attached to this registration is no longer available in this college.',
+                ]);
+            }
+
+            if (! $this->students->hasNonDeletedEnrollmentForTuple(
+                (int) $request->college_id,
+                (int) $student->id,
+                (int) $yearId,
+                $programId !== null ? (int) $programId : null,
+            )) {
+                $this->students->createEnrollment([
+                    'student_id' => $student->id,
+                    'academic_year_id' => $yearId,
+                    'program_id' => $programId,
+                    'section_id' => $sectionId,
+                    'enrollment_date' => $payload['enrollment_date'] ?? now()->toDateString(),
+                    'status' => 'active',
+                ], (int) $request->college_id, $year->code, audit: true);
+
+                $enrollmentCreated = true;
+            }
+        } else {
+            $enrollmentNote = 'Approved without an enrollment: no academic year was captured at registration. Use Students → Enrollments to add one before operational use.';
+        }
+
+        $old = $student->only(['status', 'registration_status', 'registration_submitted_at']);
+        $student->update([
+            'registration_status' => Student::REGISTRATION_APPROVED,
+            'status' => 'active',
+            'updated_by' => $deciderId,
+        ]);
+
+        $this->audit->record('student.registration_approved', $student, $old, [
+            'status' => $student->status,
+            'registration_status' => $student->registration_status,
+            'enrollment_created' => $enrollmentCreated,
+            'note' => $enrollmentNote,
+            'approval_request_id' => $request->id,
+        ]);
+    }
+
+    private function rejectStudentRegistration(ApprovalRequest $request, string $reason): void
+    {
+        if (! $request->target_id) {
+            return;
+        }
+
+        $student = Student::withoutGlobalScopes()
+            ->where('college_id', $request->college_id)
+            ->whereKey($request->target_id)
+            ->first();
+
+        if (! $student || $student->isRegistrationApproved()) {
+            return;
+        }
+
+        $old = $student->only(['status', 'registration_status', 'registration_submitted_at']);
+        $student->update([
+            'registration_status' => Student::REGISTRATION_REJECTED,
+            'status' => 'inactive',
+        ]);
+
+        $this->audit->record('student.registration_rejected', $student, $old, [
+            'status' => $student->status,
+            'registration_status' => $student->registration_status,
+            'reason' => $reason,
+            'approval_request_id' => $request->id,
+        ]);
     }
 
     private function generateReference(int $collegeId): string

@@ -224,6 +224,7 @@ class CommunicationReportController extends Controller
                 : collect(),
             'students' => in_array('student_id', $activeFilters, true)
                 ? Student::query()
+                    ->approvedForOperations()
                     ->orderBy('first_name')
                     ->orderBy('last_name')
                     ->limit($limit)

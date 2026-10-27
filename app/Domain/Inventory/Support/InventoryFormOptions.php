@@ -97,6 +97,7 @@ class InventoryFormOptions
     public static function students(): Collection
     {
         return Student::query()
+            ->approvedForOperations()
             ->where('status', 'active')
             ->orderBy('first_name')
             ->orderBy('last_name')

@@ -36,6 +36,10 @@ class StudentHistoryService
         'student.updated' => 'Student details updated',
         'student.converted' => 'Converted from admission application',
         'student.deleted' => 'Student record deleted',
+        'student.registration_submitted' => 'Registration submitted for approval',
+        'student.registration_approved' => 'Registration approved',
+        'student.registration_rejected' => 'Registration rejected',
+        'student.registration_resubmitted' => 'Registration resubmitted',
         'student_id_card.generated' => 'ID card generated',
     ];
 
@@ -173,6 +177,17 @@ class StudentHistoryService
                 category: 'student',
                 label: 'Student record created',
                 description: 'Student number '.$student->student_number.' · status '.str_replace('_', ' ', $student->status),
+                reference: $student->student_number,
+                referenceId: (int) $student->id,
+            );
+        }
+
+        if ($student->registration_submitted_at) {
+            $events[] = new StudentHistoryEvent(
+                occurredAt: $student->registration_submitted_at,
+                category: 'student',
+                label: 'Registration submitted',
+                description: 'Registration status '.str_replace('_', ' ', (string) $student->registration_status),
                 reference: $student->student_number,
                 referenceId: (int) $student->id,
             );

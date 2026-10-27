@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', isset($fromAdmission) ? 'New Student from Admission' : 'New Student')
+@section('title', isset($fromAdmission) ? 'New Student from Admission' : (($registrationMode ?? false) ? 'Student Registration' : 'New Student'))
 
 @section('content')
 <div class="erp-student-page">
@@ -18,10 +18,21 @@
         <p class="erp-page-note">Fields marked <span class="erp-req">*</span> are required.</p>
     </header>
 
-    <form method="POST"
-          action="{{ isset($fromAdmission) ? route('admissions.convert.store', $fromAdmission) : route('students.store') }}"
-          enctype="multipart/form-data">
-        @include('students._form', ['submitLabel' => isset($fromAdmission) ? 'Convert to Student' : 'Create Student'])
+    @php
+        $isRegistration = (bool) ($registrationMode ?? false);
+        $formAction = isset($fromAdmission)
+            ? route('admissions.convert.store', $fromAdmission)
+            : ($isRegistration ? route('students.registration.store') : route('students.store'));
+        $submitLabel = isset($fromAdmission)
+            ? 'Convert to Student'
+            : ($isRegistration ? 'Submit Registration for Approval' : 'Create Student');
+    @endphp
+
+    <form method="POST" action="{{ $formAction }}" enctype="multipart/form-data">
+        @include('students._form', [
+            'submitLabel' => $submitLabel,
+            'registrationMode' => $isRegistration,
+        ])
     </form>
 </div>
 @endsection

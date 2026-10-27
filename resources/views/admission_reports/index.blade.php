@@ -65,6 +65,9 @@
             <div class="rounded-lg border bg-white p-4"><p class="text-xs text-slate-500">Approved Applications</p><p class="text-xl font-bold text-green-600">{{ $summary['approved_applications'] }}</p></div>
             <div class="rounded-lg border bg-white p-4"><p class="text-xs text-slate-500">Pending (Submitted/Under Review)</p><p class="text-xl font-bold text-amber-600">{{ $summary['pending_applications'] }}</p></div>
             <div class="rounded-lg border bg-white p-4"><p class="text-xs text-slate-500">Rejected Applications</p><p class="text-xl font-bold text-red-600">{{ $summary['rejected_applications'] }}</p></div>
+            <div class="rounded-lg border bg-white p-4"><p class="text-xs text-slate-500">Pending Registrations</p><p class="text-xl font-bold text-amber-600">{{ $summary['pending_registrations'] }}</p></div>
+            <div class="rounded-lg border bg-white p-4"><p class="text-xs text-slate-500">Approved Registrations</p><p class="text-xl font-bold text-green-600">{{ $summary['approved_registrations'] }}</p></div>
+            <div class="rounded-lg border bg-white p-4"><p class="text-xs text-slate-500">Rejected Registrations</p><p class="text-xl font-bold text-red-600">{{ $summary['rejected_registrations'] }}</p></div>
         </div>
 
         @if($summary['total_applications'] === 0)

@@ -128,6 +128,7 @@ class StudentPromotionController extends Controller
     private function studentOptions()
     {
         return Student::query()
+            ->approvedForOperations()
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get(['id', 'student_number', 'first_name', 'last_name']);
@@ -156,6 +157,7 @@ class StudentPromotionController extends Controller
     private function promotableStudentOptions()
     {
         return Student::query()
+            ->approvedForOperations()
             ->where('status', '!=', 'withdrawn')
             ->orderBy('first_name')
             ->orderBy('last_name')

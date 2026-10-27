@@ -45,7 +45,7 @@
                 <p class="panel-subtitle mt-1">{{ (int) $preview['rows'] }} data row(s) read. The file is {{ !empty($preview['ok']) ? 'valid' : 'not valid' }}.</p>
 
                 @if(!empty($preview['errors']))
-                    <p class="mt-3 text-sm font-semibold text-rose-700">No students were created. Fix every row below and upload again.</p>
+                    <p class="mt-3 text-sm font-semibold text-rose-700">No registrations were submitted. Fix every row below and upload again.</p>
                     <div class="mt-3 overflow-x-auto">
                         <table class="erp-table">
                             <thead>
@@ -72,7 +72,7 @@
                     <form method="POST" action="{{ route('students.import.store') }}" class="mt-4">
                         @csrf
                         <input type="hidden" name="token" value="{{ $token }}">
-                        <p class="text-sm text-slate-600">{{ (int) $preview['rows'] }} valid student(s) will be created with server-generated student numbers. First enrollments use the existing enrollment workflow.</p>
+                        <p class="text-sm text-slate-600">{{ (int) $preview['rows'] }} valid registration(s) will be submitted through Approval Management. Pending registrations do not appear as approved students; an authorized approver creates the first enrollment where academic context is available.</p>
                         <button type="submit" class="button mt-3">Confirm import</button>
                     </form>
                 @endif

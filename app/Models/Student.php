@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Domain\Foundation\Traits\BelongsToCollege;
 use App\Domain\Student\Support\Aadhaar;
 use App\Domain\Student\Support\SensitiveIdentity;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -32,6 +33,20 @@ class Student extends Model
     use HasFactory, SoftDeletes, BelongsToCollege;
 
     public const STATUSES = ['active', 'inactive', 'graduated', 'suspended', 'withdrawn'];
+
+    /**
+     * Registration workflow state, deliberately separate from STATUSES.
+     * NULL is a legacy/pre-existing student and is treated as approved.
+     */
+    public const REGISTRATION_PENDING = 'pending_approval';
+    public const REGISTRATION_APPROVED = 'approved';
+    public const REGISTRATION_REJECTED = 'rejected';
+
+    public const REGISTRATION_STATUSES = [
+        self::REGISTRATION_PENDING,
+        self::REGISTRATION_APPROVED,
+        self::REGISTRATION_REJECTED,
+    ];
 
     /**
      * Gender values the UI offers and the write side accepts.
@@ -125,6 +140,58 @@ class Student extends Model
             };
     }
 
+    /**
+     * Normal operational views show legacy students (NULL) and approved
+     * registrations only. Pending/rejected registrations are available to
+     * Approval Management and explicit administrative review queries.
+     */
+    public function scopeApprovedForOperations(Builder $query): Builder
+    {
+        return $query->where(function (Builder $query): void {
+            $query->whereNull('registration_status')
+                ->orWhere('registration_status', self::REGISTRATION_APPROVED);
+        });
+    }
+
+    public function scopeWithRegistrationStatus(Builder $query, string $status): Builder
+    {
+        if ($status === 'legacy') {
+            return $query->whereNull('registration_status');
+        }
+
+        return $query->where('registration_status', $status);
+    }
+
+    public function isLegacyStudent(): bool
+    {
+        return $this->registration_status === null;
+    }
+
+    public function isRegistrationPending(): bool
+    {
+        return $this->registration_status === self::REGISTRATION_PENDING;
+    }
+
+    public function isRegistrationApproved(): bool
+    {
+        return $this->isLegacyStudent() || $this->registration_status === self::REGISTRATION_APPROVED;
+    }
+
+    public function isRegistrationRejected(): bool
+    {
+        return $this->registration_status === self::REGISTRATION_REJECTED;
+    }
+
+    public function registrationStatusLabel(): string
+    {
+        return match ($this->registration_status) {
+            self::REGISTRATION_PENDING => 'Pending approval',
+            self::REGISTRATION_APPROVED => 'Approved',
+            self::REGISTRATION_REJECTED => 'Rejected',
+            default => 'Legacy / approved',
+        };
+    }
+
     public function certificates(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Certificate::class, 'student_id');
@@ -152,6 +219,8 @@ class Student extends Model
         'country',
         'photo_path',
         'status',
+        'registration_status',
+        'registration_submitted_at',
         'created_by',
         'updated_by',
         // Parent / Guardian
@@ -203,6 +272,7 @@ class Student extends Model
         return [
             'date_of_birth' => 'date',
             'admission_date' => 'date',
+            'registration_submitted_at' => 'datetime',
             'previous_exam_year' => 'integer',
             'previous_percentage' => 'decimal:2',
         ];

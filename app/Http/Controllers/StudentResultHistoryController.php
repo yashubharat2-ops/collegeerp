@@ -30,6 +30,7 @@ class StudentResultHistoryController extends Controller
         $filters = $studentFilter->fromRequest($request, user: $request->user());
 
         $query = Student::query()
+            ->approvedForOperations()
             ->with(['enrollments.academicYear', 'enrollments.program'])
             ->orderBy('first_name')
             ->orderBy('last_name')

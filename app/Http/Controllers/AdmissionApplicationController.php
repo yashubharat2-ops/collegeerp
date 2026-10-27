@@ -17,6 +17,8 @@ use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use App\Support\Export\CsvStreamExport;
 use App\Support\Listing\ListSelection;
@@ -179,7 +181,11 @@ class AdmissionApplicationController extends Controller
         $collegeId = app(TenantContext::class)->id();
         $user = $request->user();
 
-        // If approval is required and user cannot approve, route through central approval instead of direct status change
+        // Only the status transition is routed through central approval. The
+        // other editable fields (year, program, enquiry link, remarks) are
+        // ordinary application data: they must be saved and audited now. The
+        // server-side submitted_at stamp belongs to the status change, so it
+        // travels with the approval payload instead of being written early.
         $isStatusChange = $newStatus !== $model->status;
         $needsApproval = $isStatusChange && $approvalService->isApprovalRequired($collegeId, 'admission', 'application_status_change');
         $canApprove = $approvalService->canApprove($user, 'admission', 'application_status_change', $collegeId);
@@ -198,17 +204,25 @@ class AdmissionApplicationController extends Controller
                 return back()->withErrors(['status' => 'A pending approval request already exists for this application.'])->withInput();
             }
 
-            $approvalService->submitRequest([
-                'module' => 'admission',
-                'action' => 'application_status_change',
-                'target_type' => 'admission.application_status_change',
-                'target_id' => $model->id,
-                'title' => 'Approval for status change: '.$model->application_number,
-                'description' => 'Requested status change from '.$model->status.' to '.$newStatus,
-                'payload' => $data,
-                'previous_data' => $old,
-                'request_reason' => $data['remarks'] ?? null,
-            ], $collegeId, $user->getKey());
+            DB::transaction(function () use ($model, $data, $old, $newStatus, $collegeId, $user, $approvalService, $audit): void {
+                $model->fill(Arr::except($data, ['status', 'submitted_at']));
+                if ($model->isDirty()) {
+                    $model->save();
+                    $audit->record('admission_application.updated', $model, $old, $model->only(self::AUDITED));
+                }
+
+                $approvalService->submitRequest([
+                    'module' => 'admission',
+                    'action' => 'application_status_change',
+                    'target_type' => 'admission.application_status_change',
+                    'target_id' => $model->id,
+                    'title' => 'Approval for status change: '.$model->application_number,
+                    'description' => 'Requested status change from '.$model->status.' to '.$newStatus,
+                    'payload' => Arr::only($data, ['status', 'submitted_at']),
+                    'previous_data' => $model->only(self::AUDITED),
+                    'request_reason' => $data['remarks'] ?? null,
+                ], $collegeId, $user->getKey());
+            });
 
             return back()->with('success', 'Your status change request is pending approval.');
         }

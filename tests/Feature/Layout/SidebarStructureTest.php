@@ -34,9 +34,9 @@ class SidebarStructureTest extends TestCase
 {
     use DepartmentTestHelpers;
 
-    /** The module groups that must render, in document order (Admission redesign + Central Approval). */
+    /** The module groups that must render, in document order (Students registration + Central Approval). */
     private const MODULE_GROUPS = [
-        'admission', 'approval-management', 'students', 'certificates', 'academics', 'examinations', 'finance',
+        'approval-management', 'students', 'certificates', 'academics', 'examinations', 'finance',
         'transport', 'library', 'hostel', 'communication', 'inventory', 'hr', 'reports',
     ];
 
@@ -83,7 +83,7 @@ class SidebarStructureTest extends TestCase
         'Sections / Batches' => 'Sections',
         'Staff / Employee' => 'Staff &amp; Employees',
         'Staff Salary / Payroll' => 'Salary &amp; Payroll',
-        // Merit / Selection was removed from sidebar per approved Admission redesign (9 approved items, no merit list in nav)
+        // Merit / Selection was removed with the standalone Admission sidebar group.
         'Bulk Registration / Import' => 'Bulk Registration &amp; Import',
         'Grade / Pass-Fail' => 'Grades &amp; Pass/Fail',
         'Due / Outstanding Fees' => 'Outstanding Fees',
@@ -290,7 +290,7 @@ class SidebarStructureTest extends TestCase
         // Settings is the one group whose rows are gated by policies rather than
         // permission slugs, so whether it renders depends on the actor — but nothing
         // else may appear, and in particular no group may be duplicated.
-        $this->assertSame([], array_diff($ids, array_merge(self::MODULE_GROUPS, ['administration-settings'])), 'No group other than the fourteen modules and Settings may render.');
+        $this->assertSame([], array_diff($ids, array_merge(self::MODULE_GROUPS, ['administration-settings'])), 'No group other than the thirteen modules and Settings may render.');
         $this->assertSame($ids, array_values(array_unique($ids)), 'A module group must never render twice.');
         $this->assertSame(count($ids), substr_count($aside, '<button type="button" class="nav-group__head"'), 'Every group renders exactly one head button.');
     }
@@ -373,41 +373,30 @@ class SidebarStructureTest extends TestCase
         $this->assertNotSame($this->path('sections.index'), $this->path('academic-sections.index'), 'The standalone Sections screen remains distinct from Academic Sections.');
     }
 
-    /* 3 · Module structure – Admission uses nested collapsible parents for Transfers/Settings */
+    /* 3 · Admission is no longer a standalone sidebar module ----------------- */
 
-    public function test_admission_uses_nested_collapsible_parents(): void
+    public function test_admission_module_is_not_a_standalone_sidebar_group(): void
     {
         $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT6'));
-        $admission = $this->group($aside, 'Admission');
 
-        // Transfers and Settings must be collapsible parents (nested nav-groups), not static headings
-        $this->assertStringContainsString('data-nested-group="admission-transfers"', $admission, 'Transfers must be a collapsible nested group with its children inside.');
-        $this->assertStringContainsString('data-nested-group="admission-settings"', $admission, 'Settings must be a collapsible nested group with ID Card Setting inside.');
+        $this->assertStringNotContainsString('data-nav-group="admission"', $aside, 'Admission must not be a top-level sidebar group.');
+        $this->assertStringNotContainsString('nav-group__label">Admission<', $aside, 'The standalone Admission module label must be gone.');
+        $this->assertStringNotContainsString('data-nested-group="admission-register-legacy"', $aside, 'No legacy Admission submenu may remain in primary navigation.');
+        $this->assertStringNotContainsString('data-nested-group="admission-transfers"', $aside);
+        $this->assertStringNotContainsString('data-nested-group="admission-settings"', $aside);
 
-        // .nav-items is a div, not a list. A nested <li> closes the outer Admission
-        // <li> while the browser parses it; the recovered closing tags then move
-        // later modules and .erp-app-main outside their intended parents.
-        $this->assertSame(2, substr_count($admission, '<div class="nav-group nav-group--nested"'), 'Nested collapsible parents must be divs inside .nav-items.');
-        $this->assertStringNotContainsString('<li class="nav-group nav-group--nested"', $admission, 'A list item is invalid here and breaks the browser DOM.');
-        $this->assertSame(2, substr_count($admission, '<button type="button" class="nav-group__head nav-group__head--nested"'), 'Both nested parents use the same standard header classes.');
-        $this->assertSame(2, substr_count($admission, '<div class="nav-group__label nav-group__label--nested">'), 'Both nested parents use the same label structure.');
-        $this->assertStringContainsString('id="nav-head-admission-transfers" aria-expanded="false" aria-controls="nav-items-admission-transfers"', $admission);
-        $this->assertStringContainsString('id="nav-head-admission-settings" aria-expanded="false" aria-controls="nav-items-admission-settings"', $admission);
+        foreach (['Applications', 'Applicants', 'Enquiries', 'Admission Documents', 'Merit &amp; Selection', 'Final Admissions', 'Status Types'] as $label) {
+            $this->assertStringNotContainsString('>'.$label.'</span>', $aside, $label.' must not remain as a sidebar navigation row.');
+        }
 
-        // Those nested groups must NOT be rendered as flat sub-label headings
-        $this->assertStringNotContainsString('erp-nav__sub-label', $admission, 'Admission must not use static sub-label headings for Transfers/Settings; they must be collapsible parents.');
-
-        // Verify nested groups contain their expected children
-        $this->assertStringContainsString('Transfer In', $admission, 'Transfer In must be inside Transfers parent');
-        $this->assertStringContainsString('Transfer Out', $admission, 'Transfer Out must be inside Transfers parent');
-        $this->assertStringContainsString('ID Card Setting', $admission, 'ID Card Setting must be inside Settings parent');
-
-        // ID Cards must be independent, not inside Settings
-        $settingsPos = strpos($admission, 'data-nested-group="admission-settings"');
-        $idCardsPos = strpos($admission, '>ID Cards<');
-        $this->assertNotFalse($settingsPos);
-        $this->assertNotFalse($idCardsPos);
-        $this->assertTrue($idCardsPos < $settingsPos, 'ID Cards must be independent and appear before Settings, not inside it.');
+        // The underlying legacy routes/controllers remain registered.
+        foreach ([
+            'admission-applications.index', 'admission-applicants.index', 'admission-enquiries.index',
+            'admission-documents.index', 'admission-merit-lists.index', 'admissions.index',
+            'admission.dashboard', 'admission.status-types.index', 'admission-reports.index',
+        ] as $routeName) {
+            $this->assertTrue(Route::has($routeName), "{$routeName} must remain registered for legacy workflows.");
+        }
     }
 
     public function test_nested_group_headers_use_the_standard_child_row_style_contract(): void
@@ -430,29 +419,27 @@ class SidebarStructureTest extends TestCase
         $this->assertStringContainsString('.nav-group[data-nav-active="true"]:not(.nav-group--nested) > .nav-group__head', $css, 'Only top-level modules use the active parent background.');
     }
 
-    public function test_nested_groups_keep_active_route_state_and_permission_gates(): void
+    public function test_legacy_admission_routes_stay_authorized_without_a_sidebar_group(): void
     {
         $college = $this->makeCollege('STRUCT6B');
-        $user = $this->makeUserWithPermissions($college, ['student_transfers.view', 'settings.view']);
-        $html = $this->asCollege($college, $user)
-            ->get(route('student-transfers.index', ['direction' => 'in']))
+        $viewer = $this->makeUserWithPermissions($college, ['admission_applicants.view']);
+        $outsider = $this->makeUserWithPermissions($college, ['students.view']);
+
+        $html = $this->asCollege($college, $viewer)
+            ->get(route('admission-applicants.index'))
             ->assertOk()
             ->getContent();
         $aside = $this->aside($html);
-        $this->assertSame(1, preg_match('/<li class="nav-group" data-nav-group="admission".*?(?=<li class="nav-group" data-nav-group="approval-management")/s', $aside, $admissionMatch));
-        $admission = $admissionMatch[0];
 
-        $this->assertMatchesRegularExpression('/data-nav-group="admission" data-nav-open="true"\s+data-nav-active="true"/', $admission, 'The parent module still opens for its active child.');
-        $this->assertMatchesRegularExpression('/data-nested-group="admission-transfers" data-nav-open="true"\s+data-nav-active="true"/', $admission, 'The active nested route still expands its own parent.');
-        $this->assertStringContainsString('id="nav-head-admission-transfers" aria-expanded="true"', $admission);
-        $this->assertMatchesRegularExpression('/data-nested-group="admission-settings" data-nav-open="false"\s*>/', $admission, 'The inactive sibling starts closed and has no active marker.');
-        $this->assertStringContainsString('id="nav-head-admission-settings" aria-expanded="false"', $admission);
-        $this->assertSame(2, substr_count($admission, 'data-nav-active="true"'), 'Only Admission and its active nested parent are marked active.');
+        $this->assertStringNotContainsString('data-nav-group="admission"', $aside, 'A legacy route may render, but it must not resurrect the Admission menu.');
+        $this->assertStringNotContainsString('data-nav-active="true"', $aside, 'No removed Admission group should claim active state.');
 
-        $limited = $this->group($this->dashboardFor($college, ['student_transfers.view']), 'Admission');
-        $this->assertStringContainsString('data-nested-group="admission-transfers"', $limited, 'A permitted nested group remains visible.');
-        $this->assertStringNotContainsString('data-nested-group="admission-settings"', $limited, 'Settings remains hidden without either of its permissions.');
-        $this->assertStringContainsString('>Applications</span>', $limited, 'The existing parent and ungated rows still render.');
+        $this->asCollege($college, $outsider)
+            ->get(route('admission-applicants.index'))
+            ->assertForbidden();
+
+        $this->assertTrue(Route::has('admission-applicants.index'));
+        $this->assertTrue(Route::has('admission-enquiries.index'));
     }
 
     public function test_academics_destinations_render_flat_in_their_existing_order(): void
@@ -508,9 +495,9 @@ class SidebarStructureTest extends TestCase
                 'hostel-reports.index', 'communication-reports.index', 'certificate-reports.index', 'consolidated-reports.index',
             ],
             'Students' => [
-                'students.index', 'students.import.index', 'student-enrollments.index', 'student-academic-records.index',
-                'student-documents.index', 'student-id-cards.index', 'student-promotions.index', 'student-transfers.index',
-                'student-history.index',
+                'students.registration.create', 'students.index', 'students.import.index', 'student-enrollments.index',
+                'student-academic-records.index', 'student-documents.index', 'admission-document-types.index',
+                'student-id-cards.index', 'student-promotions.index', 'student-transfers.index', 'student-history.index',
             ],
             'Transport' => [
                 'transport.dashboard', 'vehicles.index', 'vehicle-documents.index', 'transport-drivers.index',
@@ -537,51 +524,53 @@ class SidebarStructureTest extends TestCase
 
     public function test_the_students_group_keeps_every_destination_it_had(): void
     {
-        // Students stays an independent top-level module with all nine rows intact.
+        // Students is now the primary registration module. It keeps all nine
+        // original lifecycle destinations and adds Registration + Document Types.
         $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT10'));
         $students = $this->group($aside, 'Students');
 
-        $this->assertSame(9, substr_count($students, 'class="nav-link"'), 'Every Students destination must still render.');
+        $this->assertSame(11, substr_count($students, 'class="nav-link"'), 'Every Students destination must still render.');
         $this->assertStringNotContainsString('data-nav-sub-label', $students, 'Students has no subgroup headings.');
         $this->assertSame(
-            $this->path('students.index'),
-            $this->pathFromHref($this->hrefOf($this->row('Students', route('students.index'), $students))),
-            'The Students row must keep its destination.'
+            $this->path('students.registration.create'),
+            $this->hrefs($students)[0],
+            'Registration is the primary Students entry point.'
         );
         $this->assertSame(
-            $this->paths(['student-enrollments.index', 'student-academic-records.index', 'student-documents.index', 'student-id-cards.index', 'student-promotions.index', 'student-transfers.index', 'student-history.index']),
+            $this->path('students.index'),
+            $this->pathFromHref($this->hrefOf($this->row('Student List', route('students.index'), $students))),
+            'The Student List row keeps its destination.'
+        );
+        $this->assertSame(
+            $this->paths([
+                'students.import.index', 'student-enrollments.index', 'student-academic-records.index',
+                'student-documents.index', 'admission-document-types.index', 'student-id-cards.index',
+                'student-promotions.index', 'student-transfers.index', 'student-history.index',
+            ]),
             array_slice($this->hrefs($students), 2),
-            'The lifecycle rows are unchanged, and still in the order they were in.'
+            'The lifecycle rows remain, with Document Types exposed through Students.'
         );
     }
 
-    public function test_the_admission_group_follows_approved_structure(): void
+    public function test_admission_group_is_removed_but_legacy_routes_remain_registered(): void
     {
-        // Admission follows the approved menu hierarchy: Applications, New Registration, Student List, Transfers (In/Out collapsible), Status Types, ID Cards (independent), Settings (ID Card Setting collapsible), Reports last
+        // Students owns registration, list, profile and lifecycle. Admission
+        // routes remain for in-flight/historical workflows and reports.
         $aside = $this->dashboardForFullAccess($this->makeCollege('STRUCT10A'));
-        $admission = $this->group($aside, 'Admission');
 
-        $this->assertSame(9, substr_count($admission, 'class="nav-link"'), 'Admission must render its 9 approved destinations.');
-        // Transfers and Settings must be nested collapsible parents
-        $this->assertStringContainsString('data-nested-group="admission-transfers"', $admission, 'Transfers must be collapsible parent containing Transfer In/Out');
-        $this->assertStringContainsString('data-nested-group="admission-settings"', $admission, 'Settings must be collapsible parent containing ID Card Setting');
-        $this->assertStringNotContainsString('data-nav-sub-label', $admission, 'ID Cards must not be inside Settings, and Transfers must not be static heading');
-        // ID Cards independent verification (not inside Settings)
-        $this->assertStringContainsString('>ID Cards<', $admission, 'ID Cards must be independent menu item');
-        $this->assertTrue(strpos($admission, '>ID Cards<') < strpos($admission, 'data-nested-group="admission-settings"'), 'ID Cards must appear before Settings parent');
-        // Verify ID Card Setting is inside Settings nested group (not standalone)
-        $settingsBlock = substr($admission, strpos($admission, 'data-nested-group="admission-settings"'));
-        $this->assertStringContainsString('ID Card Setting', $settingsBlock, 'ID Card Setting must be child of Settings collapsible parent');
+        $this->assertStringNotContainsString('data-nav-group="admission"', $aside, 'The Admission group must be removed from the sidebar.');
+        $this->assertStringContainsString('data-nav-group="students"', $aside, 'Students remains the primary student module.');
+        $this->assertStringContainsString($this->path('students.registration.create'), $aside, 'Students → Registration remains reachable.');
+        $this->assertStringContainsString($this->path('students.index'), $aside, 'Students → Student List remains reachable.');
 
-        // Reports must be the last direct item (outside nested groups)
-        $hrefs = $this->hrefs($admission);
-        $this->assertSame($this->path('admission-reports.index'), end($hrefs), 'Reports must be the last direct item in Admission.');
-        // Check key destinations exist
-        $this->assertStringContainsString($this->path('admission-applications.index'), $admission, 'Applications must be present.');
-        $this->assertStringContainsString($this->path('admission.status-types.index'), $admission, 'Status Types must be present.');
-        $this->assertStringContainsString($this->path('admission-reports.index'), $admission, 'Reports must be present.');
-        $this->assertStringContainsString($this->path('student-id-cards.index'), $admission, 'ID Cards must use existing student-id-cards route');
-        $this->assertStringContainsString($this->path('settings.index'), $admission, 'ID Card Setting must use settings route');
+        foreach ([
+            'admission-applications.index', 'admission-applicants.index', 'admission-enquiries.index',
+            'admission-documents.index', 'admission-merit-lists.index', 'admissions.index',
+            'admission.dashboard', 'admission.status-types.index', 'admission-reports.index',
+        ] as $routeName) {
+            $this->assertTrue(Route::has($routeName), "{$routeName} must remain registered.");
+            $this->assertStringNotContainsString($this->path($routeName), $aside, "{$routeName} must not be linked from primary navigation.");
+        }
     }
 
     public function test_approval_management_group_exists(): void

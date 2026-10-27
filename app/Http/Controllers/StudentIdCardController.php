@@ -48,7 +48,7 @@ class StudentIdCardController extends Controller
         $this->requirePermission('student_id_cards.view');
         $filters = $studentFilter->fromRequest($request, studentListAliases: true, user: $request->user());
 
-        $query = Student::query()->with(['enrollments.academicYear', 'enrollments.program', 'enrollments.section.campus']);
+        $query = Student::query()->approvedForOperations()->with(['enrollments.academicYear', 'enrollments.program', 'enrollments.section.campus']);
         $studentFilter->applyToStudents($query, $filters);
 
         if ($search = trim((string) $request->input('search'))) {
@@ -77,7 +77,7 @@ class StudentIdCardController extends Controller
      */
     public function show(string $student, AuditLogService $audit): View
     {
-        $model = Student::query()->findOrFail($student);
+        $model = Student::query()->approvedForOperations()->findOrFail($student);
 
         $this->requirePermission('student_id_cards.generate');
         $this->authorize('view', $model);
@@ -122,7 +122,7 @@ class StudentIdCardController extends Controller
 
         abort_if($ids === [], 404, 'Select at least one student to generate ID cards for.');
 
-        $studentQuery = Student::query()->with(['enrollments.academicYear', 'enrollments.program', 'enrollments.section.campus']);
+        $studentQuery = Student::query()->approvedForOperations()->with(['enrollments.academicYear', 'enrollments.program', 'enrollments.section.campus']);
         $studentFilter->applyToStudents($studentQuery, $filters);
         $students = $studentQuery
             ->whereIn('students.id', $ids)

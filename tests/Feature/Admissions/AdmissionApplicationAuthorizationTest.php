@@ -72,6 +72,9 @@ class AdmissionApplicationAuthorizationTest extends TestCase
     public function test_each_action_requires_its_own_permission(): void
     {
         $college = $this->makeCollege('AGRN');
+        // This test pins the per-action RBAC contract, not the optional central
+        // approval gate (covered in ApprovalManagementTest).
+        $this->disableAdmissionApplicationApproval($college);
         [$applicant, $year, $program, $application] = $this->makeApplicationContext($college);
 
         // View-only: index works, every write is forbidden.

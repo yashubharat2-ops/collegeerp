@@ -6,6 +6,7 @@ use App\Models\AcademicYear;
 use App\Models\AdmissionApplicant;
 use App\Models\AdmissionApplication;
 use App\Models\ApprovalRequest;
+use App\Models\ApprovalSetting;
 use App\Models\College;
 use App\Models\Program;
 use Tests\Feature\Departments\DepartmentTestHelpers;
@@ -49,32 +50,29 @@ class ApprovalManagementTest extends TestCase
 
     // === ADMISSION SIDEBAR ===
 
-    public function test_admission_sidebar_follows_approved_hierarchy(): void
+    public function test_admission_sidebar_group_is_removed_and_approval_management_remains(): void
     {
         $college = $this->makeCollege('ADSBH');
         $user = $this->makeUserWithPermissions($college, \App\Models\Permission::query()->pluck('slug')->all());
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
         $aside = $this->aside($html);
 
-        $this->assertStringContainsString('nav-group__label">Admission<', $aside, 'Admission group must exist with correct label');
-        $this->assertStringContainsString('data-nav-group="admission"', $aside);
-        $this->assertStringContainsString('data-nav-group="approval-management"', $aside, 'Approval Management must be central menu');
-        $this->assertStringNotContainsString('data-nav-group="admissions"', $aside, 'Old plural id must be gone');
+        $this->assertStringNotContainsString('nav-group__label">Admission<', $aside, 'Admission must no longer be a standalone module.');
+        $this->assertStringNotContainsString('data-nav-group="admission"', $aside, 'The Admission group id must be gone.');
+        $this->assertStringContainsString('data-nav-group="approval-management"', $aside, 'Approval Management must remain the central approval menu.');
+        $this->assertStringNotContainsString('data-nav-group="admissions"', $aside, 'Old plural id must stay gone.');
     }
 
-    public function test_reports_appears_exactly_once_and_last(): void
+    public function test_admission_reports_route_remains_without_a_sidebar_link(): void
     {
         $college = $this->makeCollege('ADSBR');
         $user = $this->makeUserWithPermissions($college, \App\Models\Permission::query()->pluck('slug')->all());
         $html = $this->asCollege($college, $user)->get(route('dashboard'))->assertOk()->getContent();
         $aside = $this->aside($html);
 
-        // Reports exactly once in Admission group (avoid counting global Reports module label)
-        $admissionBlock = $this->group($aside, 'Admission');
-        $this->assertSame(1, substr_count($admissionBlock, '>Reports<'), 'Reports should appear as last direct item in Admission');
-        $hrefs = $this->hrefs($admissionBlock);
-        $last = end($hrefs);
-        $this->assertStringContainsString(parse_url(route('admission-reports.index'), PHP_URL_PATH), $last, 'Reports must be last in Admission');
+        $this->assertTrue(\Illuminate\Support\Facades\Route::has('admission-reports.index'), 'The legacy report route must remain registered.');
+        $this->assertStringNotContainsString(parse_url(route('admission-reports.index'), PHP_URL_PATH), $aside, 'The legacy report must not be linked from the removed Admission menu.');
+        $this->assertStringNotContainsString('>Reports</span>', $aside, 'No standalone Admission Reports row may remain.');
     }
 
     public function test_admission_reports_require_permission(): void
@@ -289,6 +287,55 @@ class ApprovalManagementTest extends TestCase
         $app->refresh();
         $this->assertSame('submitted', $app->status, 'Status should not have changed directly');
         $this->assertDatabaseHas('approval_requests', ['target_id'=>$app->id,'module'=>'admission','action'=>'application_status_change','status'=>'pending']);
+    }
+
+    public function test_pending_status_change_still_saves_and_audits_ordinary_field_edits(): void
+    {
+        $college = $this->makeCollege('APPR10B');
+        $staff = $this->makeUserWithPermissions($college, ['admission_applications.view','admission_applications.update']);
+        $year = $this->makeYear($college, '2026');
+        $nextYear = $this->makeYear($college, '2027');
+        $program = $this->makeProgram($college, 'BSC');
+        $nextProgram = $this->makeProgram($college, 'MSC');
+        $applicant = $this->makeApplicant($college);
+        ApprovalSetting::withoutGlobalScopes()->create(['college_id'=>$college->id,'module'=>'admission','action'=>'application_status_change','is_required'=>true]);
+        $app = AdmissionApplication::withoutGlobalScopes()->create([
+            'college_id'=>$college->id,
+            'applicant_id'=>$applicant->id,
+            'academic_year_id'=>$year->id,
+            'program_id'=>$program->id,
+            'application_number'=>'APP-FIELDS',
+            'status'=>'submitted',
+        ]);
+
+        $this->asCollege($college, $staff)->put(route('admission-applications.update', $app), [
+            'academic_year_id'=>$nextYear->id,
+            'program_id'=>$nextProgram->id,
+            'status'=>'approved',
+            'remarks'=>'Corrected while approval is pending',
+        ])->assertSessionHasNoErrors();
+
+        $app->refresh();
+        // Approval still gates only the status transition.
+        $this->assertSame('submitted', $app->status);
+        // Ordinary edits must not be silently discarded with the queued status.
+        $this->assertSame($nextYear->id, $app->academic_year_id);
+        $this->assertSame($nextProgram->id, $app->program_id);
+        $this->assertSame('Corrected while approval is pending', $app->remarks);
+        $this->assertDatabaseHas('audit_logs', [
+            'action'=>'admission_application.updated',
+            'subject_type'=>AdmissionApplication::class,
+            'subject_id'=>$app->id,
+        ]);
+
+        $request = ApprovalRequest::withoutGlobalScopes()
+            ->where('target_id', $app->id)
+            ->where('action', 'application_status_change')
+            ->first();
+        $this->assertNotNull($request);
+        // No stale ordinary-field values in the approval payload: approving the
+        // status later must not overwrite edits made while the request is pending.
+        $this->assertSame(['status','submitted_at'], array_keys($request->payload));
     }
 
     public function test_approval_settings_cannot_be_modified_by_unauthorized(): void

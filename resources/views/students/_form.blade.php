@@ -33,12 +33,16 @@
      *   stamps, derived identity columns, stored file paths) has an input here.
      */
     $isEdit = isset($student) && $student !== null;
+    $isRegistration = (bool) ($registrationMode ?? false);
     $currentEnrollment = $isEdit ? $student->currentEnrollment() : null;
     $canEnroll = auth()->user()?->can('create', App\Models\StudentEnrollment::class) ?? false;
-    // The first-enrollment block is only rendered for a user who may create
+    // The first-enrollment block is rendered for a user who may create
     // enrollments AND when the college actually has an academic year to enroll
-    // into — the form request strips the fields for anyone else.
-    $showEnrollmentBlock = ! $isEdit && $canEnroll && ($academicYears ?? collect())->isNotEmpty();
+    // into. Registration always shows it: the approver — not the submitter —
+    // creates the enrollment after approval.
+    $showEnrollmentBlock = ! $isEdit
+        && ($canEnroll || $isRegistration)
+        && ($academicYears ?? collect())->isNotEmpty();
 
     /*
      * Dates: the control must READ day/month/year, but the value the browser
@@ -126,12 +130,18 @@
         <div class="erp-grid">
             @if($showEnrollmentBlock)
                 <div class="erp-field erp-col-12">
-                    <p class="erp-subhead">First enrollment (optional)</p>
-                    <p class="erp-help">Opens the student's first enrollment in the same save; a section must belong to the chosen academic year and program. Leaving it empty creates the student with no enrollment.</p>
+                    <p class="erp-subhead">{{ $isRegistration ? 'Registration academic context' : 'First enrollment (optional)' }}</p>
+                    <p class="erp-help">
+                        @if($isRegistration)
+                            Required for approval. The approver creates the first enrollment from this context; no approved student is created at submission.
+                        @else
+                            Opens the student's first enrollment in the same save; a section must belong to the chosen academic year and program. Leaving it empty creates the student with no enrollment.
+                        @endif
+                    </p>
                 </div>
                 <div class="erp-field erp-col-3">
-                    <label class="erp-label" for="academic_year_id">Academic Year</label>
-                    <select class="erp-input" id="academic_year_id" name="academic_year_id">
+                    <label class="erp-label" for="academic_year_id">Academic Year @if($isRegistration)<span class="erp-req">*</span>@endif</label>
+                    <select class="erp-input" id="academic_year_id" name="academic_year_id" @required($isRegistration)>
                         <option value="">— No enrollment —</option>
                         @foreach($academicYears as $ay)
                             <option value="{{ $ay->id }}" @selected((int) old('academic_year_id') === $ay->id)>{{ $ay->name }} ({{ $ay->code }})</option>
@@ -140,8 +150,8 @@
                     <p class="erp-error">@error('academic_year_id'){{ $message }}@enderror</p>
                 </div>
                 <div class="erp-field erp-col-3">
-                    <label class="erp-label" for="program_id">Program / Course</label>
-                    <select class="erp-input" id="program_id" name="program_id">
+                    <label class="erp-label" for="program_id">Program / Course @if($isRegistration)<span class="erp-req">*</span>@endif</label>
+                    <select class="erp-input" id="program_id" name="program_id" @required($isRegistration)>
                         <option value="">— Select program —</option>
                         @foreach($programs as $program)
                             <option value="{{ $program->id }}" @selected((int) old('program_id') === $program->id)>{{ $program->name }} ({{ $program->code }})</option>
@@ -174,16 +184,23 @@
                 </div>
                 <p class="erp-error">@error('admission_date'){{ $message }}@enderror</p>
             </div>
-            <div class="erp-field erp-col-3">
-                <label class="erp-label" for="status">Student Status <span class="erp-req">*</span></label>
-                <select class="erp-input" id="status" name="status" required>
-                    <option value="">— Select —</option>
-                    @foreach(\App\Models\Student::STATUSES as $s)
-                        <option value="{{ $s }}" @selected(old('status', $student->status ?? 'active') === $s)>{{ ucfirst($s) }}</option>
-                    @endforeach
-                </select>
-                <p class="erp-error">@error('status'){{ $message }}@enderror</p>
-            </div>
+            @if(! $isRegistration)
+                <div class="erp-field erp-col-3">
+                    <label class="erp-label" for="status">Student Status <span class="erp-req">*</span></label>
+                    <select class="erp-input" id="status" name="status" required>
+                        <option value="">— Select —</option>
+                        @foreach(\App\Models\Student::STATUSES as $s)
+                            <option value="{{ $s }}" @selected(old('status', $student->status ?? 'active') === $s)>{{ ucfirst($s) }}</option>
+                        @endforeach
+                    </select>
+                    <p class="erp-error">@error('status'){{ $message }}@enderror</p>
+                </div>
+            @else
+                <div class="erp-field erp-col-3">
+                    <p class="erp-subhead">Approval status</p>
+                    <p class="erp-help">Server-managed: this registration will be inactive and pending approval until an authorized approver decides.</p>
+                </div>
+            @endif
 
             @if($showEnrollmentBlock)
                 {{-- Enrollment Date closes the chronological sequence: it is the
@@ -575,6 +592,29 @@
                 @can('create', App\Models\StudentDocument::class)
                     <a class="erp-btn erp-btn--sm" href="{{ route('student-documents.create', ['student_id' => $student->id]) }}">+ Upload a document</a>
                 @endcan
+            @elseif($isRegistration)
+                <div class="erp-field erp-col-12">
+                    <p class="erp-subhead">Registration documents (optional)</p>
+                    <p class="erp-help">Uploaded files are stored through the existing Student Document register while the registration is pending. Choose one shared document type for the batch, or leave it unclassified.</p>
+                </div>
+                <div class="erp-field erp-col-6">
+                    <label class="erp-label" for="registration_document_type_id">Document Type</label>
+                    <select class="erp-input" id="registration_document_type_id" name="registration_document_type_id">
+                        <option value="">— Unclassified —</option>
+                        @foreach(($documentTypes ?? collect()) as $type)
+                            <option value="{{ $type->id }}" @selected((int) old('registration_document_type_id') === $type->id)>
+                                {{ $type->name }} ({{ $type->code }}){{ $type->is_required ? ' · required' : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="erp-error">@error('registration_document_type_id'){{ $message }}@enderror</p>
+                </div>
+                <div class="erp-field erp-col-6">
+                    <label class="erp-label" for="registration_documents">Files</label>
+                    <input class="erp-file-input" id="registration_documents" name="registration_documents[]" type="file" multiple accept=".pdf,.jpg,.jpeg,.png">
+                    <p class="erp-help">PDF, JPG or PNG, up to 5 MB each. Maximum 10 files.</p>
+                    <p class="erp-error">@error('registration_documents'){{ $message }}@enderror @error('registration_documents.*'){{ $message }}@enderror</p>
+                </div>
             @else
                 <span>Uploads are possible once the student exists — create the student first, then upload from its Documents tab or the register.</span>
                 @can('viewAny', App\Models\StudentDocument::class)
