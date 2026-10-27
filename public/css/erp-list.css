@@ -472,23 +472,70 @@
     height: 2rem;
 }
 
-/* Apply identity / Apply / Reset share one cell that lines up with the last
- * control column instead of producing an extra row of its own. */
-.erp-student-filter .erp-list-actions {
+/* -----------------------------------------------------------------------------
+ * Action bar — Apply Filters / Reset Filters in the bottom-right corner
+ * -----------------------------------------------------------------------------
+ * The bar is a sibling of the filter grid, not a cell inside it, so it always
+ * renders below every control and hugs the panel's right edge. The two buttons
+ * are one flex row with equal height and padding; `Apply Filters` (primary) is
+ * followed by `Reset Filters` (secondary). When the page has the secure
+ * identity search, its submit shares this same row, pushed to the left. */
+
+.erp-student-filter .erp-student-filter-actions {
     display: flex;
-    align-items: flex-end;
+    flex-wrap: wrap;
+    align-items: center;
     justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    min-width: 0;
+}
+
+.erp-student-filter .erp-student-filter-actions-identity,
+.erp-student-filter .erp-student-filter-actions-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 0.5rem;
     min-width: 0;
 }
 
-.erp-student-filter .erp-list-actions .button {
+/* The right-hand group is the one that must end up in the corner; the identity
+ * group takes the remaining space on the left of the same row. */
+.erp-student-filter .erp-student-filter-actions-identity {
+    margin-right: auto;
+}
+
+.erp-student-filter .erp-student-filter-actions .button {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
     min-height: 2rem;
     padding: 0.25rem 0.75rem;
     font-size: 0.75rem;
+    line-height: 1.25rem;
     white-space: nowrap;
+}
+
+/* Narrow screens: the identity group (when present) takes its own row, and the
+ * primary/secondary pair splits the available width evenly so both stay the
+ * same size and remain comfortably tappable. */
+@media (max-width: 639px) {
+    .erp-student-filter .erp-student-filter-actions-identity {
+        margin-right: 0;
+        width: 100%;
+    }
+
+    .erp-student-filter .erp-student-filter-actions-buttons {
+        width: 100%;
+        flex-wrap: nowrap;
+    }
+
+    .erp-student-filter .erp-student-filter-actions-buttons .button {
+        flex: 1 1 0%;
+        min-width: 0;
+    }
 }
 
 /* The identity inputs are real form controls bound to the POST form; the form

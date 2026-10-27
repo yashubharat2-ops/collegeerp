@@ -188,13 +188,6 @@
                         @enderror
                     </div>
                 @endforeach
-
-                <div class="erp-list-field erp-list-actions flex items-end gap-2">
-                    <button type="submit" form="{{ $identityFormId }}" class="button !bg-slate-800 !py-1.5 !text-xs font-semibold hover:!bg-slate-900">Apply identity</button>
-                    @if($identityActive)
-                        <a class="text-xs font-semibold text-indigo-700 underline hover:text-indigo-900" href="{{ $identityClearUrl }}">Clear</a>
-                    @endif
-                </div>
             @endif
 
             {{-- Page-level search and module-specific controls (the wider
@@ -216,8 +209,33 @@
                     @endif
                 </div>
             @endforeach
+        </div>
 
-            <div class="erp-list-field erp-list-actions flex items-end gap-2">
+        {{--
+            Action bar.
+
+            The two submit controls live OUTSIDE the filter grid so they sit in the
+            panel's bottom-right corner instead of occupying a grid cell in the
+            middle of the fields. `Apply Filters` stays the primary button,
+            `Reset Filters` the secondary link styled as a button with the same
+            height/padding, so the pair always lines up on one row.
+
+            When the page also has the secure identity search, its own submit stays
+            in this same row on the left (it posts the identity form through
+            `form=`), so the panel keeps ONE action bar. On narrow screens the two
+            groups stack and the primary/secondary pair shares the row evenly.
+        --}}
+        <div class="erp-student-filter-actions">
+            @if($identityFields !== [])
+                <div class="erp-student-filter-actions-identity">
+                    <button type="submit" form="{{ $identityFormId }}" class="button !bg-slate-800 !py-1.5 !text-xs font-semibold hover:!bg-slate-900">Apply identity</button>
+                    @if($identityActive)
+                        <a class="text-xs font-semibold text-indigo-700 underline hover:text-indigo-900" href="{{ $identityClearUrl }}">Clear</a>
+                    @endif
+                </div>
+            @endif
+
+            <div class="erp-student-filter-actions-buttons">
                 <button class="button !py-1.5 !text-xs font-semibold" type="submit" @disabled($submitDisabled)>Apply Filters</button>
                 <a class="button !bg-slate-200 !py-1.5 !text-xs font-semibold !text-slate-700 transition hover:!bg-slate-300" href="{{ $resetUrl ?? $action }}">Reset Filters</a>
             </div>

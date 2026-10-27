@@ -111,6 +111,70 @@ class CanonicalStudentFilterTest extends TestCase
         $this->assertStringNotContainsString('name="status"', $html);
     }
 
+    /**
+     * The submit controls live in their own action bar at the bottom of the
+     * panel — not in a grid cell — so they can be right-aligned together.
+     */
+    public function test_apply_and_reset_filters_share_one_action_bar_after_the_grid(): void
+    {
+        [$college, $viewer] = $this->collegeWithViewer('CSF01A', ['students.view']);
+
+        $html = $this->list($college, $viewer)->assertOk()->getContent();
+
+        $barStart = strpos($html, 'erp-student-filter-actions');
+        $this->assertNotFalse($barStart, 'The panel must render one action bar.');
+
+        // The bar comes AFTER the filter grid closes, i.e. it is not a grid cell:
+        // no control may appear between the bar and the form's closing tag.
+        $actions = substr($html, $barStart, strpos($html, '</form>', $barStart) - $barStart);
+        $this->assertStringContainsString('Apply Filters', $actions);
+        $this->assertStringContainsString('Reset Filters', $actions);
+        $this->assertStringNotContainsString('name="', $actions, 'The action bar must not contain filter controls.');
+
+        // Both sit in the same (right-aligned) button group, primary first.
+        $this->assertStringContainsString('erp-student-filter-actions-buttons', $actions);
+        $buttons = substr($actions, strpos($actions, 'erp-student-filter-actions-buttons'));
+        $applyAt = strpos($buttons, 'Apply Filters');
+        $resetAt = strpos($buttons, 'Reset Filters');
+        $this->assertNotFalse($applyAt);
+        $this->assertNotFalse($resetAt);
+        $this->assertLessThan($resetAt, $applyAt, 'Apply Filters stays the primary button, before Reset Filters.');
+
+        // Apply keeps the primary `.button`; Reset keeps the secondary treatment.
+        $this->assertMatchesRegularExpression(
+            '/<button\b[^>]*type="submit"[^>]*>\s*Apply Filters/',
+            $buttons,
+            'Apply Filters must stay the primary submit button.'
+        );
+        $this->assertMatchesRegularExpression(
+            '/<a\b(?=[^>]*!bg-slate-200)[^>]*>\s*Reset Filters/',
+            $buttons,
+            'Reset Filters must stay the secondary button.'
+        );
+
+        // The grid still ends before the bar: every filter control is above it.
+        foreach (['name="student_number"', 'name="admission_date_to"'] as $field) {
+            $position = strpos($html, $field);
+            $this->assertNotFalse($position);
+            $this->assertLessThan($barStart, $position, "{$field} must be inside the grid, above the action bar.");
+        }
+
+        // The placement is a stylesheet contract too: the bar is a flex row
+        // justified to the end, and the pair splits the width on small screens.
+        $css = (string) file_get_contents(public_path('css/erp-list.css'));
+        $this->assertStringContainsString('.erp-student-filter .erp-student-filter-actions {', $css);
+        $this->assertMatchesRegularExpression(
+            '/\.erp-student-filter \.erp-student-filter-actions \{[^}]*justify-content: flex-end;/s',
+            $css,
+            'The action bar must be right-aligned.'
+        );
+        $this->assertMatchesRegularExpression(
+            '/@media \(max-width: 639px\) \{[^@]*erp-student-filter-actions-buttons \.button/s',
+            $css,
+            'The action buttons must stay one row on mobile.'
+        );
+    }
+
     public function test_identity_search_is_permission_gated_private_and_matched_on_the_server(): void
     {
         [$college, $viewer] = $this->collegeWithViewer('CSF02');

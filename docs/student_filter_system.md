@@ -39,8 +39,12 @@ canonical subset only), HR/other modules keep their own vocabularies.
 * Field `help` text stays in the DOM as `sr-only` (screen readers and
   `aria-describedby`) instead of a visible paragraph under every control, which
   is what made the previous panel tall.
-* The date range spans two columns and is always the last control before the
-  action cell; Apply Filters / Reset Filters sit in the final grid cell.
+* The date range spans two columns and is always the last control in the grid.
+* Apply Filters (primary) and Reset Filters (secondary) are **not** a grid cell:
+  they sit in their own action bar under the grid, right-aligned on one row
+  (`justify-content: flex-end`). When the page has the secure identity search,
+  its "Apply identity" submit shares that row on the left. On screens narrower
+  than 640px the pair still shares one row and splits the width evenly.
 * Aadhaar / ABC ID are drawn in the same grid but belong to the hidden POST
   form through the HTML `form` attribute — one ordered layout, no nested forms,
   no second panel.
