@@ -384,7 +384,7 @@ class ExamAttendanceManagementTest extends TestCase
 
         $response = $this->asCollege($college, $admin)->get(route('exam-attendance.index', $query))
             ->assertOk()->assertSee($first->enrollment_number)->assertDontSee($second->enrollment_number)
-            ->assertSee('PROGRAM/CLASS')->assertSee('SEMESTER/SECTION');
+            ->assertSee('PROGRAM / CLASS')->assertSee('SEMESTER / SECTION');
         $this->assertSame(1, substr_count($response->getContent(), 'name="academic_context"'));
 
         $csv = $this->asCollege($college, $admin)->get(route('exam-attendance.export', $query + [

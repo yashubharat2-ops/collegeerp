@@ -3,6 +3,7 @@
 namespace App\Domain\Student\Filters;
 
 use App\Domain\Student\Support\Aadhaar;
+use App\Domain\Student\Support\StudentIdentityFilterStore;
 use App\Models\AcademicTerm;
 use App\Models\AcademicYear;
 use App\Models\Department;
@@ -11,6 +12,7 @@ use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -29,18 +31,22 @@ use Illuminate\Validation\ValidationException;
  */
 class StudentFilter
 {
+    public function __construct(private readonly StudentIdentityFilterStore $identityStore)
+    {
+    }
+
     public const DEFAULT_FIELDS = [
-        'registration_number', 'registration_date', 'enrollment_status', 'student_status',
-        'program_id', 'academic_context', 'batch', 'student_name', 'unique_student_id',
-        'email', 'apaar_id', 'enrollment_number', 'mobile_number', 'aadhaar_last4',
+        'registration_number', 'registration_date', 'academic_status', 'student_status',
+        'program_id', 'academic_context', 'student_name',
+        'email', 'apaar_id', 'enrollment_number', 'mobile_number', 'aadhaar',
         'father_name', 'mother_name',
     ];
 
     public const STUDENT_LIST_FIELDS = [
         'registration_number', 'registration_date', 'academic_year_id', 'department_id',
-        'enrollment_status', 'student_status', 'registration_status', 'program_id', 'academic_context', 'batch',
-        'student_name', 'unique_student_id', 'email', 'apaar_id', 'enrollment_number',
-        'mobile_number', 'aadhaar_last4', 'father_name', 'mother_name',
+        'academic_status', 'student_status', 'registration_status', 'program_id', 'academic_context',
+        'student_name', 'email', 'apaar_id', 'enrollment_number',
+        'mobile_number', 'aadhaar', 'father_name', 'mother_name',
     ];
 
     public const ADMISSION_APPLICATION_FIELDS = [
@@ -51,16 +57,26 @@ class StudentFilter
         'registration_date', 'student_name', 'email', 'mobile_number', 'academic_year_id', 'program_id',
     ];
 
+    /**
+     * Filters answered from the students row itself.
+     *
+     * `aadhaar_hash`, `aadhaar_last4` and `apaar_id` are only ever produced by
+     * the server-side identity vault (StudentIdentityFilterStore); they can never
+     * arrive from the query string.
+     */
     private const IDENTITY_FIELDS = [
         'registration_number', 'registration_date_from', 'registration_date_to',
-        'student_status', 'student_name', 'unique_student_id', 'email', 'apaar_id',
-        'mobile_number', 'aadhaar_last4', 'father_name', 'mother_name',
+        'academic_status', 'student_status', 'student_name', 'email', 'apaar_id',
+        'mobile_number', 'aadhaar_hash', 'aadhaar_last4', 'father_name', 'mother_name',
     ];
 
     private const ENROLLMENT_FIELDS = [
         'academic_year_id', 'department_id', 'program_id', 'academic_context',
         '_legacy_academic_term_id', 'enrollment_status', 'enrollment_number',
     ];
+
+    /** Canonical keys produced by the identity vault. */
+    private const SENSITIVE_KEYS = ['aadhaar_hash', 'aadhaar_last4', 'apaar_id'];
 
     /** @return array<string, mixed> */
     public function fromRequest(Request $request, bool $studentListAliases = false, ?User $user = null): array
@@ -81,7 +97,9 @@ class StudentFilter
         $raw = [];
 
         foreach ($this->definitions() as $key => $definition) {
-            if (($definition['type'] ?? null) === 'unavailable') {
+            // 'unavailable' = a documented schema gap; 'identity' = Aadhaar / ABC
+            // ID, which are never read from a URL or GET query string.
+            if (in_array($definition['type'] ?? null, ['unavailable', 'identity'], true)) {
                 continue;
             }
 
@@ -128,12 +146,128 @@ class StudentFilter
         }
 
         $this->validateDateRange($filters);
+        $this->assertAcademicContextCompatible($filters);
 
-        if (isset($filters['aadhaar_last4']) && ! $this->canFilterSensitiveIdentity($user)) {
-            throw new AuthorizationException('You are not authorized to filter by Aadhaar last four digits.');
-        }
+        // Sensitive identity criteria come from the session vault only. A
+        // tampered/expired/foreign token reads as "no identity filter".
+        $filters = $this->withIdentityCriteria($filters, $input, $user);
 
         return $filters;
+    }
+
+    /**
+     * Merge the permission-gated identity criteria behind an opaque token.
+     *
+     * The token travels in the URL; the values do not. Anything that is not a
+     * well-formed canonical criterion is dropped, and an unauthorized user gets a
+     * 403 rather than a silently broadened list.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>
+     */
+    private function withIdentityCriteria(array $filters, array $input, ?User $user): array
+    {
+        $user ??= auth()->user();
+
+        $criteria = $this->identityStore->resolve(
+            $this->scalar($input['identity'] ?? null),
+            $user,
+            app(TenantContext::class)->id(),
+        );
+
+        $validated = [];
+        foreach ($criteria as $key => $value) {
+            if (! in_array($key, self::SENSITIVE_KEYS, true) || ! is_string($value)) {
+                continue;
+            }
+
+            $valid = match ($key) {
+                'aadhaar_hash' => preg_match('/^[0-9a-f]{64}$/D', $value) === 1,
+                'aadhaar_last4' => preg_match('/^[0-9]{4}$/D', $value) === 1,
+                'apaar_id' => preg_match('/^[A-Za-z0-9\/-]{1,30}$/D', $value) === 1,
+                default => false,
+            };
+
+            if ($valid) {
+                $validated[$key] = $value;
+            }
+        }
+
+        if ($validated === []) {
+            return $filters;
+        }
+
+        if (! $this->canFilterSensitiveIdentity($user)) {
+            throw new AuthorizationException('You are not authorized to search by Aadhaar or ABC ID.');
+        }
+
+        return array_replace($filters, $validated);
+    }
+
+    /**
+     * A section, the semester beside it and the program/academic-year dropdowns
+     * must describe one compatible academic level.
+     *
+     * Without this the page would happily combine "BSc" with a BCom section and
+     * quietly return nothing, which reads like "no such student" instead of "that
+     * combination is impossible". Both master tables carry CollegeScope, so a
+     * section from another college is simply not found.
+     *
+     * @param  array<string, mixed>  $filters
+     */
+    private function assertAcademicContextCompatible(array $filters): void
+    {
+        [$type, $id] = $this->academicContext($filters);
+
+        if ($type === null || ! app(TenantContext::class)->has()) {
+            return;
+        }
+
+        $programId = isset($filters['program_id']) ? (int) $filters['program_id'] : null;
+        $yearId = isset($filters['academic_year_id']) ? (int) $filters['academic_year_id'] : null;
+
+        if ($type === 'term') {
+            $term = AcademicTerm::query()->find($id);
+            if (! $term) {
+                throw ValidationException::withMessages([
+                    'academic_context' => 'The selected semester is not available in this college.',
+                ]);
+            }
+            if ($yearId !== null && (int) $term->academic_year_id !== $yearId) {
+                throw ValidationException::withMessages([
+                    'academic_context' => 'The selected semester does not belong to the selected academic year.',
+                ]);
+            }
+
+            return;
+        }
+
+        $section = Section::query()->find($id);
+        if (! $section) {
+            throw ValidationException::withMessages([
+                'academic_context' => 'The selected section is not available in this college.',
+            ]);
+        }
+        if ($programId !== null && $section->program_id !== null && (int) $section->program_id !== $programId) {
+            throw ValidationException::withMessages([
+                'academic_context' => 'The selected section does not belong to the selected program / class.',
+            ]);
+        }
+        if ($yearId !== null && (int) $section->academic_year_id !== $yearId) {
+            throw ValidationException::withMessages([
+                'academic_context' => 'The selected section does not belong to the selected academic year.',
+            ]);
+        }
+
+        $legacyTermId = isset($filters['_legacy_academic_term_id']) ? (int) $filters['_legacy_academic_term_id'] : null;
+        if ($legacyTermId !== null) {
+            $term = AcademicTerm::query()->find($legacyTermId);
+            if (! $term || (int) $term->academic_year_id !== (int) $section->academic_year_id) {
+                throw ValidationException::withMessages([
+                    'academic_context' => 'The selected section and semester belong to different academic levels.',
+                ]);
+            }
+        }
     }
 
     /**
@@ -241,21 +375,33 @@ class StudentFilter
             }
         }
 
-        if (isset($filters['unique_student_id'])) {
-            // The audit found one college-issued identifier, not two columns.
-            $students->where('students.student_number', $filters['unique_student_id']);
-        }
-        if (isset($filters['apaar_id'])) {
-            $students->where('students.apaar_id', $filters['apaar_id']);
-        }
-        if (isset($filters['aadhaar_last4'])) {
+        // Identity searches are answered only for authorized users, and only from
+        // the server-side vault: the predicates below cannot be reached by a
+        // query string, so no Aadhaar / ABC ID ever needs to appear in a URL.
+        $sensitive = array_intersect_key($filters, array_flip(self::SENSITIVE_KEYS));
+        if ($sensitive !== []) {
             if (! $this->canFilterSensitiveIdentity()) {
-                throw new AuthorizationException('You are not authorized to filter by Aadhaar last four digits.');
+                throw new AuthorizationException('You are not authorized to search by Aadhaar or ABC ID.');
             }
-            $students->where('students.aadhaar_last4', $filters['aadhaar_last4']);
+
+            if (isset($sensitive['aadhaar_hash'])) {
+                // Exact match on the stored keyed HMAC: the number is never
+                // decrypted, and a wrong number simply matches nothing.
+                $students->where('students.aadhaar_hash', $sensitive['aadhaar_hash']);
+            }
+            if (isset($sensitive['aadhaar_last4'])) {
+                $students->where('students.aadhaar_last4', $sensitive['aadhaar_last4']);
+            }
+            if (isset($sensitive['apaar_id'])) {
+                $students->where('students.apaar_id', $sensitive['apaar_id']);
+            }
         }
+
         if (isset($filters['student_status'])) {
             $students->where('students.status', $filters['student_status']);
+        }
+        if (isset($filters['academic_status'])) {
+            $this->applyAcademicStatus($students, (string) $filters['academic_status']);
         }
         if (isset($filters['registration_status'])) {
             if ($filters['registration_status'] === 'legacy') {
@@ -274,6 +420,72 @@ class StudentFilter
         $this->applyPersonIdentity($students, $filters, 'students');
 
         return $students;
+    }
+
+    /**
+     * Academic Status — the requested vocabulary, answered from the fields that
+     * actually exist.
+     *
+     * The schema has no single "academic status" column, but the progression
+     * ledger (`student_academic_records`) already stores academic_status
+     * (enrolled / passed / failed / withdrawn / discontinued),
+     * promotion_status (… / transferred) and completion_status, and `students`
+     * plus `student_transfers` hold the lifecycle facts. Each option below is a
+     * real predicate that reads BOTH sources so a student whose progression
+     * ledger is complete and one whose ledger is not yet filled in are both
+     * found:
+     *
+     *  continue         students.status = 'active'
+     *                   OR a record with academic_status = 'enrolled'
+     *  dropout          a record with academic_status 'discontinued'/'withdrawn'
+     *                   that was not transferred out,
+     *                   OR students.status = 'withdrawn' with no approved TC
+     *  pass_out         students.status = 'graduated'
+     *                   OR a record with academic_status = 'passed' or
+     *                      completion_status = 'completed'
+     *  new_registration students.registration_submitted_at IS NOT NULL (created
+     *                   through the existing single or bulk registration workflow)
+     *  transfer_out     an approved transfer request / issued TC,
+     *                   OR a record with promotion_status = 'transferred'
+     *
+     * `online_registration` and `transfer_in` are not represented in this schema
+     * and are therefore not offered (config `academic_status_gaps`).
+     */
+    private function applyAcademicStatus(Builder $students, string $status): void
+    {
+        $hasTransfer = static fn (Builder $transfer) => $transfer->where(function (Builder $query): void {
+            $query->where('student_transfers.status', 'approved')
+                ->orWhere('student_transfers.tc_status', 'issued');
+        });
+
+        match ($status) {
+            'continue' => $students->where(function (Builder $query): void {
+                $query->where('students.status', 'active')
+                    ->orWhereHas('academicRecords', fn (Builder $record) => $record
+                        ->where('student_academic_records.academic_status', 'enrolled'));
+            }),
+            'dropout' => $students->where(function (Builder $query) use ($hasTransfer): void {
+                $query->whereHas('academicRecords', fn (Builder $record) => $record
+                        ->whereIn('student_academic_records.academic_status', ['discontinued', 'withdrawn'])
+                        ->where('student_academic_records.promotion_status', '!=', 'transferred'))
+                    ->orWhere(fn (Builder $withdrawn) => $withdrawn
+                        ->where('students.status', 'withdrawn')
+                        ->whereDoesntHave('transfers', $hasTransfer));
+            }),
+            'pass_out' => $students->where(function (Builder $query): void {
+                $query->where('students.status', 'graduated')
+                    ->orWhereHas('academicRecords', fn (Builder $record) => $record
+                        ->where('student_academic_records.academic_status', 'passed')
+                        ->orWhere('student_academic_records.completion_status', 'completed'));
+            }),
+            'new_registration' => $students->whereNotNull('students.registration_submitted_at'),
+            'transfer_out' => $students->where(function (Builder $query) use ($hasTransfer): void {
+                $query->whereHas('transfers', $hasTransfer)
+                    ->orWhereHas('academicRecords', fn (Builder $record) => $record
+                        ->where('student_academic_records.promotion_status', 'transferred'));
+            }),
+            default => null,
+        };
     }
 
     /** Apply enrollment dimensions to a Student root. */
@@ -390,7 +602,9 @@ class StudentFilter
     {
         $parameters = [];
         foreach ($this->definitions() as $key => $definition) {
-            if (($definition['type'] ?? null) === 'unavailable') {
+            // 'unavailable' = a documented schema gap; 'identity' = Aadhaar / ABC
+            // ID, which are never read from a URL or GET query string.
+            if (in_array($definition['type'] ?? null, ['unavailable', 'identity'], true)) {
                 continue;
             }
             if (($definition['type'] ?? null) === 'date_range') {
@@ -426,6 +640,11 @@ class StudentFilter
             if (! isset($definitions[$key])) {
                 continue;
             }
+            // Identity fields (Aadhaar / ABC ID) are rendered by the POST
+            // sub-form below, never as ordinary GET controls.
+            if (($definitions[$key]['type'] ?? null) === 'identity') {
+                continue;
+            }
             if (($definitions[$key]['sensitive'] ?? false) && ! $this->canFilterSensitiveIdentity($user)) {
                 continue;
             }
@@ -433,22 +652,75 @@ class StudentFilter
         }
 
         $options = $this->options($fields);
+        $identity = $this->identityViewData($fieldKeys, $user);
+        $parameters = $this->requestParameters($filters);
 
-        return [
+        // The opaque identity token is safe to carry (it is bound to this user and
+        // college, and it carries no value). Carrying it means a bulk export of the
+        // displayed rows re-applies exactly the search that produced them.
+        if (($identity['studentFilterIdentityToken'] ?? null) !== null) {
+            $parameters['identity'] = $identity['studentFilterIdentityToken'];
+        }
+
+        return array_merge([
             'studentFilterFields' => $fields,
             'studentFilterOptions' => $options,
             'studentFilterValues' => $filters,
             'studentFilterApplied' => $this->appliedSummary($filters, $fields, $options),
-            'studentFilterParameters' => $this->requestParameters($filters),
+            'studentFilterParameters' => $parameters,
+        ], $identity);
+    }
+
+    /**
+     * Projection for the permission-gated identity search sub-form.
+     *
+     * The token is the ONLY identity-related value that travels in the URL; the
+     * field definitions carry no value, and the summary never repeats one.
+     *
+     * @return array{studentFilterIdentityFields: array, studentFilterIdentityAction: string, studentFilterIdentityReturnTo: string, studentFilterIdentityActive: bool, studentFilterIdentityToken: ?string}
+     */
+    public function identityViewData(?array $fieldKeys = null, ?User $user = null): array
+    {
+        $fieldKeys ??= self::DEFAULT_FIELDS;
+        $definitions = $this->definitions();
+        $fields = [];
+
+        if ($this->canFilterSensitiveIdentity($user)) {
+            foreach ($fieldKeys as $key) {
+                if (($definitions[$key]['type'] ?? null) === 'identity') {
+                    $fields[$key] = $definitions[$key];
+                }
+            }
+        }
+
+        $token = request()->query('identity');
+        $token = is_string($token) && preg_match('/^[A-Za-z0-9]{32,64}$/D', $token) === 1 ? $token : null;
+
+        return [
+            'studentFilterIdentityFields' => $fields,
+            'studentFilterIdentityAction' => route('students.filter.identity'),
+            'studentFilterIdentityReturnTo' => request()->getRequestUri(),
+            'studentFilterIdentityActive' => $token !== null,
+            'studentFilterIdentityToken' => $token,
         ];
     }
 
-    /** Redact identity-filter values before writing audit context. */
+    /**
+     * Redact identity-filter values before writing audit context.
+     *
+     * Only the fact that a search happened is recorded — never the number, not
+     * even the last four digits, and never the ABC ID.
+     */
     public function auditSafe(array $filters): array
     {
-        if (isset($filters['aadhaar_last4'])) {
-            $filters['aadhaar_last4'] = '[last-four filter supplied]';
+        foreach (self::SENSITIVE_KEYS as $key) {
+            if (isset($filters[$key])) {
+                $filters[$key] = '[identity filter supplied]';
+            }
         }
+
+        // The opaque vault token is not a criterion; it is not audit material.
+        unset($filters['identity']);
 
         return $filters;
     }
@@ -547,6 +819,7 @@ class StudentFilter
                 }
             }],
             'student_status' => [Rule::in(Student::STATUSES)],
+            'academic_status' => [Rule::in(array_keys((array) config('student-filter.academic_status_options', [])))],
             'registration_status' => [Rule::in([...Student::REGISTRATION_STATUSES, 'legacy'])],
             'program_id' => ['integer', 'min:1'],
             'academic_year_id' => ['integer', 'min:1'],
@@ -554,11 +827,11 @@ class StudentFilter
             'academic_context' => ['regex:/^(?:section|term):[1-9][0-9]*$/D'],
             '_legacy_academic_term_id' => ['integer', 'min:1'],
             'student_name' => $text(),
-            'unique_student_id' => $text(100),
             'email' => $text(),
             'apaar_id' => ['string', 'max:30', 'regex:/^[A-Za-z0-9\/-]+$/D'],
             'enrollment_number' => $text(100),
             'mobile_number' => ['string', 'max:30', 'regex:/^[0-9+().\-\s]+$/D'],
+            'aadhaar_hash' => ['regex:/^[0-9a-f]{64}$/D'],
             'aadhaar_last4' => ['regex:/^[0-9]{4}$/D'],
             'father_name' => $text(),
             'mother_name' => $text(),
@@ -663,7 +936,8 @@ class StudentFilter
 
         foreach ($needed as $key) {
             $options[$key] = match ($key) {
-                'student_statuses' => $this->enumOptions(Student::STATUSES),
+                'student_statuses' => $this->enumOptions((array) config('student-filter.student_status_options', ['active', 'inactive'])),
+                'academic_statuses' => $this->academicStatusOptions(),
                 'registration_statuses' => $this->enumOptions([...Student::REGISTRATION_STATUSES, 'legacy']),
                 'enrollment_statuses' => $this->enumOptions(StudentEnrollment::STATUSES),
                 'programs' => Program::query()->orderBy('name')->orderBy('id')
@@ -699,6 +973,9 @@ class StudentFilter
                 'value' => 'term:'.$term->id,
                 'label' => $term->name.' ('.$term->code.') — '.$term->academicYear?->name,
                 'group' => 'Semesters',
+                // Consumed by public/js/erp-student-filter.js so the dependent
+                // dropdowns only offer levels that can be combined.
+                'attributes' => ['data-level' => 'semester', 'data-year' => (string) $term->academic_year_id],
             ]);
 
         $sections = Section::query()->with(['academicYear:id,name', 'program:id,name'])
@@ -708,9 +985,34 @@ class StudentFilter
                 'value' => 'section:'.$section->id,
                 'label' => $section->name.' ('.$section->code.') — '.($section->academicYear?->name ?? '—').' / '.($section->program?->name ?? '—'),
                 'group' => 'Sections',
+                // A Section is this application's section / batch cohort, so
+                // these attributes are what make Batch dependent on the chosen
+                // program and academic year.
+                'attributes' => [
+                    'data-level' => 'section',
+                    'data-year' => (string) $section->academic_year_id,
+                    'data-program' => (string) ($section->program_id ?? ''),
+                ],
             ]);
 
         return $terms->concat($sections)->values()->all();
+    }
+
+    /**
+     * Academic Status choices: the requested labels, limited to the statuses this
+     * schema can actually answer (see config `academic_status_options` /
+     * `academic_status_gaps`).
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function academicStatusOptions(): array
+    {
+        $options = [];
+        foreach ((array) config('student-filter.academic_status_options', []) as $value => $label) {
+            $options[] = ['value' => (string) $value, 'label' => (string) $label];
+        }
+
+        return $options;
     }
 
     /** @return array<int, array{value: string, label: string}> */
@@ -762,6 +1064,36 @@ class StudentFilter
             }
 
             $summary[] = ['label' => $definition['label'], 'value' => (string) $value];
+        }
+
+        // `enrollment_status` is still honoured for existing links even though the
+        // panel no longer draws it; an applied filter must never be invisible.
+        if (isset($filters['enrollment_status']) && ! isset($fields['enrollment_status'])) {
+            $statuses = array_map(
+                static fn (string $status): string => ucfirst($status),
+                $this->statusList((string) $filters['enrollment_status'])
+            );
+            if ($statuses !== []) {
+                $summary[] = ['label' => 'ENROLLMENT STATUS', 'value' => implode(', ', $statuses)];
+            }
+        }
+
+        // Identity criteria are summarised by the FACT of the match, never by the
+        // value: nothing sensitive is rendered into the page.
+        $definitions = $this->definitions();
+        foreach (self::SENSITIVE_KEYS as $key) {
+            if (! isset($filters[$key])) {
+                continue;
+            }
+
+            $label = str_starts_with($key, 'aadhaar')
+                ? ($definitions['aadhaar']['label'] ?? 'AADHAAR NUMBER')
+                : ($definitions['apaar_id']['label'] ?? 'ABC ID / APAAR ID');
+
+            $summary[] = [
+                'label' => $label,
+                'value' => $key === 'aadhaar_last4' ? 'exact match on last four (hidden)' : 'exact match (hidden)',
+            ];
         }
 
         return $summary;

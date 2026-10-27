@@ -416,7 +416,7 @@ class AcademicBulkActionTest extends TestCase
 
         $this->asCollege($college, $user)->get(route('academic-attendance.index', $query))
             ->assertOk()->assertSee('STU-ACFILTERA')->assertDontSee('STU-ACFILTERB')
-            ->assertSee('ACADEMIC STATUS')->assertSee('SEMESTER/SECTION');
+            ->assertSee('ACADEMIC STATUS')->assertSee('SEMESTER / SECTION');
 
         $csv = $this->asCollege($college, $user)->get(route('academic-attendance.export', $query + [
             'ids' => [$first['attendance']->id, $second['attendance']->id],
@@ -464,7 +464,7 @@ class AcademicBulkActionTest extends TestCase
 
         $this->asCollege($college, $user)->get(route('academic-subject-enrollments.index', $query))
             ->assertOk()->assertSee('Subject ACSEFILTERA')->assertDontSee('Subject ACSEFILTERB')
-            ->assertSee('NAME OF STUDENT')->assertSee('SEMESTER/SECTION')
+            ->assertSee('NAME OF STUDENT')->assertSee('SEMESTER / SECTION')
             ->assertSee('data-bulk-param-student-number="STU-ACSEFILTERA"', false);
 
         $selectedIds = [$first['subjectEnrollment']->id, $second['subjectEnrollment']->id];

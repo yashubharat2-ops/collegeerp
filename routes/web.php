@@ -122,6 +122,7 @@ use App\Http\Controllers\StudentEnrollmentController;
 use App\Http\Controllers\StudentFeeAssignmentController;
 use App\Http\Controllers\StudentHistoryController;
 use App\Http\Controllers\StudentIdCardController;
+use App\Http\Controllers\StudentIdentityFilterController;
 use App\Http\Controllers\StudentPromotionController;
 use App\Http\Controllers\StudentReportController;
 use App\Http\Controllers\StudentResultHistoryController;
@@ -287,6 +288,10 @@ Route::middleware('auth')->group(function () {
         Route::get('students/import/template', [StudentImportController::class, 'template'])->name('students.import.template');
         Route::post('students/import/validate', [StudentImportController::class, 'validateUpload'])->name('students.import.validate');
         Route::post('students/import', [StudentImportController::class, 'store'])->name('students.import.store');
+        // Secure identity search (Aadhaar / ABC ID). POST on purpose: the submitted
+        // values are stored server-side under an opaque token so no Aadhaar or ABC
+        // ID can ever appear in a URL. Declared before the resource route.
+        Route::post('students/filter/identity', StudentIdentityFilterController::class)->name('students.filter.identity');
         Route::get('students/export', [StudentController::class, 'export'])->name('students.export');
         // The same filtered/selected list as a printable A4 report: "PDF" is the
         // review-then-save-as-PDF page, "print" opens it with the native print

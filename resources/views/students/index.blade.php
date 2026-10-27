@@ -64,9 +64,15 @@
         :options="$studentFilterOptions"
         :values="$studentFilterValues"
         :applied="$studentFilterApplied"
+        :identity-fields="$studentFilterIdentityFields"
+        :identity-action="$studentFilterIdentityAction"
+        :identity-return-to="$studentFilterIdentityReturnTo"
+        :identity-active="$studentFilterIdentityActive"
+        :identity-token="$studentFilterIdentityToken"
         :action="route('students.index')"
         :reset-url="$clearUrl"
         :preserve="['sort' => $activeSort, 'direction' => $activeDirection]"
+        title="Filter Students"
     >
         <div class="erp-list-filter-span-2">
             <x-list.search-input
@@ -89,18 +95,6 @@
             @endforeach
         </x-list.filter-select>
 
-        <x-list.filter-select name="blood_group" label="Blood group" placeholder="All blood groups">
-            @foreach(\App\Models\Student::BLOOD_GROUPS as $bloodGroup)
-                <option value="{{ $bloodGroup }}" @selected(in_array($bloodGroup, (array) $listContext->filter('blood_group', []), true))>{{ $bloodGroup }}</option>
-            @endforeach
-        </x-list.filter-select>
-
-        <x-list.filter-text
-            name="nationality"
-            label="Nationality"
-            placeholder="Contains…"
-            :value="$listContext->filter('nationality')"
-        />
         <x-list.filter-text
             name="mother_tongue"
             label="Mother tongue"
@@ -108,14 +102,10 @@
             :value="$listContext->filter('mother_tongue')"
         />
 
-        <x-list.filter-date-range
-            class="erp-list-filter-span-2"
-            from-name="date_of_birth_from"
-            to-name="date_of_birth_to"
-            label="Date of birth"
-            :from-value="$listContext->filter('date_of_birth_from')"
-            :to-value="$listContext->filter('date_of_birth_to')"
-        />
+        {{-- Blood group, date of birth, nationality and the duplicate "unique
+             student id" control are deliberately NOT part of this filter panel.
+             The student profile keeps storing them; only the filtering interface
+             omits them, and the legacy query parameters are simply ignored. --}}
     </x-student-filter>
 
     {{-- Selection bar: rendered inside the panel so the shared script

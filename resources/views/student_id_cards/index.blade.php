@@ -17,6 +17,11 @@
         :options="$studentFilterOptions"
         :values="$studentFilterValues"
         :applied="$studentFilterApplied"
+        :identity-fields="$studentFilterIdentityFields"
+        :identity-action="$studentFilterIdentityAction"
+        :identity-return-to="$studentFilterIdentityReturnTo"
+        :identity-active="$studentFilterIdentityActive"
+        :identity-token="$studentFilterIdentityToken"
         :action="route('student-id-cards.index')"
         title="Filter Students for ID Cards"
     >

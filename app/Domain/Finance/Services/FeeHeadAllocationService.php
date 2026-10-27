@@ -117,8 +117,12 @@ class FeeHeadAllocationService
             }
         }
         $filters = $data['filters'] ?? [];
-        if (isset($filters['aadhaar_last4']) && ! $this->studentFilter->canFilterSensitiveIdentity($actor)) {
-            abort(403, 'You are not authorized to use the Aadhaar filter.');
+        // Aadhaar and ABC ID searches are resolved from the server-side identity
+        // vault (StudentFilter), so re-check the permission here before the
+        // filters are reused for a write-side allocation.
+        if ((isset($filters['aadhaar_hash']) || isset($filters['aadhaar_last4']) || isset($filters['apaar_id']))
+            && ! $this->studentFilter->canFilterSensitiveIdentity($actor)) {
+            abort(403, 'You are not authorized to use the Aadhaar / ABC ID filter.');
         }
 
         $selectionMode = $data['selection_mode'];

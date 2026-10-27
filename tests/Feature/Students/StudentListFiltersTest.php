@@ -570,21 +570,32 @@ class StudentListFiltersTest extends TestCase
         $this->assertStringContainsString('erp-list-filter-span-2', $html);
         foreach ([
             'academic_year_id', 'department_id', 'program_id', 'academic_context',
-            'gender', 'category', 'student_status', 'enrollment_status', 'admission_date_from', 'admission_date_to',
-            'student_number', 'student_name', 'unique_student_id', 'apaar_id', 'enrollment_number',
-            'mobile_number', 'father_name', 'mother_name', 'blood_group', 'nationality', 'mother_tongue',
-            'date_of_birth_from', 'date_of_birth_to',
+            'gender', 'category', 'academic_status', 'student_status', 'admission_date_from', 'admission_date_to',
+            'student_number', 'student_name', 'enrollment_number',
+            'mobile_number', 'father_name', 'mother_name', 'mother_tongue',
         ] as $filter) {
             $this->assertStringContainsString('name="'.$filter.'"', $html, "The {$filter} filter must be rendered.");
         }
         foreach ([
-            'Academic year', 'Department', 'PROGRAM/CLASS', 'SEMESTER/SECTION',
-            'Gender', 'Category', 'STATUS', 'ACADEMIC STATUS',
-            'REG. DATE', 'REG.NO', 'NAME OF STUDENT', 'UNIQUE STUDENT ID', 'ABC ID / APAAR ID',
+            'Academic year', 'Department', 'PROGRAM / CLASS', 'SEMESTER / SECTION',
+            'Gender', 'Category', 'STUDENT STATUS', 'ACADEMIC STATUS',
+            'REG. DATE', 'REG.NO', 'NAME OF STUDENT',
             'ENROLLMENT NO.', 'MOBILE NUMBER', "FATHER'S NAME", "MOTHER'S NAME",
-            'Blood group', 'Nationality', 'Mother tongue', 'Date of birth', 'From', 'To',
+            'Mother tongue', 'From', 'To',
         ] as $label) {
             $this->assertStringContainsString(e($label), $html, "The {$label} filter label must be visible.");
+        }
+
+        // Fields the filtering interface deliberately does not offer. The profile
+        // columns still exist and the legacy query parameters still work (the
+        // blood-group, date-of-birth and nationality tests below prove it); they
+        // are simply not part of the filter panel.
+        foreach ([
+            'name="unique_student_id"', 'name="blood_group"', 'name="nationality"',
+            'name="date_of_birth_from"', 'name="date_of_birth_to"',
+            'UNIQUE STUDENT ID', 'Blood group', 'Date of birth',
+        ] as $removed) {
+            $this->assertStringNotContainsString($removed, $html, "{$removed} must not be part of the filter panel.");
         }
 
         // Section is a Section. The old "Section / Batch" wording represented the

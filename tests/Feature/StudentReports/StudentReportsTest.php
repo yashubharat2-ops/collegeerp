@@ -238,7 +238,7 @@ class StudentReportsTest extends TestCase
                 && $rows->first()->id === $moved->id
                 && $rows->first()->enrollments->pluck('id')->all() === [$old->id])
             ->assertSee('SR-CANON-OLD')->assertDontSee('SR-CANON-NEW')
-            ->assertSee('PROGRAM/CLASS')->assertSee('SEMESTER/SECTION')->assertSee('Applied filters:');
+            ->assertSee('PROGRAM / CLASS')->assertSee('SEMESTER / SECTION')->assertSee('Applied filters:');
         $html = $response->getContent();
         $this->assertSame(1, substr_count($html, 'name="program_id"'));
         $this->assertSame(1, substr_count($html, 'name="academic_context"'));

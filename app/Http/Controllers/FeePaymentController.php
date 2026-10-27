@@ -211,7 +211,7 @@ class FeePaymentController extends Controller
     /** @return array<string, scalar|null> */
     private function studentFilterInput(Request $request): array
     {
-        $keys = ['student_number', 'admission_date_from', 'admission_date_to', 'academic_year_id', 'department_id', 'program_id', 'academic_context', 'enrollment_status', 'student_status', 'student_name', 'unique_student_id', 'email', 'apaar_id', 'enrollment_number', 'mobile_number', 'aadhaar_last4', 'father_name', 'mother_name'];
+        $keys = ['student_number', 'admission_date_from', 'admission_date_to', 'academic_year_id', 'department_id', 'program_id', 'academic_context', 'academic_status', 'enrollment_status', 'student_status', 'student_name', 'email', 'enrollment_number', 'mobile_number', 'father_name', 'mother_name', 'identity'];
         $input = [];
         foreach ($keys as $key) {
             $value = $request->query($key);

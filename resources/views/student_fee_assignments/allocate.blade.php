@@ -17,6 +17,11 @@
         :options="$studentFilterOptions"
         :values="$studentFilterValues"
         :applied="$studentFilterApplied"
+        :identity-fields="$studentFilterIdentityFields"
+        :identity-action="$studentFilterIdentityAction"
+        :identity-return-to="$studentFilterIdentityReturnTo"
+        :identity-active="$studentFilterIdentityActive"
+        :identity-token="$studentFilterIdentityToken"
         :action="route('student-fee-assignments.allocate')"
         :preserve="['fee_structure_id' => $selectedStructureId]"
         title="Filter Students for Fee Allocation"
@@ -32,9 +37,9 @@
         @csrf
         @foreach([
             'student_number', 'admission_date_from', 'admission_date_to', 'academic_year_id',
-            'department_id', 'program_id', 'academic_context', 'enrollment_status', 'student_status',
-            'student_name', 'unique_student_id', 'email', 'apaar_id', 'enrollment_number',
-            'mobile_number', 'aadhaar_last4', 'father_name', 'mother_name',
+            'department_id', 'program_id', 'academic_context', 'academic_status', 'enrollment_status', 'student_status',
+            'student_name', 'email', 'enrollment_number',
+            'mobile_number', 'father_name', 'mother_name', 'identity',
         ] as $filterName)
             @if(is_scalar(request()->query($filterName)) && request()->query($filterName) !== '')
                 <input type="hidden" name="{{ $filterName }}" value="{{ request()->query($filterName) }}">
