@@ -530,7 +530,14 @@
 
 .erp-doc-other[open] > summary { margin-bottom: 8px; }
 
-.erp-doc-other .erp-upload-row { align-items: end; }
+.erp-doc-other .erp-upload-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+    align-items: start;
+}
+
+/* Keep the Attach action aligned with the field controls rather than their
+   labels. Helper text beneath the file picker does not affect the grid row. */
+.erp-doc-other .erp-upload-row > .erp-field:last-of-type { padding-top: 18px; }
 .erp-doc-other input[type="file"] { cursor: pointer; }
 .erp-wizard .erp-btn:disabled { opacity: .55; cursor: not-allowed; }
 
@@ -737,6 +744,8 @@
 @media (max-width: 1023px) {
     .erp-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .erp-upload-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .erp-doc-other .erp-upload-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .erp-doc-other .erp-upload-row > .erp-field:last-of-type { padding-top: 0; }
 }
 
 @media (max-width: 1023px) {
@@ -751,6 +760,7 @@
     .erp-wizard__footer { flex-direction: column-reverse; align-items: stretch; }
     .erp-wizard__footer-group { justify-content: space-between; }
     .erp-upload-row { grid-template-columns: 1fr; }
+    .erp-doc-other .erp-upload-row { grid-template-columns: 1fr; }
     .erp-doc-table,
     .erp-quals { display: block; overflow-x: auto; white-space: nowrap; }
 }
