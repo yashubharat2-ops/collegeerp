@@ -109,7 +109,6 @@ class StoreStudentRegistrationRequest extends FormRequest
             Rule::exists('sections', 'id')->where('college_id', $collegeId)->whereNull('deleted_at'),
         ];
         $rules['semester'] = ['nullable', 'string', 'max:30'];
-        $rules['enrollment_date'] = ['nullable', 'date'];
 
         // Optional registration documents go straight into the existing
         // student_documents store, using the shared admission document types.

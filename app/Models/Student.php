@@ -202,7 +202,8 @@ class Student extends Model
             self::REGISTRATION_PENDING => 'Pending approval',
             self::REGISTRATION_APPROVED => 'Approved',
             self::REGISTRATION_REJECTED => 'Rejected',
-            default => 'Legacy / approved',
+            null => 'Approved',
+            default => 'Unknown',
         };
     }
 

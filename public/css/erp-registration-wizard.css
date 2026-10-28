@@ -161,6 +161,24 @@
 .erp-wizard__card .erp-input,
 .erp-wizard__card select.erp-input { height: 32px; font-size: 13px; }
 
+.erp-wizard__card .erp-academic-category-value {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    height: 32px;
+    margin: 0;
+    padding: 0 10px;
+    overflow: hidden;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #f1f5f9;
+    color: #334155;
+    font-size: 13px;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .erp-wizard__card textarea.erp-input { height: auto; }
 
 /* A section that is not a .erp-card (address blocks): same compact rhythm. */
@@ -287,6 +305,7 @@
 .erp-media input[type="file"] {
     width: 100%;
     font-size: 11.5px;
+    cursor: pointer;
 }
 
 .erp-media__remove {
@@ -415,23 +434,32 @@
 
 .erp-doc-option {
     display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 6px 8px;
+    align-items: center;
+    gap: 8px;
     min-width: 0;
-    height: 100%;
-    padding: 9px 10px;
+    min-height: 38px;
+    padding: 6px 9px;
     border: 1px solid var(--wz-line);
     border-radius: 6px;
     background: #fff;
     font-size: 12.5px;
     color: var(--wz-navy);
     cursor: pointer;
+    transition: border-color .12s ease, background-color .12s ease, box-shadow .12s ease;
 }
 
-.erp-doc-option:hover { border-color: #c7d5ea; background: #f8fbff; }
+.erp-doc-option:hover { border-color: #93c5fd; background: #f8fbff; }
+.erp-doc-option:focus-within { outline: 2px solid var(--wz-primary); outline-offset: 2px; }
 
-.erp-doc-option input[type="checkbox"] { flex: 0 0 auto; margin: 0; }
+.erp-doc-option input[type="checkbox"] {
+    flex: 0 0 15px;
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    accent-color: var(--wz-primary);
+}
+
+.erp-doc-option .erp-chip { flex: 0 0 auto; }
 
 /* The label is never truncated: an applicant must be able to read the whole
    document name, including on a narrow screen. */
@@ -444,20 +472,15 @@
     font-weight: 600;
 }
 
-.erp-doc-option__state {
-    flex: 1 0 100%;
-    padding-left: 22px;
-    font-size: 11px;
-    line-height: 1.35;
-    color: var(--wz-muted);
-}
-
 /* A document the course requires cannot be unticked: it reads as locked, not
    as broken. */
 .erp-doc-option--required { background: #f5f8ff; border-color: #c7d5ea; }
 .erp-doc-option--required .erp-doc-option__label { color: var(--wz-primary); }
+.erp-doc-option--selected,
+.erp-doc-option--required.erp-doc-option--selected { border-color: var(--wz-primary); background: #eff6ff; }
+.erp-doc-option--selected:hover { background: #eff6ff; }
 
-/* Part B — one compact upload card per selected type. */
+/* Part B — attached-file listing and the single optional upload form. */
 .erp-doc-cards {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -525,7 +548,16 @@
 
 .erp-doc-other[open] > summary { margin-bottom: 8px; }
 
-.erp-doc-other .erp-upload-row { align-items: end; }
+.erp-doc-other .erp-upload-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+    align-items: start;
+}
+
+/* Keep the Attach action aligned with the field controls rather than their
+   labels. Helper text beneath the file picker does not affect the grid row. */
+.erp-doc-other .erp-upload-row > .erp-field:last-of-type { padding-top: 18px; }
+.erp-doc-other input[type="file"] { cursor: pointer; }
+.erp-wizard .erp-btn:disabled { opacity: .55; cursor: not-allowed; }
 
 /* ---------- Documents (legacy shared blocks) ---------- */
 
@@ -730,6 +762,8 @@
 @media (max-width: 1023px) {
     .erp-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .erp-upload-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .erp-doc-other .erp-upload-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .erp-doc-other .erp-upload-row > .erp-field:last-of-type { padding-top: 0; }
 }
 
 @media (max-width: 1023px) {
@@ -744,6 +778,7 @@
     .erp-wizard__footer { flex-direction: column-reverse; align-items: stretch; }
     .erp-wizard__footer-group { justify-content: space-between; }
     .erp-upload-row { grid-template-columns: 1fr; }
+    .erp-doc-other .erp-upload-row { grid-template-columns: 1fr; }
     .erp-doc-table,
     .erp-quals { display: block; overflow-x: auto; white-space: nowrap; }
 }

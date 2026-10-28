@@ -510,12 +510,18 @@ class StudentRegistrationWizardController extends Controller
             return $this->stepError($step, $exception, $draft);
         }
 
-        // Step 3 → review: the types the selected course requires must be
-        // DECLARED. Only "Continue to review" enforces this — "Save draft" stays
-        // permissive so an applicant can leave the page and come back. The files
-        // are never demanded here; a declared type with no file is a complete
-        // answer (see CourseDocumentRequirementService::missingDeclared()).
+        // Step 3 → review: require at least one declaration and preserve the
+        // course-specific requirement that its required types are declared.
+        // Save draft stays permissive; attachments are never required here.
         if ($step === RegistrationStepRules::STEP_DOCUMENTS && $request->isStrict()) {
+            $declared = (array) ($normalised['declared_documents'] ?? []);
+
+            if ($declared === []) {
+                return $this->stepError($step, ValidationException::withMessages([
+                    'documents' => 'Select at least one document you have before continuing.',
+                ]), $draft);
+            }
+
             $missing = $this->requirements->missingDeclared(
                 isset($merged['program_id']) ? (int) $merged['program_id'] : null,
                 $collegeId,

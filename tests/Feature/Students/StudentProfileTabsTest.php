@@ -7,7 +7,7 @@ use App\Models\StudentPromotion;
 use Tests\TestCase;
 
 /**
- * The student profile: the mandated six sections on the EXISTING students.show
+ * The student profile: the primary sections on the EXISTING students.show
  * page, plus the lifecycle modules that already own their own screens.
  *
  * Guards three things the brief cares about: the profile is one integrated page
@@ -19,9 +19,8 @@ class StudentProfileTabsTest extends TestCase
 {
     use StudentTestHelpers;
 
-    /** The six sections the brief mandates, in order. */
+    /** The primary profile sections, in order. */
     private const TABS = [
-        'profile' => 'Overview',
         'personal' => 'Personal Information',
         'academic' => 'Academic Information',
         'qualifications' => 'Qualifications',
@@ -38,7 +37,7 @@ class StudentProfileTabsTest extends TestCase
         'history' => 'Lifecycle Log',
     ];
 
-    public function test_the_six_profile_sections_are_rendered_on_the_student_detail_page(): void
+    public function test_primary_profile_sections_are_rendered_on_the_student_detail_page(): void
     {
         [$college, $student] = $this->makeScenario();
         $viewer = $this->makeUserWithPermissions($college, ['students.view']);
@@ -49,6 +48,9 @@ class StudentProfileTabsTest extends TestCase
             $response->assertSee(route('students.show', ['student' => $student, 'tab' => $key]), false)
                 ->assertSee($label, false);
         }
+
+        $response->assertSee('Registration: Approved', false)
+            ->assertSee('Student status:', false);
     }
 
     public function test_the_lifecycle_modules_remain_reachable_from_the_profile(): void
@@ -101,7 +103,6 @@ class StudentProfileTabsTest extends TestCase
         // always-visible header, summary cards or navigation, so asserting the
         // other markers are absent proves only one tab body rendered.
         $markers = [
-            'profile' => 'Records at a glance',
             'personal' => 'Parent &amp; guardian',
             'academic' => 'Current academic details',
             'qualifications' => 'Previous qualifications',
@@ -144,7 +145,7 @@ class StudentProfileTabsTest extends TestCase
         }
     }
 
-    public function test_unknown_tab_falls_back_to_the_overview_section(): void
+    public function test_unknown_and_legacy_overview_tabs_fall_back_to_personal_information(): void
     {
         [$college, $student] = $this->makeScenario();
         $viewer = $this->makeUserWithPermissions($college, ['students.view']);
@@ -152,8 +153,15 @@ class StudentProfileTabsTest extends TestCase
         $this->asCollege($college, $viewer)
             ->get(route('students.show', ['student' => $student, 'tab' => 'does-not-exist']))
             ->assertOk()
-            ->assertSee('Records at a glance', false)
+            ->assertSee('Parent &amp; guardian', false)
+            ->assertDontSee('Records at a glance', false)
             ->assertDontSee('Lifecycle log', false);
+
+        $this->asCollege($college, $viewer)
+            ->get(route('students.show', ['student' => $student, 'tab' => 'profile']))
+            ->assertOk()
+            ->assertSee('Parent &amp; guardian', false)
+            ->assertDontSee('Records at a glance', false);
     }
 
     public function test_empty_states_are_shown_for_sections_without_data(): void

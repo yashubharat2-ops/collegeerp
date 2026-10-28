@@ -146,7 +146,7 @@ final class StudentRegistrationService
             }
 
             $studentData = Arr::except($data, [
-                'academic_year_id', 'academic_term_id', 'program_id', 'section_id', 'semester', 'enrollment_date',
+                'academic_year_id', 'academic_term_id', 'program_id', 'section_id', 'semester',
                 'registration_document_type_id', 'registration_documents', 'qualifications',
             ]);
             // Only real, fillable student columns are written: wizard-only keys
@@ -228,7 +228,6 @@ final class StudentRegistrationService
                 'program_id' => $data['program_id'] ?? null,
                 'section_id' => $data['section_id'] ?? null,
                 'semester' => $data['semester'] ?? null,
-                'enrollment_date' => $data['enrollment_date'] ?? null,
                 'admission_date' => $data['admission_date'] ?? now()->toDateString(),
                 // Possible-duplicate hints (same name + a corroborating detail).
                 // Never a block — the approver sees them and decides.

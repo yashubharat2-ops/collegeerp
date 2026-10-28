@@ -22,8 +22,18 @@
 
 @section('title', 'Student Registration — '.$stepTitle)
 
+@php
+    // Use the same content-hash cache key as the shared ERP stylesheets. This
+    // stylesheet is linked directly (not through Vite), and without a changing
+    // URL a browser can keep an older wizard layout after a deployment.
+    $erpRegistrationWizardCssPath = public_path('css/erp-registration-wizard.css');
+    $erpRegistrationWizardCssVersion = is_file($erpRegistrationWizardCssPath)
+        ? (@hash_file('crc32b', $erpRegistrationWizardCssPath) ?: (@filemtime($erpRegistrationWizardCssPath) ?: null))
+        : null;
+@endphp
+
 @push('styles')
-    <link rel="stylesheet" href="{{ asset('css/erp-registration-wizard.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/erp-registration-wizard.css') }}@if ($erpRegistrationWizardCssVersion)?v={{ $erpRegistrationWizardCssVersion }}@endif">
 @endpush
 
 @section('content')

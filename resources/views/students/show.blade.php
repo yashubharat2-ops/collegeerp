@@ -14,15 +14,12 @@
      * header, the summary cards and the Academic Information panel can never
      * disagree about which enrollment is current or how a study level is named.
      *
-     * The six mandated tabs (Overview, Personal Information, Academic
-     * Information, Qualifications, Documents, Enrollment History) are LINKS
-     * (?tab=…), not scripted widgets: the selected section survives a reload, can
-     * be bookmarked and is reachable with a keyboard. The lifecycle modules that
-     * already own their own screens stay reachable from the second, quieter row
-     * of links — no functionality was removed by the reorganisation.
+     * The primary sections are LINKS (?tab=…), not scripted widgets: the
+     * selected section survives a reload, can be bookmarked and is reachable
+     * with a keyboard. Personal Information is the default; lifecycle modules
+     * that own their own screens remain reachable from the quieter related row.
      */
     $tabs = [
-        'profile' => 'Overview',
         'personal' => 'Personal Information',
         'academic' => 'Academic Information',
         'qualifications' => 'Qualifications',
@@ -40,7 +37,9 @@
         'history' => 'Lifecycle Log',
     ];
 
-    $tab = array_key_exists($tab, $tabs) ? $tab : (array_key_exists($tab, $relatedTabs) ? $tab : 'profile');
+    // Preserve old Overview bookmarks by landing them on the new default.
+    $tab = $tab === 'profile' ? 'personal' : $tab;
+    $tab = array_key_exists($tab, $tabs) || array_key_exists($tab, $relatedTabs) ? $tab : 'personal';
 
     $currentEnrollment = $profile['currentEnrollment'];
 
@@ -64,7 +63,7 @@
 
     $registrationState = $student->isRegistrationRejected()
         ? 'danger'
-        : ($student->isRegistrationPending() ? 'pending' : 'ok');
+        : ($student->isRegistrationPending() ? 'pending' : ($student->isRegistrationApproved() ? 'ok' : 'muted'));
 
     $historyEvents ??= collect();
 @endphp
@@ -118,10 +117,10 @@
                     @elseif($enrollmentStatusState === 'pending')
                         pending approval
                     @else
-                        none active
+                        Not currently enrolled
                     @endif
                 </span>
-                <span class="{{ $badge($student->status === 'active' ? 'ok' : 'muted') }}">{{ ucfirst($student->status) }}</span>
+                <span class="{{ $badge($student->status === 'active' ? 'ok' : 'muted') }}">Student status: {{ ucfirst($student->status) }}</span>
             </div>
         </div>
 
@@ -160,7 +159,7 @@
     </nav>
 
     <nav class="sp-related no-print" aria-label="Student lifecycle modules">
-        <span class="sp-related__label">Records &amp; lifecycle:</span>
+        <span class="sp-related__label">Records &amp; Lifecycle</span>
         @foreach($relatedTabs as $key => $label)
             <a class="sp-related__link"
                href="{{ route('students.show', ['student' => $student, 'tab' => $key]) }}"
@@ -169,37 +168,31 @@
     </nav>
 
     {{-- =====================================================================
-       * 1. OVERVIEW — a dashboard, not a second copy of the other tabs.
+       * 1. PERSONAL INFORMATION — the default profile section.
        * ================================================================== --}}
-    @if($tab === 'profile')
-        <div class="sp-stack">
-            <section class="sp-card">
+    @if($tab === 'personal')
+        <div class="sp-personal-grid">
+            <section class="sp-card sp-personal-card--wide">
                 <header class="sp-card__head">
                     <div>
-                        <h3 class="sp-card__title">Registration &amp; admission</h3>
-                        <p class="sp-card__hint">
-                            Registration is the student's origin record. Approval of the registration is the confirmed
-                            admission for this route; a number is shown only when the record actually carries one.
-                        </p>
+                        <h3 class="sp-card__title">Personal details</h3>
+                        <p class="sp-card__hint">Personal information as saved on the student record.</p>
                     </div>
-                    <span class="{{ $badge($registrationState) }}">{{ $student->registrationStatusLabel() }}</span>
                 </header>
                 <div class="sp-card__body">
-                    <div class="sp-grid">
+                    <div class="sp-detail-grid sp-detail-grid--four">
                         @foreach([
-                            $fact('Registration status', $student->registrationStatusLabel()),
-                            $fact('Submitted for approval', $student->registration_submitted_at?->format('d M Y, H:i')),
-                            $fact('Student ID issued', $student->student_number),
-                            $fact('Admission number', $profile['admissionNumber'], $profile['admissionNumber'] ? null : 'Not issued — this student was registered directly, not converted from an admission application.'),
-                            $fact('Admission date', $student->admission_date?->format('d M Y')),
-                            $fact('Admission category', App\Models\Student::categoryLabel($student->category)),
-                            $fact('Admission reference', $profile['academic']['admissionApplication']),
-                            $fact('Record status', ucfirst($student->status)),
+                            $fact('Full name', $student->fullName()),
+                            $fact('Date of birth', $student->date_of_birth?->format('d M Y')),
+                            $fact('Gender', $student->gender ? ucfirst(str_replace('_', ' ', $student->gender)) : null),
+                            $fact('Blood group', $student->blood_group === 'unknown' ? null : $student->blood_group),
+                            $fact('Nationality', $student->nationality),
+                            $fact('Mother tongue', $student->mother_tongue),
+                            $fact('Category', $student->category ? App\Models\Student::categoryLabel($student->category) : null),
                         ] as [$label, $value, $empty, $note])
                             <div class="sp-fact">
                                 <p class="sp-fact__label">{{ $label }}</p>
                                 <p class="sp-fact__value @if($empty) sp-fact__value--empty @endif">{{ $value }}</p>
-                                @if($note)<p class="sp-fact__note">{{ $note }}</p>@endif
                             </div>
                         @endforeach
                     </div>
@@ -209,159 +202,64 @@
             <section class="sp-card">
                 <header class="sp-card__head">
                     <div>
-                        <h3 class="sp-card__title">Current academic position</h3>
-                        <p class="sp-card__hint">
-                            The active enrollment whose academic year contains today — not simply the newest row.
-                            Previous years stay in Enrollment History, unchanged.
-                        </p>
-                    </div>
-                    @can('viewAny', App\Models\StudentEnrollment::class)
-                        <a class="sp-btn sp-btn--quiet no-print" href="{{ route('students.show', ['student' => $student, 'tab' => 'enrollments']) }}">Enrollment history</a>
-                    @endcan
-                </header>
-                <div class="sp-card__body">
-                    @if(! $currentEnrollment)
-                        <p class="sp-empty">
-                            @if($student->enrollments->isNotEmpty())
-                                No active enrollment in the current academic year
-                                ({{ $student->enrollments->count() }} historical enrollment(s) are preserved).
-                            @else
-                                No active enrollment for the current academic year.
-                            @endif
-                            @if($student->isRegistrationPending()) The registration is still awaiting approval. @endif
-                        </p>
-                    @else
-                        <div class="sp-grid">
-                            @foreach([
-                                $fact('Academic year', $currentEnrollment->academicYear?->name),
-                                $fact('Programme / course', $currentEnrollment->program?->name),
-                                $fact('Semester / year of study', $currentEnrollment->semesterLabel()),
-                                $fact('Section / batch', $currentEnrollment->section?->name),
-                            ] as [$label, $value, $empty, $note])
-                                <div class="sp-fact">
-                                    <p class="sp-fact__label">{{ $label }}</p>
-                                    <p class="sp-fact__value @if($empty) sp-fact__value--empty @endif">{{ $value }}</p>
-                                </div>
-                            @endforeach
-                        </div>
-                    @endif
-                </div>
-            </section>
-
-            <section class="sp-card">
-                <header class="sp-card__head">
-                    <div>
-                        <h3 class="sp-card__title">Records at a glance</h3>
-                        <p class="sp-card__hint">Counts of the records this student actually has. Nothing here is estimated.</p>
+                        <h3 class="sp-card__title">Contact information</h3>
+                        <p class="sp-card__hint">Student and emergency contact details.</p>
                     </div>
                 </header>
                 <div class="sp-card__body">
-                    <div class="sp-grid">
+                    <div class="sp-detail-grid sp-detail-grid--two">
                         @foreach([
-                            $fact('Qualifications', (string) $profile['qualificationStats']['count']),
-                            $fact('Documents', $profile['documentStats']['total'].' ('.$profile['documentStats']['verified'].' verified, '.$profile['documentStats']['pending'].' pending)'),
-                            $fact('Enrollments', (string) $student->enrollments->count()),
-                            $fact('Academic records', (string) $student->academicRecords->count()),
+                            $fact('Email address', $student->email),
+                            $fact('Mobile number', $student->phone),
+                            $fact('Alternate phone', $student->alternate_phone),
+                            $fact('Emergency contact', collect([$student->emergency_contact_name, $student->emergency_contact_phone])->filter()->implode(' · ')),
                         ] as [$label, $value, $empty, $note])
                             <div class="sp-fact">
                                 <p class="sp-fact__label">{{ $label }}</p>
-                                <p class="sp-fact__value">{{ $value }}</p>
+                                <p class="sp-fact__value @if($empty) sp-fact__value--empty @endif">{{ $value }}</p>
                             </div>
                         @endforeach
                     </div>
-
-                    @if($historyEvents->isNotEmpty())
-                        <p class="sp-fact__note" style="margin-top:14px">
-                            Latest lifecycle event: <strong>{{ $historyEvents->first()->label }}</strong>
-                            ({{ $historyEvents->first()->occurredAtTime() }})
-                            · <a href="{{ route('students.show', ['student' => $student, 'tab' => 'history']) }}">open the lifecycle log</a>
-                        </p>
-                    @endif
                 </div>
             </section>
-        </div>
 
-    {{-- =====================================================================
-       * 2. PERSONAL INFORMATION — exactly the fields the wizard collects.
-       * ================================================================== --}}
-    @elseif($tab === 'personal')
-        <div class="sp-stack">
             <section class="sp-card">
                 <header class="sp-card__head">
                     <div>
-                        <h3 class="sp-card__title">Identity</h3>
-                        <p class="sp-card__hint">As saved by the registration wizard. An optional field left blank stays blank — nothing is inferred or filled in.</p>
+                        <h3 class="sp-card__title">Address</h3>
+                        <p class="sp-card__hint">Permanent and correspondence addresses.</p>
                     </div>
                 </header>
                 <div class="sp-card__body">
-                    <div class="sp-grid">
-                        <div class="sp-facts">
-                            <h4 class="sp-subhead">Personal</h4>
-                            @foreach([
-                                $fact('Full name', $student->fullName()),
-                                $fact('Date of birth', $student->date_of_birth?->format('d M Y')),
-                                $fact('Gender', $student->gender ? ucfirst(str_replace('_', ' ', $student->gender)) : null),
-                                $fact('Blood group', $student->blood_group === 'unknown' ? null : $student->blood_group),
-                                $fact('Nationality', $student->nationality),
-                                $fact('Mother tongue', $student->mother_tongue),
-                                $fact('Category', $student->category ? App\Models\Student::categoryLabel($student->category) : null),
-                            ] as [$label, $value, $empty, $note])
-                                <div class="sp-fact">
-                                    <p class="sp-fact__label">{{ $label }}</p>
-                                    <p class="sp-fact__value @if($empty) sp-fact__value--empty @endif">{{ $value }}</p>
-                                </div>
-                            @endforeach
+                    <div class="sp-address-grid">
+                        <div class="sp-address">
+                            <h4 class="sp-subhead">Permanent</h4>
+                            <p class="sp-address__value @if($profile['addresses']['permanent'] === null) sp-fact__value--empty @endif">
+                                {{ $profile['addresses']['permanent'] ?? 'Not recorded' }}
+                            </p>
                         </div>
-
-                        <div class="sp-facts">
-                            <h4 class="sp-subhead">Contact</h4>
-                            @foreach([
-                                $fact('Email address', $student->email),
-                                $fact('Mobile number', $student->phone),
-                                $fact('Alternate phone', $student->alternate_phone),
-                                $fact('Emergency contact', collect([$student->emergency_contact_name, $student->emergency_contact_phone])->filter()->implode(' · ')),
-                            ] as [$label, $value, $empty, $note])
-                                <div class="sp-fact">
-                                    <p class="sp-fact__label">{{ $label }}</p>
-                                    <p class="sp-fact__value @if($empty) sp-fact__value--empty @endif">{{ $value }}</p>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-
-                    <div class="sp-grid" style="margin-top:16px">
-                        <div class="sp-facts">
-                            <h4 class="sp-subhead">Permanent address</h4>
-                            <div class="sp-fact">
-                                <p class="sp-fact__value @if($profile['addresses']['permanent'] === null) sp-fact__value--empty @endif">
-                                    {{ $profile['addresses']['permanent'] ?? 'Not recorded' }}
-                                </p>
-                            </div>
-                        </div>
-                        <div class="sp-facts">
-                            <h4 class="sp-subhead">Correspondence address</h4>
-                            <div class="sp-fact">
-                                <p class="sp-fact__value @if($profile['addresses']['correspondence'] === null) sp-fact__value--empty @endif">
-                                    {{ $profile['addresses']['correspondence'] ?? 'Not recorded' }}
-                                </p>
-                                @if($profile['addresses']['sameAsPermanent'])
-                                    <p class="sp-fact__note">Same as the permanent address.</p>
-                                @endif
-                            </div>
+                        <div class="sp-address">
+                            <h4 class="sp-subhead">Correspondence</h4>
+                            <p class="sp-address__value @if($profile['addresses']['correspondence'] === null) sp-fact__value--empty @endif">
+                                {{ $profile['addresses']['correspondence'] ?? 'Not recorded' }}
+                            </p>
+                            @if($profile['addresses']['sameAsPermanent'])
+                                <p class="sp-fact__note">Same as the permanent address.</p>
+                            @endif
                         </div>
                     </div>
                 </div>
             </section>
 
-            <section class="sp-card">
+            <section class="sp-card sp-personal-card--wide">
                 <header class="sp-card__head">
                     <div>
                         <h3 class="sp-card__title">Parent &amp; guardian</h3>
-                        <p class="sp-card__hint">The people the institute contacts. A derived guardian (father / mother / self) mirrors the person it was filled from.</p>
+                        <p class="sp-card__hint">Contact and relationship details saved on the student record.</p>
                     </div>
                 </header>
                 <div class="sp-card__body">
-                    <div class="sp-grid">
+                    <div class="sp-guardian-grid">
                         <div class="sp-facts">
                             <h4 class="sp-subhead">Father</h4>
                             @foreach([
@@ -414,13 +312,11 @@
                 <header class="sp-card__head">
                     <div>
                         <h3 class="sp-card__title">Identity &amp; government IDs</h3>
-                        <p class="sp-card__hint">
-                            Stored encrypted; only the last four characters are ever rendered, and they are never exported.
-                        </p>
+                        <p class="sp-card__hint">Aadhaar and government ID numbers use the existing masked display. APAAR / ABC ID follows its existing display treatment.</p>
                     </div>
                 </header>
                 <div class="sp-card__body">
-                    <div class="sp-grid">
+                    <div class="sp-detail-grid sp-detail-grid--two">
                         @foreach([
                             $fact('Aadhaar', $student->maskedAadhaar()),
                             $fact('APAAR / ABC ID', $student->apaar_id),
@@ -438,12 +334,12 @@
             <section class="sp-card">
                 <header class="sp-card__head">
                     <div>
-                        <h3 class="sp-card__title">Previous school &amp; office remarks</h3>
-                        <p class="sp-card__hint">The snapshot captured at registration. Full qualification rows live on the Qualifications tab.</p>
+                        <h3 class="sp-card__title">Previous school / education snapshot</h3>
+                        <p class="sp-card__hint">Registration snapshot; complete qualification rows are on the Qualifications tab.</p>
                     </div>
                 </header>
                 <div class="sp-card__body">
-                    <div class="sp-grid">
+                    <div class="sp-detail-grid sp-detail-grid--two">
                         @foreach([
                             $fact('Previous qualification', $student->previous_qualification),
                             $fact('Previous board / university', $student->previous_school_board),
@@ -462,9 +358,6 @@
             </section>
         </div>
 
-    {{-- =====================================================================
-       * 3. ACADEMIC INFORMATION
-       * ================================================================== --}}
     @elseif($tab === 'academic')
         <div class="sp-stack">
             <section class="sp-card">
@@ -505,10 +398,6 @@
                                 $fact('Roll number', $currentEnrollment->roll_number),
                                 $fact('Enrollment date', $currentEnrollment->enrollment_date?->format('d M Y')),
                                 $fact('Enrollment status', $currentEnrollment->statusLabel()),
-                                $fact('Registration status', $student->registrationStatusLabel()),
-                                $fact('Admission date', $student->admission_date?->format('d M Y')),
-                                $fact('Admission category', App\Models\Student::categoryLabel($student->category)),
-                                $fact('Admission number', $profile['admissionNumber'], $profile['admissionNumber'] ? null : 'Not issued for a direct registration.'),
                             ] as [$label, $value, $empty, $note])
                                 <div class="sp-fact">
                                     <p class="sp-fact__label">{{ $label }}</p>
@@ -522,6 +411,32 @@
                             <p class="sp-fact__note" style="margin-top:14px">Enrollment remarks: {{ $currentEnrollment->remarks }}</p>
                         @endif
                     @endif
+                </div>
+            </section>
+
+            <section class="sp-card">
+                <header class="sp-card__head">
+                    <div>
+                        <h3 class="sp-card__title">Admission details</h3>
+                        <p class="sp-card__hint">Admission and registration context comes from the student and linked admission application. It does not imply that an enrollment exists.</p>
+                    </div>
+                </header>
+                <div class="sp-card__body">
+                    <div class="sp-grid">
+                        @foreach([
+                            $fact('Submitted for approval', $student->registration_submitted_at?->format('d M Y, H:i')),
+                            $fact('Admission number', $profile['academic']['admissionNumber'], $profile['academic']['admissionNumber'] ? null : ($profile['academic']['admissionApplication'] ? 'No admission number is linked to this application.' : 'Not issued for a direct registration.')),
+                            $fact('Admission date', $student->admission_date?->format('d M Y')),
+                            $fact('Admission category', App\Models\Student::categoryLabel($student->category)),
+                            $fact('Admission application', $profile['academic']['admissionApplication'], $profile['academic']['admissionApplication'] ? null : 'No linked admission application.'),
+                        ] as [$label, $value, $empty, $note])
+                            <div class="sp-fact">
+                                <p class="sp-fact__label">{{ $label }}</p>
+                                <p class="sp-fact__value @if($empty) sp-fact__value--empty @endif">{{ $value }}</p>
+                                @if($note)<p class="sp-fact__note">{{ $note }}</p>@endif
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
             </section>
 
@@ -776,6 +691,7 @@
                 @can('create', App\Models\StudentEnrollment::class)
                     <a class="sp-btn no-print" href="{{ route('student-enrollments.create', ['student_id' => $student->id]) }}">+ New enrollment</a>
                 @endcan
+                <span class="{{ $badge('muted') }}">{{ $student->enrollments->count() }} recorded</span>
             </header>
             <div class="sp-card__body">
                 @if($profile['enrollmentHistory']->isEmpty())
@@ -839,6 +755,7 @@
                 @can('create', App\Models\StudentAcademicRecord::class)
                     <a class="sp-btn no-print" href="{{ route('student-academic-records.create', ['student_id' => $student->id]) }}">+ New record</a>
                 @endcan
+                <span class="{{ $badge('muted') }}">{{ $student->academicRecords->count() }} recorded</span>
             </header>
             <div class="sp-card__body">
                 @if($student->academicRecords->isEmpty())
@@ -1010,7 +927,9 @@
                     <h3 class="sp-card__title">Lifecycle log</h3>
                     <p class="sp-card__hint">Derived from the audit trail — registration, approval, enrollment, promotion and transfer events in chronological order.</p>
                 </div>
-                <a class="sp-btn sp-btn--quiet no-print" href="{{ route('student-history.show', $student) }}">Open full history</a>
+                @if(auth()->user()?->hasPermission('student_history.view'))
+                    <a class="sp-btn sp-btn--quiet no-print" href="{{ route('student-history.show', $student) }}">Open full history</a>
+                @endif
             </header>
             <div class="sp-card__body">
                 <ol class="sp-timeline">

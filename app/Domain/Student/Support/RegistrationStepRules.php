@@ -89,7 +89,7 @@ final class RegistrationStepRules
      * The current-course fields, IN THE ORDER the step renders them.
      *
      * Academic Year → Programme / Course → Semester / Year of study →
-     * Section / Batch → Admission Date → Enrollment Date → Admission Category
+     * Section / Batch → Admission Date → Admission Category
      *
      * Each level can only be chosen after the ones it depends on, which is why
      * the order is declared once here: the view renders it, the tests read it,
@@ -101,14 +101,13 @@ final class RegistrationStepRules
         'academic_term_id',
         'section_id',
         'admission_date',
-        'enrollment_date',
         'category',
     ];
 
-    /** Step-3 current-enrollment context (captured, applied only on approval). */
+    /** Academic context captured during registration; enrollment is created separately. */
     public const ACADEMIC_FIELDS = [
         'academic_year_id', 'program_id', 'academic_term_id', 'section_id', 'semester',
-        'enrollment_date', 'admission_date',
+        'admission_date',
     ];
 
     /**
@@ -259,7 +258,6 @@ final class RegistrationStepRules
             // college that has set up its structure cannot be registered into
             // with an arbitrary string.
             'semester' => ['nullable', 'string', 'max:30'],
-            'enrollment_date' => ['nullable', 'date'],
             'admission_date' => ['nullable', 'date'],
 
             // Previous qualifications: a repeating table, submitted as an array.
@@ -583,7 +581,7 @@ final class RegistrationStepRules
             }
         }
 
-        foreach (['academic_term_id', 'section_id', 'semester', 'enrollment_date', 'admission_date'] as $key) {
+        foreach (['academic_term_id', 'section_id', 'semester', 'admission_date'] as $key) {
             if (array_key_exists($key, $clean) && ($clean[$key] === '' || $clean[$key] === null)) {
                 $clean[$key] = null;
             }

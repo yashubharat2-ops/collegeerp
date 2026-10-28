@@ -187,7 +187,7 @@ class StudentHistoryService
                 occurredAt: $student->registration_submitted_at,
                 category: 'student',
                 label: 'Registration submitted',
-                description: 'Registration status '.str_replace('_', ' ', (string) $student->registration_status),
+                description: 'Registration status '.$student->registrationStatusLabel(),
                 reference: $student->student_number,
                 referenceId: (int) $student->id,
             );

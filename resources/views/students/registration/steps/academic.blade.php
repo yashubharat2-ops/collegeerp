@@ -17,8 +17,7 @@
      * depends on the ones before it:
      *
      *   1 Academic Year → 2 Programme/Course → 3 Semester/Year of study →
-     *   4 Section/Batch → 5 Admission date → 6 Enrollment date →
-     *   7 Admission category
+     *   4 Section/Batch → 5 Admission date → 6 Admission category
      *
      * The semester list is the college's CONFIGURED academic levels for the
      * chosen year (academic_terms); the section list is the sections of the
@@ -184,23 +183,10 @@
                     <p class="erp-error">@error('admission_date'){{ $message }}@enderror</p>
                 </div>
 
-                {{-- 6. Enrollment date ------------------------------------------ --}}
-                <div class="erp-field erp-col-3">
-                    <label class="erp-label" for="enrollment_date">Enrollment date</label>
-                    <input class="erp-input" id="enrollment_date" name="enrollment_date" type="date" lang="en-IN" value="{{ $value('enrollment_date') }}">
-                    <p class="erp-help">Applied when an approver approves the registration.</p>
-                    <p class="erp-error">@error('enrollment_date'){{ $message }}@enderror</p>
-                </div>
-
-                {{-- 7. Admission category --------------------------------------- --}}
+                {{-- 6. Admission category --------------------------------------- --}}
                 <div class="erp-field erp-col-3">
                     <span class="erp-label">Admission category</span>
-                    <p class="erp-basic">{{ $admissionCategory }}</p>
-                    <p class="erp-help">
-                        Captured on
-                        <a href="{{ route('students.registration.step', ['step' => 1]) }}">Step 1</a>
-                        so there is only one copy of it.
-                    </p>
+                    <p class="erp-academic-category-value">{{ $admissionCategory }}</p>
                 </div>
             </div>
         </div>

@@ -387,6 +387,17 @@ final class RegistrationSubmissionService
      */
     private function assertDocumentRequirements(StudentRegistrationDraft $draft, array $merged, int $collegeId): void
     {
+        $declared = array_values(array_unique(array_filter(array_map(
+            'intval',
+            (array) ($merged['declared_documents'] ?? []),
+        ))));
+
+        if ($declared === []) {
+            throw $this->stepFailure(RegistrationStepRules::STEP_DOCUMENTS, [
+                'documents' => ['Select at least one document you have before submitting.'],
+            ]);
+        }
+
         $missing = $this->requirements->missingDeclared(
             isset($merged['program_id']) ? (int) $merged['program_id'] : null,
             $collegeId,

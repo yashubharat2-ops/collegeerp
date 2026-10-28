@@ -31,7 +31,7 @@
     --sp-soft: var(--erp-color-surface-muted, #f1f5f9);
 
     display: grid;
-    gap: 16px;
+    gap: 12px;
     color: var(--sp-text);
     font-size: 13.5px;
 }
@@ -55,9 +55,11 @@
 }
 
 .sp-card {
+    min-width: 0;
     background: var(--sp-surface);
     border: 1px solid var(--sp-line);
     border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.035);
     overflow: hidden;
 }
 
@@ -67,7 +69,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 12px 16px;
+    padding: 11px 14px;
     border-bottom: 1px solid var(--sp-line);
     background: #fbfdff;
 }
@@ -80,13 +82,14 @@
 }
 
 .sp-card__hint {
-    margin: 2px 0 0;
+    margin: 3px 0 0;
     font-size: 12px;
+    line-height: 1.4;
     color: var(--sp-muted);
 }
 
 .sp-card__body {
-    padding: 14px 16px;
+    padding: 13px 14px;
 }
 
 /* -----------------------------------------------------------------------------
@@ -97,9 +100,9 @@
     position: relative;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 18px;
-    align-items: start;
-    padding: 18px;
+    gap: 16px;
+    align-items: center;
+    padding: 15px 18px;
     background:
         radial-gradient(120% 140% at 0% 0%, #eff6ff 0%, #ffffff 52%),
         var(--sp-surface);
@@ -118,12 +121,11 @@
     background: linear-gradient(90deg, var(--sp-primary) 0%, var(--sp-navy) 100%);
 }
 
-/* Portrait slot: fixed 104 × 128 (a passport-ish ratio) so five profiles side
-   by side line up, and the initials fallback occupies exactly the same box. */
+/* Compact portrait slot with an initials fallback occupying the same box. */
 .sp-portrait {
     position: relative;
-    width: 104px;
-    height: 128px;
+    width: 88px;
+    height: 108px;
     border-radius: 12px;
     overflow: hidden;
     background: linear-gradient(160deg, #dbeafe 0%, #eff6ff 100%);
@@ -168,7 +170,7 @@
 
 .sp-identity__name {
     margin: 0;
-    font-size: 22px;
+    font-size: 23px;
     line-height: 1.2;
     font-weight: 700;
     color: var(--sp-navy);
@@ -178,8 +180,8 @@
 .sp-identity__ids {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 18px;
-    margin: 8px 0 0;
+    gap: 5px 16px;
+    margin: 6px 0 0;
     font-size: 12.5px;
     color: var(--sp-muted);
 }
@@ -206,18 +208,19 @@
 .sp-badges {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 10px;
+    gap: 5px;
+    margin-top: 8px;
 }
 
 .sp-badge {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 2px 9px;
+    padding: 3px 8px;
     border-radius: 999px;
     border: 1px solid transparent;
-    font-size: 11.5px;
+    font-size: 11px;
+    line-height: 1.25;
     font-weight: 700;
     white-space: nowrap;
 }
@@ -255,22 +258,25 @@
 .sp-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    align-items: center;
+    gap: 7px;
     justify-content: flex-end;
+    align-self: center;
 }
 
 .sp-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 7px 12px;
+    padding: 8px 12px;
     border-radius: 8px;
     border: 1px solid var(--sp-primary);
     background: var(--sp-primary);
     color: #fff;
     font-size: 12.5px;
     font-weight: 600;
-    line-height: 1.2;
+    line-height: 1.25;
+    white-space: nowrap;
     cursor: pointer;
 }
 
@@ -307,23 +313,59 @@
     text-decoration: none;
 }
 
+/* The general `.sp a` rules are more specific than `.sp-btn` and otherwise
+   replace a blue link-button's white label with the primary blue link color.
+   Keep each anchor-button variant's foreground and hover treatment explicit. */
+.sp a.sp-btn,
+.sp a.sp-btn:hover,
+.sp a.sp-btn:focus-visible {
+    color: #fff;
+    text-decoration: none;
+}
+
+.sp a.sp-btn--ghost,
+.sp a.sp-btn--ghost:hover,
+.sp a.sp-btn--ghost:focus-visible {
+    color: var(--sp-primary);
+}
+
+.sp a.sp-btn--ghost:hover,
+.sp a.sp-btn--ghost:focus-visible {
+    color: var(--sp-primary-hover);
+}
+
+.sp a.sp-btn--quiet,
+.sp a.sp-btn--quiet:hover,
+.sp a.sp-btn--quiet:focus-visible {
+    color: #334155;
+}
+
+.sp a.sp-btn--quiet:hover,
+.sp a.sp-btn--quiet:focus-visible {
+    color: var(--sp-navy);
+}
+
 /* -----------------------------------------------------------------------------
  * 2 · Summary cards
  * -------------------------------------------------------------------------- */
 
 .sp-summary {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 9px;
 }
 
 .sp-summary__item {
-    padding: 11px 13px;
+    display: flex;
+    min-height: 86px;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 10px 11px;
     background: var(--sp-surface);
     border: 1px solid var(--sp-line);
     border-radius: 10px;
     border-left: 3px solid var(--sp-line);
-    min-width: 0;
 }
 
 .sp-summary__item--ok { border-left-color: var(--sp-primary); }
@@ -333,16 +375,19 @@
 
 .sp-summary__label {
     margin: 0;
+    min-height: 2.5em;
     font-size: 10.5px;
+    line-height: 1.25;
     font-weight: 700;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.045em;
     text-transform: uppercase;
     color: var(--sp-faint);
 }
 
 .sp-summary__value {
-    margin: 4px 0 0;
+    margin: 6px 0 0;
     font-size: 14px;
+    line-height: 1.3;
     font-weight: 700;
     color: var(--sp-navy);
     overflow-wrap: anywhere;
@@ -364,76 +409,93 @@
 
 .sp-tabs {
     display: flex;
-    gap: 4px;
-    padding: 6px;
+    gap: 5px;
+    padding: 5px;
     overflow-x: auto;
     scrollbar-width: thin;
     background: var(--sp-surface);
     border: 1px solid var(--sp-line);
-    border-radius: 12px;
+    border-radius: 11px;
 }
 
-.sp-tabs__link {
+.sp a.sp-tabs__link {
     flex: 0 0 auto;
-    padding: 7px 12px;
+    padding: 8px 11px;
     border-radius: 8px;
     font-size: 12.5px;
     font-weight: 600;
     color: #475569;
     white-space: nowrap;
+    text-decoration: none;
 }
 
-.sp-tabs__link:hover,
-.sp-tabs__link:focus-visible {
+.sp a.sp-tabs__link:hover,
+.sp a.sp-tabs__link:focus-visible {
     background: #eff6ff;
     color: var(--sp-primary-hover);
     text-decoration: none;
 }
 
-.sp-tabs__link[aria-current="page"] {
+.sp a.sp-tabs__link[aria-current="page"],
+.sp a.sp-tabs__link[aria-current="page"]:hover,
+.sp a.sp-tabs__link[aria-current="page"]:focus-visible {
     background: var(--sp-navy);
     color: #fff;
+    text-decoration: none;
 }
 
-.sp-tabs__link[aria-current="page"]:hover {
-    background: var(--sp-navy);
-    color: #fff;
-}
-
-/* The lifecycle modules that own their own screens (Academic Records, ID Card,
-   Promotion, Transfer/TC, Lifecycle Log) sit on a quieter second row: still real
-   links, but visually subordinate to the six profile sections, so the profile
-   reads as one page instead of a menu of applications. */
+/* Related modules remain real links, visually subordinate to the five primary
+   sections while clearly grouped as a separate records-and-lifecycle nav. */
 .sp-related {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px 14px;
-    padding: 0 4px;
-    font-size: 11.5px;
+    gap: 6px 8px;
+    padding: 8px 10px;
+    border: 1px solid #dbeafe;
+    border-left: 3px solid var(--sp-primary);
+    border-radius: 10px;
+    background: #f8fbff;
+    font-size: 12px;
 }
 
 .sp-related__label {
-    font-weight: 700;
-    letter-spacing: 0.05em;
+    flex: 0 0 auto;
+    margin-right: 4px;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.045em;
     text-transform: uppercase;
-    color: var(--sp-faint);
+    color: var(--sp-navy);
 }
 
-.sp-related__link {
+.sp a.sp-related__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 5px 9px;
+    border-radius: 7px;
     font-weight: 600;
     color: #475569;
+    text-decoration: none;
 }
 
-.sp-related__link:hover,
-.sp-related__link:focus-visible {
+.sp a.sp-related__link:hover,
+.sp a.sp-related__link:focus-visible {
+    background: #eaf2ff;
     color: var(--sp-primary-hover);
+    text-decoration: none;
 }
 
-.sp-related__link[aria-current="page"] {
-    color: var(--sp-primary);
-    text-decoration: underline;
-    text-underline-offset: 3px;
+.sp a.sp-related__link:focus-visible {
+    outline: 2px solid var(--sp-primary);
+    outline-offset: 1px;
+}
+
+.sp a.sp-related__link[aria-current="page"] {
+    background: #eaf2ff;
+    color: var(--sp-primary-hover);
+    box-shadow: inset 0 0 0 1px #bfdbfe;
 }
 
 /* -----------------------------------------------------------------------------
@@ -443,33 +505,78 @@
 .sp-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 12px 22px;
+    gap: 10px 18px;
+}
+
+.sp-personal-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 12px;
+}
+
+.sp-personal-card--wide {
+    grid-column: 1 / -1;
+}
+
+.sp-detail-grid {
+    display: grid;
+    gap: 11px 16px;
+}
+
+.sp-detail-grid--two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sp-detail-grid--four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.sp-address-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.sp-address__value {
+    margin: 0;
+    color: var(--sp-text);
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.sp-guardian-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
 }
 
 .sp-facts {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 9px;
+    gap: 7px;
     margin: 0;
 }
 
 .sp-fact {
     display: grid;
-    gap: 1px;
+    gap: 2px;
     min-width: 0;
 }
 
 .sp-fact__label {
-    font-size: 10.5px;
+    font-size: 10.75px;
+    line-height: 1.25;
     font-weight: 700;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.045em;
     text-transform: uppercase;
     color: var(--sp-faint);
 }
 
 .sp-fact__value {
     margin: 0;
-    font-size: 13px;
+    font-size: 13.5px;
+    line-height: 1.35;
     font-weight: 600;
     color: var(--sp-navy);
     overflow-wrap: anywhere;
@@ -498,8 +605,9 @@
     color: #475569;
 }
 
-.sp-stack > * + * {
-    margin-top: 16px;
+.sp-stack {
+    display: grid;
+    gap: 12px;
 }
 
 /* -----------------------------------------------------------------------------
@@ -569,9 +677,11 @@
 }
 
 .sp-empty {
-    padding: 18px 14px;
+    margin: 0;
+    padding: 14px 12px;
     text-align: center;
-    font-size: 12.5px;
+    font-size: 13px;
+    line-height: 1.45;
     color: var(--sp-muted);
     background: #fbfdff;
     border: 1px dashed var(--sp-line);
@@ -785,6 +895,12 @@
  * 9 · Responsive
  * -------------------------------------------------------------------------- */
 
+@media (max-width: 1200px) {
+    .sp-summary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
 @media (max-width: 900px) {
     .sp-hero {
         grid-template-columns: auto minmax(0, 1fr);
@@ -794,29 +910,94 @@
         grid-column: 1 / -1;
         justify-content: flex-start;
     }
+
+    .sp-detail-grid--four,
+    .sp-guardian-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .sp-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .sp-personal-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .sp-personal-card--wide {
+        grid-column: auto;
+    }
 }
 
 @media (max-width: 560px) {
+    .sp {
+        gap: 10px;
+    }
+
     .sp-hero {
-        grid-template-columns: 1fr;
-        text-align: left;
+        gap: 11px;
+        padding: 13px;
     }
 
     .sp-portrait {
-        width: 88px;
-        height: 108px;
+        width: 72px;
+        height: 88px;
     }
 
     .sp-identity__name {
         font-size: 19px;
     }
 
-    .sp-summary {
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    .sp-actions {
+        gap: 6px;
+    }
+
+    .sp-actions .sp-btn {
+        padding: 7px 9px;
+        font-size: 12px;
+    }
+
+    .sp-detail-grid--four,
+    .sp-detail-grid--two,
+    .sp-address-grid,
+    .sp-guardian-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .sp-card__head,
+    .sp-card__body {
+        padding-right: 12px;
+        padding-left: 12px;
+    }
+
+    .sp-related {
+        gap: 4px 6px;
+        padding: 7px;
+    }
+
+    .sp-related__label {
+        flex-basis: 100%;
     }
 
     .sp-docs {
         grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 380px) {
+    .sp-summary {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .sp-hero {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .sp-portrait {
+        width: 68px;
+        height: 82px;
     }
 }
 

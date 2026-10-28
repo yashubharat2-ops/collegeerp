@@ -35,7 +35,7 @@ class UploadRegistrationDocumentRequest extends FormRequest
             ],
             'title' => ['nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string', 'max:1000'],
-            'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:1024'],
         ];
     }
 
@@ -55,7 +55,7 @@ class UploadRegistrationDocumentRequest extends FormRequest
         return [
             'file.required' => 'Choose a file to attach.',
             'file.mimes' => 'Attach a PDF, JPG, JPEG or PNG file.',
-            'file.max' => 'The file may not be larger than 5 MB.',
+            'file.max' => 'The file may not be larger than 1 MB (1024 KB).',
             'document_type_id.exists' => 'Choose a document type that belongs to this college.',
         ];
     }

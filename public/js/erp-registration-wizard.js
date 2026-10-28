@@ -9,8 +9,8 @@
  *  3. guardian auto-fill from Father / Mother / Self, and normal editable fields
  *     for "Other";
  *  4. the repeating qualification table (add / remove) with a derived
- *     percentage that never overwrites a grade-based result, and the document
- *     picker that reveals one upload card per ticked document type;
+ *     percentage that never overwrites a grade-based result, plus independent
+ *     document declarations and a single optional file attachment form;
  *  5. image preview before upload;
  *  6. an idle auto-save of the current step as a DRAFT, plus a leave-page guard
  *     so nothing typed is lost silently.
@@ -712,17 +712,15 @@
     });
 
     /* ------------------------------------------------------------------
-     * 4b. Document picker — the checkbox grid reveals its upload card
+     * 4b. Document declarations
      *
-     * Selection is a UI filter only: the server decides what is required from
-     * the STORED files and the course configuration, so unticking a box can
-     * never make a mandatory document disappear from the submission check. A
-     * card that already holds a file is never hidden — deselecting must not
-     * look like it discarded the upload.
+     * A checked type is a declaration only. It never reveals or creates an
+     * upload form; all file attachments use the single optional form below.
+     * Drafts may be incomplete, while continuing requires at least one
+     * declaration and all course-mandated declarations.
      * ------------------------------------------------------------------ */
 
     var docToggles = Array.prototype.slice.call(wizard.querySelectorAll('[data-erp-doc-toggle]'));
-    var docEmpty = wizard.querySelector('[data-erp-doc-empty]');
     var docMissing = wizard.querySelector('[data-erp-doc-missing]');
     var docMissingNames = wizard.querySelector('[data-erp-doc-missing-names]');
     var docPicker = wizard.querySelector('[data-erp-doc-picker]');
@@ -737,61 +735,27 @@
         });
     }
 
+    function selectedToggles() {
+        return docToggles.filter(function (toggle) {
+            return toggle.checked;
+        });
+    }
+
     function toggleDeclarationState(toggle) {
         var id = toggle.getAttribute('data-erp-doc-toggle');
-        var chip = wizard.querySelector('[data-erp-doc-declared="' + id + '"]');
+        var option = wizard.querySelector('[data-erp-doc-option="' + id + '"]');
 
-        if (chip) {
-            if (toggle.checked) {
-                chip.removeAttribute('hidden');
-            } else {
-                chip.setAttribute('hidden', 'hidden');
-            }
+        if (option) {
+            option.classList.toggle('erp-doc-option--selected', toggle.checked);
         }
     }
 
-    function syncDocCards() {
-        var anySelected = false;
+    function syncDeclarations() {
+        docToggles.forEach(toggleDeclarationState);
 
-        docToggles.forEach(function (toggle) {
-            var id = toggle.getAttribute('data-erp-doc-toggle');
-            var card = wizard.querySelector('[data-erp-doc-card="' + id + '"]');
-            var selected = toggle.checked || toggle.disabled;
-
-            if (selected) {
-                anySelected = true;
-            }
-
-            toggleDeclarationState(toggle);
-
-            if (!card) {
-                return;
-            }
-
-            // An attached file keeps its card visible whatever the tick state,
-            // so un-selecting a type never looks like it deleted the upload.
-            var attached = card.getAttribute('data-erp-doc-attached') === 'true' ||
-                card.classList.contains('erp-doc-card--attached');
-
-            if (selected || attached) {
-                card.removeAttribute('hidden');
-            } else {
-                card.setAttribute('hidden', 'hidden');
-            }
-        });
-
-        if (docEmpty) {
-            docEmpty.hidden = anySelected || docToggles.length === 0;
-        }
-
-        // The "required, not selected yet" warning is informational until the
-        // applicant tries to continue; it is shown again on that attempt.
-        if (docMissing) {
+        if (docMissing && docMissing.hidden === false) {
             var missing = missingRequiredToggles();
-
-            if (missing.length === 0) {
-                docMissing.hidden = true;
-            } else if (docMissingNames && !docMissing.hidden) {
+            if (docMissingNames) {
                 docMissingNames.textContent = missing.map(function (toggle) {
                     return toggle.getAttribute('data-erp-doc-name') || toggle.value;
                 }).join(', ');
@@ -801,34 +765,24 @@
 
     docToggles.forEach(function (toggle) {
         toggle.addEventListener('change', function () {
-            syncDocCards();
-
-            // A declaration is data, so it is saved straight away. That way a file
-            // attached from one of the cards below cannot lose the ticks (the
-            // upload is its own POST and redirects back to this step).
+            syncDeclarations();
+            // Save selections immediately so a resume/upload round-trip retains them.
             persistDeclarations();
         });
     });
 
-    syncDocCards();
+    syncDeclarations();
 
-    /**
-     * Save the declaration list as a draft, without leaving the step.
-     *
-     * The step form's own submit does the same thing; this only makes the ticks
-     * survive an upload round-trip. A failure is silent by design: the explicit
-     * "Save draft" / "Continue to review" buttons remain authoritative.
-     */
+    /** Save the declaration list as a draft without leaving this step. */
     function persistDeclarations() {
         if (!declarationForm || !draftUrl || typeof window.FormData === 'undefined') {
-            return;
+            return Promise.resolve(false);
         }
 
         dirty = false;
-
         var body = new FormData(declarationForm);
 
-        window.fetch(draftUrl, {
+        return window.fetch(draftUrl, {
             method: 'POST',
             body: body,
             headers: {
@@ -838,48 +792,54 @@
             },
             credentials: 'same-origin'
         }).then(function (response) {
-            if (response.ok && state) {
+            if (!response.ok) {
+                throw new Error('Could not save document selections.');
+            }
+            if (state) {
                 state.textContent = 'Selection saved';
             }
+            return true;
         }).catch(function () {
-            // Best effort; the applicant can always use the buttons.
+            // An upload must not race ahead and leave the latest declarations unsaved.
+            if (state) {
+                state.textContent = 'Save selections before attaching a file';
+            }
+            return false;
         });
     }
 
-    /**
-     * "Continue to review" must not pass with a course-required type unselected.
-     *
-     * This is a convenience, not the rule: the server enforces the same thing
-     * (the step save and the submission both re-check the STORED declarations),
-     * so a browser with this file blocked is still correct — just less friendly.
-     */
     if (declarationForm) {
         declarationForm.addEventListener('submit', function (event) {
             var submitter = event.submitter;
 
-            // "Save draft" may always go through: a draft is allowed to be
-            // incomplete.
+            // Save Draft is intentionally allowed to be incomplete.
             if (submitter && submitter.hasAttribute('data-erp-save-draft')) {
                 return;
             }
 
+            var selected = selectedToggles();
             var missing = missingRequiredToggles();
 
-            if (missing.length === 0) {
+            if (selected.length > 0 && missing.length === 0) {
                 return;
             }
 
             event.preventDefault();
 
             if (docMissing) {
+                var message = selected.length === 0
+                    ? 'Select at least one document declaration before continuing.'
+                    : 'Select the documents required for this course before continuing.';
+                var strong = docMissing.querySelector('strong');
+                if (strong) {
+                    strong.textContent = message;
+                }
                 if (docMissingNames) {
                     docMissingNames.textContent = missing.map(function (toggle) {
                         return toggle.getAttribute('data-erp-doc-name') || toggle.value;
                     }).join(', ');
                 }
-
                 docMissing.hidden = false;
-
                 if (typeof docMissing.scrollIntoView === 'function') {
                     docMissing.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
@@ -888,48 +848,84 @@
             if (docPicker && typeof docPicker.scrollIntoView === 'function') {
                 docPicker.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
-
-            try {
+            if (selected.length === 0 && docToggles[0]) {
+                docToggles[0].focus();
+            } else if (missing[0]) {
                 missing[0].focus();
-            } catch (error) {
-                // Focus is a nicety; the message is what matters.
             }
         });
     }
 
     /* ------------------------------------------------------------------
-     * 4c. "+ Attach a document" row — an empty form never submits
+     * 4c. Single optional attachment form
      *
-     * The row is one collapsed optional form. It is not required to be filled,
-     * but a submitted row must carry a file: the server refuses one without a
-     * file, and this stops the round-trip.
+     * Attachments are optional to registration. If the applicant chooses to
+     * submit this separate upload form, it must contain a valid file; the
+     * server repeats the type and size checks.
      * ------------------------------------------------------------------ */
 
     Array.prototype.forEach.call(wizard.querySelectorAll('[data-erp-doc-attach-form]'), function (form) {
+        var fileInput = form.querySelector('[data-erp-registration-document-file]');
+        var submitButton = form.querySelector('[data-erp-registration-document-submit]');
+        var hint = form.querySelector('[data-erp-registration-document-hint]');
+        var error = form.querySelector('[data-erp-registration-document-error]');
+        var maxBytes = 1024 * 1024;
+        var extensions = /\.(pdf|jpe?g|png)$/i;
+
+        function updateAttachControl(showMissingError) {
+            var file = fileInput && fileInput.files && fileInput.files[0];
+            var message = '';
+
+            if (!file) {
+                message = showMissingError ? 'Choose a file to attach.' : '';
+            } else if (!extensions.test(file.name)) {
+                message = 'Choose a PDF, JPG, JPEG or PNG file.';
+            } else if (file.size > maxBytes) {
+                message = 'The file must be no larger than 1 MB (1024 KB).';
+            }
+
+            var valid = !!file && message === '';
+            if (submitButton) {
+                submitButton.disabled = !valid;
+            }
+            if (hint) {
+                hint.hidden = valid;
+            }
+            if (error) {
+                error.textContent = message;
+                error.hidden = message === '';
+            }
+            return valid;
+        }
+
+        if (fileInput) {
+            // Keep the form usable without JavaScript; once enhanced, disable
+            // Attach until the optional file is valid.
+            updateAttachControl(false);
+            fileInput.addEventListener('change', function () {
+                updateAttachControl(false);
+            });
+        }
+
         form.addEventListener('submit', function (event) {
-            var fileInput = form.querySelector('input[name="file"][type="file"]');
-            var message = form.querySelector('[data-erp-doc-attach-error]');
-
-            if (!fileInput || (fileInput.files && fileInput.files.length > 0)) {
+            if (!updateAttachControl(true)) {
+                event.preventDefault();
+                if (fileInput) {
+                    fileInput.focus();
+                }
                 return;
             }
 
-            if (fileInput.required) {
-                // The browser's own validation already blocks this and points at
-                // the field; nothing to add.
-                return;
-            }
-
-            event.preventDefault();
-
-            if (message) {
-                message.hidden = false;
-            }
-
-            try {
-                fileInput.focus();
-            } catch (error) {
-                // ignore
+            // Persist declarations before the separate upload POST so a quick
+            // upload cannot outrun the draft save.
+            if (declarationForm && form.getAttribute('data-erp-doc-submit-ready') !== 'true') {
+                event.preventDefault();
+                persistDeclarations().then(function (saved) {
+                    if (saved) {
+                        form.setAttribute('data-erp-doc-submit-ready', 'true');
+                        form.submit();
+                    }
+                });
             }
         });
     });
