@@ -110,6 +110,7 @@
 
             <div class="sp-badges">
                 <span class="{{ $badge($registrationState) }}">Registration: {{ $student->registrationStatusLabel() }}</span>
+                <span class="{{ $badge($student->status === 'active' ? 'ok' : 'muted') }}">Student status: {{ ucfirst($student->status) }}</span>
                 <span class="{{ $badge($enrollmentStatusState) }}">
                     Enrollment:
                     @if($currentEnrollment)
@@ -120,16 +121,15 @@
                         Not currently enrolled
                     @endif
                 </span>
-                <span class="{{ $badge($student->status === 'active' ? 'ok' : 'muted') }}">Student status: {{ ucfirst($student->status) }}</span>
             </div>
         </div>
 
         <div class="sp-actions no-print">
             @can('update', $student)
-                <a class="sp-btn" href="{{ route('students.edit', $student) }}">Edit student</a>
+                <a class="sp-btn" href="{{ route('students.edit', $student) }}">Edit Student</a>
             @endcan
             @can('viewAny', App\Models\StudentDocument::class)
-                <a class="sp-btn sp-btn--ghost" href="{{ route('student-documents.index', ['student_id' => $student->id]) }}">Manage documents</a>
+                <a class="sp-btn sp-btn--ghost" href="{{ route('student-documents.index', ['student_id' => $student->id]) }}">Manage Documents</a>
             @endcan
             <button class="sp-btn sp-btn--quiet" type="button" data-print-now>Print</button>
         </div>
@@ -142,7 +142,7 @@
         @foreach($profile['summary'] as $card)
             <div class="sp-summary__item sp-summary__item--{{ $card['state'] }}">
                 <p class="sp-summary__label">{{ $card['label'] }}</p>
-                <p class="sp-summary__value @if($card['state'] === 'muted') sp-summary__value--muted @endif">{{ $card['value'] }}</p>
+                <p class="sp-summary__value @if($card['state'] === 'muted' || in_array($card['value'], ['Not set', 'Not assigned'], true)) sp-summary__value--muted @endif">{{ $card['value'] }}</p>
             </div>
         @endforeach
     </section>
@@ -233,13 +233,13 @@
                 <div class="sp-card__body">
                     <div class="sp-address-grid">
                         <div class="sp-address">
-                            <h4 class="sp-subhead">Permanent</h4>
+                            <h4 class="sp-subhead">Permanent address</h4>
                             <p class="sp-address__value @if($profile['addresses']['permanent'] === null) sp-fact__value--empty @endif">
                                 {{ $profile['addresses']['permanent'] ?? 'Not recorded' }}
                             </p>
                         </div>
                         <div class="sp-address">
-                            <h4 class="sp-subhead">Correspondence</h4>
+                            <h4 class="sp-subhead">Correspondence address</h4>
                             <p class="sp-address__value @if($profile['addresses']['correspondence'] === null) sp-fact__value--empty @endif">
                                 {{ $profile['addresses']['correspondence'] ?? 'Not recorded' }}
                             </p>
