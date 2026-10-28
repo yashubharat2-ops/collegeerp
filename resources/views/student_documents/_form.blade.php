@@ -1,9 +1,11 @@
 @csrf
-<div class="mt-6 rounded-lg border border-slate-200 p-4">
-    <h3 class="font-semibold">Document</h3>
-    <p class="mt-1 text-xs text-slate-500">Files are stored on a private disk under a server-generated name and path. The stored location is never taken from the browser.</p>
+<div class="{{ isset($document) ? 'mt-6 rounded-lg border border-slate-200 p-4' : 'sd-upload__form' }}">
+    @isset($document)
+        <h3 class="font-semibold">Document</h3>
+        <p class="mt-1 text-xs text-slate-500">Files are stored on a private disk under a server-generated name and path. The stored location is never taken from the browser.</p>
+    @endisset
 
-    <div class="mt-4 grid gap-5 md:grid-cols-2">
+    <div class="{{ isset($document) ? 'mt-4 grid gap-5 md:grid-cols-2' : 'sd-upload__grid' }}">
         @if(!isset($document))
             <div>
                 <label class="label" for="student_id">Student *</label>
@@ -42,6 +44,7 @@
             <p class="mt-1 text-xs text-slate-500">Types come from the shared document-type master data; selecting one applies its allowed formats and size limit.</p>
         </div>
 
+        @isset($document)
         <div>
             <label class="label" for="issue_date">Issue date</label>
             <input class="input" type="date" id="issue_date" name="issue_date" value="{{ old('issue_date', isset($document) ? $document->issue_date?->format('Y-m-d') : '') }}">
@@ -54,22 +57,24 @@
             <p class="mt-1 text-xs text-rose-600">@error('expiry_date'){{ $message }}@enderror</p>
         </div>
 
-        <div class="md:col-span-2">
+        @endisset
+
+        <div class="{{ isset($document) ? 'md:col-span-2' : 'sd-upload__file' }}">
             <label class="label" for="file">File {{ isset($document) ? '(leave empty to keep the current file)' : '*' }}</label>
             <input class="input" type="file" id="file" name="file" accept=".pdf,.jpg,.jpeg,.png" {{ isset($document) ? '' : 'required' }}>
             <p class="mt-1 text-xs text-rose-600">@error('file'){{ $message }}@enderror</p>
-            <p class="mt-1 text-xs text-slate-500">PDF, JPG or PNG only, maximum 5 MB. Uploading a replacement resets verification to pending.</p>
+            <p class="mt-1 text-xs text-slate-500">PDF, JPG or PNG only, maximum 5 MB.@isset($document) Uploading a replacement resets verification to pending.@endisset</p>
         </div>
 
-        <div class="md:col-span-2">
+        <div class="{{ isset($document) ? 'md:col-span-2' : 'sd-upload__wide' }}">
             <label class="label" for="remarks">Remarks</label>
             <textarea class="input" id="remarks" name="remarks" rows="2" maxlength="2000">{{ old('remarks', $document->remarks ?? '') }}</textarea>
             <p class="mt-1 text-xs text-rose-600">@error('remarks'){{ $message }}@enderror</p>
         </div>
 
-        <div class="md:col-span-2 flex gap-2">
+        <div class="{{ isset($document) ? 'md:col-span-2 flex gap-2' : 'sd-upload__actions sd-upload__wide' }}">
             <button class="button" type="submit">{{ $submitLabel }}</button>
-            <a class="button !bg-slate-200 !text-slate-700" href="{{ route('student-documents.index') }}">Cancel</a>
+            <a class="button {{ isset($document) ? '!bg-slate-200 !text-slate-700' : 'sd-upload__cancel' }}" href="{{ route('student-documents.index') }}">Cancel</a>
         </div>
     </div>
 </div>
