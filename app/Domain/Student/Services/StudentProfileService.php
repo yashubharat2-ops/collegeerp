@@ -133,12 +133,12 @@ class StudentProfileService
         };
 
         return [
-            ['label' => 'Registration', 'value' => $student->registrationStatusLabel(), 'state' => $registrationState],
+            ['label' => 'Registration Status', 'value' => $student->registrationStatusLabel(), 'state' => $registrationState],
             [
                 'label' => 'Enrollment status',
                 'value' => $current !== null
                     ? $current->statusLabel()
-                    : ($enrollmentState === 'pending' ? 'Pending approval' : 'No active enrollment'),
+                    : ($enrollmentState === 'pending' ? 'Pending approval' : 'Not currently enrolled'),
                 'state' => $enrollmentState,
             ],
             ['label' => 'Academic year', 'value' => $current?->academicYear?->name ?? 'Not set', 'state' => $current ? 'ok' : 'muted'],

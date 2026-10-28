@@ -117,7 +117,7 @@
                     @elseif($enrollmentStatusState === 'pending')
                         pending approval
                     @else
-                        No active enrollment
+                        Not currently enrolled
                     @endif
                 </span>
                 <span class="{{ $badge($student->status === 'active' ? 'ok' : 'muted') }}">Student status: {{ ucfirst($student->status) }}</span>
@@ -159,7 +159,7 @@
     </nav>
 
     <nav class="sp-related no-print" aria-label="Student lifecycle modules">
-        <span class="sp-related__label">Records &amp; lifecycle:</span>
+        <span class="sp-related__label">Records &amp; Lifecycle</span>
         @foreach($relatedTabs as $key => $label)
             <a class="sp-related__link"
                href="{{ route('students.show', ['student' => $student, 'tab' => $key]) }}"
@@ -171,70 +171,30 @@
        * 1. PERSONAL INFORMATION — the default profile section.
        * ================================================================== --}}
     @if($tab === 'personal')
-        <div class="sp-stack">
-            <section class="sp-card">
+        <div class="sp-personal-grid">
+            <section class="sp-card sp-personal-card--wide">
                 <header class="sp-card__head">
                     <div>
-                        <h3 class="sp-card__title">Identity</h3>
-                        <p class="sp-card__hint">As saved by the registration wizard. An optional field left blank stays blank — nothing is inferred or filled in.</p>
+                        <h3 class="sp-card__title">Personal details</h3>
+                        <p class="sp-card__hint">Personal information as saved on the student record.</p>
                     </div>
                 </header>
                 <div class="sp-card__body">
-                    <div class="sp-grid">
-                        <div class="sp-facts">
-                            <h4 class="sp-subhead">Personal</h4>
-                            @foreach([
-                                $fact('Full name', $student->fullName()),
-                                $fact('Date of birth', $student->date_of_birth?->format('d M Y')),
-                                $fact('Gender', $student->gender ? ucfirst(str_replace('_', ' ', $student->gender)) : null),
-                                $fact('Blood group', $student->blood_group === 'unknown' ? null : $student->blood_group),
-                                $fact('Nationality', $student->nationality),
-                                $fact('Mother tongue', $student->mother_tongue),
-                                $fact('Category', $student->category ? App\Models\Student::categoryLabel($student->category) : null),
-                            ] as [$label, $value, $empty, $note])
-                                <div class="sp-fact">
-                                    <p class="sp-fact__label">{{ $label }}</p>
-                                    <p class="sp-fact__value @if($empty) sp-fact__value--empty @endif">{{ $value }}</p>
-                                </div>
-                            @endforeach
-                        </div>
-
-                        <div class="sp-facts">
-                            <h4 class="sp-subhead">Contact</h4>
-                            @foreach([
-                                $fact('Email address', $student->email),
-                                $fact('Mobile number', $student->phone),
-                                $fact('Alternate phone', $student->alternate_phone),
-                                $fact('Emergency contact', collect([$student->emergency_contact_name, $student->emergency_contact_phone])->filter()->implode(' · ')),
-                            ] as [$label, $value, $empty, $note])
-                                <div class="sp-fact">
-                                    <p class="sp-fact__label">{{ $label }}</p>
-                                    <p class="sp-fact__value @if($empty) sp-fact__value--empty @endif">{{ $value }}</p>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-
-                    <div class="sp-grid" style="margin-top:16px">
-                        <div class="sp-facts">
-                            <h4 class="sp-subhead">Permanent address</h4>
+                    <div class="sp-detail-grid sp-detail-grid--four">
+                        @foreach([
+                            $fact('Full name', $student->fullName()),
+                            $fact('Date of birth', $student->date_of_birth?->format('d M Y')),
+                            $fact('Gender', $student->gender ? ucfirst(str_replace('_', ' ', $student->gender)) : null),
+                            $fact('Blood group', $student->blood_group === 'unknown' ? null : $student->blood_group),
+                            $fact('Nationality', $student->nationality),
+                            $fact('Mother tongue', $student->mother_tongue),
+                            $fact('Category', $student->category ? App\Models\Student::categoryLabel($student->category) : null),
+                        ] as [$label, $value, $empty, $note])
                             <div class="sp-fact">
-                                <p class="sp-fact__value @if($profile['addresses']['permanent'] === null) sp-fact__value--empty @endif">
-                                    {{ $profile['addresses']['permanent'] ?? 'Not recorded' }}
-                                </p>
+                                <p class="sp-fact__label">{{ $label }}</p>
+                                <p class="sp-fact__value @if($empty) sp-fact__value--empty @endif">{{ $value }}</p>
                             </div>
-                        </div>
-                        <div class="sp-facts">
-                            <h4 class="sp-subhead">Correspondence address</h4>
-                            <div class="sp-fact">
-                                <p class="sp-fact__value @if($profile['addresses']['correspondence'] === null) sp-fact__value--empty @endif">
-                                    {{ $profile['addresses']['correspondence'] ?? 'Not recorded' }}
-                                </p>
-                                @if($profile['addresses']['sameAsPermanent'])
-                                    <p class="sp-fact__note">Same as the permanent address.</p>
-                                @endif
-                            </div>
-                        </div>
+                        @endforeach
                     </div>
                 </div>
             </section>
@@ -242,12 +202,64 @@
             <section class="sp-card">
                 <header class="sp-card__head">
                     <div>
-                        <h3 class="sp-card__title">Parent &amp; guardian</h3>
-                        <p class="sp-card__hint">The people the institute contacts. A derived guardian (father / mother / self) mirrors the person it was filled from.</p>
+                        <h3 class="sp-card__title">Contact information</h3>
+                        <p class="sp-card__hint">Student and emergency contact details.</p>
                     </div>
                 </header>
                 <div class="sp-card__body">
-                    <div class="sp-grid">
+                    <div class="sp-detail-grid sp-detail-grid--two">
+                        @foreach([
+                            $fact('Email address', $student->email),
+                            $fact('Mobile number', $student->phone),
+                            $fact('Alternate phone', $student->alternate_phone),
+                            $fact('Emergency contact', collect([$student->emergency_contact_name, $student->emergency_contact_phone])->filter()->implode(' · ')),
+                        ] as [$label, $value, $empty, $note])
+                            <div class="sp-fact">
+                                <p class="sp-fact__label">{{ $label }}</p>
+                                <p class="sp-fact__value @if($empty) sp-fact__value--empty @endif">{{ $value }}</p>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </section>
+
+            <section class="sp-card">
+                <header class="sp-card__head">
+                    <div>
+                        <h3 class="sp-card__title">Address</h3>
+                        <p class="sp-card__hint">Permanent and correspondence addresses.</p>
+                    </div>
+                </header>
+                <div class="sp-card__body">
+                    <div class="sp-address-grid">
+                        <div class="sp-address">
+                            <h4 class="sp-subhead">Permanent</h4>
+                            <p class="sp-address__value @if($profile['addresses']['permanent'] === null) sp-fact__value--empty @endif">
+                                {{ $profile['addresses']['permanent'] ?? 'Not recorded' }}
+                            </p>
+                        </div>
+                        <div class="sp-address">
+                            <h4 class="sp-subhead">Correspondence</h4>
+                            <p class="sp-address__value @if($profile['addresses']['correspondence'] === null) sp-fact__value--empty @endif">
+                                {{ $profile['addresses']['correspondence'] ?? 'Not recorded' }}
+                            </p>
+                            @if($profile['addresses']['sameAsPermanent'])
+                                <p class="sp-fact__note">Same as the permanent address.</p>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="sp-card sp-personal-card--wide">
+                <header class="sp-card__head">
+                    <div>
+                        <h3 class="sp-card__title">Parent &amp; guardian</h3>
+                        <p class="sp-card__hint">Contact and relationship details saved on the student record.</p>
+                    </div>
+                </header>
+                <div class="sp-card__body">
+                    <div class="sp-guardian-grid">
                         <div class="sp-facts">
                             <h4 class="sp-subhead">Father</h4>
                             @foreach([
@@ -300,13 +312,11 @@
                 <header class="sp-card__head">
                     <div>
                         <h3 class="sp-card__title">Identity &amp; government IDs</h3>
-                        <p class="sp-card__hint">
-                            Stored encrypted; only the last four characters are ever rendered, and they are never exported.
-                        </p>
+                        <p class="sp-card__hint">Aadhaar and government ID numbers use the existing masked display. APAAR / ABC ID follows its existing display treatment.</p>
                     </div>
                 </header>
                 <div class="sp-card__body">
-                    <div class="sp-grid">
+                    <div class="sp-detail-grid sp-detail-grid--two">
                         @foreach([
                             $fact('Aadhaar', $student->maskedAadhaar()),
                             $fact('APAAR / ABC ID', $student->apaar_id),
@@ -324,12 +334,12 @@
             <section class="sp-card">
                 <header class="sp-card__head">
                     <div>
-                        <h3 class="sp-card__title">Previous school &amp; office remarks</h3>
-                        <p class="sp-card__hint">The snapshot captured at registration. Full qualification rows live on the Qualifications tab.</p>
+                        <h3 class="sp-card__title">Previous school / education snapshot</h3>
+                        <p class="sp-card__hint">Registration snapshot; complete qualification rows are on the Qualifications tab.</p>
                     </div>
                 </header>
                 <div class="sp-card__body">
-                    <div class="sp-grid">
+                    <div class="sp-detail-grid sp-detail-grid--two">
                         @foreach([
                             $fact('Previous qualification', $student->previous_qualification),
                             $fact('Previous board / university', $student->previous_school_board),
@@ -348,9 +358,6 @@
             </section>
         </div>
 
-    {{-- =====================================================================
-       * 3. ACADEMIC INFORMATION
-       * ================================================================== --}}
     @elseif($tab === 'academic')
         <div class="sp-stack">
             <section class="sp-card">
