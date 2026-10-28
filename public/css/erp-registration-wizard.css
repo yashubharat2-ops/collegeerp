@@ -161,6 +161,24 @@
 .erp-wizard__card .erp-input,
 .erp-wizard__card select.erp-input { height: 32px; font-size: 13px; }
 
+.erp-wizard__card .erp-academic-category-value {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    height: 32px;
+    margin: 0;
+    padding: 0 10px;
+    overflow: hidden;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #f1f5f9;
+    color: #334155;
+    font-size: 13px;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .erp-wizard__card textarea.erp-input { height: auto; }
 
 /* A section that is not a .erp-card (address blocks): same compact rhythm. */

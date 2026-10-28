@@ -186,12 +186,7 @@
                 {{-- 6. Admission category --------------------------------------- --}}
                 <div class="erp-field erp-col-3">
                     <span class="erp-label">Admission category</span>
-                    <p class="erp-basic">{{ $admissionCategory }}</p>
-                    <p class="erp-help">
-                        Captured on
-                        <a href="{{ route('students.registration.step', ['step' => 1]) }}">Step 1</a>
-                        so there is only one copy of it.
-                    </p>
+                    <p class="erp-academic-category-value">{{ $admissionCategory }}</p>
                 </div>
             </div>
         </div>
