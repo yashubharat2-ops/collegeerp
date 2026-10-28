@@ -448,7 +448,7 @@ class StudentController extends Controller
 
         return view('students.show', [
             'student' => $model,
-            'tab' => $request->input('tab', 'profile'),
+            'tab' => $request->input('tab', 'personal'),
             // Derived, chronological lifecycle timeline (see StudentHistoryService).
             'historyEvents' => $history->forStudent($model),
             // Everything the profile renders, resolved ONCE (current vs

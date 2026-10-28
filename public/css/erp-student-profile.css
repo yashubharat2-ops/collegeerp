@@ -307,6 +307,38 @@
     text-decoration: none;
 }
 
+/* The general `.sp a` rules are more specific than `.sp-btn` and otherwise
+   replace a blue link-button's white label with the primary blue link color.
+   Keep each anchor-button variant's foreground and hover treatment explicit. */
+.sp a.sp-btn,
+.sp a.sp-btn:hover,
+.sp a.sp-btn:focus-visible {
+    color: #fff;
+    text-decoration: none;
+}
+
+.sp a.sp-btn--ghost,
+.sp a.sp-btn--ghost:hover,
+.sp a.sp-btn--ghost:focus-visible {
+    color: var(--sp-primary);
+}
+
+.sp a.sp-btn--ghost:hover,
+.sp a.sp-btn--ghost:focus-visible {
+    color: var(--sp-primary-hover);
+}
+
+.sp a.sp-btn--quiet,
+.sp a.sp-btn--quiet:hover,
+.sp a.sp-btn--quiet:focus-visible {
+    color: #334155;
+}
+
+.sp a.sp-btn--quiet:hover,
+.sp a.sp-btn--quiet:focus-visible {
+    color: var(--sp-navy);
+}
+
 /* -----------------------------------------------------------------------------
  * 2 · Summary cards
  * -------------------------------------------------------------------------- */

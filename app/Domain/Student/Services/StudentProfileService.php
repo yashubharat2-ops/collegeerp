@@ -123,7 +123,7 @@ class StudentProfileService
             $student->isRegistrationApproved() => 'ok',
             $student->isRegistrationPending() => 'pending',
             $student->isRegistrationRejected() => 'danger',
-            default => 'ok',
+            default => 'muted',
         };
 
         $enrollmentState = match (true) {
