@@ -24,8 +24,8 @@ use Illuminate\Validation\ValidationException;
  * - the extension is reduced to [a-z0-9] and checked against the document
  *   type's configuration (falling back to the safe default set) and against the
  *   module's blocked-extension list;
- * - size is capped by the type configuration, and content types that indicate
- *   script/executable payloads are refused outright.
+ * - size is capped by the lower of the type configuration and the registration
+ *   attachment ceiling (1 MB), and executable content types are refused.
  *
  * On submission {@see RegistrationSubmissionService} ADOPTS these rows into
  * `student_documents` (the same blob, the same architecture) instead of
@@ -33,7 +33,7 @@ use Illuminate\Validation\ValidationException;
  */
 class RegistrationDocumentStagingService
 {
-    public const DEFAULT_MAX_KB = StudentDocumentService::DEFAULT_MAX_SIZE_KB;
+    public const DEFAULT_MAX_KB = 1024;
 
     public function __construct(
         private readonly SecureFileService $files,
@@ -257,7 +257,11 @@ class RegistrationDocumentStagingService
     /** Size / extension / content-type limits from the document type config. */
     private function assertAcceptableFile(UploadedFile $file, ?AdmissionDocumentType $type): void
     {
-        $maxKb = $type?->max_size_kb ?: self::DEFAULT_MAX_KB;
+        // Registration attachments have a hard 1 MB ceiling, even when a
+        // document type is configured with a larger limit. Lower type limits
+        // remain in force.
+        $configuredMaxKb = (int) ($type?->max_size_kb ?: self::DEFAULT_MAX_KB);
+        $maxKb = min($configuredMaxKb, self::DEFAULT_MAX_KB);
 
         if ((int) $file->getSize() > $maxKb * 1024) {
             throw ValidationException::withMessages([

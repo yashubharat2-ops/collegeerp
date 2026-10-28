@@ -35,22 +35,13 @@
     $oldDeclared = old('declared_documents');
     $declaredList = is_array($oldDeclared) ? array_values(array_map('intval', $oldDeclared)) : $storedDeclared;
 
-    // Files are grouped by type to show their independent status beside each
-    // declaration. Untyped files are also listed in the attached-files table.
-    $filesByType = $documents->groupBy(fn ($document) => (int) $document->document_type_id);
+    // Untyped files are also listed in the attached-files table.
     $untypedFiles = $documents->filter(fn ($document) => $document->document_type_id === null)->values();
 
     $requiredRows = $requirements->filter(fn ($row) => $row['is_required'] && ! $row['can_submit_later']);
     $requiredNames = $requiredRows->map(fn ($row) => $row['type']->name)->values();
     $missingRequired = $requiredRows->reject(fn ($row) => in_array((int) $row['type']->id, $declaredList, true))->values();
 
-    $statusText = function ($files): string {
-        if ($files->contains(fn ($document) => ($document->verification_status ?? 'pending') === 'verified')) {
-            return 'Verified';
-        }
-
-        return $files->isNotEmpty() ? 'File attached — awaiting verification' : 'No file attached';
-    };
 @endphp
 
 {{-- --- A. Declarations ---------------------------------------------------- --}}
@@ -62,7 +53,7 @@
     <section class="erp-card erp-wizard__card" aria-labelledby="wz-docs-pick">
         <header class="erp-card__head">
             <div>
-                <h3 class="erp-card__title" id="wz-docs-pick">1. Select the documents you have</h3>
+                <h3 class="erp-card__title" id="wz-docs-pick">Documents submitted</h3>
                 <p class="erp-card__desc">
                     @if($programName)
                         Documents for {{ $programName }}. Attaching the files is optional and can be done now or later —
@@ -95,36 +86,23 @@
                         @php
                             $typeId = (int) $row['type']->id;
                             $isRequired = $row['is_required'] && ! $row['can_submit_later'];
-                            $typeFiles = $filesByType->get($typeId, collect());
+
                         @endphp
                         <li>
-                            <label class="erp-doc-option {{ $isRequired ? 'erp-doc-option--required' : '' }}"
+                            <label class="erp-doc-option {{ $isRequired ? 'erp-doc-option--required' : '' }} {{ in_array($typeId, $declaredList, true) ? 'erp-doc-option--selected' : '' }}"
                                    for="doc-type-{{ $typeId }}" data-erp-doc-option="{{ $typeId }}">
                                 <input type="checkbox" id="doc-type-{{ $typeId }}"
                                        name="declared_documents[]" value="{{ $typeId }}"
                                        data-erp-doc-toggle="{{ $typeId }}"
                                        data-erp-doc-name="{{ $row['type']->name }}"
                                        @if($isRequired) data-erp-doc-required="true" @endif
-                                       aria-describedby="doc-state-{{ $typeId }}"
                                        @checked(in_array($typeId, $declaredList, true))>
-
                                 <span class="erp-doc-option__label">{{ $row['type']->name }}</span>
-
                                 @if($isRequired)
                                     <span class="erp-chip erp-chip--required">Required</span>
                                 @elseif($row['is_required'])
                                     <span class="erp-chip erp-chip--deferred">May be submitted later</span>
-                                @else
-                                    <span class="erp-chip erp-chip--optional">Optional</span>
                                 @endif
-
-                                <span class="erp-chip erp-chip--declared"
-                                      data-erp-doc-declared="{{ $typeId }}"
-                                      @if(! in_array($typeId, $declaredList, true)) hidden @endif>Selected</span>
-
-                                <span class="erp-doc-option__state" id="doc-state-{{ $typeId }}">
-                                    {{ $statusText($typeFiles) }}
-                                </span>
                             </label>
                         </li>
                     @endforeach
@@ -154,11 +132,11 @@
 <section class="erp-card erp-wizard__card" aria-labelledby="wz-docs-attach">
     <header class="erp-card__head">
         <div>
-            <h3 class="erp-card__title" id="wz-docs-attach">2. Attach a document (optional)</h3>
+            <h3 class="erp-card__title" id="wz-docs-attach">Attach documents (optional)</h3>
             <p class="erp-card__desc">
                 Declarations above do not upload files. Choose a type here only if you want to attach a file now;
                 you can continue without uploading anything and add documents later from the student's Documents tab.
-                PDF, JPG, JPEG or PNG · up to 5 MB.
+                PDF, JPG, JPEG or PNG · maximum 1 MB per file. Choose a file to enable the Attach button.
             </p>
         </div>
     </header>
@@ -194,13 +172,18 @@
                 </div>
 
                 <div class="erp-field">
-                    <label class="erp-label" for="document_file">File <span class="erp-req">*</span></label>
-                    <input class="erp-input" id="document_file" name="file" type="file" required
-                           accept="application/pdf,image/jpeg,image/png">
+                    <label class="erp-label" for="document_file">File (optional)</label>
+                    <input class="erp-input" id="document_file" name="file" type="file"
+                           accept="application/pdf,image/jpeg,image/png"
+                           data-erp-registration-document-file>
+                    <p class="erp-help" data-erp-registration-document-hint>
+                        Select a PDF, JPG, JPEG or PNG file up to 1 MB to enable attachment.
+                    </p>
+                    <p class="erp-error" data-erp-registration-document-error hidden role="alert"></p>
                 </div>
 
                 <div class="erp-field">
-                    <button class="erp-btn erp-btn--sm" type="submit">Attach</button>
+                    <button class="erp-btn erp-btn--sm" type="submit" data-erp-registration-document-submit>Attach</button>
                 </div>
 
                 <p class="erp-error" data-erp-doc-attach-error hidden role="alert">

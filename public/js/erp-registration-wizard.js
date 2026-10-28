@@ -743,10 +743,10 @@
 
     function toggleDeclarationState(toggle) {
         var id = toggle.getAttribute('data-erp-doc-toggle');
-        var chip = wizard.querySelector('[data-erp-doc-declared="' + id + '"]');
+        var option = wizard.querySelector('[data-erp-doc-option="' + id + '"]');
 
-        if (chip) {
-            chip.hidden = !toggle.checked;
+        if (option) {
+            option.classList.toggle('erp-doc-option--selected', toggle.checked);
         }
     }
 
@@ -857,36 +857,67 @@
     }
 
     /* ------------------------------------------------------------------
-     * 4c. "+ Attach a document" row — an empty form never submits
+     * 4c. Single optional attachment form
      *
-     * The row is one collapsed optional form. It is not required to be filled,
-     * but a submitted row must carry a file: the server refuses one without a
-     * file, and this stops the round-trip.
+     * Attachments are optional to registration. If the applicant chooses to
+     * submit this separate upload form, it must contain a valid file; the
+     * server repeats the type and size checks.
      * ------------------------------------------------------------------ */
 
     Array.prototype.forEach.call(wizard.querySelectorAll('[data-erp-doc-attach-form]'), function (form) {
-        form.addEventListener('submit', function (event) {
-            var fileInput = form.querySelector('input[name="file"][type="file"]');
-            var message = form.querySelector('[data-erp-doc-attach-error]');
+        var fileInput = form.querySelector('[data-erp-registration-document-file]');
+        var submitButton = form.querySelector('[data-erp-registration-document-submit]');
+        var hint = form.querySelector('[data-erp-registration-document-hint]');
+        var error = form.querySelector('[data-erp-registration-document-error]');
+        var maxBytes = 1024 * 1024;
+        var extensions = /\.(pdf|jpe?g|png)$/i;
 
-            if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-                // The browser's required-file validation normally blocks this;
-                // retain an inline message for browsers that do not.
-                if (fileInput && fileInput.required) {
-                    return;
-                }
+        function updateAttachControl(showMissingError) {
+            var file = fileInput && fileInput.files && fileInput.files[0];
+            var message = '';
+
+            if (!file) {
+                message = showMissingError ? 'Choose a file to attach.' : '';
+            } else if (!extensions.test(file.name)) {
+                message = 'Choose a PDF, JPG, JPEG or PNG file.';
+            } else if (file.size > maxBytes) {
+                message = 'The file must be no larger than 1 MB (1024 KB).';
+            }
+
+            var valid = !!file && message === '';
+            if (submitButton) {
+                submitButton.disabled = !valid;
+            }
+            if (hint) {
+                hint.hidden = valid;
+            }
+            if (error) {
+                error.textContent = message;
+                error.hidden = message === '';
+            }
+            return valid;
+        }
+
+        if (fileInput) {
+            // Keep the form usable without JavaScript; once enhanced, disable
+            // Attach until the optional file is valid.
+            updateAttachControl(false);
+            fileInput.addEventListener('change', function () {
+                updateAttachControl(false);
+            });
+        }
+
+        form.addEventListener('submit', function (event) {
+            if (!updateAttachControl(true)) {
                 event.preventDefault();
-                if (message) {
-                    message.hidden = false;
-                }
                 if (fileInput) {
                     fileInput.focus();
                 }
                 return;
             }
 
-            // The declarations live in a separate form. Persist them before the
-            // attachment POST so a quick upload cannot outrun the draft save.
+            // Persist declarations before the separate upload POST so a quick
+            // upload cannot outrun the draft save.
             if (declarationForm && form.getAttribute('data-erp-doc-submit-ready') !== 'true') {
                 event.preventDefault();
                 persistDeclarations().then(function (saved) {
